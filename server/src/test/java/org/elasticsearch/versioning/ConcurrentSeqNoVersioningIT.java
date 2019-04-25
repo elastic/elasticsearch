@@ -675,7 +675,7 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
             }
             output.close();
             return Base64.getEncoder().encodeToString(BytesReference.toBytes(output.bytes()));
-        } catch (IOException | ClassCastException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
@@ -789,4 +789,3 @@ public class ConcurrentSeqNoVersioningIT extends AbstractDisruptionTestCase {
         return futureVersion;
     }
  }
-

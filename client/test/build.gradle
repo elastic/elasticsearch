@@ -27,7 +27,7 @@ dependencies {
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  compile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 forbiddenApisMain {

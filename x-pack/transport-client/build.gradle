@@ -12,7 +12,7 @@ dependencies {
     compile "org.elasticsearch.client:transport:${version}"
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 dependencyLicenses.enabled = false

@@ -439,8 +439,10 @@ public class SSLDriver implements AutoCloseable {
                 // If the engine is partially closed, immediate transition to close mode.
                 if (currentMode.isHandshake()) {
                     currentMode = new CloseMode(true);
-                } else {
-                    String message = "Expected to be in handshaking mode. Instead in non-handshaking mode: " + currentMode;
+                } else if (currentMode.isApplication()) {
+                    // It is possible to be in CLOSED mode if the prior UNWRAP call returned CLOSE_NOTIFY.
+                    // However we should not be in application mode at this point.
+                    String message = "Expected to be in handshaking/closed mode. Instead in application mode.";
                     throw new AssertionError(message);
                 }
             } else if (hasFlushPending() == false) {

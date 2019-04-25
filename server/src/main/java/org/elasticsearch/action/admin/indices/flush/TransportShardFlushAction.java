@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.flush;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.TransportReroutedReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -34,7 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportShardFlushAction
-        extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
+        extends TransportReroutedReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
 
@@ -53,18 +54,18 @@ public class TransportShardFlushAction
 
     @Override
     protected void shardOperationOnPrimary(ShardFlushRequest shardRequest, IndexShard primary,
-            ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener) {
+            ActionListener<TransportReplicationAction.PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener) {
         ActionListener.completeWith(listener, () -> {
             primary.flush(shardRequest.getRequest());
             logger.trace("{} flush request executed on primary", primary.shardId());
-            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+            return new TransportReplicationAction.PrimaryResult<>(shardRequest, new ReplicationResponse());
         });
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(ShardFlushRequest request, IndexShard replica) {
+    protected TransportReplicationAction.ReplicaResult shardOperationOnReplica(ShardFlushRequest request, IndexShard replica) {
         replica.flush(request.getRequest());
         logger.trace("{} flush request executed on replica", replica.shardId());
-        return new ReplicaResult();
+        return new TransportReplicationAction.ReplicaResult();
     }
 }

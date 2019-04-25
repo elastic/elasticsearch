@@ -57,7 +57,7 @@ public abstract class TransportWriteAction<
             Request extends ReplicatedWriteRequest<Request>,
             ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
             Response extends ReplicationResponse & WriteResponse
-        > extends TransportReplicationAction<Request, ReplicaRequest, Response> {
+        > extends TransportReroutedReplicationAction<Request, ReplicaRequest, Response> {
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
@@ -108,7 +108,8 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected abstract void shardOperationOnPrimary(
-            Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener);
+            Request request, IndexShard primary,
+            ActionListener<TransportReplicationAction.PrimaryResult<ReplicaRequest, Response>> listener);
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
@@ -126,7 +127,8 @@ public abstract class TransportWriteAction<
      * NOTE: public for testing
      */
     public static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
-            Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response>
+            Response extends ReplicationResponse & WriteResponse>
+            extends TransportReplicationAction.PrimaryResult<ReplicaRequest, Response>
             implements RespondingWriteResult {
         boolean finishedAsyncActions;
         public final Location location;
@@ -190,7 +192,7 @@ public abstract class TransportWriteAction<
      * Result of taking the action on the replica.
      */
     public static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
-            extends ReplicaResult implements RespondingWriteResult {
+            extends TransportReplicationAction.ReplicaResult implements RespondingWriteResult {
         public final Location location;
         boolean finishedAsyncActions;
         private ActionListener<TransportResponse.Empty> listener;
@@ -366,7 +368,7 @@ public abstract class TransportWriteAction<
      * replicas, where a failure to execute the operation should fail
      * the replica shard and/or mark the replica as stale.
      *
-     * This extends {@code TransportReplicationAction.ReplicasProxy} to do the
+     * This extends {@code TransportReroutedReplicationAction.ReplicasProxy} to do the
      * failing and stale-ing.
      */
     class WriteActionReplicasProxy extends ReplicasProxy {

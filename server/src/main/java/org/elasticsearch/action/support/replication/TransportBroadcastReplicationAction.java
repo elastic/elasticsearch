@@ -53,14 +53,14 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
         ShardRequest extends ReplicationRequest<ShardRequest>, ShardResponse extends ReplicationResponse>
         extends HandledTransportAction<Request, Response> {
 
-    private final TransportReplicationAction replicatedBroadcastShardAction;
+    private final TransportReroutedReplicationAction replicatedBroadcastShardAction;
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     public TransportBroadcastReplicationAction(String name, Writeable.Reader<Request> requestReader, ClusterService clusterService,
                                                TransportService transportService,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                               TransportReplicationAction replicatedBroadcastShardAction) {
+                                               TransportReroutedReplicationAction replicatedBroadcastShardAction) {
         super(name, transportService, actionFilters, requestReader);
         this.replicatedBroadcastShardAction = replicatedBroadcastShardAction;
         this.clusterService = clusterService;

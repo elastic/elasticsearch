@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.TransportReroutedReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -47,7 +48,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Objects;
 
-public class TransportVerifyShardBeforeCloseAction extends TransportReplicationAction<
+public class TransportVerifyShardBeforeCloseAction extends TransportReroutedReplicationAction<
     TransportVerifyShardBeforeCloseAction.ShardRequest, TransportVerifyShardBeforeCloseAction.ShardRequest, ReplicationResponse> {
 
     public static final String NAME = CloseIndexAction.NAME + "[s]";
@@ -86,17 +87,18 @@ public class TransportVerifyShardBeforeCloseAction extends TransportReplicationA
 
     @Override
     protected void shardOperationOnPrimary(final ShardRequest shardRequest, final IndexShard primary,
-            ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener) {
+            ActionListener<TransportReplicationAction.PrimaryResult<ShardRequest, ReplicationResponse>> listener) {
         ActionListener.completeWith(listener, () -> {
             executeShardOperation(shardRequest, primary);
-            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+            return new TransportReplicationAction.PrimaryResult<>(shardRequest, new ReplicationResponse());
         });
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest, final IndexShard replica) {
+    protected TransportReplicationAction.ReplicaResult shardOperationOnReplica(final ShardRequest shardRequest,
+                                                                               final IndexShard replica) {
         executeShardOperation(shardRequest, replica);
-        return new ReplicaResult();
+        return new TransportReplicationAction.ReplicaResult();
     }
 
     private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {

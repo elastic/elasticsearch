@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.TransportReroutedReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -55,7 +56,7 @@ import java.util.Objects;
  * shard copy missing renewals of retention leases since the background sync interval is much smaller than the expected lifetime of
  * retention leases.
  */
-public class RetentionLeaseBackgroundSyncAction extends TransportReplicationAction<
+public class RetentionLeaseBackgroundSyncAction extends TransportReroutedReplicationAction<
         RetentionLeaseBackgroundSyncAction.Request,
         RetentionLeaseBackgroundSyncAction.Request,
         ReplicationResponse> {
@@ -129,23 +130,25 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     @Override
     protected void shardOperationOnPrimary(
             final Request request,
-            final IndexShard primary, ActionListener<PrimaryResult<Request, ReplicationResponse>> listener) {
+            final IndexShard primary,
+            final ActionListener<TransportReplicationAction.PrimaryResult<Request, ReplicationResponse>> listener) {
         ActionListener.completeWith(listener, () -> {
             assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
             Objects.requireNonNull(request);
             Objects.requireNonNull(primary);
             primary.persistRetentionLeases();
-            return new PrimaryResult<>(request, new ReplicationResponse());
+            return new TransportReplicationAction.PrimaryResult<>(request, new ReplicationResponse());
         });
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard replica) throws WriteStateException {
+    protected TransportReplicationAction.ReplicaResult shardOperationOnReplica(final Request request, final IndexShard replica)
+            throws WriteStateException {
         Objects.requireNonNull(request);
         Objects.requireNonNull(replica);
         replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
         replica.persistRetentionLeases();
-        return new ReplicaResult();
+        return new TransportReplicationAction.ReplicaResult();
     }
 
     public static final class Request extends ReplicationRequest<Request> {

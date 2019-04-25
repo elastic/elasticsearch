@@ -42,7 +42,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
+import org.elasticsearch.action.support.replication.TransportReroutedReplicationActionTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -422,8 +422,9 @@ public class TasksIT extends ESIntegTestCase {
     /**
      * Very basic "is it plugged in" style test that indexes a document and makes sure that you can fetch the status of the process. The
      * goal here is to verify that the large moving parts that make fetching task status work fit together rather than to verify any
-     * particular status results from indexing. For that, look at {@link TransportReplicationActionTests}. We intentionally don't use the
-     * task recording mechanism used in other places in this test so we can make sure that the status fetching works properly over the wire.
+     * particular status results from indexing. For that, look at {@link TransportReroutedReplicationActionTests}. We intentionally don't
+     * use the task recording mechanism used in other places in this test so we can make sure that the status fetching works properly over
+     * the wire.
      */
     public void testCanFetchIndexStatus() throws Exception {
         // First latch waits for the task to start, second on blocks it from finishing.

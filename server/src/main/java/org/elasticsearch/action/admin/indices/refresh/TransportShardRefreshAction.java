@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.TransportReroutedReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -36,7 +37,7 @@ import org.elasticsearch.transport.TransportService;
 
 
 public class TransportShardRefreshAction
-        extends TransportReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> {
+        extends TransportReroutedReplicationAction<BasicReplicationRequest, BasicReplicationRequest, ReplicationResponse> {
 
     public static final String NAME = RefreshAction.NAME + "[s]";
 
@@ -55,18 +56,18 @@ public class TransportShardRefreshAction
 
     @Override
     protected void shardOperationOnPrimary(BasicReplicationRequest shardRequest, IndexShard primary,
-            ActionListener<PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener) {
+            ActionListener<TransportReplicationAction.PrimaryResult<BasicReplicationRequest, ReplicationResponse>> listener) {
         ActionListener.completeWith(listener, () -> {
             primary.refresh("api");
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            return new PrimaryResult<>(shardRequest, new ReplicationResponse());
+            return new TransportReplicationAction.PrimaryResult<>(shardRequest, new ReplicationResponse());
         });
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica) {
+    protected TransportReplicationAction.ReplicaResult shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica) {
         replica.refresh("api");
         logger.trace("{} refresh request executed on replica", replica.shardId());
-        return new ReplicaResult();
+        return new TransportReplicationAction.ReplicaResult();
     }
 }

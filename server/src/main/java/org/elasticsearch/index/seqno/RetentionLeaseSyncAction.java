@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -124,7 +125,7 @@ public class RetentionLeaseSyncAction extends
 
     @Override
     protected void shardOperationOnPrimary(Request request, IndexShard primary,
-            ActionListener<PrimaryResult<Request, Response>> listener) {
+            ActionListener<TransportReplicationAction.PrimaryResult<Request, Response>> listener) {
         ActionListener.completeWith(listener, () -> {
             assert request.waitForActiveShards().equals(ActiveShardCount.NONE) : request.waitForActiveShards();
             Objects.requireNonNull(request);

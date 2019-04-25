@@ -21,7 +21,7 @@ import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
+import org.elasticsearch.action.support.replication.TransportReroutedReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;

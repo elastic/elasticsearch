@@ -26,6 +26,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.support.replication.TransportReroutedReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -49,7 +50,7 @@ import java.io.IOException;
  * on every replication operation, after the last operation completes the global checkpoint could advance but without a follow-up operation
  * the global checkpoint will never be synced to the replicas.
  */
-public class GlobalCheckpointSyncAction extends TransportReplicationAction<
+public class GlobalCheckpointSyncAction extends TransportReroutedReplicationAction<
         GlobalCheckpointSyncAction.Request,
         GlobalCheckpointSyncAction.Request,
         ReplicationResponse> {
@@ -102,18 +103,21 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     }
 
     @Override
-    protected void shardOperationOnPrimary(Request request, IndexShard indexShard,
-                                           ActionListener<PrimaryResult<Request, ReplicationResponse>> listener) {
+    protected void shardOperationOnPrimary(
+        Request request, IndexShard indexShard,
+        ActionListener<TransportReplicationAction.PrimaryResult<Request, ReplicationResponse>> listener) {
+
         ActionListener.completeWith(listener, () -> {
             maybeSyncTranslog(indexShard);
-            return new PrimaryResult<>(request, new ReplicationResponse());
+            return new TransportReplicationAction.PrimaryResult<>(request, new ReplicationResponse());
         });
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard indexShard) throws Exception {
+    protected TransportReplicationAction.ReplicaResult shardOperationOnReplica(final Request request,
+                                                                               final IndexShard indexShard) throws Exception {
         maybeSyncTranslog(indexShard);
-        return new ReplicaResult();
+        return new TransportReplicationAction.ReplicaResult();
     }
 
     private void maybeSyncTranslog(final IndexShard indexShard) throws IOException {

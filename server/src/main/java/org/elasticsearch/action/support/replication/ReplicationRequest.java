@@ -166,7 +166,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     /**
      * Sets the minimum version of the cluster state that is required on the next node before we redirect to another primary.
-     * Used to prevent redirect loops, see also {@link TransportReplicationAction.ReroutePhase#doRun()}
+     * Used to prevent redirect loops, see also {@link TransportReroutedReplicationAction.ReroutePhase#doRun()}
      */
     @SuppressWarnings("unchecked")
     Request routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {

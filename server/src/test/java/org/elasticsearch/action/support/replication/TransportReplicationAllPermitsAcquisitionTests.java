@@ -257,9 +257,9 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
             actions[threadId] = singlePermitAction;
 
             Thread thread = new Thread(() -> {
-                final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
-                    = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
-                TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
+                final TransportReroutedReplicationAction.ConcreteShardRequest<Request> primaryRequest
+                    = new TransportReroutedReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
+                TransportReroutedReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
                     singlePermitAction.new AsyncPrimaryAction(primaryRequest, listener, null) {
                         @Override
                         protected void doRun() throws Exception {
@@ -271,7 +271,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         }
 
                         @Override
-                        void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
+                        void runWithPrimaryShardReference(final TransportReroutedReplicationAction.PrimaryShardReference reference) {
                             assertThat(reference.indexShard.getActiveOperationsCount(), greaterThan(0));
                             assertSame(primary, reference.indexShard);
                             assertBlockIsPresentForDelayedOp();
@@ -310,12 +310,12 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         final PlainActionFuture<Response> allPermitFuture = new PlainActionFuture<>();
         Thread thread = new Thread(() -> {
-            final TransportReplicationAction.ConcreteShardRequest<Request> primaryRequest
-                = new TransportReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
-            TransportReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
+            final TransportReroutedReplicationAction.ConcreteShardRequest<Request> primaryRequest
+                = new TransportReroutedReplicationAction.ConcreteShardRequest<>(request(), allocationId(), primaryTerm());
+            TransportReroutedReplicationAction.AsyncPrimaryAction asyncPrimaryAction =
                 allPermitsAction.new AsyncPrimaryAction(primaryRequest, allPermitFuture, null) {
                     @Override
-                    void runWithPrimaryShardReference(final TransportReplicationAction.PrimaryShardReference reference) {
+                    void runWithPrimaryShardReference(final TransportReroutedReplicationAction.PrimaryShardReference reference) {
                         assertEquals("All permits must be acquired",
                             IndexShard.OPERATIONS_BLOCKED, reference.indexShard.getActiveOperationsCount());
                         assertSame(primary, reference.indexShard);
@@ -405,10 +405,10 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     /**
-     * A type of {@link TransportReplicationAction} that allows to use the primary and replica shards passed to the constructor for the
-     * execution of the replication action. Also records if the operation is executed on the primary and the replica.
+     * A type of {@link TransportReroutedReplicationAction} that allows to use the primary and replica shards passed to the constructor for
+     * the execution of the replication action. Also records if the operation is executed on the primary and the replica.
      */
-    private abstract class TestAction extends TransportReplicationAction<Request, Request, Response> {
+    private abstract class TestAction extends TransportReroutedReplicationAction<Request, Request, Response> {
 
         protected final ShardId shardId;
         protected final IndexShard primary;
@@ -441,23 +441,25 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
-                ActionListener<PrimaryResult<Request, Response>> listener) {
+                ActionListener<TransportReplicationAction.PrimaryResult<Request, Response>> listener) {
             executedOnPrimary.set(true);
-            // The TransportReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
+            // The TransportReroutedReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
             // that the permit has been acquired on the primary shard
             assertSame(primary, shard);
-            listener.onResponse(new PrimaryResult<>(shardRequest, new Response()));
+            listener.onResponse(new TransportReplicationAction.PrimaryResult<>(shardRequest, new Response()));
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
+        protected TransportReplicationAction.ReplicaResult shardOperationOnReplica(
+            Request shardRequest, IndexShard shard) throws Exception {
+
             assertEquals("Replica is always assigned to node 2 in this test", clusterService.state().nodes().get("_node2").getId(),
                 shard.routingEntry().currentNodeId());
             executedOnReplica.set(true);
-            // The TransportReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
+            // The TransportReroutedReplicationAction.getIndexShard() method is overridden for testing purpose but we double check here
             // that the permit has been acquired on the replica shard
             assertSame(replica, shard);
-            return new ReplicaResult();
+            return new TransportReplicationAction.ReplicaResult();
         }
     }
 
@@ -473,7 +475,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     /**
-     * A type of {@link TransportReplicationAction} that acquires a single permit during execution and that blocks
+     * A type of {@link TransportReroutedReplicationAction} that acquires a single permit during execution and that blocks
      * on {@link ClusterBlockLevel#WRITE}. The block can be a global level or an index level block depending of the
      * value of the {@code globalBlock} parameter in the constructor. When the operation is executed on shards it
      * verifies that at least 1 permit is acquired and that there is no blocks in the cluster state.
@@ -502,14 +504,16 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
-                ActionListener<PrimaryResult<Request, Response>> listener) {
+                ActionListener<TransportReplicationAction.PrimaryResult<Request, Response>> listener) {
             assertNoBlocks("block must not exist when executing the operation on primary shard: it should have been blocked before");
             assertThat(shard.getActiveOperationsCount(), greaterThan(0));
             super.shardOperationOnPrimary(shardRequest, shard, listener);
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
+        protected TransportReplicationAction.ReplicaResult shardOperationOnReplica(
+            Request shardRequest, IndexShard shard) throws Exception {
+
             assertNoBlocks("block must not exist when executing the operation on replica shard: it should have been blocked before");
             assertThat(shard.getActiveOperationsCount(), greaterThan(0));
             return super.shardOperationOnReplica(shardRequest, shard);
@@ -523,7 +527,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
     }
 
     /**
-     * A type of {@link TransportReplicationAction} that acquires all permits during execution.
+     * A type of {@link TransportReroutedReplicationAction} that acquires all permits during execution.
      */
     private class AllPermitsThenBlockAction extends TestAction {
 
@@ -549,13 +553,15 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
 
         @Override
         protected void shardOperationOnPrimary(Request shardRequest, IndexShard shard,
-                ActionListener<PrimaryResult<Request, Response>> listener) {
+                ActionListener<TransportReplicationAction.PrimaryResult<Request, Response>> listener) {
             assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, shard.getActiveOperationsCount());
             super.shardOperationOnPrimary(shardRequest, shard, listener);
         }
 
         @Override
-        protected ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard) throws Exception {
+        protected TransportReplicationAction.ReplicaResult shardOperationOnReplica(Request shardRequest, IndexShard shard)
+            throws Exception {
+
             assertEquals("All permits must be acquired", IndexShard.OPERATIONS_BLOCKED, shard.getActiveOperationsCount());
             return super.shardOperationOnReplica(shardRequest, shard);
         }

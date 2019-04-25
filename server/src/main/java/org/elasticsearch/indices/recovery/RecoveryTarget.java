@@ -185,9 +185,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             RecoveryState.Stage stage = indexShard.recoveryState().getStage();
             if (indexShard.recoveryState().getPrimary() && (stage == RecoveryState.Stage.FINALIZE || stage == RecoveryState.Stage.DONE)) {
                 // once primary relocation has moved past the finalization step, the relocation source can put the target into primary mode
-                // and start indexing as primary into the target shard (see TransportReplicationAction). Resetting the target shard in this
-                // state could mean that indexing is halted until the recovery retry attempt is completed and could also destroy existing
-                // documents indexed and acknowledged before the reset.
+                // and start indexing as primary into the target shard (see TransportReroutedReplicationAction). Resetting the target shard
+                // in this state could mean that indexing is halted until the recovery retry attempt is completed and could also destroy
+                // existing documents indexed and acknowledged before the reset.
                 assert stage != RecoveryState.Stage.DONE : "recovery should not have completed when it's being reset";
                 throw new IllegalStateException("cannot reset recovery as previous attempt made it past finalization step");
             }

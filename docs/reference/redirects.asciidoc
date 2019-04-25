@@ -594,3 +594,11 @@ formation module>>.
 === {xpack} settings in {es}
 
 include::{asciidoc-dir}/../../shared/settings.asciidoc[]
+
+[role="exclude",id="_faster_phrase_queries_with_literal_index_phrases_literal"]
+
+See <<faster-phrase-queries>>.
+
+[role="exclude",id="_faster_prefix_queries_with_literal_index_prefixes_literal.html"]
+
+See <<faster-prefix-queries>>.

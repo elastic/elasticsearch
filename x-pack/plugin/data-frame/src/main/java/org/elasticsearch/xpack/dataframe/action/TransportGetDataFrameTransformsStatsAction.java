@@ -12,16 +12,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -30,7 +28,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -81,7 +78,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
                                                       DataFrameTransformsConfigManager dataFrameTransformsConfigManager,
                                                       DataFrameTransformsCheckpointService transformsCheckpointService) {
         super(GetDataFrameTransformsStatsAction.NAME, clusterService, transportService, actionFilters, Request::new, Response::new,
-                Response::new, ThreadPool.Names.SAME);
+            Response::new, ThreadPool.Names.SAME);
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
         this.transformsCheckpointService = transformsCheckpointService;
@@ -94,7 +91,9 @@ public class TransportGetDataFrameTransformsStatsAction extends
             .flatMap(r -> r.getTransformsStateAndStats().stream())
             .sorted(Comparator.comparing(DataFrameTransformStateAndStats::getId))
             .collect(Collectors.toList());
-        return new Response(responses, taskOperationFailures, failedNodeExceptions);
+        List<ElasticsearchException> allFailedNodeExceptions = new ArrayList<>(failedNodeExceptions);
+        allFailedNodeExceptions.addAll(tasks.stream().flatMap(r -> r.getNodeFailures().stream()).collect(Collectors.toList()));
+        return new Response(responses, taskOperationFailures, allFailedNodeExceptions);
     }
 
     @Override
@@ -110,7 +109,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
                         Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(),
                                 task.getStats(), DataFrameTransformCheckpointingInfo.EMPTY)),
                         Collections.emptyList(),
-                        Collections.singletonList(new ElasticsearchException("Failed to retrieve checkpointing info", e))));
+                        Collections.singletonList(new FailedNodeException("", "Failed to retrieve checkpointing info", e))));
             }));
         } else {
             listener.onResponse(new Response(Collections.emptyList()));
@@ -119,37 +118,24 @@ public class TransportGetDataFrameTransformsStatsAction extends
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
-        final ClusterState state = clusterService.state();
-        final DiscoveryNodes nodes = state.nodes();
-        if (nodes.isLocalNodeElectedMaster()) {
-            dataFrameTransformsConfigManager.expandTransformIds(request.getId(), request.getPageParams(), ActionListener.wrap(
-                ids -> {
-                    request.setExpandedIds(ids);
-                    super.doExecute(task, request, ActionListener.wrap(
-                        response -> collectStatsForTransformsWithoutTasks(request, response, finalListener),
-                        finalListener::onFailure
-                    ));
-                },
-                e -> {
-                    // If the index to search, or the individual config is not there, just return empty
-                    if (e instanceof ResourceNotFoundException) {
-                        finalListener.onResponse(new Response(Collections.emptyList()));
-                    } else {
-                        finalListener.onFailure(e);
-                    }
+        dataFrameTransformsConfigManager.expandTransformIds(request.getId(), request.getPageParams(), ActionListener.wrap(
+            ids -> {
+                request.setExpandedIds(ids);
+                super.doExecute(task, request, ActionListener.wrap(
+                    response -> collectStatsForTransformsWithoutTasks(request, response, finalListener),
+                    finalListener::onFailure
+                ));
+            },
+            e -> {
+                // If the index to search, or the individual config is not there, just return empty
+                logger.error("failed to expand ids", e);
+                if (e instanceof ResourceNotFoundException) {
+                    finalListener.onResponse(new Response(Collections.emptyList()));
+                } else {
+                    finalListener.onFailure(e);
                 }
-            ));
-        } else {
-            // Delegates GetTransforms to elected master node, so it becomes the coordinating node.
-            // Non-master nodes may have a stale cluster state that shows transforms which are cancelled
-            // on the master, which makes testing difficult.
-            if (nodes.getMasterNode() == null) {
-                finalListener.onFailure(new MasterNotDiscoveredException("no known master nodes"));
-            } else {
-                transportService.sendRequest(nodes.getMasterNode(), actionName, request,
-                        new ActionListenerResponseHandler<>(finalListener, Response::new));
             }
-        }
+        ));
     }
 
     private void collectStatsForTransformsWithoutTasks(Request request,
@@ -172,10 +158,15 @@ public class TransportGetDataFrameTransformsStatsAction extends
             searchResponse -> {
                 List<ElasticsearchException> nodeFailures = new ArrayList<>(response.getNodeFailures());
                 if (searchResponse.getShardFailures().length > 0) {
-                    String msg = "transform statistics document search returned shard failures: " +
-                        Arrays.toString(searchResponse.getShardFailures());
-                    logger.error(msg);
-                    nodeFailures.add(new ElasticsearchException(msg));
+                    for(ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
+                        String nodeId = "";
+                        if (shardSearchFailure.shard() != null) {
+                            nodeId = shardSearchFailure.shard().getNodeId();
+                        }
+                        nodeFailures.add(new FailedNodeException(nodeId, shardSearchFailure.toString(), shardSearchFailure.getCause()));
+                    }
+                    logger.error("transform statistics document search returned shard failures: {}",
+                        Arrays.toString(searchResponse.getShardFailures()));
                 }
                 List<DataFrameTransformStateAndStats> allStateAndStats = response.getTransformsStateAndStats();
                 for(SearchHit hit : searchResponse.getHits().getHits()) {

@@ -44,8 +44,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.PRECISION;
-import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
+import static org.elasticsearch.geo.utils.Geohash.PRECISION;
+import static org.elasticsearch.geo.utils.Geohash.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;

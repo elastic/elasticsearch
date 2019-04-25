@@ -58,6 +58,8 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -72,18 +74,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class HttpReadWriteHandlerTests extends ESTestCase {
 
     private HttpReadWriteHandler handler;
-    private NioHttpChannel nioHttpChannel;
+    private NioHttpChannel channel;
     private NioHttpServerTransport transport;
     private TaskScheduler taskScheduler;
 
@@ -95,11 +95,12 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         transport = mock(NioHttpServerTransport.class);
         Settings settings = Settings.builder().put(SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(), new ByteSizeValue(1024)).build();
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
-        nioHttpChannel = mock(NioHttpChannel.class);
+        channel = mock(NioHttpChannel.class);
         taskScheduler = mock(TaskScheduler.class);
 
         NioCorsConfig corsConfig = NioCorsConfigBuilder.forAnyOrigin().build();
-        handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, corsConfig, taskScheduler);
+        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsConfig, taskScheduler, System::nanoTime);
+        handler.channelRegistered();
     }
 
     public void testSuccessfulDecodeHttpRequest() throws IOException {
@@ -179,7 +180,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
             flushOperation.getListener().accept(null, null);
             // Since we have keep-alive set to false, we should close the channel after the response has been
             // flushed
-            verify(nioHttpChannel).close();
+            verify(channel).close();
         } finally {
             response.release();
         }
@@ -337,53 +338,48 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         httpResponse.addHeader(HttpHeaderNames.CONTENT_LENGTH.toString(), "0");
 
         NioCorsConfig corsConfig = NioCorsConfigBuilder.forAnyOrigin().build();
-        TaskScheduler taskScheduler = mock(TaskScheduler.class);
-        handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, corsConfig, taskScheduler);
+        TaskScheduler taskScheduler = new TaskScheduler();
+
+        Iterator<Integer> timeValues = Arrays.asList(0, 2, 4, 6, 8).iterator();
+        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, corsConfig, taskScheduler, timeValues::next);
         handler.channelRegistered();
-        ArgumentCaptor<Runnable> timeoutTask = ArgumentCaptor.forClass(Runnable.class);
-        verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
 
         prepareHandlerForResponse(handler);
         SocketChannelContext context = mock(SocketChannelContext.class);
         HttpWriteOperation writeOperation = new HttpWriteOperation(context, httpResponse, mock(BiConsumer.class));
         handler.writeToBytes(writeOperation);
 
-        reset(taskScheduler);
-        timeoutTask.getAllValues().get(0).run();
+        taskScheduler.pollTask(timeValue.getNanos() + 1).run();
         // There was a read. Do not close.
-        verify(transport, times(0)).onException(eq(nioHttpChannel), any(HttpReadTimeoutException.class));
-        verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
+        verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         prepareHandlerForResponse(handler);
         prepareHandlerForResponse(handler);
 
-        reset(taskScheduler);
-        timeoutTask.getAllValues().get(1).run();
+        taskScheduler.pollTask(timeValue.getNanos() + 3).run();
         // There was a read. Do not close.
-        verify(transport, times(0)).onException(eq(nioHttpChannel), any(HttpReadTimeoutException.class));
-        verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
+        verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         handler.writeToBytes(writeOperation);
 
-        reset(taskScheduler);
-        timeoutTask.getAllValues().get(2).run();
+        taskScheduler.pollTask(timeValue.getNanos() + 5).run();
         // There has not been a read, however there is still an inflight request. Do not close.
-        verify(transport, times(0)).onException(eq(nioHttpChannel), any(HttpReadTimeoutException.class));
-        verify(taskScheduler).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
+        verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         handler.writeToBytes(writeOperation);
 
-        reset(taskScheduler);
-        timeoutTask.getAllValues().get(3).run();
+        taskScheduler.pollTask(timeValue.getNanos() + 7).run();
         // No reads and no inflight requests, close
-        verify(transport, times(1)).onException(eq(nioHttpChannel), any(HttpReadTimeoutException.class));
-        verify(taskScheduler, times(0)).scheduleAtRelativeTime(timeoutTask.capture(), anyLong());
+        verify(transport, times(1)).onException(eq(channel), any(HttpReadTimeoutException.class));
+        assertNull(taskScheduler.pollTask(timeValue.getNanos() + 9));
     }
 
     private FullHttpResponse executeCorsRequest(final Settings settings, final String originValue, final String host) throws IOException {
-        HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
+        HttpHandlingSettings httpSettings = HttpHandlingSettings.fromSettings(settings);
         NioCorsConfig corsConfig = NioHttpServerTransport.buildCorsConfig(settings);
-        HttpReadWriteHandler handler = new HttpReadWriteHandler(nioHttpChannel, transport, httpHandlingSettings, corsConfig, taskScheduler);
+        HttpReadWriteHandler handler = new HttpReadWriteHandler(channel, transport, httpSettings, corsConfig, taskScheduler,
+            System::nanoTime);
+        handler.channelRegistered();
         prepareHandlerForResponse(handler);
         DefaultFullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
         if (originValue != null) {

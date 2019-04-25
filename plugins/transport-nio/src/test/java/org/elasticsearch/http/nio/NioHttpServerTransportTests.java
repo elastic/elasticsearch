@@ -68,7 +68,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
@@ -343,10 +344,10 @@ public class NioHttpServerTransportTests extends ESTestCase {
             try (NioHttpClient client = new NioHttpClient()) {
                 NioSocketChannel channel = null;
                 try {
-                    AtomicBoolean channelClosed = new AtomicBoolean(false);
+                    CountDownLatch channelClosedLatch = new CountDownLatch(1);
                     channel = client.connect(remoteAddress.address());
-                    channel.addCloseListener((r, t) -> channelClosed.set(true));
-                    assertBusy(() -> assertTrue("Channel should be closed due to read timeout", channelClosed.get()));
+                    channel.addCloseListener((r, t) -> channelClosedLatch.countDown());
+                    assertTrue("Channel should be closed due to read timeout", channelClosedLatch.await(1, TimeUnit.MINUTES));
                 } finally {
                     if (channel != null) {
                         channel.close();

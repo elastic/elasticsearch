@@ -152,11 +152,6 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         return nioGroup.bindServerChannel(socketAddress, channelFactory);
     }
 
-    @Override
-    protected void onException(HttpChannel channel, Exception cause) {
-        super.onException(channel, cause);
-    }
-
     protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() {
         return new HttpChannelFactory();
     }
@@ -215,7 +210,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
                 return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(httpChannel,NioHttpServerTransport.this,
-                handlingSettings, corsConfig, selector.getTaskScheduler());
+                handlingSettings, corsConfig, selector.getTaskScheduler(), threadPool::relativeTimeInNanos);
             Consumer<Exception> exceptionHandler = (e) -> onException(httpChannel, e);
             SocketChannelContext context = new BytesChannelContext(httpChannel, selector, exceptionHandler, httpReadWritePipeline,
                 new InboundChannelBuffer(pageSupplier));

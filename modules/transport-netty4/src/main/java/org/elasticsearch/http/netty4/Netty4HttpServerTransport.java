@@ -289,7 +289,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected void onException(HttpChannel channel, Exception cause) {
+    public void onException(HttpChannel channel, Exception cause) {
         if (cause instanceof ReadTimeoutException) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Http read timeout {}", channel);

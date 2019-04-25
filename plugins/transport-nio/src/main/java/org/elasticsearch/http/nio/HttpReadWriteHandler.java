@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.LongSupplier;
 
 public class HttpReadWriteHandler implements ReadWriteHandler {
 
@@ -55,15 +56,18 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     private final NioHttpChannel nioHttpChannel;
     private final NioHttpServerTransport transport;
     private final TaskScheduler taskScheduler;
+    private final LongSupplier nanoClock;
     private final long readTimeoutNanos;
+    private boolean channelRegistered = false;
     private boolean requestSinceReadTimeoutTrigger = false;
     private int inFlightRequests = 0;
 
     public HttpReadWriteHandler(NioHttpChannel nioHttpChannel, NioHttpServerTransport transport, HttpHandlingSettings settings,
-                                NioCorsConfig corsConfig, TaskScheduler taskScheduler) {
+                                NioCorsConfig corsConfig, TaskScheduler taskScheduler, LongSupplier nanoClock) {
         this.nioHttpChannel = nioHttpChannel;
         this.transport = transport;
         this.taskScheduler = taskScheduler;
+        this.nanoClock = nanoClock;
         this.readTimeoutNanos = TimeUnit.MILLISECONDS.toNanos(settings.getReadTimeoutMillis());
 
         List<ChannelHandler> handlers = new ArrayList<>(5);
@@ -88,6 +92,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
 
     @Override
     public void channelRegistered() {
+        channelRegistered = true;
         if (readTimeoutNanos > 0) {
             scheduleReadTimeout();
         }
@@ -95,6 +100,7 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
 
     @Override
     public int consumeReads(InboundChannelBuffer channelBuffer) {
+        assert channelRegistered : "channelRegistered should have been called";
         int bytesConsumed = adaptor.read(channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex()));
         Object message;
         while ((message = adaptor.pollInboundMessage()) != null) {
@@ -117,7 +123,9 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
         assert writeOperation.getObject() instanceof NioHttpResponse : "This channel only supports messages that are of type: "
             + NioHttpResponse.class + ". Found type: " + writeOperation.getObject().getClass() + ".";
+        assert channelRegistered : "channelRegistered should have been called";
         --inFlightRequests;
+        assert inFlightRequests >= 0 : "Inflight requests should never drop below zero, found: " + inFlightRequests;
         adaptor.write(writeOperation);
         return pollFlushOperations();
     }
@@ -186,6 +194,6 @@ public class HttpReadWriteHandler implements ReadWriteHandler {
     }
 
     private void scheduleReadTimeout() {
-        taskScheduler.scheduleAtRelativeTime(this::maybeReadTimeout, System.nanoTime() + readTimeoutNanos);
+        taskScheduler.scheduleAtRelativeTime(this::maybeReadTimeout, nanoClock.getAsLong() + readTimeoutNanos);
     }
 }

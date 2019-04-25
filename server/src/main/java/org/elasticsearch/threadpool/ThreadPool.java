@@ -231,6 +231,16 @@ public class ThreadPool implements Scheduler, Closeable {
     }
 
     /**
+     * Returns a value of nanoseconds that may be used for relative time calculations.
+     *
+     * This method should only be used for calculating time deltas. For an epoch based
+     * timestamp, see {@link #absoluteTimeInMillis()}.
+     */
+    public long relativeTimeInNanos() {
+        return TimeValue.msecToNSec(cachedTimeThread.relativeTimeInMillis());
+    }
+
+    /**
      * Returns the value of milliseconds since UNIX epoch.
      *
      * This method should only be used for exact date/time formatting. For calculating

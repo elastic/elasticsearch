@@ -28,7 +28,7 @@ import java.util.Objects;
  */
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
-    static final String EXACT_MATCH_TYPE = "exact_match";
+    public static final String EXACT_MATCH_TYPE = "exact_match";
     public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
 
     static final ParseField TYPE = new ParseField("type");

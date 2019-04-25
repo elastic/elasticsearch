@@ -20,5 +20,6 @@ run {
     plugin xpackModule('core')
 }
 
-// No tests yet:
-integTest.enabled = false
+integTestCluster {
+    plugin xpackModule('core')
+}

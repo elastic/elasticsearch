@@ -29,14 +29,14 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
     public static GroupConfig randomGroupConfig() {
         Map<String, Object> source = new LinkedHashMap<>();
-        Map<String, SingleGroupSource<?>> groups = new LinkedHashMap<>();
+        Map<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
         // ensure that the unlikely does not happen: 2 group_by's share the same name
         Set<String> names = new HashSet<>();
         for (int i = 0; i < randomIntBetween(1, 20); ++i) {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
-                SingleGroupSource<?> groupBy;
+                SingleGroupSource groupBy;
                 Type type = randomFrom(SingleGroupSource.Type.values());
                 switch (type) {
                 case TERMS:
@@ -88,7 +88,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         }
     }
 
-    private static Map<String, Object> getSource(SingleGroupSource<?> groupSource) {
+    private static Map<String, Object> getSource(SingleGroupSource groupSource) {
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = groupSource.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             return XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON).v2();

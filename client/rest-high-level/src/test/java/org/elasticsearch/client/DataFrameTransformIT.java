@@ -71,6 +71,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -360,6 +361,10 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             assertEquals(DataFrameTransformTaskState.STARTED, stateAndStats.getTransformState().getTaskState());
             assertEquals(null, stateAndStats.getTransformState().getReason());
             assertNotEquals(zeroIndexerStats, stateAndStats.getTransformStats());
+            assertNotNull(stateAndStats.getTransformState().getProgress());
+            assertThat(stateAndStats.getTransformState().getProgress().getPercentComplete(), equalTo(100.0));
+            assertThat(stateAndStats.getTransformState().getProgress().getTotalDocs(), greaterThan(0L));
+            assertThat(stateAndStats.getTransformState().getProgress().getRemainingDocs(), equalTo(0L));
         });
     }
 }

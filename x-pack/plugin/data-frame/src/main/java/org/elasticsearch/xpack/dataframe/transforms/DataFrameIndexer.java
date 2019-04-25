@@ -14,20 +14,21 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.xpack.core.common.notifications.Auditor;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
-import org.elasticsearch.xpack.core.dataframe.notifications.DataFrameAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
@@ -47,13 +48,13 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     public static final String COMPOSITE_AGGREGATION_NAME = "_data_frame";
     private static final Logger logger = LogManager.getLogger(DataFrameIndexer.class);
 
-    protected final Auditor<DataFrameAuditMessage> auditor;
+    protected final DataFrameAuditor auditor;
 
     private Pivot pivot;
     private int pageSize = 0;
 
     public DataFrameIndexer(Executor executor,
-                            Auditor<DataFrameAuditMessage> auditor,
+                            DataFrameAuditor auditor,
                             AtomicReference<IndexerState> initialState,
                             Map<String, Object> initialPosition,
                             DataFrameIndexerTransformStats jobStats) {
@@ -64,6 +65,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     protected abstract DataFrameTransformConfig getConfig();
 
     protected abstract Map<String, String> getFieldMappings();
+
+    @Nullable
+    protected abstract DataFrameTransformProgress getProgress();
 
     protected abstract void failIndexer(String message);
 
@@ -88,7 +92,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             }
 
             // if run for the 1st time, create checkpoint
-            if (getPosition() == null) {
+            if (initialRun()) {
                 createCheckpoint(listener);
             } else {
                 listener.onResponse(null);
@@ -96,6 +100,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    protected boolean initialRun() {
+        return getPosition() == null;
     }
 
     @Override
@@ -107,8 +115,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-        return new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()), agg.afterKey(),
-                agg.getBuckets().isEmpty());
+        long docsBeforeProcess = getStats().getNumDocuments();
+        IterationResult<Map<String, Object>> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
+            agg.afterKey(),
+            agg.getBuckets().isEmpty());
+        if (getProgress() != null) {
+            getProgress().docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+        }
+        return result;
     }
 
     /*

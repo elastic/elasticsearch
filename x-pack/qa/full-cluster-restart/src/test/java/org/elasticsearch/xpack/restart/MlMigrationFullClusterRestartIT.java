@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
 
@@ -56,14 +57,13 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = XPackRestTestHelper.ML_POST_V660_TEMPLATES;
+        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
 
         // If upgrading from a version prior to v6.6.0 the set of templates
         // to wait for is different
         if (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_6_6_0) ) {
-                templatesToWaitFor = XPackRestTestHelper.ML_PRE_V660_TEMPLATES;
+                templatesToWaitFor = XPackRestTestConstants.ML_PRE_V660_TEMPLATES;
         }
-
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 

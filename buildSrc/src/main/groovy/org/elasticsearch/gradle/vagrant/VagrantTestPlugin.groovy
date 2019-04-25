@@ -214,9 +214,15 @@ class VagrantTestPlugin implements Plugin<Project> {
             } else {
                 UPGRADE_FROM_ARCHIVES.each {
                     // The version of elasticsearch that we upgrade *from*
-                    dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
-                    if (upgradeFromVersion.onOrAfter('6.3.0')) {
-                        dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+                    if (upgradeFromVersion.onOrAfter('7.0.0')) {
+                        String arch = it == "rpm" ? "x86_64" : "amd64"
+                        dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}-${arch}@${it}")
+                        dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}-${arch}@${it}")
+                    } else {
+                        dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
+                        if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                            dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+                        }
                     }
                 }
             }

@@ -52,9 +52,8 @@ public final class TransportSettings {
         listSetting("transport.bind_host", HOST, Function.identity(), Setting.Property.NodeScope);
     public static final Setting.AffixSetting<List<String>> BIND_HOST_PROFILE = affixKeySetting("transport.profiles.", "bind_host",
         key -> listSetting(key, BIND_HOST, Function.identity(), Setting.Property.NodeScope));
-    // TODO: Deprecate in 7.0
     public static final Setting<String> OLD_PORT =
-        new Setting<>("transport.tcp.port", "9300-9400", Function.identity(), Setting.Property.NodeScope);
+        new Setting<>("transport.tcp.port", "9300-9400", Function.identity(), Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<String> PORT =
         new Setting<>("transport.port", OLD_PORT, Function.identity(), Setting.Property.NodeScope);
     public static final Setting.AffixSetting<String> PORT_PROFILE = affixKeySetting("transport.profiles.", "port",
@@ -63,31 +62,29 @@ public final class TransportSettings {
         intSetting("transport.publish_port", -1, -1, Setting.Property.NodeScope);
     public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
-    // TODO: Deprecate in 7.0
     public static final Setting<Boolean> OLD_TRANSPORT_COMPRESS =
-        boolSetting("transport.tcp.compress", false, Setting.Property.NodeScope);
+        boolSetting("transport.tcp.compress", false, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<Boolean> TRANSPORT_COMPRESS =
         boolSetting("transport.compress", OLD_TRANSPORT_COMPRESS, Setting.Property.NodeScope);
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =
         timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);
-    // TODO: Deprecate in 7.0
     public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
-        timeSetting("transport.tcp.connect_timeout", NetworkService.TCP_CONNECT_TIMEOUT, Setting.Property.NodeScope);
+        timeSetting("transport.tcp.connect_timeout", NetworkService.TCP_CONNECT_TIMEOUT, Setting.Property.NodeScope,
+            Setting.Property.Deprecated);
     public static final Setting<TimeValue> CONNECT_TIMEOUT =
         timeSetting("transport.connect_timeout", TCP_CONNECT_TIMEOUT, Setting.Property.NodeScope);
     public static final Setting<Settings> DEFAULT_FEATURES_SETTING = Setting.groupSetting(FEATURE_PREFIX + ".", Setting.Property.NodeScope);
 
     // Tcp socket settings
 
-    // TODO: Deprecate in 7.0
     public static final Setting<Boolean> OLD_TCP_NO_DELAY =
-        boolSetting("transport.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope);
+        boolSetting("transport.tcp_no_delay", NetworkService.TCP_NO_DELAY, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<Boolean> TCP_NO_DELAY =
         boolSetting("transport.tcp.no_delay", OLD_TCP_NO_DELAY, Setting.Property.NodeScope);
-    // TODO: Deprecate in 7.0
     public static final Setting.AffixSetting<Boolean> OLD_TCP_NO_DELAY_PROFILE =
-        affixKeySetting("transport.profiles.", "tcp_no_delay", key -> boolSetting(key, TCP_NO_DELAY, Setting.Property.NodeScope));
+        affixKeySetting("transport.profiles.", "tcp_no_delay", key -> boolSetting(key, TCP_NO_DELAY, Setting.Property.NodeScope,
+            Setting.Property.Deprecated));
     public static final Setting.AffixSetting<Boolean> TCP_NO_DELAY_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.no_delay",
             key -> boolSetting(key,
@@ -95,9 +92,9 @@ public final class TransportSettings {
                 Setting.Property.NodeScope));
     public static final Setting<Boolean> TCP_KEEP_ALIVE =
         boolSetting("transport.tcp.keep_alive", NetworkService.TCP_KEEP_ALIVE, Setting.Property.NodeScope);
-    // TODO: Deprecate in 7.0
     public static final Setting.AffixSetting<Boolean> OLD_TCP_KEEP_ALIVE_PROFILE =
-        affixKeySetting("transport.profiles.", "tcp_keep_alive", key -> boolSetting(key, TCP_KEEP_ALIVE, Setting.Property.NodeScope));
+        affixKeySetting("transport.profiles.", "tcp_keep_alive",
+            key -> boolSetting(key, TCP_KEEP_ALIVE, Setting.Property.NodeScope, Setting.Property.Deprecated));
     public static final Setting.AffixSetting<Boolean> TCP_KEEP_ALIVE_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.keep_alive",
             key -> boolSetting(key,
@@ -105,9 +102,9 @@ public final class TransportSettings {
                 Setting.Property.NodeScope));
     public static final Setting<Boolean> TCP_REUSE_ADDRESS =
         boolSetting("transport.tcp.reuse_address", NetworkService.TCP_REUSE_ADDRESS, Setting.Property.NodeScope);
-    // TODO: Deprecate in 7.0
     public static final Setting.AffixSetting<Boolean> OLD_TCP_REUSE_ADDRESS_PROFILE =
-        affixKeySetting("transport.profiles.", "reuse_address", key -> boolSetting(key, TCP_REUSE_ADDRESS, Setting.Property.NodeScope));
+        affixKeySetting("transport.profiles.", "reuse_address", key -> boolSetting(key, TCP_REUSE_ADDRESS, Setting.Property.NodeScope,
+            Setting.Property.Deprecated));
     public static final Setting.AffixSetting<Boolean> TCP_REUSE_ADDRESS_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.reuse_address",
             key -> boolSetting(key,
@@ -115,10 +112,9 @@ public final class TransportSettings {
                 Setting.Property.NodeScope));
     public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
         Setting.byteSizeSetting("transport.tcp.send_buffer_size", NetworkService.TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope);
-    // TODO: Deprecate in 7.0
     public static final Setting.AffixSetting<ByteSizeValue> OLD_TCP_SEND_BUFFER_SIZE_PROFILE =
         affixKeySetting("transport.profiles.", "send_buffer_size",
-            key -> Setting.byteSizeSetting(key, TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope));
+            key -> Setting.byteSizeSetting(key, TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope, Setting.Property.Deprecated));
     public static final Setting.AffixSetting<ByteSizeValue> TCP_SEND_BUFFER_SIZE_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.send_buffer_size",
             key -> Setting.byteSizeSetting(key,
@@ -126,10 +122,9 @@ public final class TransportSettings {
                 Setting.Property.NodeScope));
     public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
         Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope);
-    // TODO: Deprecate in 7.0
     public static final Setting.AffixSetting<ByteSizeValue> OLD_TCP_RECEIVE_BUFFER_SIZE_PROFILE =
         affixKeySetting("transport.profiles.", "receive_buffer_size",
-            key -> Setting.byteSizeSetting(key, TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope));
+            key -> Setting.byteSizeSetting(key, TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope, Setting.Property.Deprecated));
     public static final Setting.AffixSetting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE_PROFILE =
         affixKeySetting("transport.profiles.", "tcp.receive_buffer_size",
             key -> Setting.byteSizeSetting(key,

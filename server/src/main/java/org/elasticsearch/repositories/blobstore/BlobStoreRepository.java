@@ -100,7 +100,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
@@ -122,27 +121,28 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * <pre>
  * {@code
  *   STORE_ROOT
- *   |- index-N           - list of all snapshot ids and the indices belonging to each snapshot, N is the generation of the file
+ *   |- index-N           - JSON serialized {@link RepositoryData} containing a list of all snapshot ids and the indices belonging to
+ *   |                      each snapshot, N is the generation of the file
  *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
  *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
- *   |- snap-20131010 - JSON serialized Snapshot for snapshot "20131010"
- *   |- meta-20131010.dat - JSON serialized MetaData for snapshot "20131010" (includes only global metadata)
- *   |- snap-20131011 - JSON serialized Snapshot for snapshot "20131011"
- *   |- meta-20131011.dat - JSON serialized MetaData for snapshot "20131011"
+ *   |- snap-20131010.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131010"
+ *   |- meta-20131010.dat - SMILE serialized {@link MetaData} for snapshot "20131010" (includes only global metadata)
+ *   |- snap-20131011.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131011"
+ *   |- meta-20131011.dat - SMILE serialized {@link MetaData} for snapshot "20131011"
  *   .....
  *   |- indices/ - data for all indices
  *      |- Ac1342-B_x/ - data for index "foo" which was assigned the unique id of Ac1342-B_x in the repository
- *      |  |- meta-20131010.dat - JSON Serialized IndexMetaData for index "foo"
+ *      |  |- meta-20131010.dat - JSON Serialized {@link IndexMetaData} for index "foo"
  *      |  |- 0/ - data for shard "0" of index "foo"
- *      |  |  |- __1 \
- *      |  |  |- __2 |
- *      |  |  |- __3 |- files from different segments see snapshot-* for their mappings to real segment files
- *      |  |  |- __4 |
- *      |  |  |- __5 /
+ *      |  |  |- __1                      \  (files with numeric names were created by older ES versions)
+ *      |  |  |- __2                      |
+ *      |  |  |- __VPO5oDMVT5y4Akv8T_AO_A |- files from different segments see snap-* for their mappings to real segment files
+ *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
+ *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
  *      |  |  .....
- *      |  |  |- snap-20131010.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131010"
- *      |  |  |- snap-20131011.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
- *      |  |  |- list-123 - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
+ *      |  |  |- snap-20131010.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131010"
+ *      |  |  |- snap-20131011.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131011"
+ *      |  |  |- index-123 - SMILE serialized {@link BlobStoreIndexShardSnapshots} for the shard
  *      |  |
  *      |  |- 1/ - data for shard "1" of index "foo"
  *      |  |  |- __1
@@ -464,22 +464,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
             indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
             final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
-            for (final IndexId indexId : indicesToCleanUp) {
                 try {
-                    indicesBlobContainer.deleteBlobIgnoringIfNotExists(indexId.getId());
-                } catch (DirectoryNotEmptyException dnee) {
-                    // if the directory isn't empty for some reason, it will fail to clean up;
-                    // we'll ignore that and accept that cleanup didn't fully succeed.
-                    // since we are using UUIDs for path names, this won't be an issue for
-                    // snapshotting indices of the same name
-                    logger.warn(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
-                        "but failed to clean up its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
+                    indicesBlobContainer.deleteBlobsIgnoringIfNotExists(
+                        indicesToCleanUp.stream().map(IndexId::getId).collect(Collectors.toList()));
                 } catch (IOException ioe) {
                     // a different IOException occurred while trying to delete - will just log the issue for now
-                    logger.warn(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, " +
-                        "but failed to clean up its index folder.", metadata.name(), indexId), ioe);
+                    logger.warn(() ->
+                        new ParameterizedMessage(
+                            "[{}] indices {} are no longer part of any snapshots in the repository, " +
+                        "but failed to clean up their index folders.", metadata.name(), indicesToCleanUp), ioe);
                 }
-            }
         } catch (IOException | ResourceNotFoundException ex) {
             throw new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex);
         }
@@ -1016,16 +1010,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 // Delete temporary index files first, as we might otherwise fail in the next step creating the new index file if an earlier
                 // attempt to write an index file with this generation failed mid-way after creating the temporary file.
-                for (final String blobName : blobs.keySet()) {
-                    if (FsBlobContainer.isTempBlobName(blobName)) {
-                        try {
-                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
-                        } catch (IOException e) {
-                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blob [{}] during finalization",
-                                snapshotId, shardId, blobName), e);
-                            throw e;
-                        }
-                    }
+                final List<String> blobNames =
+                    blobs.keySet().stream().filter(FsBlobContainer::isTempBlobName).collect(Collectors.toList());
+                try {
+                    blobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs {} during finalization",
+                        snapshotId, shardId, blobNames), e);
+                    throw e;
                 }
 
                 // If we deleted all snapshots, we don't need to create a new index file
@@ -1034,28 +1026,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 // Delete old index files
-                for (final String blobName : blobs.keySet()) {
-                    if (blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
-                        try {
-                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
-                        } catch (IOException e) {
-                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blob [{}] during finalization",
-                                snapshotId, shardId, blobName), e);
-                            throw e;
-                        }
-                    }
+                final List<String> indexBlobs =
+                    blobs.keySet().stream().filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)).collect(Collectors.toList());
+                try {
+                    blobContainer.deleteBlobsIgnoringIfNotExists(indexBlobs);
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs {} during finalization",
+                        snapshotId, shardId, indexBlobs), e);
+                    throw e;
                 }
 
                 // Delete all blobs that don't exist in a snapshot
-                for (final String blobName : blobs.keySet()) {
-                    if (blobName.startsWith(DATA_BLOB_PREFIX) && (updatedSnapshots.findNameFile(canonicalName(blobName)) == null)) {
-                        try {
-                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
-                        } catch (IOException e) {
-                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blob [{}] during finalization",
-                                snapshotId, shardId, blobName), e);
-                        }
-                    }
+                final List<String> orphanedBlobs = blobs.keySet().stream()
+                    .filter(blobName ->
+                        blobName.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blobName)) == null)
+                    .collect(Collectors.toList());
+                try {
+                    blobContainer.deleteBlobsIgnoringIfNotExists(orphanedBlobs);
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs {} during finalization",
+                        snapshotId, shardId, orphanedBlobs), e);
                 }
             } catch (IOException e) {
                 String message = "Failed to finalize " + reason + " with shard index [" + currentIndexGen + "]";
@@ -1147,7 +1137,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(() -> new ParameterizedMessage("failed to read commit point [{}]", name), e);
                 }
             }
-            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), -1);
+            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), latest);
         }
     }
 

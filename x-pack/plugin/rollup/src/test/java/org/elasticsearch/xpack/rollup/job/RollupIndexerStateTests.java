@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
@@ -45,7 +46,6 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 
@@ -197,7 +197,13 @@ public class RollupIndexerStateTests extends ESTestCase {
             } catch (InterruptedException e) {
                 throw new IllegalStateException(e);
             }
-            nextPhase.onResponse(searchFunction.apply(request));
+
+            try {
+                SearchResponse response = searchFunction.apply(request);
+                nextPhase.onResponse(response);
+            } catch (Exception e) {
+                nextPhase.onFailure(e);
+            }
         }
 
         @Override
@@ -295,7 +301,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         RollupIndexerJobStats stats = new RollupIndexerJobStats();
         RollupIndexerJobStats spyStats = spy(stats);
-        RollupJobConfig config = mock(RollupJobConfig.class);
+        RollupJobConfig config = ConfigTestHelpers.randomRollupJobConfig(random());
 
         // We call stats before a final state check, so this allows us to flip the state
         // and make sure the appropriate error is thrown
@@ -800,15 +806,14 @@ public class RollupIndexerStateTests extends ESTestCase {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
-            ShardSearchFailure[] failures = new ShardSearchFailure[]{new ShardSearchFailure(new RuntimeException("failed"))};
-            return new SearchResponse(null, null, 1, 1, 0, 0,
-                failures, null);
+            throw new SearchPhaseExecutionException("query", "Partial shards failure",
+                    new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("failed")) });
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
         Consumer<Exception> failureConsumer = e -> {
-            assertThat(e.getMessage(), startsWith("Shard failures encountered while running indexer for job"));
+            assertThat(e.getMessage(), startsWith("Partial shards failure"));
             isFinished.set(true);
         };
 

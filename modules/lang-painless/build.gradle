@@ -17,6 +17,9 @@
  * under the License.
  */
 
+import org.elasticsearch.gradle.test.ClusterConfiguration
+import org.elasticsearch.gradle.test.ClusterFormationTasks
+
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
   classname 'org.elasticsearch.painless.PainlessPlugin'
@@ -49,17 +52,37 @@ task apiJavadoc(type: Javadoc) {
   include '**/org/elasticsearch/painless/api/'
   destinationDir = new File(docsDir, 'apiJavadoc')
 }
+
 task apiJavadocJar(type: Jar) {
   classifier = 'apiJavadoc'
   from apiJavadoc
 }
+
 assemble.dependsOn apiJavadocJar
 
-// Reference documentation for Painless's public API.
-task generatePainlessApi(type: JavaExec) {
-  main = 'org.elasticsearch.painless.PainlessDocGenerator'
-  classpath = sourceSets.test.runtimeClasspath
-  args file('../../docs/painless/painless-api-reference')
+/**********************************************
+ *           Context API Generation           *
+ **********************************************/
+
+sourceSets {
+  doc
+}
+
+dependencies {
+  docCompile "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+  docCompile project(':modules:lang-painless')
+}
+
+ClusterConfiguration clusterConfig = project.extensions.create("generateContextCluster", ClusterConfiguration.class, project)
+gradle.projectsEvaluated {
+  project.ext.generateContextNodes = ClusterFormationTasks.setup(project, "generateContextCluster", generateContextDoc, clusterConfig)
+}
+clusterConfig.distribution = 'default'
+
+task generateContextDoc(type: JavaExec) {
+  main = 'org.elasticsearch.painless.ContextDocGenerator'
+  classpath = sourceSets.doc.runtimeClasspath
+  systemProperty "cluster.uri", "${-> project.ext.generateContextNodes.collect { it.httpUri() }.join(',') }"
 }
 
 /**********************************************

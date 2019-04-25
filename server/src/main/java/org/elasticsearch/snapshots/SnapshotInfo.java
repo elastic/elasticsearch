@@ -514,9 +514,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (verbose || !shardFailures.isEmpty()) {
             builder.startArray(FAILURES);
             for (SnapshotShardFailure shardFailure : shardFailures) {
-                builder.startObject();
                 shardFailure.toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
         }
@@ -555,9 +553,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.field(SUCCESSFUL_SHARDS, successfulShards);
         builder.startArray(FAILURES);
         for (SnapshotShardFailure shardFailure : shardFailures) {
-            builder.startObject();
             shardFailure.toXContent(builder, params);
-            builder.endObject();
         }
         builder.endArray();
         builder.endObject();

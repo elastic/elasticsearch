@@ -91,7 +91,7 @@ enum DateFormat {
 
             DateFormatter dateFormatter = DateFormatter.forPattern(format)
                 .withLocale(locale);
-            // if UTC zone is set here, the the time zone specified in the format will be ignored, leading to wrong dates
+            // if UTC zone is set here, the time zone specified in the format will be ignored, leading to wrong dates
             if (isUtc == false) {
                 dateFormatter = dateFormatter.withZone(zoneId);
             }

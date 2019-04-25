@@ -40,6 +40,7 @@ import org.elasticsearch.client.dataframe.StopDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.StopDataFrameTransformResponse;
 import org.elasticsearch.client.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.client.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
@@ -465,18 +466,21 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
             // tag::get-data-frame-transform-stats-response
             DataFrameTransformStateAndStats stateAndStats =
-                    response.getTransformsStateAndStats().get(0);   // <1>
+                response.getTransformsStateAndStats().get(0);   // <1>
             DataFrameTransformTaskState taskState =
                 stateAndStats.getTransformState().getTaskState(); // <2>
             IndexerState indexerState =
-                    stateAndStats.getTransformState().getIndexerState();  // <3>
+                stateAndStats.getTransformState().getIndexerState();  // <3>
             DataFrameIndexerTransformStats transformStats =
-                    stateAndStats.getTransformStats();              // <4>
+                stateAndStats.getTransformStats();              // <4>
+            DataFrameTransformProgress progress =
+                stateAndStats.getTransformState().getProgress(); // <5>
             // end::get-data-frame-transform-stats-response
 
             assertEquals(IndexerState.STOPPED, indexerState);
             assertEquals(DataFrameTransformTaskState.STOPPED, taskState);
             assertNotNull(transformStats);
+            assertNull(progress);
         }
         {
             // tag::get-data-frame-transform-stats-execute-listener

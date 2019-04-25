@@ -34,6 +34,7 @@ teardown:
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-stats"
+        wait_for_completion: true
 
   - do:
       data_frame.delete_data_frame_transform:
@@ -197,6 +198,7 @@ teardown:
   - match: { transforms.0.id: "airline-transform-stats-dos" }
   - match: { transforms.0.state.indexer_state: "stopped" }
   - match: { transforms.0.state.checkpoint: 0 }
+  - is_false: transforms.0.state.progress
   - match: { transforms.0.stats.pages_processed: 0 }
   - match: { transforms.0.stats.documents_processed: 0 }
   - match: { transforms.0.stats.documents_indexed: 0 }

@@ -299,7 +299,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         ensureGreen(index);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41449")
     public void testRecoveryWithSoftDeletes() throws Exception {
         final String index = "recover_with_soft_deletes";
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -325,7 +324,11 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 if (randomBoolean()) {
                     indexDocs(index, i, 1); // update
                 } else if (randomBoolean()) {
-                    client().performRequest(new Request("DELETE", index + "/test/" + i));
+                    if (getNodeId(v -> v.onOrAfter(Version.V_7_0_0)) == null) {
+                        client().performRequest(new Request("DELETE", index + "/test/" + i));
+                    } else {
+                        client().performRequest(new Request("DELETE", index + "/_doc/" + i));
+                    }
                 }
             }
         }

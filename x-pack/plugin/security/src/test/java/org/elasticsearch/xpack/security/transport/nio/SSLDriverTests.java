@@ -366,7 +366,7 @@ public class SSLDriverTests extends ESTestCase {
 
         int bytesEncrypted = 0;
         while (bytesToEncrypt > bytesEncrypted) {
-            bytesEncrypted += sendDriver.write(outboundBuffer, flushOperation);
+            bytesEncrypted += sendDriver.write(flushOperation, outboundBuffer);
             sendData(outboundBuffer.buildNetworkFlushOperation(), receiveDriver);
         }
     }

@@ -39,7 +39,7 @@ import java.util.ArrayList;
  * if the driver is ready to consume application data. (Note: It is possible that
  * {@link #readyForApplicationWrites()} and {@link #needsNonApplicationWrite()} can both return false if the
  * driver is waiting on non-application data from the peer.) If the driver indicates it is ready for
- * application writes, {@link #write(SSLOutboundBuffer, FlushOperation)} can be called. This method will
+ * application writes, {@link #write(FlushOperation, SSLOutboundBuffer)} can be called. This method will
  * encrypt flush operation application data and place it in the outbound buffer for flushing to a channel.
  *
  * If you are ready to close the channel {@link #initiateClose()} should be called. After that is called, the
@@ -50,7 +50,7 @@ import java.util.ArrayList;
 public class SSLDriver implements AutoCloseable {
 
     private static final ByteBuffer[] EMPTY_BUFFERS = {ByteBuffer.allocate(0)};
-    private static final FlushOperation EMPTY_BUFFER_ARRAY = new FlushOperation(EMPTY_BUFFERS, (r, t) -> {});
+    private static final FlushOperation EMPTY_FLUSH_OPERATION = new FlushOperation(EMPTY_BUFFERS, (r, t) -> {});
 
     private final SSLEngine engine;
     private final boolean isClientMode;
@@ -125,14 +125,14 @@ public class SSLDriver implements AutoCloseable {
         return currentMode.needsNonApplicationWrite();
     }
 
-    public int write(SSLOutboundBuffer outboundBuffer, FlushOperation applicationBytes) throws SSLException {
-        return currentMode.write(outboundBuffer, applicationBytes);
+    public int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException {
+        return currentMode.write(applicationBytes, outboundBuffer);
     }
 
     public void nonApplicationWrite(SSLOutboundBuffer outboundBuffer) throws SSLException {
         assert currentMode.isApplication() == false : "Should not be called if driver is in application mode";
         if (currentMode.isApplication() == false) {
-            currentMode.write(outboundBuffer, EMPTY_BUFFER_ARRAY);
+            currentMode.write(EMPTY_FLUSH_OPERATION, outboundBuffer);
         } else {
             throw new AssertionError("Attempted to non-application write from invalid mode: " + currentMode.modeName());
         }
@@ -196,7 +196,7 @@ public class SSLDriver implements AutoCloseable {
     }
 
     private SSLEngineResult wrap(SSLOutboundBuffer outboundBuffer) throws SSLException {
-        return wrap(outboundBuffer, EMPTY_BUFFER_ARRAY);
+        return wrap(outboundBuffer, EMPTY_FLUSH_OPERATION);
     }
 
     private SSLEngineResult wrap(SSLOutboundBuffer outboundBuffer, FlushOperation applicationBytes) throws SSLException {
@@ -280,7 +280,7 @@ public class SSLDriver implements AutoCloseable {
 
         void read(InboundChannelBuffer buffer) throws SSLException;
 
-        int write(SSLOutboundBuffer outboundBuffer, FlushOperation applicationBytes) throws SSLException;
+        int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException;
 
         boolean needsNonApplicationWrite();
 
@@ -366,7 +366,7 @@ public class SSLDriver implements AutoCloseable {
         }
 
         @Override
-        public int write(SSLOutboundBuffer outboundBuffer, FlushOperation applicationBytes) throws SSLException {
+        public int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException {
             try {
                 handshake(outboundBuffer);
             } catch (SSLException e) {
@@ -448,7 +448,7 @@ public class SSLDriver implements AutoCloseable {
         }
 
         @Override
-        public int write(SSLOutboundBuffer outboundBuffer, FlushOperation applicationBytes) throws SSLException {
+        public int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException {
             boolean continueWrap = true;
             int totalBytesProduced = 0;
             while (continueWrap && applicationBytes.isFullyFlushed() == false) {
@@ -542,7 +542,7 @@ public class SSLDriver implements AutoCloseable {
         }
 
         @Override
-        public int write(SSLOutboundBuffer outboundBuffer, FlushOperation applicationBytes) throws SSLException {
+        public int write(FlushOperation applicationBytes, SSLOutboundBuffer outboundBuffer) throws SSLException {
             int bytesProduced = 0;
             if (engine.isOutboundDone() == false) {
                 bytesProduced += wrap(outboundBuffer).bytesProduced();

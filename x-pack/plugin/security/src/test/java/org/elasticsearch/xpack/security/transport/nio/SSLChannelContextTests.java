@@ -250,7 +250,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.queueWriteOperation(flushOperation);
 
         when(sslDriver.readyForApplicationWrites()).thenReturn(true);
-        doAnswer(getWriteAnswer(10, true)).when(sslDriver).write(any(SSLOutboundBuffer.class), eq(flushOperation));
+        doAnswer(getWriteAnswer(10, true)).when(sslDriver).write(eq(flushOperation), any(SSLOutboundBuffer.class));
 
         when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(10);
         context.flushChannel();
@@ -266,7 +266,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.queueWriteOperation(flushOperation);
 
         when(sslDriver.readyForApplicationWrites()).thenReturn(true);
-        doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(any(SSLOutboundBuffer.class), eq(flushOperation));
+        doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(eq(flushOperation), any(SSLOutboundBuffer.class));
         when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(4);
         context.flushChannel();
 
@@ -286,7 +286,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.queueWriteOperation(flushOperation2);
 
         when(sslDriver.readyForApplicationWrites()).thenReturn(true);
-        doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(any(SSLOutboundBuffer.class), any(FlushOperation.class));
+        doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(any(FlushOperation.class), any(SSLOutboundBuffer.class));
         when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(5, 5, 2);
         context.flushChannel();
 
@@ -303,7 +303,7 @@ public class SSLChannelContextTests extends ESTestCase {
 
         IOException exception = new IOException();
         when(sslDriver.readyForApplicationWrites()).thenReturn(true);
-        doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(any(SSLOutboundBuffer.class), eq(flushOperation));
+        doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(eq(flushOperation), any(SSLOutboundBuffer.class));
         when(rawChannel.write(any(ByteBuffer.class))).thenThrow(exception);
         expectThrows(IOException.class, () -> context.flushChannel());
 

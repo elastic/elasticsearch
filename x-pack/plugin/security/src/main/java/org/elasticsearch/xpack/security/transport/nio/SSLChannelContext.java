@@ -98,7 +98,7 @@ public final class SSLChannelContext extends SocketChannelContext {
                     try {
                         // Attempt to encrypt application write data. The encrypted data ends up in the
                         // outbound write buffer.
-                        sslDriver.write(outboundBuffer, unencryptedFlush);
+                        sslDriver.write(unencryptedFlush, outboundBuffer);
                         if (outboundBuffer.hasEncryptedBytesToFlush() == false) {
                             break;
                         }

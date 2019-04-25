@@ -206,10 +206,6 @@ bwcVersions.forPreviousUnreleased { VersionCollection.UnreleasedVersionInfo unre
         }
     }
 
-    createRunBwcGradleTask("resolveAllBwcDependencies") {
-        args 'resolveAllDependencies'
-    }
-    resolveAllDependencies.dependsOn resolveAllBwcDependencies
 
     artifacts {
       for (File artifactFile : artifactFiles) {

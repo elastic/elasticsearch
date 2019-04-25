@@ -1,6 +1,7 @@
 [[breaking_60_indices_changes]]
 === Indices changes
 
+[[_index_templates_use_literal_index_patterns_literal_instead_of_literal_template_literal]]
 ==== Index templates use `index_patterns` instead of `template`
 
 Previously templates expressed the indices that they should match using a glob

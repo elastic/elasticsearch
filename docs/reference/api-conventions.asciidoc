@@ -98,7 +98,7 @@ curl -XGET 'localhost:9200/<logstash-{now%2Fd-2d}>/_search' {
 NOTE: The `/` used for date rounding must be url encoded as `%2F` in any url.
 
 The following example shows different forms of date math index names and the final index names
-they resolve to given the current time is 22rd March 2024 noon utc.
+they resolve to given the current time is 22nd March 2024 noon utc.
 
 [options="header"]
 |======

@@ -456,7 +456,7 @@ public class ExecutionService {
                 watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
                     "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
-                     ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+                     ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                     IndexRequest request = new IndexRequest(index)
                         .id(watchRecord.id().value())
                         .source(xContentBuilder.value(watchRecord));

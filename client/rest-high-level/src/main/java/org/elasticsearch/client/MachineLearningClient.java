@@ -92,6 +92,7 @@ import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -1965,6 +1966,45 @@ public final class MachineLearningClient {
             Collections.emptySet());
     }
 
+    /**
+     * Gets a single or multiple calendars.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html">ML GET calendars documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse startDataFrameAnalytics(StartDataFrameAnalyticsRequest request,
+                                                        RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::startDataFrameAnalytics,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Starts a single or multiple calendars, notifies listener once the requested records are retrieved.
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html">ML GET calendars documentation</a>
+     *
+     * @param request The request
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void startDataFrameAnalyticsAsync(StartDataFrameAnalyticsRequest request, RequestOptions options,
+                                             ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::startDataFrameAnalytics,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
 
     /**
      * Deletes the given Machine Learning Calendar

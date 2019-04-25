@@ -90,6 +90,7 @@ import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -1338,6 +1339,38 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(request, machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testStartDataFrameAnalyticsConfig() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(new DataFrameAnalyticsSource("test-source-index"))
+            .setDest(new DataFrameAnalyticsDest("test-dest-index"))
+            .setAnalysis(new OutlierDetection())
+            .build();
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+
+        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), contains(createdConfig));
+
+        AcknowledgedResponse startDataFrameAnalyticsResponse = execute(
+            new StartDataFrameAnalyticsRequest(configId),
+            machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
+        assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
+
+        getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId),
+            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), contains(createdConfig));
     }
 
     public void testDeleteDataFrameAnalyticsConfig() throws Exception {

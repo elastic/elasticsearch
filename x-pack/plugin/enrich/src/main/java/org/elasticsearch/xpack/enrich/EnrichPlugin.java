@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -21,7 +22,8 @@ public class EnrichPlugin extends Plugin implements IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        return Collections.emptyMap();
+        final ClusterService clusterService = parameters.ingestService.getClusterService();
+        return Map.of(EnrichProcessorFactory.TYPE, new EnrichProcessorFactory(clusterService::state, parameters.localShardSearcher));
     }
 
     @Override

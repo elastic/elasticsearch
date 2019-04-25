@@ -189,7 +189,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker == 0) {
                 from = nextMarker + 1;
                 deprecationLogger.deprecated("support for empty first line before any action metadata in msearch API is deprecated and " +
-                    "will be removed");
+                    "will be removed in the next major version");
                 continue;
             }
 

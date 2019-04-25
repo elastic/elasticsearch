@@ -41,7 +41,7 @@ public class GetDataFrameAnalyticsResponse {
             args -> new GetDataFrameAnalyticsResponse((List<DataFrameAnalyticsConfig>) args[0]));
 
     static {
-        PARSER.declareObjectArray(constructorArg(), DataFrameAnalyticsConfig.PARSER::apply, DATA_FRAME_ANALYTICS);
+        PARSER.declareObjectArray(constructorArg(), (p, c) -> DataFrameAnalyticsConfig.fromXContent(p), DATA_FRAME_ANALYTICS);
     }
 
     public static GetDataFrameAnalyticsResponse fromXContent(final XContentParser parser) {

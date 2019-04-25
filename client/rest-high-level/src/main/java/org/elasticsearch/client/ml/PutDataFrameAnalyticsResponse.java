@@ -28,7 +28,7 @@ import java.util.Objects;
 public class PutDataFrameAnalyticsResponse {
 
     public static PutDataFrameAnalyticsResponse fromXContent(XContentParser parser) throws IOException {
-        return new PutDataFrameAnalyticsResponse(DataFrameAnalyticsConfig.PARSER.parse(parser, null).build());
+        return new PutDataFrameAnalyticsResponse(DataFrameAnalyticsConfig.fromXContent(parser));
     }
 
     private final DataFrameAnalyticsConfig config;

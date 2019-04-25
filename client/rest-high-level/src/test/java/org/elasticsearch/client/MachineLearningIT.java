@@ -1242,17 +1242,14 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(remainingIds, not(hasItem(deletedEvent)));
     }
 
-    public void testPutDeleteDataFrameAnalyticsConfig() throws Exception {
-        String sourceIndex = "index-source-test";
-        String destIndex = "index-dest-test";
-        String configId = "config-test";
+    public void testPutDataFrameAnalyticsConfig() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-config";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
-            .setSource(new DataFrameAnalyticsSource(sourceIndex, null))
-            .setDest(new DataFrameAnalyticsDest(destIndex, null))
+            .setSource(new DataFrameAnalyticsSource("test-source-index"))
+            .setDest(new DataFrameAnalyticsDest("test-dest-index"))
             .setAnalysis(new OutlierDetection())
             .build();
-
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
 
         PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
             new PutDataFrameAnalyticsRequest(config),
@@ -1267,32 +1264,124 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(createdConfig.getAnalysis(), equalTo(config.getAnalysis()));
         assertThat(createdConfig.getAnalyzedFields(), equalTo(config.getAnalyzedFields()));
         assertThat(createdConfig.getModelMemoryLimit(), equalTo(ByteSizeValue.parseBytesSizeValue("1gb", "")));  // default value
+    }
+
+    public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(new DataFrameAnalyticsSource("test-source-index"))
+            .setDest(new DataFrameAnalyticsDest("test-dest-index"))
+            .setAnalysis(new OutlierDetection())
+            .build();
+
+        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics,
+            machineLearningClient::putDataFrameAnalyticsAsync);
+        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
 
         GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
             new GetDataFrameAnalyticsRequest(configId),
             machineLearningClient::getDataFrameAnalytics,
             machineLearningClient::getDataFrameAnalyticsAsync);
         assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
-        assertThat(getDataFrameAnalyticsResponse.getAnalytics().get(0), equalTo(createdConfig));
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), contains(createdConfig));
+    }
+
+    public void testGetDataFrameAnalyticsConfig_MultipleConfigs() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configIdPrefix = "test-config-";
+        int numberOfConfigs = 10;
+        List<DataFrameAnalyticsConfig> createdConfigs = new ArrayList<>();
+        for (int i = 0; i < numberOfConfigs; ++i) {
+            String configId = configIdPrefix + i;
+            DataFrameAnalyticsConfig config =
+                DataFrameAnalyticsConfig.builder(configId)
+                    .setSource(new DataFrameAnalyticsSource("index-source-test"))
+                    .setDest(new DataFrameAnalyticsDest("index-dest-test"))
+                    .setAnalysis(new OutlierDetection())
+                    .build();
+
+            PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+                new PutDataFrameAnalyticsRequest(config),
+                machineLearningClient::putDataFrameAnalytics,
+                machineLearningClient::putDataFrameAnalyticsAsync);
+            DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
+            createdConfigs.add(createdConfig);
+        }
+
+        {
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                new GetDataFrameAnalyticsRequest(configIdPrefix + "*"),
+                machineLearningClient::getDataFrameAnalytics,
+                machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(numberOfConfigs));
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), containsInAnyOrder(createdConfigs.toArray()));
+        }
+
+        {
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                new GetDataFrameAnalyticsRequest(configIdPrefix + "9", configIdPrefix + "1", configIdPrefix + "4"),
+                machineLearningClient::getDataFrameAnalytics,
+                machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(3));
+            assertThat(
+                getDataFrameAnalyticsResponse.getAnalytics(),
+                containsInAnyOrder(createdConfigs.get(1), createdConfigs.get(4), createdConfigs.get(9)));
+        }
+    }
+
+    public void testGetDataFrameAnalyticsConfig_ConfigNotFound() {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("config_that_does_not_exist");
+        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
+            () -> execute(request, machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync));
+        assertThat(exception.status().getStatus(), equalTo(404));
+    }
+
+    public void testDeleteDataFrameAnalyticsConfig() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(new DataFrameAnalyticsSource("test-source-index"))
+            .setDest(new DataFrameAnalyticsDest("test-dest-index"))
+            .setAnalysis(new OutlierDetection())
+            .build();
+
+        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId + "*"),
+            machineLearningClient::getDataFrameAnalytics,
+            machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(0));
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics,
+            machineLearningClient::putDataFrameAnalyticsAsync);
+
+        getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId + "*"),
+            machineLearningClient::getDataFrameAnalytics,
+            machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
 
         AcknowledgedResponse deleteDataFrameAnalyticsResponse = execute(
             new DeleteDataFrameAnalyticsRequest(configId),
             machineLearningClient::deleteDataFrameAnalytics,
             machineLearningClient::deleteDataFrameAnalyticsAsync);
         assertTrue(deleteDataFrameAnalyticsResponse.isAcknowledged());
+
+        getDataFrameAnalyticsResponse = execute(
+            new GetDataFrameAnalyticsRequest(configId + "*"),
+            machineLearningClient::getDataFrameAnalytics,
+            machineLearningClient::getDataFrameAnalyticsAsync);
+        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(0));
     }
 
-    public void testGetDataFrameAnalyticsConfig_NotFound() {
+    public void testDeleteDataFrameAnalyticsConfig_ConfigNotFound() {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("config_that_does_not_exist*");
-        ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
-            () -> execute(request, machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync));
-        assertThat(exception.status().getStatus(), equalTo(404));
-    }
-
-    public void testDeleteDataFrameAnalyticsConfig_NotFound() {
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        DeleteDataFrameAnalyticsRequest request = new DeleteDataFrameAnalyticsRequest("config_that_does_not_exist*");
+        DeleteDataFrameAnalyticsRequest request = new DeleteDataFrameAnalyticsRequest("config_that_does_not_exist");
         ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class,
             () -> execute(
                 request, machineLearningClient::deleteDataFrameAnalytics, machineLearningClient::deleteDataFrameAnalyticsAsync));

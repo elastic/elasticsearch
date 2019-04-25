@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import com.google.common.collect.Iterables;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -85,7 +86,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class ExecutionService {
 
@@ -371,7 +371,7 @@ public class ExecutionService {
         updateRequest.doc(source);
         updateRequest.setIfSeqNo(watch.getSourceSeqNo());
         updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {
             // do not rethrow this exception, otherwise the watch history will contain an exception
@@ -564,7 +564,7 @@ public class ExecutionService {
      * @return The GetResponse of calling the get API of this watch
      */
     private GetResponse getWatch(String id) {
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             GetRequest getRequest = new GetRequest(Watch.INDEX, id).preference(Preference.LOCAL.type()).realtime(true);
             PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
             client.get(getRequest, future);

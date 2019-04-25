@@ -8,13 +8,14 @@ package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
@@ -26,7 +27,7 @@ import java.io.IOException;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
 
-public class PreviewDataFrameTransformActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
+public class PreviewDataFrameTransformActionRequestTests extends AbstractSerializingTestCase<Request> {
 
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;
@@ -55,8 +56,8 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractStreama
     }
 
     @Override
-    protected Request createBlankInstance() {
-        return new Request();
+    protected Writeable.Reader<Request> instanceReader() {
+        return Request::new;
     }
 
     @Override

@@ -108,12 +108,8 @@ releases 2.0 and later do not support rivers.
 * https://camel.apache.org/elasticsearch.html[Apache Camel Integration]:
   An Apache camel component to integrate Elasticsearch
 
-* https://metacpan.org/release/Catmandu-Store-ElasticSearch[Catmanadu]:
+* https://metacpan.org/pod/Catmandu::Store::ElasticSearch[Catmandu]:
   An Elasticsearch backend for the Catmandu framework.
-
-* https://github.com/tlrx/elasticsearch-test[elasticsearch-test]:
-  Elasticsearch Java annotations for unit testing with
-  http://www.junit.org/[JUnit]
 
 * https://github.com/FriendsOfSymfony/FOSElasticaBundle[FOSElasticaBundle]:
   Symfony2 Bundle wrapping Elastica.
@@ -126,9 +122,6 @@ releases 2.0 and later do not support rivers.
 
 * http://hibernate.org/search/[Hibernate Search]
   Integration with Hibernate ORM, from the Hibernate team. Automatic synchronization of write operations, yet exposes full Elasticsearch capabilities for queries. Can return either Elasticsearch native or re-map queries back into managed entities loaded within transaction from the reference database.
-
-* https://github.com/cleverage/play2-elasticsearch[play2-elasticsearch]:
-  Elasticsearch module for Play Framework 2.x
 
 * https://github.com/spring-projects/spring-data-elasticsearch[Spring Data Elasticsearch]:
   Spring Data implementation for Elasticsearch
@@ -159,24 +152,8 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by the community:
 
-* https://github.com/anchor/nagios-plugin-elasticsearch[check_elasticsearch]:
-  An Elasticsearch availability and performance monitoring plugin for
-  Nagios.
-
 * https://github.com/radu-gheorghe/check-es[check-es]:
   Nagios/Shinken plugins for checking on Elasticsearch
-
-* https://github.com/mattweber/es2graphite[es2graphite]:
-  Send cluster and indices stats and status to Graphite for monitoring and graphing.
-
-
-* https://itunes.apple.com/us/app/elasticocean/id955278030?ls=1&mt=8[ElasticOcean]:
-  Elasticsearch & DigitalOcean iOS Real-Time Monitoring tool to keep an eye on DigitalOcean Droplets or Elasticsearch instances or both of them on-a-go.
-
-* https://github.com/rbramley/Opsview-elasticsearch[opsview-elasticsearch]:
-  Opsview plugin written in Perl for monitoring Elasticsearch
-
-* https://scoutapp.com[Scout]: Provides plugins for monitoring Elasticsearch https://scoutapp.com/plugin_urls/1331-elasticsearch-node-status[nodes], https://scoutapp.com/plugin_urls/1321-elasticsearch-cluster-status[clusters], and https://scoutapp.com/plugin_urls/1341-elasticsearch-index-status[indices].
 
 * http://sematext.com/spm/index.html[SPM for Elasticsearch]:
   Performance monitoring with live charts showing cluster and node stats, integrated
@@ -190,23 +167,9 @@ releases 2.0 and later do not support rivers.
 [float]
 ==== Supported by the community:
 
-* https://github.com/kodcu/pes[Pes]:
-  A pluggable elastic JavaScript query DSL builder for Elasticsearch
-
 * https://www.wireshark.org/[Wireshark]:
   Protocol dissection for HTTP and the transport protocol
 
 * https://www.itemsapi.com/[ItemsAPI]:
   Search backend for mobile and web
 
-
-These projects appear to have been abandoned:
-
-* http://www.github.com/neogenix/daikon[daikon]:
-  Daikon Elasticsearch CLI
-
-* https://github.com/fullscale/dangle[dangle]:
-  A set of AngularJS directives that provide common visualizations for Elasticsearch based on
-  D3.
-* https://github.com/OlegKunitsyn/eslogd[eslogd]:
-  Linux daemon that replicates events to a central Elasticsearch server in realtime

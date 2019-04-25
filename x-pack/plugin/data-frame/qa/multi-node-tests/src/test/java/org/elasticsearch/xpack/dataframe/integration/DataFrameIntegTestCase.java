@@ -94,14 +94,26 @@ abstract class DataFrameIntegTestCase extends ESIntegTestCase {
     }
 
     protected DeleteDataFrameTransformAction.Response deleteDataFrameTransform(String id) {
-        return client().execute(DeleteDataFrameTransformAction.INSTANCE, new DeleteDataFrameTransformAction.Request(id)).actionGet();
+        DeleteDataFrameTransformAction.Response response = client().execute(DeleteDataFrameTransformAction.INSTANCE,
+            new DeleteDataFrameTransformAction.Request(id))
+            .actionGet();
+        if (response.isDeleted()) {
+            transformConfigs.remove(id);
+        }
+        return response;
     }
 
     protected AcknowledgedResponse putDataFrameTransform(DataFrameTransformConfig config) {
         if (transformConfigs.keySet().contains(config.getId())) {
             throw new IllegalArgumentException("data frame transform [" + config.getId() + "] is already registered");
         }
-        return client().execute(PutDataFrameTransformAction.INSTANCE, new PutDataFrameTransformAction.Request(config)).actionGet();
+        AcknowledgedResponse response = client().execute(PutDataFrameTransformAction.INSTANCE,
+            new PutDataFrameTransformAction.Request(config))
+            .actionGet();
+        if (response.isAcknowledged()) {
+            transformConfigs.put(config.getId(), config);
+        }
+        return response;
     }
 
     protected GetDataFrameTransformsStatsAction.Response getDataFrameTransformStats(String id) {
@@ -121,14 +133,6 @@ abstract class DataFrameIntegTestCase extends ESIntegTestCase {
                 .getCheckpoint()),
             waitTime.getMillis(),
             TimeUnit.MILLISECONDS);
-    }
-
-    protected void registerTransform(DataFrameTransformConfig config) {
-        transformConfigs.put(config.getId(), config);
-    }
-
-    protected void unregisterTransform(DataFrameTransformConfig config) {
-        transformConfigs.remove(config.getId());
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSource(String field, long interval, ZoneId zone, String format) {

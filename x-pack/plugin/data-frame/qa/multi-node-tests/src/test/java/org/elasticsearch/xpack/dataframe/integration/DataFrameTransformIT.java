@@ -25,7 +25,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
 
     @After
     public void cleanTransforms() {
-        super.cleanUp();
+        cleanUp();
     }
 
     public void testDataFrameTransformCrud() throws Exception {
@@ -47,7 +47,6 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             REVIEWS_INDEX_NAME);
 
         assertTrue(putDataFrameTransform(config).isAcknowledged());
-        registerTransform(config);
         assertTrue(startDataFrameTransform(config.getId()).isStarted());
 
         waitUntilCheckpoint(config.getId(), 1L);

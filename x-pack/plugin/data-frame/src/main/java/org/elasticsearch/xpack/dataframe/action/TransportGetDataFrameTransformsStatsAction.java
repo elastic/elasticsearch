@@ -165,9 +165,8 @@ public class TransportGetDataFrameTransformsStatsAction extends
                         }
                         nodeFailures.add(new FailedNodeException(nodeId, shardSearchFailure.toString(), shardSearchFailure.getCause()));
                     }
-                    String msg = "transform statistics document search returned shard failures: " +
-                        Arrays.toString(searchResponse.getShardFailures());
-                    logger.error(msg);
+                    logger.error("transform statistics document search returned shard failures: {}",
+                        Arrays.toString(searchResponse.getShardFailures()));
                 }
                 List<DataFrameTransformStateAndStats> allStateAndStats = response.getTransformsStateAndStats();
                 for(SearchHit hit : searchResponse.getHits().getHits()) {

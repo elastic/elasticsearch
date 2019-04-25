@@ -19,11 +19,11 @@
 
 package org.elasticsearch.gradle;
 
-import groovy.lang.Closure;
 import org.gradle.api.Action;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
+import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
@@ -31,8 +31,8 @@ import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileCopyDetails;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RelativePath;
-import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.util.Arrays;
@@ -54,62 +54,51 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name ->
+            new Jdk(name, project)
+        );
+        project.getExtensions().add("jdks", jdksContainer);
 
-        // create usesJdk task "method"
-        project.getTasks().configureEach(task -> {
-
-            ExtraPropertiesExtension extraProperties = task.getExtensions().findByType(ExtraPropertiesExtension.class);
-            extraProperties.set("usesJdk", new Closure<Void>(project, task) {
-                public void doCall(String version, String platform) {
-                    if (version == null) {
-                        throw new IllegalArgumentException("version must be specified to usesJdk");
-                    }
-                    if (platform == null) {
-                        throw new IllegalArgumentException("platform must be specified to usesJdk");
-                    }
-                    if (ALLOWED_PLATFORMS.contains(platform) == false) {
-                        throw new IllegalArgumentException("platform must be one of " + ALLOWED_PLATFORMS);
-                    }
-                    if (extraProperties.has("jdk")) {
-                        throw new IllegalArgumentException("jdk version already set for task");
-                    }
-
-                    // ensure a root level jdk download task exists
-                    setupRootJdkDownload(project.getRootProject(), platform, version);
-
-                    // setup a configuration for just this version of the jdk
-                    final ConfigurationContainer configurations = project.getConfigurations();
-                    String configurationName = configName("localjdk", version, platform);
-                    Configuration jdkConfig = configurations.findByName(configurationName);
-                    if (jdkConfig == null) {
-                        jdkConfig = configurations.create(configurationName);
-                    }
-                    task.dependsOn(jdkConfig);
-
-                    // depend on the jdk directory "artifact" from the root project
-                    DependencyHandler dependencies = project.getDependencies();
-                    Map<String, Object> depConfig = new HashMap<>();
-                    depConfig.put("path", ":"); // root project
-                    depConfig.put("configuration", configName("localjdk", version, platform));
-                    dependencies.add(configurationName, dependencies.project(depConfig));
-
-                    // add extension to access the resolved jdk
-                    extraProperties.set("jdk", new JdkDownloadExtension(configurations.getByName(configurationName)));
+        project.afterEvaluate(p -> {
+            for (Jdk jdk : jdksContainer) {
+                String version = jdk.getVersion();
+                if (version == null) {
+                    throw new IllegalArgumentException("version not specified for jdk " + jdk.getName());
                 }
-            });
+                String platform = jdk.getPlatform();
+                if (platform == null) {
+                    throw new IllegalArgumentException("platform not specified for jdk " + jdk.getName());
+                }
+
+                // depend on the jdk directory "artifact" from the root project
+                DependencyHandler dependencies = project.getDependencies();
+                Map<String, Object> depConfig = new HashMap<>();
+                depConfig.put("path", ":"); // root project
+                depConfig.put("configuration", configName("extracted_jdk", version, platform));
+                dependencies.add(jdk.getConfiguration().getName(), dependencies.project(depConfig));
+
+                // ensure a root level jdk download task exists
+                setupRootJdkDownload(project.getRootProject(), platform, version);
+
+                jdk.finalizeValues();
+            }
         });
     }
 
     private static void setupRootJdkDownload(Project rootProject, String platform, String version) {
         String extractTaskName = "extract" + capitalize(platform) + "Jdk" + version;
-        if (rootProject.getTasks().findByName(extractTaskName) != null) {
+        // NOTE: this is *horrendous*, but seems to be the only way to check for the existence of a registered task
+        try {
+            rootProject.getTasks().named(extractTaskName);
             // already setup this version
             return;
+        } catch (UnknownTaskException e) {
+            // fall through: register the task
         }
 
         // decompose the bundled jdk version, broken into elements as: [feature, interim, update, build]
         // Note the "patch" version is not yet handled here, as it has not yet been used by java.
-        Matcher jdkVersionMatcher = JDK_VERSION.matcher(version);
+        Matcher jdkVersionMatcher = Jdk.VERSION_PATTERN.matcher(version);
         if (jdkVersionMatcher.matches() == false) {
             throw new IllegalArgumentException("Malformed jdk version [" + version + "]");
         }
@@ -133,7 +122,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         // add the jdk as a "dependency"
         final ConfigurationContainer configurations = rootProject.getConfigurations();
         String remoteConfigName = configName("openjdk", version, platform);
-        String localConfigName = configName("localjdk", version, platform);
+        String localConfigName = configName("extracted_jdk", version, platform);
         Configuration jdkConfig = configurations.findByName(remoteConfigName);
         if (jdkConfig == null) {
             jdkConfig = configurations.create(remoteConfigName);
@@ -163,7 +152,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             fileGetter = () -> rootProject.tarTree(rootProject.getResources().gzip(jdkArchiveGetter.get()));
         }
         String extractDir = rootProject.getBuildDir().toPath().resolve("jdks/openjdk-" + jdkVersion + "_" + platform).toString();
-        Task extractTask = rootProject.getTasks().create(extractTaskName, Copy.class, copyTask -> {
+        TaskProvider extractTask = rootProject.getTasks().register(extractTaskName, Copy.class, copyTask -> {
             copyTask.doFirst(t -> rootProject.delete(extractDir));
             copyTask.into(extractDir);
             copyTask.from(fileGetter, removeRootDir);

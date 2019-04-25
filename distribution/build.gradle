@@ -369,15 +369,14 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     }
 
     jdkFiles = { project, platform ->
-      String taskname = "getJdk${VersionProperties.bundledJdk}${platform.capitalize()}"
-      Task getJdkTask = project.tasks.findByName(taskname)
-      if (getJdkTask == null) {
-        getJdkTask = project.tasks.create(taskname) {
-          usesJdk VersionProperties.bundledJdk, platform
-        } 
+      project.jdks {
+        "bundled_${platform}" {
+          it.platform = platform
+          it.version = VersionProperties.bundledJdk
+        }
       }
       return copySpec {
-        from getJdkTask.jdk.configuration
+        from project.jdks."bundled_${platform}".files
         eachFile { FileCopyDetails details ->
           if (details.relativePath.segments[-2] == 'bin' || details.relativePath.segments[-1] == 'jspawnhelper') {
             details.mode = 0755

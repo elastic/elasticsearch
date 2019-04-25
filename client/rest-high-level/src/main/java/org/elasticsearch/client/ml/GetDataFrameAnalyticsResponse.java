@@ -45,7 +45,7 @@ public class GetDataFrameAnalyticsResponse {
     }
 
     public static GetDataFrameAnalyticsResponse fromXContent(final XContentParser parser) {
-        return GetDataFrameAnalyticsResponse.PARSER.apply(parser, null);
+        return PARSER.apply(parser, null);
     }
 
     private List<DataFrameAnalyticsConfig> analytics;

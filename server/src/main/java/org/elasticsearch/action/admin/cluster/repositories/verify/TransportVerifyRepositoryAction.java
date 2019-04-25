@@ -33,8 +33,6 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.List;
-
 /**
  * Transport action for verifying repository operation
  */
@@ -70,16 +68,8 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
     @Override
     protected void masterOperation(final VerifyRepositoryRequest request, ClusterState state,
                                    final ActionListener<VerifyRepositoryResponse> listener) {
-        repositoriesService.verifyRepository(request.name(), new ActionListener<List<DiscoveryNode>>() {
-            @Override
-            public void onResponse(List<DiscoveryNode> verifyResponse) {
-                listener.onResponse(new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0])));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        repositoriesService.verifyRepository(request.name(), ActionListener.delegateFailure(listener,
+            (delegatedListener, verifyResponse) ->
+                delegatedListener.onResponse(new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0])))));
     }
 }

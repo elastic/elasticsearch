@@ -205,11 +205,7 @@ public class SSLDriver implements AutoCloseable {
             SSLEngineResult result;
             ByteBuffer networkBuffer = outboundBuffer.nextWriteBuffer(packetSize);
             try {
-                if (buffers.length == 1) {
-                    result = engine.wrap(buffers[0], networkBuffer);
-                } else {
-                    result = engine.wrap(buffers, networkBuffer);
-                }
+                result = engine.wrap(buffers, networkBuffer);
             } catch (SSLException e) {
                 outboundBuffer.incrementEncryptedBytes(0);
                 throw e;

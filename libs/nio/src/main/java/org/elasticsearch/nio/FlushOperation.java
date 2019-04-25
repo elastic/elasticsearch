@@ -74,7 +74,6 @@ public class FlushOperation {
 
         int nBuffers = (finalOffsetIndex - offsetIndex) + 1;
 
-
         int firstBufferPosition = internalIndex - offsets[offsetIndex];
         ByteBuffer firstBuffer = buffers[offsetIndex].duplicate();
         firstBuffer.position(firstBufferPosition);

@@ -26,8 +26,6 @@ import java.nio.ByteBuffer;
 
 public class Page implements Closeable {
 
-    private static final Runnable DEFAULT_CLOSEABLE = () -> {};
-
     private final ByteBuffer byteBuffer;
     // This is reference counted as some implementations want to retain the byte pages by calling
     // duplicate. With reference counting we can increment the reference count, return a new page,
@@ -36,7 +34,7 @@ public class Page implements Closeable {
     private final RefCountedCloseable refCountedCloseable;
 
     public Page(ByteBuffer byteBuffer) {
-        this(byteBuffer, DEFAULT_CLOSEABLE);
+        this(byteBuffer, () -> {});
     }
 
     public Page(ByteBuffer byteBuffer, Runnable closeable) {

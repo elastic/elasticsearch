@@ -1,0 +1,21 @@
+{
+  "enrich.put_policy": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-put-policy.html",
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_enrich/policy/{name}",
+      "paths": ["/_enrich/policy/{name}"],
+      "parts": {
+        "name": {
+          "type" : "string",
+          "description" : "The name of the enrich policy"
+        }
+      },
+      "params": {
+      }
+    },
+    "body": {
+      "description": "The enrich policy to register"
+    }
+  }
+}

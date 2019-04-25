@@ -512,10 +512,10 @@ See {painless}/painless-debugging.html[Painless Debugging] in the
 guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude",id="painless-api-reference"]
-=== Painless API Reference
+=== Painless Contexts API Reference
 
-See the {painless}/painless-api-reference.html[Painless API Reference] in
-the guide to the {painless}/index.html[Painless Scripting Language].
+See the {painless}/painless-api-reference.html[Painless Contexts API Reference]
+in the guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude", id="security-api-roles"]
 === Role management APIs

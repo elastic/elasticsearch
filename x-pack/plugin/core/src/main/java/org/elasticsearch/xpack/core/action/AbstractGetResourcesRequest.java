@@ -23,6 +23,13 @@ public abstract class AbstractGetResourcesRequest extends ActionRequest {
     public AbstractGetResourcesRequest() {
     }
 
+    public AbstractGetResourcesRequest(StreamInput in) throws IOException {
+        super(in);
+        resourceId = in.readOptionalString();
+        pageParams = in.readOptionalWriteable(PageParams::new);
+        allowNoResources = in.readBoolean();
+    }
+
     // Allow child classes to provide their own defaults if necessary
     protected AbstractGetResourcesRequest(String resourceId, PageParams pageParams, boolean allowNoResources) {
         this.resourceId = resourceId;

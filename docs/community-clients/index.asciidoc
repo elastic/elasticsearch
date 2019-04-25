@@ -146,12 +146,6 @@ Also see the {client}/php-api/current/index.html[official Elasticsearch PHP clie
 
 Also see the {client}/python-api/current/index.html[official Elasticsearch Python client].
 
-* http://github.com/rhec/pyelasticsearch[pyelasticsearch]:
-  Python client.
-
-* http://github.com/aparo/pyes[pyes]:
-  Python client.
-
 [[r]]
 == R
 

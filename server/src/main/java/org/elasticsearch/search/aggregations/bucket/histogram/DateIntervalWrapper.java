@@ -49,7 +49,9 @@ import java.util.Objects;
  * - Can write new intervals to old format when streaming out
  * - Provides a variety of helper methods to interpret the intervals as different types, depending on caller's need
  *
- * After the deprecated parameters are removed, this class can be simplified greatly.
+ * After the deprecated parameters are removed, this class can be simplified greatly.  The legacy options
+ * will be removed, and the mutual-exclusion checks can be done in the setters directly removing the need
+ * for the enum and the complicated "state machine" logic
  */
 public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private static final DeprecationLogger DEPRECATION_LOGGER
@@ -71,8 +73,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            IntervalTypeEnum type = this;
-            out.writeEnum(type);
+            out.writeEnum(this);
         }
 
         public String value() {
@@ -84,6 +85,8 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private IntervalTypeEnum intervalType = IntervalTypeEnum.NONE;
 
     public static <T extends DateIntervalConsumer> void declareIntervalFields(ObjectParser<T, Void> parser) {
+
+        // NOTE: this field is deprecated and will be removed
         parser.declareField((wrapper, interval) -> {
             if (interval instanceof Long) {
                 wrapper.interval((long) interval);
@@ -185,13 +188,14 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Returns the interval as a calendar interval if possible, null otherwise
+     * Returns the interval as a calendar interval.  Throws an exception if the value cannot be converted
+     * into a calendar interval
      */
     public DateHistogramInterval getAsCalendarInterval() {
         if (intervalType.equals(IntervalTypeEnum.CALENDAR) || tryIntervalAsCalendarUnit() != null) {
             return dateHistogramInterval;
         }
-        return null;
+        throw new IllegalStateException("Cannot convert [" + intervalType.toString() + "] interval type into calendar interval");
     }
 
     /**
@@ -215,13 +219,14 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Returns the interval as a Fixed interval if possible, otherwise null
+     * Returns the interval as a Fixed interval. Throws an exception if the value cannot be converted
+     * into a fixed interval
      */
     public DateHistogramInterval getAsFixedInterval() {
         if (intervalType.equals(IntervalTypeEnum.FIXED) || tryIntervalAsFixedUnit() != null) {
             return dateHistogramInterval;
         }
-        return null;
+        throw new IllegalStateException("Cannot convert [" + intervalType.toString() + "] interval type into fixed interval");
     }
 
     /**

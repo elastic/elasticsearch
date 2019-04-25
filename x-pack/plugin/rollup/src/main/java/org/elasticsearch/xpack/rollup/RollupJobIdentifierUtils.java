@@ -411,7 +411,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o1.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thisTime = new DateHistogramInterval(retrieveInterval(agg)).getMillisFromFixedOrCalendar();
+                        thisTime = new DateHistogramInterval(retrieveInterval(agg)).estimateMillis();
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thisHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;
@@ -427,7 +427,7 @@ public class RollupJobIdentifierUtils {
             for (RollupJobCaps.RollupFieldCaps fieldCaps : o2.getFieldCaps().values()) {
                 for (Map<String, Object> agg : fieldCaps.getAggs()) {
                     if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                        thatTime = new DateHistogramInterval(retrieveInterval(agg)).getMillisFromFixedOrCalendar();
+                        thatTime = new DateHistogramInterval(retrieveInterval(agg)).estimateMillis();
                     } else if (agg.get(RollupField.AGG).equals(HistogramAggregationBuilder.NAME)) {
                         thatHistoWeights += (long) agg.get(RollupField.INTERVAL);
                         counter += 1;

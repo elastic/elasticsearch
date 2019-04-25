@@ -658,7 +658,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         for (RollupJobCaps.RollupFieldCaps fieldCaps : cap.getFieldCaps().values()) {
             for (Map<String, Object> agg : fieldCaps.getAggs()) {
                 if (agg.get(RollupField.AGG).equals(DateHistogramAggregationBuilder.NAME)) {
-                    return new DateHistogramInterval(RollupJobIdentifierUtils.retrieveInterval(agg)).getMillisFromFixedOrCalendar();
+                    return new DateHistogramInterval(RollupJobIdentifierUtils.retrieveInterval(agg)).estimateMillis();
                 }
             }
         }

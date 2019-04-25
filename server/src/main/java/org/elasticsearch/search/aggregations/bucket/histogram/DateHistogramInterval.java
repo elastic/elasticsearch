@@ -119,12 +119,12 @@ public class DateHistogramInterval implements Writeable, ToXContentFragment {
      * This is merely a convenience helper for quick comparisons and should not be used for situations that
      * require precise durations.
      */
-    public long getMillisFromFixedOrCalendar() {
+    public long estimateMillis() {
         if (Strings.isNullOrEmpty(expression) == false && DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(expression)) {
             Rounding.DateTimeUnit intervalUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(expression);
             return intervalUnit.getField().getBaseUnit().getDuration().getSeconds() * 1000;
         } else {
-            return TimeValue.parseTimeValue(expression, "DateHistogramInterval#getMillisFromFixedOrCalendar").getMillis();
+            return TimeValue.parseTimeValue(expression, "DateHistogramInterval#estimateMillis").getMillis();
         }
     }
 }

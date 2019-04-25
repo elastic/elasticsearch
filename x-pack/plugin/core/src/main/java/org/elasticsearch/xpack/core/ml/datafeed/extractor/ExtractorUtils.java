@@ -138,7 +138,7 @@ public final class ExtractorUtils {
         } else if (dateHistogram.getCalendarInterval() != null) {
             return validateAndGetCalendarInterval(dateHistogram.getCalendarInterval().toString());
         } else if (dateHistogram.getFixedInterval() != null) {
-            return dateHistogram.getFixedInterval().getMillisFromFixedOrCalendar();
+            return dateHistogram.getFixedInterval().estimateMillis();
         } else if (dateHistogram.interval() != 0) {
             return dateHistogram.interval();
         } else {

@@ -163,7 +163,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         return hqb;
     }
 
-    public void testZeroMinChildren() {
+    public void testDeprecationOfZeroMinChildren() {
         QueryBuilder query = new MatchAllQueryBuilder();
         HasChildQueryBuilder foo = hasChildQuery("foo", query, ScoreMode.None);
         foo.minMaxChildren(0, 1);

@@ -232,7 +232,7 @@ Which, in this case shows an error because the index did not exist:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"modified_date": "2019-04-23T01:30:00.000Z"/"modified_date": $body.daily-snapshots.modified_date/ s/"modified_date_millis": 1556048137314/"modified_date_millis": $body.daily-snapshots.modified_date_millis/ s/"next_execution": "2019-04-24T01:30:00.000Z"/"next_execution": $body.daily-snapshots.next_execution/ s/"next_execution_millis": 1556048160000/"next_execution_millis": $body.daily-snapshots.next_execution_millis/ s/"last_failure".*// s/"snapshot_name".*// s/"time_string".*// s/"time".*// s/"details".*// s/} ,//]
+// TESTRESPONSE[skip:the presence of last_failure is asynchronous and will be present for users, but is untestable]
 <1> The last unsuccessfully initiated snapshot by this policy, along with the details of its failure
 
 In this case, it failed due to the "important" index not existing and
@@ -320,7 +320,7 @@ Which now includes the successful snapshot information:
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"modified_date": "2019-04-23T01:30:00.000Z"/"modified_date": $body.daily-snapshots.modified_date/ s/"modified_date_millis": 1556048137314/"modified_date_millis": $body.daily-snapshots.modified_date_millis/ s/"next_execution": "2019-04-24T01:30:00.000Z"/"next_execution": $body.daily-snapshots.next_execution/ s/"next_execution_millis": 1556048160000/"next_execution_millis": $body.daily-snapshots.next_execution_millis/ s/"last_failure".*// s/"last_success".*// s/"snapshot_name".*// s/"time_string".*// s/"time".*// s/"details".*// s/} ,//]
+// TESTRESPONSE[skip:the presence of last_failure and last_success is asynchronous and will be present for users, but is untestable]
 <1> The policy's version has been incremented because it was updated
 <2> The last successfully initiated snapshot information
 

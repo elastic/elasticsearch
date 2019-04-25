@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -53,6 +54,10 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
 
     private final String index;
     private final QueryConfig queryConfig;
+
+    public DataFrameAnalyticsSource(String index) {
+        this(index, null);
+    }
 
     public DataFrameAnalyticsSource(String index, @Nullable QueryConfig queryConfig) {
         this.index = Objects.requireNonNull(index);
@@ -87,6 +92,14 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(index, queryConfig);
+    }
+
+    @Override
+    public String toString() {
+        return new ToStringBuilder(getClass())
+            .add("index", index)
+            .add("queryConfig", queryConfig)
+            .toString();
     }
 
     public String getIndex() {

@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -110,6 +111,14 @@ public class OutlierDetection implements DataFrameAnalysis {
     @Override
     public int hashCode() {
         return Objects.hash(nNeighbors, method);
+    }
+
+    @Override
+    public String toString() {
+        return new ToStringBuilder(getClass())
+            .add("nNeighbors", nNeighbors)
+            .add("method", method)
+            .toString();
     }
 
     @Override

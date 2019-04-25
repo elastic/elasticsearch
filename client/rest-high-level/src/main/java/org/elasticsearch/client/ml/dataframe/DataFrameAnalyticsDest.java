@@ -21,6 +21,7 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -56,6 +57,10 @@ public class DataFrameAnalyticsDest implements ToXContentObject {
     private final String index;
     private final String resultsField;
 
+    public DataFrameAnalyticsDest(String index) {
+        this(index, null);
+    }
+
     public DataFrameAnalyticsDest(String index, @Nullable String resultsField) {
         this.index = requireNonNull(index);
         this.resultsField = resultsField;
@@ -84,6 +89,14 @@ public class DataFrameAnalyticsDest implements ToXContentObject {
         DataFrameAnalyticsDest other = (DataFrameAnalyticsDest) o;
         return Objects.equals(index, other.index)
             && Objects.equals(resultsField, other.resultsField);
+    }
+
+    @Override
+    public String toString() {
+        return new ToStringBuilder(getClass())
+            .add("index", index)
+            .add("resultsField", resultsField)
+            .toString();
     }
 
     @Override

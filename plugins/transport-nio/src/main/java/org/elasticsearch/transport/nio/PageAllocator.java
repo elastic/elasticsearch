@@ -21,12 +21,12 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.Page;
 
 import java.nio.ByteBuffer;
 import java.util.function.IntFunction;
 
-public class PageAllocator implements IntFunction<InboundChannelBuffer.Page> {
+public class PageAllocator implements IntFunction<Page> {
 
     private static final int RECYCLE_LOWER_THRESHOLD = PageCacheRecycler.BYTE_PAGE_SIZE / 2;
 
@@ -37,12 +37,12 @@ public class PageAllocator implements IntFunction<InboundChannelBuffer.Page> {
     }
 
     @Override
-    public InboundChannelBuffer.Page apply(int length) {
+    public Page apply(int length) {
         if (length >= RECYCLE_LOWER_THRESHOLD && length <= PageCacheRecycler.BYTE_PAGE_SIZE){
             Recycler.V<byte[]> bytePage = recycler.bytePage(false);
-            return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytePage.v(), 0, length), bytePage::close);
+            return new Page(ByteBuffer.wrap(bytePage.v(), 0, length), bytePage::close);
         } else {
-            return new InboundChannelBuffer.Page(ByteBuffer.allocate(length), () -> {});
+            return new Page(ByteBuffer.allocate(length), () -> {});
         }
     }
 }

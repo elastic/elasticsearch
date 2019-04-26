@@ -541,7 +541,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 logger.info("--> shard {} docs {} seq_no_stats {}", shardRouting, docsOnShard, indexShard.seqNoStats());
                 docs.put(shardRouting.shardId().id(), docsOnShard.stream()
                     // normalize primary term as the follower use its own term
-                    .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSeqNo(), 1L))
+                    .map(d -> new DocIdSeqNoAndTerm(d.getId(), d.getSource(), d.getSeqNo(), 1L, d.getVersion()))
                     .collect(Collectors.toList()));
             } catch (AlreadyClosedException e) {
                 // Ignore this exception and try getting List<DocIdSeqNoAndTerm> from other IndexShard instance.

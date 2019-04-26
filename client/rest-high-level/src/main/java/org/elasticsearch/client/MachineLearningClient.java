@@ -1968,12 +1968,12 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Gets a single or multiple calendars.
+     * Starts Data Frame Analytics
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html">ML GET calendars documentation</a>
+     * see <a href="https://www.TODO.com">POST Data Frame Analytics documentation</a>
      *
-     * @param request The request
+     * @param request The {@link StartDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return action acknowledgement
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -1988,12 +1988,12 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Starts a single or multiple calendars, notifies listener once the requested records are retrieved.
+     * Starts Data Frame Analytics asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html">ML GET calendars documentation</a>
+     * see <a href="https://www.TODO.com">POST Data Frame Analytics documentation</a>
      *
-     * @param request The request
+     * @param request The {@link StartDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */

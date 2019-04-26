@@ -101,7 +101,9 @@ public class SysTables extends Command {
                     && pattern != null && pattern.pattern().isEmpty() && index == null) {
                 List<List<?>> values = new ArrayList<>();
                 // send only the types, everything else is made of empty strings
-                Set<IndexType> typeSet = includeFrozen ? IndexType.VALID : IndexType.VALID_WO_FROZEN;
+                // NB: since the types are sent in SQL, frozen doesn't have to be taken into account since
+                // it's just another BASE TABLE
+                Set<IndexType> typeSet = IndexType.VALID_WO_FROZEN;
                 for (IndexType type : typeSet) {
                     Object[] enumeration = new Object[10];
                     enumeration[3] = type.toSql();
@@ -113,6 +115,7 @@ public class SysTables extends Command {
                 return;
             }
         }
+
 
         // no enumeration pattern found, list actual tables
         String cRegex = clusterPattern != null ? clusterPattern.asJavaRegex() : null;
@@ -126,7 +129,18 @@ public class SysTables extends Command {
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
-        session.indexResolver().resolveNames(idx, regex, types, ActionListener.wrap(result -> listener.onResponse(
+        EnumSet<IndexType> tableTypes = types;
+
+        // initialize types for name resolution
+        if (tableTypes == null) {
+            tableTypes = includeFrozen ? IndexType.VALID : IndexType.VALID_WO_FROZEN;
+        } else {
+            if (includeFrozen && tableTypes.contains(IndexType.FROZEN_INDEX) == false) {
+                tableTypes.add(IndexType.FROZEN_INDEX);
+            }
+        }
+
+        session.indexResolver().resolveNames(idx, regex, tableTypes, ActionListener.wrap(result -> listener.onResponse(
                 Rows.of(output(), result.stream()
                  // sort by type (which might be legacy), then by name
                  .sorted(Comparator.<IndexInfo, String> comparing(i -> legacyName(i.type()))

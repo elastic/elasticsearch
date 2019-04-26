@@ -408,7 +408,7 @@ public class IndexResolver {
                 return new EsField(fieldName, esType, props, isAggregateable);
         }
     }
-    
+
     private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen) {
         return new FieldCapabilitiesRequest()
                 .indices(Strings.commaDelimitedListToStringArray(index))
@@ -444,7 +444,7 @@ public class IndexResolver {
     /**
      * Assemble an index-based mapping from the field caps (which is field based) by looking at the indices associated with
      * each field.
-                 */
+     */
     private static List<EsIndex> buildIndices(String[] indexNames, String javaRegex, Map<String, Map<String, FieldCapabilities>> fieldCaps,
             Function<String, String> indexNameProcessor,
             BiFunction<String, Map<String, FieldCapabilities>, InvalidMappedField> validityVerifier) {
@@ -520,8 +520,8 @@ public class IndexResolver {
                         EsField field = indexFields.flattedMapping.get(fieldName);
                         if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
                             createField(fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
-                                    s -> invalidField != null ? invalidField : createField(s, typeCap.getType(), emptyMap(),
-                                            typeCap.isAggregatable()));
+                                    s -> invalidField != null ? invalidField : 
+                                        createField(s, typeCap.getType(), emptyMap(), typeCap.isAggregatable()));
                         }
                     }
                 }

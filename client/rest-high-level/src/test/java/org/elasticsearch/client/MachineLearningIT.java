@@ -1330,6 +1330,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 getDataFrameAnalyticsResponse.getAnalytics(),
                 containsInAnyOrder(createdConfigs.get(1), createdConfigs.get(4), createdConfigs.get(9)));
         }
+        {
+            GetDataFrameAnalyticsRequest getDataFrameAnalyticsRequest = new GetDataFrameAnalyticsRequest(configIdPrefix + "*");
+            getDataFrameAnalyticsRequest.setPageParams(new PageParams(3, 4));
+            GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
+                getDataFrameAnalyticsRequest,
+                machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
+            assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(4));
+            assertThat(
+                getDataFrameAnalyticsResponse.getAnalytics(),
+                containsInAnyOrder(createdConfigs.get(3), createdConfigs.get(4), createdConfigs.get(5), createdConfigs.get(6)));
+        }
     }
 
     public void testGetDataFrameAnalyticsConfig_ConfigNotFound() {

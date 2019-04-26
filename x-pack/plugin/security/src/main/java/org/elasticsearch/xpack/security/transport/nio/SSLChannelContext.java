@@ -55,6 +55,10 @@ public final class SSLChannelContext extends SocketChannelContext {
     public void register() throws IOException {
         super.register();
         sslDriver.init();
+        SSLOutboundBuffer outboundBuffer = sslDriver.getOutboundBuffer();
+        if (outboundBuffer.hasEncryptedBytesToFlush()) {
+            encryptedFlushes.addLast(outboundBuffer.buildNetworkFlushOperation());
+        }
     }
 
     @Override

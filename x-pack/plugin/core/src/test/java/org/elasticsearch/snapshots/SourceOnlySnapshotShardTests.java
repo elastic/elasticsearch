@@ -97,11 +97,10 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing();
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, () ->
-                runAsSnapshot(shard.getThreadPool(),
-                    () -> repository.snapshotShard(shard, shard.store(), snapshotId, indexId,
-                        snapshotRef.getIndexCommit(), indexShardSnapshotStatus, future)));
-            future.actionGet();
+            runAsSnapshot(shard.getThreadPool(),
+                () -> repository.snapshotShard(shard, shard.store(), snapshotId, indexId,
+                    snapshotRef.getIndexCommit(), indexShardSnapshotStatus, future));
+            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, future::actionGet);
             assertEquals("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
                 , illegalStateException.getMessage());
         }

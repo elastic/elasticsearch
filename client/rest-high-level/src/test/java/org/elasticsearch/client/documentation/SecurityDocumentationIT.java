@@ -104,6 +104,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -159,6 +160,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<User> users = new ArrayList<>(3);
             users.addAll(response.getUsers());
+            users.sort(Comparator.comparing(User::getUsername));
             assertNotNull(response);
             assertThat(users.size(), equalTo(3));
             assertThat(users.get(0).getUsername(), equalTo(usernames[0]));

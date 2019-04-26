@@ -456,8 +456,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
-        return parse(address, settings.get("transport.profiles.default.port", TransportSettings.PORT.get(settings)), perAddressLimit);
+    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
+        return parse(address, defaultPortRange()[0]);
+    }
+
+    @Override
+    public int[] defaultPortRange() {
+        return new PortsRange(settings.get("transport.profiles.default.port", TransportSettings.PORT.get(settings))).ports();
     }
 
     // this code is a take on guava's HostAndPort, like a HostAndPortRange
@@ -467,9 +472,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
     /**
-     * parse a hostname+port range spec into its equivalent addresses
+     * parse a hostname+port spec into its equivalent addresses
      */
-    static TransportAddress[] parse(String hostPortString, String defaultPortRange, int perAddressLimit) throws UnknownHostException {
+    static TransportAddress[] parse(String hostPortString, int defaultPort) throws UnknownHostException {
         Objects.requireNonNull(hostPortString);
         String host;
         String portString = null;
@@ -498,20 +503,22 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         }
 
+        int port;
         // if port isn't specified, fill with the default
         if (portString == null || portString.isEmpty()) {
-            portString = defaultPortRange;
+            port = defaultPort;
+        } else {
+            int[] ports = new PortsRange(portString).ports();
+            if (ports.length > 1) {
+                throw new IllegalArgumentException("Port ranges are not supported");
+            }
+            port = ports[0];
         }
 
-        // generate address for each port in the range
         Set<InetAddress> addresses = new HashSet<>(Arrays.asList(InetAddress.getAllByName(host)));
         List<TransportAddress> transportAddresses = new ArrayList<>();
-        int[] ports = new PortsRange(portString).ports();
-        int limit = Math.min(ports.length, perAddressLimit);
-        for (int i = 0; i < limit; i++) {
-            for (InetAddress address : addresses) {
-                transportAddresses.add(new TransportAddress(address, ports[i]));
-            }
+        for (InetAddress address : addresses) {
+            transportAddresses.add(new TransportAddress(address, port));
         }
         return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
     }

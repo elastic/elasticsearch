@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
@@ -37,18 +38,15 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
 
     private class AssertingHostsResolver implements HostsResolver {
         private final Set<String> expectedHosts;
-        private final int expectedPortCount;
 
         private boolean resolvedHosts;
 
-        AssertingHostsResolver(int expectedPortCount, String... expectedHosts) {
-            this.expectedPortCount = expectedPortCount;
+        AssertingHostsResolver(String... expectedHosts) {
             this.expectedHosts = Sets.newHashSet(expectedHosts);
         }
 
         @Override
-        public List<TransportAddress> resolveHosts(List<String> hosts, int limitPortCounts) {
-            assertEquals(expectedPortCount, limitPortCounts);
+        public List<TransportAddress> resolveHosts(List<String> hosts) {
             assertEquals(expectedHosts, Sets.newHashSet(hosts));
             resolvedHosts = true;
             return emptyList();
@@ -60,15 +58,19 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
     }
 
     public void testScansPortsByDefault() {
-        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(5, "::1", "127.0.0.1");
+        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(
+            "[::1]:9300", "[::1]:9301", "[::1]:9302", "[::1]:9303", "[::1]:9304", "[::1]:9305",
+            "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302", "127.0.0.1:9303", "127.0.0.1:9304", "127.0.0.1:9305"
+        );
         final TransportService transportService = mock(TransportService.class);
-        when(transportService.getLocalAddresses()).thenReturn(Arrays.asList("::1", "127.0.0.1"));
+        when(transportService.getLocalAddresses()).thenReturn(Arrays.asList("[::1]", "127.0.0.1"));
+        when(transportService.getDefaultPortRange()).thenReturn(IntStream.range(9300, 9401).toArray());
         new SettingsBasedSeedHostsProvider(Settings.EMPTY, transportService).getSeedAddresses(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
     }
 
     public void testGetsHostsFromSetting() {
-        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(1, "bar", "foo");
+        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver("bar", "foo");
         new SettingsBasedSeedHostsProvider(Settings.builder()
             .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), "foo", "bar")
             .build(), null).getSeedAddresses(hostsResolver);

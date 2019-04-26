@@ -750,8 +750,12 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
         return true;
     }
 
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
-        return transport.addressesFromString(address, perAddressLimit);
+    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
+        return transport.addressesFromString(address);
+    }
+
+    public int[] getDefaultPortRange() {
+        return transport.defaultPortRange();
     }
 
     /**

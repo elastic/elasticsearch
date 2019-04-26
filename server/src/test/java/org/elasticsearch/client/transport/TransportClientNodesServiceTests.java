@@ -133,6 +133,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 }
 
                 @Override
+                public int[] defaultPortRange() {
+                    return new int[0];
+                }
+
+                @Override
                 protected TestResponse newResponse() {
                     return new TestResponse();
                 }

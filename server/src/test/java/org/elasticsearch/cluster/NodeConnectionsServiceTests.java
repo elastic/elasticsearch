@@ -401,8 +401,13 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
+        public TransportAddress[] addressesFromString(String address) {
             return new TransportAddress[0];
+        }
+
+        @Override
+        public int[] defaultPortRange() {
+            return new int[0];
         }
 
         @Override

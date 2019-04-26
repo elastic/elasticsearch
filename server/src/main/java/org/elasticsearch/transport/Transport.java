@@ -68,7 +68,10 @@ public interface Transport extends LifecycleComponent {
     /**
      * Returns an address from its string representation.
      */
-    TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException;
+    TransportAddress[] addressesFromString(String address) throws UnknownHostException;
+
+    int[] defaultPortRange();
+
 
     /**
      * Returns a list of all local adresses for this transport

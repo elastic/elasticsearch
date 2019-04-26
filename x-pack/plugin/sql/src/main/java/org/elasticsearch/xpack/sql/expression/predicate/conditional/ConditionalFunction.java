@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.sql.type.DataTypes.areTypesCompatible;
@@ -74,5 +75,22 @@ public abstract class ConditionalFunction extends ScalarFunction {
     @Override
     public Nullability nullable() {
         return Nullability.UNKNOWN;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        ConditionalFunction that = (ConditionalFunction) o;
+        return children().equals(that.children());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(children());
     }
 }

@@ -62,13 +62,11 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.core.watcher.actions.ActionRegistry;
-import org.elasticsearch.xpack.core.watcher.condition.ConditionFactory;
 import org.elasticsearch.xpack.core.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
-import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
@@ -291,18 +289,18 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);
 
         // conditions
-        final Map<String, ConditionFactory> parsers = new HashMap<>();
-        parsers.put(InternalAlwaysCondition.TYPE, (c, id, p) -> InternalAlwaysCondition.parse(id, p));
-        parsers.put(NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p));
-        parsers.put(ArrayCompareCondition.TYPE, ArrayCompareCondition::parse);
-        parsers.put(CompareCondition.TYPE, CompareCondition::parse);
-        parsers.put(ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p));
 
-        final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), getClock());
-        final Map<String, TransformFactory> transformFactories = new HashMap<>();
-        transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(scriptService));
-        transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService));
-        final TransformRegistry transformRegistry = new TransformRegistry(Collections.unmodifiableMap(transformFactories));
+        final ConditionRegistry conditionRegistry = new ConditionRegistry(
+                Map.of(
+                        InternalAlwaysCondition.TYPE, (c, id, p) -> InternalAlwaysCondition.parse(id, p),
+                        NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p),
+                        ArrayCompareCondition.TYPE, ArrayCompareCondition::parse,
+                        CompareCondition.TYPE, CompareCondition::parse,
+                        ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p)),
+                getClock());
+        final TransformRegistry transformRegistry = new TransformRegistry(Map.of(
+                ScriptTransform.TYPE, new ScriptTransformFactory(scriptService),
+                SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService)));
 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();

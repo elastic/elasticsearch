@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
@@ -34,6 +33,8 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geo.utils.Geohash;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -535,14 +536,14 @@ public class GeoUtils {
         if (effectivePoint == EffectivePoint.BOTTOM_LEFT) {
             return point.resetFromGeoHash(geohash);
         } else {
-            Rectangle rectangle = GeoHashUtils.bbox(geohash);
+            Rectangle rectangle = Geohash.toBoundingBox(geohash);
             switch (effectivePoint) {
                 case TOP_LEFT:
-                    return point.reset(rectangle.maxLat, rectangle.minLon);
+                    return point.reset(rectangle.getMaxLat(), rectangle.getMinLon());
                 case TOP_RIGHT:
-                    return point.reset(rectangle.maxLat, rectangle.maxLon);
+                    return point.reset(rectangle.getMaxLat(), rectangle.getMaxLon());
                 case BOTTOM_RIGHT:
-                    return point.reset(rectangle.minLat, rectangle.maxLon);
+                    return point.reset(rectangle.getMinLat(), rectangle.getMaxLon());
                 default:
                     throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
             }
@@ -637,17 +638,6 @@ public class GeoUtils {
         double x = (lon2 - lon1) * SloppyMath.TO_RADIANS * Math.cos((lat2 + lat1) / 2.0 * SloppyMath.TO_RADIANS);
         double y = (lat2 - lat1) * SloppyMath.TO_RADIANS;
         return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
-    }
-
-    /** check if point is within a rectangle
-     * todo: move this to lucene Rectangle class
-     */
-    public static boolean rectangleContainsPoint(Rectangle r, double lat, double lon) {
-        if (lat >= r.minLat && lat <= r.maxLat) {
-            // if rectangle crosses the dateline we only check if the lon is >= min or max
-            return r.crossesDateline() ? lon >= r.minLon || lon <= r.maxLon : lon >= r.minLon && lon <= r.maxLon;
-        }
-        return false;
     }
 
     /**

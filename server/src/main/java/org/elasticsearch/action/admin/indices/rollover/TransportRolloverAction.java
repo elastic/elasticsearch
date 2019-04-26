@@ -50,15 +50,12 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import static java.util.Collections.unmodifiableList;
 
 /**
  * Main class to swap the index pointed to by an alias, given some conditions
@@ -200,24 +197,22 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesUpdateRequest(String oldIndex, String newIndex,
                                                                                        RolloverRequest request) {
-        List<AliasAction> actions = unmodifiableList(Arrays.asList(
-            new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
-            new AliasAction.Remove(oldIndex, request.getAlias())));
-        final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
+        final List<AliasAction> actions = List.of(
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, null),
+                new AliasAction.Remove(oldIndex, request.getAlias()));
+        return new IndicesAliasesClusterStateUpdateRequest(actions)
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
-        return updateRequest;
     }
 
     static IndicesAliasesClusterStateUpdateRequest prepareRolloverAliasesWriteIndexUpdateRequest(String oldIndex, String newIndex,
                                                                                                  RolloverRequest request) {
-        List<AliasAction> actions = unmodifiableList(Arrays.asList(
-            new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true),
-            new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false)));
-        final IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(actions)
+        final List<AliasAction> actions = List.of(
+                new AliasAction.Add(newIndex, request.getAlias(), null, null, null, true),
+                new AliasAction.Add(oldIndex, request.getAlias(), null, null, null, false));
+        return new IndicesAliasesClusterStateUpdateRequest(actions)
             .ackTimeout(request.ackTimeout())
             .masterNodeTimeout(request.masterNodeTimeout());
-        return updateRequest;
     }
 
 

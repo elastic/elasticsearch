@@ -102,6 +102,7 @@ is as follows:
 . Combine the results and respond. Note that in the case of get by ID look up, only one shard is relevant and this step can be skipped.
 
 [float]
+[[shard-failures]]
 ==== Shard failures
 
 When a shard fails to respond to a read request, the coordinating node sends the

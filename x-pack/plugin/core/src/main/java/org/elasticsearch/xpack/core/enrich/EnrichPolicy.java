@@ -125,6 +125,11 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return schedule;
     }
 
+    public String getAliasName(String policyName) {
+        // #41553 (list policy api) will add name to policy, so that we don't have to provide the name via a parameter.
+        return ".enrich-" + policyName;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type);

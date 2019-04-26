@@ -147,12 +147,8 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             defaultSearchQuote);
 
         assertAnalyzes(documentFieldMappers.indexAnalyzer(), "field1", "index");
-        assertAnalyzes(documentFieldMappers.searchAnalyzer(), "field1", "search");
-        assertAnalyzes(documentFieldMappers.searchQuoteAnalyzer(), "field1", "search_quote");
 
         assertAnalyzes(documentFieldMappers.indexAnalyzer(), "field2", "default_index");
-        assertAnalyzes(documentFieldMappers.searchAnalyzer(), "field2", "default_search");
-        assertAnalyzes(documentFieldMappers.searchQuoteAnalyzer(), "field2", "default_search_quote");
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

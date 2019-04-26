@@ -31,7 +31,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -169,7 +168,7 @@ public class BytesChannelContextTests extends ESTestCase {
 
         assertTrue(context.readyForFlush());
 
-        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(buffers);
+        when(flushOperation.getBuffersToWrite()).thenReturn(buffers);
         when(flushOperation.isFullyFlushed()).thenReturn(false, true);
         when(flushOperation.getListener()).thenReturn(listener);
         context.flushChannel();
@@ -188,7 +187,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertTrue(context.readyForFlush());
 
         when(flushOperation.isFullyFlushed()).thenReturn(false);
-        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
+        when(flushOperation.getBuffersToWrite()).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
         context.flushChannel();
 
         verify(listener, times(0)).accept(null, null);
@@ -202,8 +201,8 @@ public class BytesChannelContextTests extends ESTestCase {
         BiConsumer<Void, Exception> listener2 = mock(BiConsumer.class);
         FlushReadyWrite flushOperation1 = mock(FlushReadyWrite.class);
         FlushReadyWrite flushOperation2 = mock(FlushReadyWrite.class);
-        when(flushOperation1.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
-        when(flushOperation2.getBuffersToWrite(anyInt())).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
+        when(flushOperation1.getBuffersToWrite()).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
+        when(flushOperation2.getBuffersToWrite()).thenReturn(new ByteBuffer[] {ByteBuffer.allocate(3)});
         when(flushOperation1.getListener()).thenReturn(listener);
         when(flushOperation2.getListener()).thenReturn(listener2);
 
@@ -238,7 +237,7 @@ public class BytesChannelContextTests extends ESTestCase {
         assertTrue(context.readyForFlush());
 
         IOException exception = new IOException();
-        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(buffers);
+        when(flushOperation.getBuffersToWrite()).thenReturn(buffers);
         when(rawChannel.write(any(ByteBuffer.class))).thenThrow(exception);
         when(flushOperation.getListener()).thenReturn(listener);
         expectThrows(IOException.class, () -> context.flushChannel());
@@ -253,7 +252,7 @@ public class BytesChannelContextTests extends ESTestCase {
         context.queueWriteOperation(flushOperation);
 
         IOException exception = new IOException();
-        when(flushOperation.getBuffersToWrite(anyInt())).thenReturn(buffers);
+        when(flushOperation.getBuffersToWrite()).thenReturn(buffers);
         when(rawChannel.write(any(ByteBuffer.class))).thenThrow(exception);
 
         assertFalse(context.selectorShouldClose());

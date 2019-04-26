@@ -41,7 +41,6 @@ import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -192,9 +191,9 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             MockSocketChannel nioChannel = new MockSocketChannel(isClient == false, profileName, channel);
-            Supplier<Page> pageSupplier = () -> {
+            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new Page(ByteBuffer.wrap(bytes.v()), bytes::close);
+                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, MockNioTransport.this);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),

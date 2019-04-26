@@ -36,7 +36,6 @@ import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
@@ -158,9 +157,9 @@ public class NioTransport extends TcpTransport {
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
-            Supplier<Page> pageSupplier = () -> {
+            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new Page(ByteBuffer.wrap(bytes.v()), bytes::close);
+                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, NioTransport.this);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);

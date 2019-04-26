@@ -77,6 +77,6 @@ public final class DocIdSeqNoAndTerm {
     @Override
     public String toString() {
         return "doc{" + "id='" + id + " seqNo=" + seqNo + " primaryTerm=" + primaryTerm
-            + " version=" + version + " source="+ source.utf8ToString() + "}";
+            + " version=" + version + " source= " + (source != null ? source.utf8ToString() : null) + "}";
     }
 }

@@ -2758,7 +2758,7 @@ public class InternalEngine extends Engine {
     }
 
     protected void verifyEngineBeforeIndexClosing() {
-        final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
+        final long globalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
         final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
         if (globalCheckpoint != maxSeqNo) {
             throw new IllegalStateException("Global checkpoint [" + globalCheckpoint
@@ -2767,14 +2767,23 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void prepareEngineBeforeIndexClosing(String syncId) throws IllegalStateException {
+    public String prepareEngineBeforeIndexClosing(String syncId) throws IOException {
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
+            syncTranslog(); // make sure that we persist the global checkpoint to translog checkpoint
             verifyEngineBeforeIndexClosing();
+            String existingSyncId = lastCommittedSegmentInfos.userData.get(Engine.SYNC_COMMIT_ID);
+            // some out of order operations don't change Lucene but fill in sequence numbers and advance the local checkpoint.
+            long committedCheckpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            if (existingSyncId != null && committedCheckpoint == getLocalCheckpoint() && indexWriter.hasUncommittedChanges() == false) {
+                return existingSyncId;
+            }
+            // force flush then synced-flush with the provided syncId
             final CommitId commitId = flush(true, true);
             if (syncId != null) {
                 syncFlush(syncId, commitId);
             }
+            return syncId;
         }
     }
 }

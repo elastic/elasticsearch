@@ -174,7 +174,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         verify(indexShard, times(1)).prepareShardBeforeIndexClosing(anyString());
     }
 
-    public void testVerifyShardBeforeIndexClosingFailed() {
+    public void testVerifyShardBeforeIndexClosingFailed() throws Exception {
         doThrow(new IllegalStateException("test")).when(indexShard).prepareShardBeforeIndexClosing(anyString());
         expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
         verify(indexShard, times(1)).prepareShardBeforeIndexClosing(anyString());

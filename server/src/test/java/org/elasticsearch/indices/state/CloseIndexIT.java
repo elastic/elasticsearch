@@ -21,7 +21,9 @@ package org.elasticsearch.indices.state;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -33,10 +35,12 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +54,7 @@ import static org.elasticsearch.action.support.IndicesOptions.lenientExpandOpen;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,6 +72,14 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
                 new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         return super.indexSettings();
+    }
+
+    @Override
+    protected void beforeIndexDeletion() throws Exception {
+        super.beforeIndexDeletion();
+        internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
+        internalCluster().assertSeqNos();
+        internalCluster().assertSameDocIdsOnShards();
     }
 
     public void testCloseMissingIndex() {
@@ -100,34 +113,17 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     public void testCloseIndex() throws Exception {
-        final int numberOfReplicas = randomIntBetween(0, 2);
-        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numberOfReplicas).build());
-        ensureGreen(indexName);
+        createIndex(indexName);
+
         final int nbDocs = randomIntBetween(0, 50);
         indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, nbDocs)
             .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
 
         assertBusy(() -> assertAcked(client().admin().indices().prepareClose(indexName)));
         assertIndexIsClosed(indexName);
-        ensureGreen(indexName);
-        for (RecoveryState recoveryState :
-            client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
-            if (recoveryState.getPrimary() == false) {
-                assertThat(recoveryState.getIndex().fileDetails(), empty());
-            }
-        }
+
         assertAcked(client().admin().indices().prepareOpen(indexName));
-        ensureGreen(indexName);
-        for (RecoveryState recoveryState :
-            client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
-            if (recoveryState.getPrimary() == false) {
-                assertThat(recoveryState.getIndex().fileDetails(), empty());
-            }
-        }
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), nbDocs);
     }
 
@@ -357,6 +353,67 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
     }
 
+    public void testSyncedFlushBeforeClosing() throws Exception {
+        final String indexName = "synced_flush_before_closing";
+        int numberOfReplicas = between(0, 2);
+        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+            .put("index.routing.rebalance.enable", "none")
+            .build());
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(i -> client().prepareIndex(indexName, "_doc").setSource("num", i)).collect(toList()));
+        ensureGreen(indexName);
+        assertAcked(client().admin().indices().prepareClose(indexName).get());
+        assertIndexIsClosed(indexName);
+        assertNoFileBasedRecovery(indexName);
+        String syncId = null;
+        for (ShardStats shardStats : getShardStats(indexName)) {
+            CommitStats commitStats = shardStats.getCommitStats();
+            if (syncId == null) {
+                syncId = commitStats.syncId();
+            }
+            assertThat(shardStats.getShardRouting() + " commit [" + commitStats + "]",
+                commitStats.syncId(), allOf(notNullValue(), equalTo(syncId)));
+        }
+        // Open a closed index should execute syncId recovery
+        assertAcked(client().admin().indices().prepareOpen(indexName).get());
+        assertIndexIsOpened(indexName);
+        ensureGreen(indexName);
+        assertNoFileBasedRecovery(indexName);
+        assertSyncIdExists(indexName, syncId);
+        internalCluster().assertSameDocIdsOnShards();
+
+        // Close should not overwrite syncId if there's no write activity since the last close
+        assertAcked(client().admin().indices().prepareClose(indexName).get());
+        assertIndexIsClosed(indexName);
+        ensureGreen(indexName);
+        assertNoFileBasedRecovery(indexName);
+        assertSyncIdExists(indexName, syncId);
+        internalCluster().assertSameDocIdsOnShards();
+
+        // Open for indexing
+        assertAcked(client().admin().indices().prepareOpen(indexName).get());
+        assertIndexIsOpened(indexName);
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(1, 50))
+            .mapToObj(i -> client().prepareIndex(indexName, "_doc").setSource("num", i)).collect(toList()));
+        // Close should overwrite syncId as there's indexing activity since the last close
+        assertAcked(client().admin().indices().prepareClose(indexName).get());
+        assertIndexIsClosed(indexName);
+        assertNoFileBasedRecovery(indexName);
+        String newSyncId = null;
+        for (ShardStats shardStats : getShardStats(indexName)) {
+            CommitStats commitStats = shardStats.getCommitStats();
+            if (newSyncId == null) {
+                newSyncId = commitStats.syncId();
+            }
+            assertThat(shardStats.getShardRouting() + " commit [" + commitStats + "]",
+                commitStats.syncId(), allOf(notNullValue(), equalTo(newSyncId)));
+        }
+        assertThat(newSyncId, Matchers.not(equalTo(syncId)));
+    }
+
     static void assertIndexIsClosed(final String... indices) {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         for (String index : indices) {
@@ -401,5 +458,25 @@ public class CloseIndexIT extends ESIntegTestCase {
         } else {
             fail("Unexpected exception: " + t);
         }
+    }
+
+    void assertSyncIdExists(String indexName, String expectedSyncId) {
+        for (ShardStats shardStats : getShardStats(indexName)) {
+            CommitStats commitStats = shardStats.getCommitStats();
+            assertThat(shardStats.getShardRouting() + " commit: " + commitStats, commitStats.syncId(), equalTo(expectedSyncId));
+        }
+    }
+
+    void assertNoFileBasedRecovery(String indexName) {
+        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+            if (recovery.getPrimary() == false) {
+                assertThat(recovery.getIndex().fileDetails(), empty());
+            }
+        }
+    }
+
+    ShardStats[] getShardStats(String indexName) {
+        return client().admin().indices().prepareStats(indexName)
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED).get().getIndex(indexName).getShards();
     }
 }

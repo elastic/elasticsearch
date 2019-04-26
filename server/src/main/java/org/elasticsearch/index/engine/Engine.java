@@ -267,9 +267,12 @@ public abstract class Engine implements Closeable {
     /**
      * Performs the pre-closing action on the {@link Engine}.
      *
+     * @param syncId a syncId that an engine can use to seal its index commit. If there was no indexing activity since the last sealed
+     *               index commit, the engine might skip synced-flush and returns the existing syncId instead of the provided syncId.
+     * @return either the provided syncId or the existing syncId
      * @throws IllegalStateException if the sanity checks failed
      */
-    public abstract void prepareEngineBeforeIndexClosing(String syncId) throws IllegalStateException;
+    public abstract String prepareEngineBeforeIndexClosing(String syncId) throws IOException;
 
     /**
      * A throttling class that can be activated, causing the

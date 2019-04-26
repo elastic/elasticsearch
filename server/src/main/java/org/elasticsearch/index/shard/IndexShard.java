@@ -3163,10 +3163,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @throws IllegalStateException if the sanity checks failed
      */
-    public void prepareShardBeforeIndexClosing(String syncId) throws IllegalStateException {
+    public String prepareShardBeforeIndexClosing(String syncId) throws IOException {
         // don't issue synced-flush for recovering shards
         final boolean canSyncedFlush = state == IndexShardState.STARTED || state == IndexShardState.POST_RECOVERY;
-        getEngine().prepareEngineBeforeIndexClosing(canSyncedFlush ? syncId : null);
+        return getEngine().prepareEngineBeforeIndexClosing(canSyncedFlush ? syncId : null);
     }
 
     RetentionLeaseSyncer getRetentionLeaseSyncer() {

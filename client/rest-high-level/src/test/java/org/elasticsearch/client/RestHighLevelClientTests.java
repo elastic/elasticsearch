@@ -57,7 +57,6 @@ import org.elasticsearch.client.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.client.indexlifecycle.UnfollowAction;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
-import org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;

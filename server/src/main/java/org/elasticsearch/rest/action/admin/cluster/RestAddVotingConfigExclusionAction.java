@@ -47,15 +47,18 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String nodeName = request.param("node_name");
-        AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = new AddVotingConfigExclusionsRequest(
-            new String[]{nodeName},
-            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
-        );
         return channel -> client.execute(
             AddVotingConfigExclusionsAction.INSTANCE,
-            votingConfigExclusionsRequest,
+            resolveVotingConfigExclusionsRequest(request),
             new RestToXContentListener<>(channel)
+        );
+    }
+
+    AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
+        String nodeName = request.param("node_name");
+        return new AddVotingConfigExclusionsRequest(
+            nodeName.split(","),
+            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
         );
     }
 }

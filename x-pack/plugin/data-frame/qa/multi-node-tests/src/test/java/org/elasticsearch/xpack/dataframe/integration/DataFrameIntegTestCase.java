@@ -193,7 +193,8 @@ abstract class DataFrameIntegTestCase extends ESIntegTestCase {
             new SourceConfig(sourceIndices, createQueryConfig(queryBuilder)),
             new DestConfig(destinationIndex),
             Collections.emptyMap(),
-            createPivotConfig(groups, aggregations));
+            createPivotConfig(groups, aggregations),
+            "Test data frame transform config id: " + id);
     }
 
     protected void createReviewsIndex() throws Exception {

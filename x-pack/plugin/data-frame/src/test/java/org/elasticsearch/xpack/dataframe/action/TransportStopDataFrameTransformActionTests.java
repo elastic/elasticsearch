@@ -6,16 +6,19 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
-import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -34,8 +37,28 @@ public class TransportStopDataFrameTransformActionTests extends ESTestCase {
         tasksBuilder.addTask(dataFrameIdBar,
                 DataFrameField.TASK_NAME, new DataFrameTransform(dataFrameIdBar),
                 new PersistentTasksCustomMetaData.Assignment("node-2", "test assignment"));
-        tasksBuilder.addTask(MlTasks.jobTaskId("foo-1"), MlTasks.JOB_TASK_NAME, new OpenJobAction.JobParams("foo-1"),
-                new PersistentTasksCustomMetaData.Assignment("node-3", "test assignment"));
+        tasksBuilder.addTask("test-task1", "testTasks", new PersistentTaskParams() {
+                @Override
+                public String getWriteableName() {
+                    return "testTasks";
+                }
+
+                @Override
+                public Version getMinimalSupportedVersion() {
+                    return null;
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+
+                }
+
+                @Override
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                    return null;
+                }
+            },
+            new PersistentTasksCustomMetaData.Assignment("node-3", "test assignment"));
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))

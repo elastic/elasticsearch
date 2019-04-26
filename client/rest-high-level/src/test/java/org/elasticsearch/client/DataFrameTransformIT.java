@@ -312,7 +312,8 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         return new DataFrameTransformConfig(id,
                 new SourceConfig(new String[]{source}, queryConfig),
                 destConfig,
-                pivotConfig);
+                pivotConfig,
+            "this is a test transform");
     }
 
     public void testGetStats() throws Exception {
@@ -329,7 +330,10 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
 
         String id = "test-get-stats";
         DataFrameTransformConfig transform = new DataFrameTransformConfig(id,
-                new SourceConfig(new String[]{sourceIndex}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
+            new SourceConfig(new String[]{sourceIndex}, queryConfig),
+            new DestConfig("pivot-dest"),
+            pivotConfig,
+            "transform for testing stats");
 
         DataFrameClient client = highLevelClient().dataFrame();
         AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,

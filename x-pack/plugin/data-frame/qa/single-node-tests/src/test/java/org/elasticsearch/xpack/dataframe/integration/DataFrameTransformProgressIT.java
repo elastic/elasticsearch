@@ -135,7 +135,8 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
             sourceConfig,
             destConfig,
             null,
-            pivotConfig);
+            pivotConfig,
+            null);
 
         PlainActionFuture<DataFrameTransformProgress> progressFuture = new PlainActionFuture<>();
         TransformProgressGatherer.getInitialProgress(client(), config, progressFuture);
@@ -154,7 +155,8 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
             sourceConfig,
             destConfig,
             null,
-            pivotConfig);
+            pivotConfig,
+            null);
 
 
         progressFuture = new PlainActionFuture<>();

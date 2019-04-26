@@ -57,6 +57,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         wipeDataFrameTransforms();
     }
 
+    @SuppressWarnings("unchecked")
     public void testGetAndGetStats() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);

@@ -40,7 +40,7 @@ public class PutDataFrameTransformRequestTests extends AbstractXContentTestCase<
     public void testValidate() {
         assertFalse(createTestInstance().validate().isPresent());
 
-        DataFrameTransformConfig config = new DataFrameTransformConfig(null, null, null, PivotConfigTests.randomPivotConfig());
+        DataFrameTransformConfig config = new DataFrameTransformConfig(null, null, null, PivotConfigTests.randomPivotConfig(), null);
 
         Optional<ValidationException> error = new PutDataFrameTransformRequest(config).validate();
         assertTrue(error.isPresent());

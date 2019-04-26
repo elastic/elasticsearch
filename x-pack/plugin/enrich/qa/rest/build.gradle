@@ -1,0 +1,19 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+    testCompile project(path: xpackModule('enrich'), configuration: 'runtime')
+}
+
+task restTest(type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+}
+
+restTestCluster {
+    distribution 'default'
+    setting 'xpack.license.self_generated.type', 'basic'
+}
+
+check.dependsOn restTest
+test.enabled = false

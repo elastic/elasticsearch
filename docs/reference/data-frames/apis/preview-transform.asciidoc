@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[preview-data-frame-transform]]
-=== Preview data frame transforms API
+=== Preview {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Preview data frame transforms</titleabbrev>
 ++++

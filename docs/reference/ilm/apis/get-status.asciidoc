@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-get-status]]
-=== Get index lifecycle management status API
+=== Get {ilm} status API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Get index lifecycle management status</titleabbrev>
 ++++

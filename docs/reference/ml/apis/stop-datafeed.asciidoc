@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-stop-datafeed]]
-=== Stop datafeeds API
+=== Stop {dfeeds} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop datafeeds</titleabbrev>
 ++++

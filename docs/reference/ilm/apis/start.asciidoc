@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-start]]
-=== Start index lifecycle management API
+=== Start {ilm} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Start index lifecycle management</titleabbrev>
 ++++

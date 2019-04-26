@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="gold"]
 [[configuring-metricbeat]]
-=== Collecting Elasticsearch monitoring data with Metricbeat
+=== Collecting {es} monitoring data with {metricbeat}
+
+[subs="attributes"]
 ++++
 <titleabbrev>Collecting monitoring data with Metricbeat</titleabbrev>
 ++++

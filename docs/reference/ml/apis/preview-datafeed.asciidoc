@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-preview-datafeed]]
-=== Preview datafeeds API
+=== Preview {dfeeds} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Preview datafeeds</titleabbrev>
 ++++

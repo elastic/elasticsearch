@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[stop-data-frame-transform]]
-=== Stop data frame transforms API
+=== Stop {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop data frame transforms</titleabbrev>
 ++++

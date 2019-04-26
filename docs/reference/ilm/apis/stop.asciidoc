@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-stop]]
-=== Stop index lifecycle management API
+=== Stop {ilm} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop index lifecycle management</titleabbrev>
 ++++

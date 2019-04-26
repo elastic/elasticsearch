@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-data-frame-transform-stats]]
-=== Get data frame transform statistics API
+=== Get {dataframe-transform} statistics API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Get data frame transform statistics</titleabbrev>
 ++++

@@ -1,7 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-data-frame-transform]]
-=== Start data frame transforms API
+=== Start {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Start data frame transforms</titleabbrev>
 ++++

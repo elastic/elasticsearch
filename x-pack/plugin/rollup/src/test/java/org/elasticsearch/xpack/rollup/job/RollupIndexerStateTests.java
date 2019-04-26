@@ -46,27 +46,20 @@ import java.util.function.Function;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
 
 public class RollupIndexerStateTests extends ESTestCase {
     private static class EmptyRollupIndexer extends RollupIndexer {
         EmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
-                Map<String, Object> initialPosition, boolean upgraded, RollupIndexerJobStats stats) {
-            super(executor, job, initialState, initialPosition, new AtomicBoolean(upgraded), stats);
-        }
-
-        EmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
-                           Map<String, Object> initialPosition, boolean upgraded) {
-            super(executor, job, initialState, initialPosition, new AtomicBoolean(upgraded));
+                Map<String, Object> initialPosition, RollupIndexerJobStats stats) {
+            super(executor, job, initialState, initialPosition, stats);
         }
 
         EmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
                            Map<String, Object> initialPosition) {
-            this(executor, job, initialState, initialPosition, randomBoolean());
+            super(executor, job, initialState, initialPosition);
         }
-
 
         @Override
         protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
@@ -141,18 +134,13 @@ public class RollupIndexerStateTests extends ESTestCase {
         protected CountDownLatch latch;
 
         DelayedEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
-                                  Map<String, Object> initialPosition, boolean upgraded) {
-            super(executor, job, initialState, initialPosition, upgraded);
-        }
-
-        DelayedEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
                                   Map<String, Object> initialPosition) {
-            super(executor, job, initialState, initialPosition, randomBoolean());
+            super(executor, job, initialState, initialPosition);
         }
 
         DelayedEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
                 Map<String, Object> initialPosition, RollupIndexerJobStats stats) {
-            super(executor, job, initialState, initialPosition, randomBoolean(), stats);
+            super(executor, job, initialState, initialPosition, stats);
         }
 
         private CountDownLatch newLatch() {
@@ -180,7 +168,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         NonEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
                               Map<String, Object> initialPosition, Function<SearchRequest, SearchResponse> searchFunction,
                               Function<BulkRequest, BulkResponse> bulkFunction, Consumer<Exception> failureConsumer) {
-            super(executor, job, initialState, initialPosition, new AtomicBoolean(randomBoolean()));
+            super(executor, job, initialState, initialPosition);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -245,8 +233,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
-            RollupIndexer indexer = new EmptyRollupIndexer(executor, job, state, null, true);
-            assertTrue(indexer.isUpgradedDocumentID());
+            RollupIndexer indexer = new EmptyRollupIndexer(executor, job, state, null);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -302,7 +289,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
         RollupIndexerJobStats stats = new RollupIndexerJobStats();
         RollupIndexerJobStats spyStats = spy(stats);
-        RollupJobConfig config = mock(RollupJobConfig.class);
+        RollupJobConfig config = ConfigTestHelpers.randomRollupJobConfig(random());
 
         // We call stats before a final state check, so this allows us to flip the state
         // and make sure the appropriate error is thrown

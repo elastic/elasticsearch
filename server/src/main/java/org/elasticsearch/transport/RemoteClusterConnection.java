@@ -154,7 +154,7 @@ final class RemoteClusterConnection implements TransportConnectionListener, Clos
             final String proxyAddress,
             final List<Tuple<String, Supplier<DiscoveryNode>>> seedNodes,
             final ActionListener<Void> connectListener) {
-        this.seedNodes = Collections.unmodifiableList(new ArrayList<>(seedNodes));
+        this.seedNodes = List.copyOf(seedNodes);
         this.proxyAddress = proxyAddress;
         connectHandler.connect(connectListener);
     }

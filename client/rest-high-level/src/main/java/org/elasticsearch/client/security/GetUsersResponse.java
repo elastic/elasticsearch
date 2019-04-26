@@ -28,10 +28,13 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -42,20 +45,20 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class GetUsersResponse {
 
-    private final List<User> users;
-    private final List<User> enabledUsers;
+    private final Map<String, User> users;
+    private final Map<String, User> enabledUsers;
 
-    GetUsersResponse(List<User> users, List<User> enabledUsers) {
-        this.users = List.copyOf(users);
-        this.enabledUsers = List.copyOf(enabledUsers);
+    GetUsersResponse(final Map<String, User> users, final Map<String, User> enabledUsers) {
+        this.users = Map.copyOf(users);
+        this.enabledUsers = Map.copyOf(enabledUsers);
     }
 
     public List<User> getUsers() {
-        return users;
+        return List.copyOf(users.values());
     }
 
     public List<User> getEnabledUsers() {
-        return enabledUsers;
+        return List.copyOf(enabledUsers.values());
     }
 
     public static GetUsersResponse fromXContent(XContentParser parser) throws IOException {
@@ -71,7 +74,11 @@ public class GetUsersResponse {
                 enabledUsers.add(parsedUser.user);
             }
         }
-        return new GetUsersResponse(users, enabledUsers);
+        return new GetUsersResponse(toMap(users), toMap(enabledUsers));
+    }
+
+    static Map<String, User> toMap(final Collection<User> users) {
+        return users.stream().collect(Collectors.toUnmodifiableMap(User::getUsername, Function.identity()));
     }
 
     @Override

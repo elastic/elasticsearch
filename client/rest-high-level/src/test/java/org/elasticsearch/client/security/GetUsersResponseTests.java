@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.client.security.GetUsersResponse.toMap;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 /** tests the Response for getting users from the security HLRC */
@@ -106,7 +107,7 @@ public class GetUsersResponseTests extends ESTestCase {
             Arrays.asList(new String[] {randomAlphaOfLength(5), randomAlphaOfLength(5)}),
             metadata2, randomAlphaOfLength(10), null);
         users.add(user2);
-        return new GetUsersResponse(users, enabledUsers);
+        return new GetUsersResponse(toMap(users), toMap(enabledUsers));
     }
 
     public void testEqualsHashCode() {
@@ -122,17 +123,18 @@ public class GetUsersResponseTests extends ESTestCase {
         metadata2.put("intelligence", 9);
         metadata2.put("specialty", "geo");
         final User user2 = new User("testUser2", Arrays.asList(new String[] {"admin"}),
-            metadata, "Test User 2", "testuser2@example.com");
+            metadata2, "Test User 2", "testuser2@example.com");
         users.add(user2);
         enabledUsers.add(user2);
-        final GetUsersResponse getUsersResponse = new GetUsersResponse(users, enabledUsers);
+        final GetUsersResponse getUsersResponse = new GetUsersResponse(toMap(users), toMap(enabledUsers));
         assertNotNull(getUsersResponse);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersResponse, (original) -> {
-            return new GetUsersResponse(original.getUsers(), original.getEnabledUsers());
-        });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersResponse, (original) -> {
-            return new GetUsersResponse(original.getUsers(), original.getEnabledUsers());
-        }, GetUsersResponseTests::mutateTestItem);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                getUsersResponse,
+                (original) -> new GetUsersResponse(toMap(original.getUsers()), toMap(original.getEnabledUsers())));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                getUsersResponse,
+                (original) -> new GetUsersResponse(toMap(original.getUsers()), toMap(original.getEnabledUsers())),
+                GetUsersResponseTests::mutateTestItem);
     }
 
     private static GetUsersResponse mutateTestItem(GetUsersResponse original) {
@@ -145,7 +147,7 @@ public class GetUsersResponseTests extends ESTestCase {
                 metadata, "Test User 1", null);
             users.add(user1);
             enabledUsers.add(user1);
-            return new GetUsersResponse(users, enabledUsers);
+            return new GetUsersResponse(toMap(users), toMap(enabledUsers));
         }
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("intelligence", 5);  // change intelligence
@@ -157,6 +159,7 @@ public class GetUsersResponseTests extends ESTestCase {
         enabledUsers.clear();
         newUsers.add(user1);
         enabledUsers.add(user1);
-        return new GetUsersResponse(newUsers, enabledUsers);
+        return new GetUsersResponse(toMap(newUsers), toMap(enabledUsers));
     }
+
 }

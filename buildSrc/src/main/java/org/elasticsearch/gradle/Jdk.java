@@ -71,7 +71,8 @@ public class Jdk implements Buildable {
 
     public void setPlatform(String platform) {
         if (ALLOWED_PLATFORMS.contains(platform) == false) {
-            throw new IllegalArgumentException("unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS);
+            throw new IllegalArgumentException(
+                "unknown platform [" + platform + "] for jdk [" + name + "], must be one of " + ALLOWED_PLATFORMS);
         }
         this.platform.set(platform);
     }

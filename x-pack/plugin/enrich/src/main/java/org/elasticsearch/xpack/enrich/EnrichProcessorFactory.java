@@ -42,7 +42,7 @@ final class EnrichProcessorFactory implements Processor.Factory {
         }
 
         String enrichKey = ConfigurationUtils.readStringProperty(TYPE, tag, config, "enrich_key", policy.getEnrichKey());
-        boolean ignoreKeyMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "enrich_key_ignore_missing", false);
+        boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
 
         final List<EnrichSpecification> specifications;
         final List<Map<?, ?>> specificationConfig = ConfigurationUtils.readList(TYPE, tag, config, "enrich_values");
@@ -59,7 +59,7 @@ final class EnrichProcessorFactory implements Processor.Factory {
 
         switch (policy.getType()) {
             case EnrichPolicy.EXACT_MATCH_TYPE:
-                return new ExactMatchProcessor(tag, policyLookup, searchProvider, policyName, enrichKey, ignoreKeyMissing, specifications);
+                return new ExactMatchProcessor(tag, policyLookup, searchProvider, policyName, enrichKey, ignoreMissing, specifications);
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policy.getType() + "]");
         }

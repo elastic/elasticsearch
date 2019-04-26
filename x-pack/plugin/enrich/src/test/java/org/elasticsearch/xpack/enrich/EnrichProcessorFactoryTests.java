@@ -37,7 +37,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("enrich_key", "host");
         boolean keyIgnoreMissing = randomBoolean();
         if (keyIgnoreMissing || randomBoolean()) {
-            config.put("enrich_key_ignore_missing", keyIgnoreMissing);
+            config.put("ignore_missing", keyIgnoreMissing);
         }
 
         int numRandomValues = randomIntBetween(1, 8);
@@ -56,7 +56,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         assertThat(result, notNullValue());
         assertThat(result.getPolicyName(), equalTo("majestic"));
         assertThat(result.getEnrichKey(), equalTo("host"));
-        assertThat(result.isIgnoreEnrichKeyMissing(), is(keyIgnoreMissing));
+        assertThat(result.isIgnoreMissing(), is(keyIgnoreMissing));
         assertThat(result.getSpecifications().size(), equalTo(numRandomValues));
         for (int i = 0; i < numRandomValues; i++) {
             EnrichSpecification actual = result.getSpecifications().get(i);
@@ -75,7 +75,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("enrich_key", "host");
         boolean keyIgnoreMissing = randomBoolean();
         if (keyIgnoreMissing || randomBoolean()) {
-            config.put("enrich_key_ignore_missing", keyIgnoreMissing);
+            config.put("ignore_missing", keyIgnoreMissing);
         }
 
         int numRandomValues = randomIntBetween(1, 8);
@@ -103,7 +103,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("enrich_key", "host");
         boolean keyIgnoreMissing = randomBoolean();
         if (keyIgnoreMissing || randomBoolean()) {
-            config.put("enrich_key_ignore_missing", keyIgnoreMissing);
+            config.put("ignore_missing", keyIgnoreMissing);
         }
 
         int numRandomValues = randomIntBetween(1, 8);
@@ -132,7 +132,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("enrich_key", "host");
         boolean keyIgnoreMissing = randomBoolean();
         if (keyIgnoreMissing || randomBoolean()) {
-            config.put("enrich_key_ignore_missing", keyIgnoreMissing);
+            config.put("ignore_missing", keyIgnoreMissing);
         }
 
         int numRandomValues = randomIntBetween(1, 8);

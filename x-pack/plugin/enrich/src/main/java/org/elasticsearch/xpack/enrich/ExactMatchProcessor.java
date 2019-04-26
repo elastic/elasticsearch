@@ -33,21 +33,21 @@ final class ExactMatchProcessor extends AbstractProcessor {
 
     private final String policyName;
     private final String enrichKey;
-    private final boolean ignoreEnrichKeyMissing;
+    private final boolean ignoreMissing;
     private final List<EnrichProcessorFactory.EnrichSpecification> specifications;
 
     ExactMatchProcessor(String tag,
                         Function<String, EnrichPolicy> policyLookup,
                         Function<String, Engine.Searcher> searchProvider, String policyName,
                         String enrichKey,
-                        boolean ignoreEnrichKeyMissing,
+                        boolean ignoreMissing,
                         List<EnrichProcessorFactory.EnrichSpecification> specifications) {
         super(tag);
         this.policyLookup = policyLookup;
         this.searchProvider = searchProvider;
         this.policyName = policyName;
         this.enrichKey = enrichKey;
-        this.ignoreEnrichKeyMissing = ignoreEnrichKeyMissing;
+        this.ignoreMissing = ignoreMissing;
         this.specifications = specifications;
     }
 
@@ -58,7 +58,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("policy [" + policyName + "] does not exists");
         }
 
-        final String value = ingestDocument.getFieldValue(enrichKey, String.class, ignoreEnrichKeyMissing);
+        final String value = ingestDocument.getFieldValue(enrichKey, String.class, ignoreMissing);
         if (value == null) {
             return ingestDocument;
         }
@@ -114,8 +114,8 @@ final class ExactMatchProcessor extends AbstractProcessor {
         return enrichKey;
     }
 
-    boolean isIgnoreEnrichKeyMissing() {
-        return ignoreEnrichKeyMissing;
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
     }
 
     List<EnrichProcessorFactory.EnrichSpecification> getSpecifications() {

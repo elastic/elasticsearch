@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,9 +46,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
@@ -134,12 +131,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     private static class HighLevelClient extends RestHighLevelClient {
         private HighLevelClient(RestClient restClient) {
-            super(
-                restClient,
-                (client) -> {},
-                Stream.concat(
-                    new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents().stream(),
-                    new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers().stream()).collect(toList()));
+            super(restClient, (client) -> {}, new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
         }
     }
 

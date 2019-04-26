@@ -215,10 +215,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         try (ReleasableLock lock = writeLock.acquire()) {
             logger.debug("open uncommitted translog checkpoint {}", checkpoint);
 
-            final long minGenerationToRecoverFrom;
-            assert checkpoint.minTranslogGeneration > 0 : "minTranslogGeneration < 0 should not happen if index was created with version"
-                    + " > 7.0, but version created was [" + indexSettings().getIndexVersionCreated() + "]";
-            minGenerationToRecoverFrom = checkpoint.minTranslogGeneration;
+            final long minGenerationToRecoverFrom = checkpoint.minTranslogGeneration;
+            assert minGenerationToRecoverFrom >= 0 : "minTranslogGeneration should be non-negative";
 
             final String checkpointTranslogFile = getFilename(checkpoint.generation);
             // we open files in reverse order in order to validate tranlsog uuid before we start traversing the translog based on

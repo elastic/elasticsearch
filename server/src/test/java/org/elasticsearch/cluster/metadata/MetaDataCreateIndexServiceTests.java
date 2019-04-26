@@ -457,7 +457,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
             double ratio = numRoutingShards / randomNumShards;
             int intRatio = (int) ratio;
-            assertEquals(ratio, (intRatio), 0.0d);
+            assertEquals(ratio, intRatio, 0.0d);
             assertTrue(1 < ratio);
             assertTrue(ratio <= 1024);
             assertEquals(0, intRatio % 2);

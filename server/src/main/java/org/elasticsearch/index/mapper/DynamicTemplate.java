@@ -202,11 +202,7 @@ public class DynamicTemplate implements ToXContentObject {
 
         XContentFieldType xcontentFieldType = null;
         if (matchMappingType != null && matchMappingType.equals("*") == false) {
-            try {
-                xcontentFieldType = XContentFieldType.fromString(matchMappingType);
-            } catch (IllegalArgumentException e) {
-                throw e;
-            }
+            xcontentFieldType = XContentFieldType.fromString(matchMappingType);
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);

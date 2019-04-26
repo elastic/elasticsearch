@@ -411,10 +411,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         final int bwcMajor;
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5
-        } else if (major == 7) {
-            bwcMajor = 6;
-        } else if (major == 8) {
-            bwcMajor = 7;
         } else {
             bwcMajor = major - 1;
         }

@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.FileSupplier;
 import org.gradle.api.logging.Logging;
 import org.slf4j.Logger;
 
@@ -46,6 +47,10 @@ public interface TestClusterConfiguration {
     void keystore(String key, String value);
 
     void keystore(String key, Supplier<CharSequence> valueSupplier);
+
+    void keystore(String key, File value);
+
+    void keystore(String key, FileSupplier valueSupplier);
 
     void setting(String key, String value);
 

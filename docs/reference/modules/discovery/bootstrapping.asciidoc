@@ -47,9 +47,11 @@ cluster.initial_master_nodes:
   - master-c
 --------------------------------------------------
 
-You can use a mix of IP addresses and node names too. If there is more than one
-Elasticsearch node with the same IP address then the transport port must also
-be given to specify exactly which node is meant:
+You can also use IP addresses, or even a mix of IP addresses and node names. If
+there is more than one {es} node with the same IP address then the IP addresses
+can be distinguished by appending each node's transport port as shown below.
+However, {es} nodes should have unique node names so {es} does not allow two
+nodes with the same name to be distinguished by their transport port like this.
 
 [source,yaml]
 --------------------------------------------------

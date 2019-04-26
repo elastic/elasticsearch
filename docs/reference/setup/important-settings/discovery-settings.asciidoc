@@ -52,6 +52,7 @@ discovery.seed_hosts:
 cluster.initial_master_nodes:
    - master-node-a <3>
    - 192.168.1.12 <4>
+   - 192.168.1.13:9300 <5>
    - 192.168.1.13:9301 <5>
 --------------------------------------------------
 <1> The port will default to `transport.profiles.default.port` and fallback to
@@ -68,7 +69,8 @@ cluster.initial_master_nodes:
     `cluster.initial_master_nodes`.
 <4> Initial master nodes can also be identified by their IP address.
 <5> If multiple master nodes share an IP address then the transport port must
-    be used to distinguish between them.
+    be used to distinguish between them. Nodes should have unique names so you
+    cannot distinguish named nodes by port.
 
 For more information, see <<modules-discovery-bootstrap-cluster>> and
 <<modules-discovery-settings>>.

@@ -323,18 +323,18 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     public List<Setting<?>> getSettings() {
-        return Collections.unmodifiableList(
-                Arrays.asList(MachineLearningField.AUTODETECT_PROCESS,
-                        ML_ENABLED,
-                        CONCURRENT_JOB_ALLOCATIONS,
-                        MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
-                        MAX_LAZY_ML_NODES,
-                        MAX_MACHINE_MEMORY_PERCENT,
-                        AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
-                        AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
-                        MAX_OPEN_JOBS_PER_NODE,
-                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP,
-                        MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION));
+        return List.of(
+                MachineLearningField.AUTODETECT_PROCESS,
+                ML_ENABLED,
+                CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
+                MAX_LAZY_ML_NODES,
+                MAX_MACHINE_MEMORY_PERCENT,
+                AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
+                AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
+                MAX_OPEN_JOBS_PER_NODE,
+                AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP,
+                MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION);
     }
 
     public Settings additionalSettings() {

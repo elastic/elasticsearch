@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.blobstore;
 
+import org.elasticsearch.action.ActionListener;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
@@ -114,24 +116,27 @@ public interface BlobContainer {
      * when one or multiple of the given blobs don't exist and simply ignore this case.
      *
      * @param   blobNames  The names of the blob to delete.
-     * @throws  IOException if a subset of blob exists but could not be deleted.
+     * @param   listener Result Listener
      */
-    default void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        IOException ioe = null;
-        for (String blobName : blobNames) {
-            try {
-                deleteBlobIgnoringIfNotExists(blobName);
-            } catch (IOException e) {
-                if (ioe == null) {
-                    ioe = e;
-                } else {
-                    ioe.addSuppressed(e);
+    default void deleteBlobsIgnoringIfNotExists(List<String> blobNames, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            IOException ioe = null;
+            for (String blobName : blobNames) {
+                try {
+                    deleteBlobIgnoringIfNotExists(blobName);
+                } catch (IOException e) {
+                    if (ioe == null) {
+                        ioe = e;
+                    } else {
+                        ioe.addSuppressed(e);
+                    }
                 }
             }
-        }
-        if (ioe != null) {
-            throw ioe;
-        }
+            if (ioe != null) {
+                throw ioe;
+            }
+            return null;
+        });
     }
 
     /**

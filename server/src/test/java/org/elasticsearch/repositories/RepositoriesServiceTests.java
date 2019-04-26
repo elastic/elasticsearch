@@ -201,8 +201,8 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                                  IndexShardSnapshotStatus snapshotStatus) {
-
+                                  IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
 
         @Override

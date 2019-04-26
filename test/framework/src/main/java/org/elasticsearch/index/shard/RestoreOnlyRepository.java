@@ -134,7 +134,8 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                              IndexShardSnapshotStatus snapshotStatus) {
+                              IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+        listener.onFailure(new UnsupportedOperationException());
     }
 
     @Override

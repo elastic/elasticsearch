@@ -20,6 +20,7 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -35,6 +36,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.writeRandomBlob;
@@ -137,20 +139,26 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    public void testDeleteBlobs() throws IOException {
+    public void testDeleteBlobs() throws IOException, ExecutionException, InterruptedException {
         try (BlobStore store = newBlobStore()) {
             final List<String> blobNames = Arrays.asList("foobar", "barfoo");
             final BlobContainer container = store.blobContainer(new BlobPath());
-            container.deleteBlobsIgnoringIfNotExists(blobNames); // does not raise when blobs don't exist
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            container.deleteBlobsIgnoringIfNotExists(blobNames, future); // does not raise when blobs don't exist
+            future.get();
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             final BytesArray bytesArray = new BytesArray(data);
             for (String blobName : blobNames) {
                 writeBlob(container, blobName, bytesArray, randomBoolean());
             }
             assertEquals(container.listBlobs().size(), 2);
-            container.deleteBlobsIgnoringIfNotExists(blobNames);
+            final PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
+            container.deleteBlobsIgnoringIfNotExists(blobNames, future2);
+            future2.get();
             assertTrue(container.listBlobs().isEmpty());
-            container.deleteBlobsIgnoringIfNotExists(blobNames); // does not raise when blobs don't exist
+            final PlainActionFuture<Void> future3 = PlainActionFuture.newFuture();
+            container.deleteBlobsIgnoringIfNotExists(blobNames, future3); // does not raise when blobs don't exist
+            future3.get();
         }
     }
 

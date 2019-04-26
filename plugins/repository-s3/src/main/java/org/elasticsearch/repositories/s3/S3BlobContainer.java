@@ -34,6 +34,7 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -123,44 +124,47 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        if (blobNames.isEmpty()) {
-            return;
-        }
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
-            final List<DeleteObjectsRequest> deleteRequests = new ArrayList<>();
-            final List<String> partition = new ArrayList<>();
-            for (String blob : blobNames) {
-                partition.add(buildKey(blob));
-                if (partition.size() == MAX_BULK_DELETES ) {
-                    deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
-                    partition.clear();
-                }
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            if (blobNames.isEmpty()) {
+                return null;
             }
-            if (partition.isEmpty() == false) {
-                deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
-            }
-            SocketAccess.doPrivilegedVoid(() -> {
-                AmazonClientException aex = null;
-                for (DeleteObjectsRequest deleteRequest : deleteRequests) {
-                    try {
-                        clientReference.client().deleteObjects(deleteRequest);
-                    } catch (AmazonClientException e) {
-                        if (aex == null) {
-                            aex = e;
-                        } else {
-                            aex.addSuppressed(e);
-                        }
+            try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+                // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
+                final List<DeleteObjectsRequest> deleteRequests = new ArrayList<>();
+                final List<String> partition = new ArrayList<>();
+                for (String blob : blobNames) {
+                    partition.add(buildKey(blob));
+                    if (partition.size() == MAX_BULK_DELETES) {
+                        deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
+                        partition.clear();
                     }
                 }
-                if (aex != null) {
-                    throw aex;
+                if (partition.isEmpty() == false) {
+                    deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
                 }
-            });
-        } catch (final AmazonClientException e) {
-            throw new IOException("Exception when deleting blobs [" + blobNames + "]", e);
-        }
+                SocketAccess.doPrivilegedVoid(() -> {
+                    AmazonClientException aex = null;
+                    for (DeleteObjectsRequest deleteRequest : deleteRequests) {
+                        try {
+                            clientReference.client().deleteObjects(deleteRequest);
+                        } catch (AmazonClientException e) {
+                            if (aex == null) {
+                                aex = e;
+                            } else {
+                                aex.addSuppressed(e);
+                            }
+                        }
+                    }
+                    if (aex != null) {
+                        throw aex;
+                    }
+                });
+            } catch (final AmazonClientException e) {
+                throw new IOException("Exception when deleting blobs [" + blobNames + "]", e);
+            }
+            return null;
+        });
     }
 
     private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {

@@ -688,7 +688,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             inSyncIds, newRoutingTable, Collections.emptySet());
     }
 
-    private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
+    private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) {
         Store.MetadataSnapshot result;
         try {
             result = replica.snapshotStoreMetadata();
@@ -792,9 +792,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /** Recover a shard from a snapshot using a given repository **/
-    protected void recoverShardFromSnapshot(final IndexShard shard,
-                                            final Snapshot snapshot,
-                                            final Repository repository) throws IOException {
+    protected void recoverShardFromSnapshot(final IndexShard shard, final Snapshot snapshot, final Repository repository) {
         final Version version = Version.CURRENT;
         final ShardId shardId = shard.shardId();
         final String index = shardId.getIndexName();
@@ -816,9 +814,10 @@ public abstract class IndexShardTestCase extends ESTestCase {
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
-
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             repository.snapshotShard(shard, shard.store(), snapshot.getSnapshotId(), indexId, indexCommitRef.getIndexCommit(),
-                snapshotStatus);
+                snapshotStatus, future);
+            future.actionGet();
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();

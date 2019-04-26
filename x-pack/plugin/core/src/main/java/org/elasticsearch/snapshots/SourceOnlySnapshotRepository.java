@@ -12,6 +12,8 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -105,42 +107,47 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
     @Override
     public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                              IndexShardSnapshotStatus snapshotStatus) {
-        if (shard.mapperService().documentMapper() != null // if there is no mapping this is null
-            && shard.mapperService().documentMapper().sourceMapper().isComplete() == false) {
-            throw new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
-                "or filters the source");
-        }
-        ShardPath shardPath = shard.shardPath();
-        Path dataPath = shardPath.getDataPath();
-        // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
-        Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
-        try (FSDirectory directory = new SimpleFSDirectory(snapPath)) {
-            Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
-                @Override
-                protected void closeInternal() {
-                    // do nothing;
-                }
-            }, Store.OnClose.EMPTY);
-            Supplier<Query> querySupplier = shard.mapperService().hasNested() ? Queries::newNestedFilter : null;
-            // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
-            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
-            snapshot.syncSnapshot(snapshotIndexCommit);
-            // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
-            SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
-            final long maxDoc = segmentInfos.totalMaxDoc();
-            tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            store.incRef();
-            try (DirectoryReader reader = DirectoryReader.open(tempStore.directory())) {
-                IndexCommit indexCommit = reader.getIndexCommit();
-                super.snapshotShard(shard, tempStore, snapshotId, indexId, indexCommit, snapshotStatus);
-            } finally {
-                store.decRef();
+                             IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            if (shard.mapperService().documentMapper() != null // if there is no mapping this is null
+                && shard.mapperService().documentMapper().sourceMapper().isComplete() == false) {
+                throw new IllegalStateException(
+                    "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source");
             }
-        } catch (IOException e) {
-            // why on earth does this super method not declare IOException
-            throw new UncheckedIOException(e);
-        }
+            ShardPath shardPath = shard.shardPath();
+            Path dataPath = shardPath.getDataPath();
+            // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
+            Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
+            try (FSDirectory directory = new SimpleFSDirectory(snapPath)) {
+                Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
+                    @Override
+                    protected void closeInternal() {
+                        // do nothing;
+                    }
+                }, Store.OnClose.EMPTY);
+                Supplier<Query> querySupplier = shard.mapperService().hasNested() ? Queries::newNestedFilter : null;
+                // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
+                SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
+                snapshot.syncSnapshot(snapshotIndexCommit);
+                // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
+                SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
+                final long maxDoc = segmentInfos.totalMaxDoc();
+                tempStore.bootstrapNewHistory(maxDoc, maxDoc);
+                store.incRef();
+                try (DirectoryReader reader = DirectoryReader.open(tempStore.directory())) {
+                    IndexCommit indexCommit = reader.getIndexCommit();
+                    final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                    super.snapshotShard(shard, tempStore, snapshotId, indexId, indexCommit, snapshotStatus, future);
+                    future.actionGet();
+                } finally {
+                    store.decRef();
+                }
+            } catch (IOException e) {
+                // why on earth does this super method not declare IOException
+                throw new UncheckedIOException(e);
+            }
+            return null;
+        });
     }
 
     /**

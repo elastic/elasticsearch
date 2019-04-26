@@ -11,10 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,7 +39,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -50,7 +48,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
-import org.elasticsearch.xpack.dataframe.persistence.DataframeIndex;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
@@ -58,7 +55,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class TransportPutDataFrameTransformAction
-        extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, PutDataFrameTransformAction.Response> {
+        extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDataFrameTransformAction.class);
 
@@ -72,8 +69,8 @@ public class TransportPutDataFrameTransformAction
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 ClusterService clusterService, XPackLicenseState licenseState,
                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client) {
-        super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                PutDataFrameTransformAction.Request::new);
+        super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                PutDataFrameTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
@@ -87,12 +84,13 @@ public class TransportPutDataFrameTransformAction
     }
 
     @Override
-    protected PutDataFrameTransformAction.Response newResponse() {
-        return new PutDataFrameTransformAction.Response();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState clusterState, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener)
+            throws Exception {
 
         if (!licenseState.isDataFrameAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
@@ -117,18 +115,6 @@ public class TransportPutDataFrameTransformAction
             return;
         }
 
-        final String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState,
-            IndicesOptions.lenientExpandOpen(),
-            config.getDestination().getIndex());
-
-        if (dest.length > 0) {
-            listener.onFailure(new ElasticsearchStatusException(
-                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_INDEX_ALREADY_EXISTS,
-                    config.getDestination().getIndex()),
-                RestStatus.BAD_REQUEST));
-            return;
-        }
-
         for(String src : config.getSource().getIndex()) {
             if (indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src).length == 0) {
                 listener.onFailure(new ElasticsearchStatusException(
@@ -145,9 +131,19 @@ public class TransportPutDataFrameTransformAction
                 .indices(config.getSource().getIndex())
                 .privileges("read")
                 .build();
+            String[] destPrivileges = new String[3];
+            destPrivileges[0] = "read";
+            destPrivileges[1] = "index";
+            // If the destination index does not exist, we can assume that we may have to create it on start.
+            // We should check that the creating user has the privileges to create the index.
+            if (indexNameExpressionResolver.concreteIndexNames(clusterState,
+                IndicesOptions.lenientExpandOpen(),
+                config.getDestination().getIndex()).length == 0) {
+                destPrivileges[2] = "create_index";
+            }
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(config.getDestination().getIndex())
-                .privileges("read", "index", "create_index")
+                .privileges(destPrivileges)
                 .build();
 
             HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
@@ -174,7 +170,7 @@ public class TransportPutDataFrameTransformAction
     private void handlePrivsResponse(String username,
                                      DataFrameTransformConfig config,
                                      HasPrivilegesResponse privilegesResponse,
-                                     ActionListener<Response> listener) throws IOException {
+                                     ActionListener<AcknowledgedResponse> listener) throws IOException {
         if (privilegesResponse.isCompleteMatch()) {
             putDataFrame(config, listener);
         } else {
@@ -192,7 +188,7 @@ public class TransportPutDataFrameTransformAction
         }
     }
 
-    private void putDataFrame(DataFrameTransformConfig config, ActionListener<Response> listener) {
+    private void putDataFrame(DataFrameTransformConfig config, ActionListener<AcknowledgedResponse> listener) {
 
         final Pivot pivot = new Pivot(config.getSource().getIndex(),
             config.getSource().getQueryConfig().getQuery(),
@@ -201,42 +197,13 @@ public class TransportPutDataFrameTransformAction
 
         // <5> Return the listener, or clean up destination index on failure.
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
-            putTransformConfigurationResult -> listener.onResponse(new Response(true)),
-            putTransformConfigurationException ->
-                ClientHelper.executeAsyncWithOrigin(client,
-                    ClientHelper.DATA_FRAME_ORIGIN,
-                    DeleteIndexAction.INSTANCE,
-                    new DeleteIndexRequest(config.getDestination().getIndex()), ActionListener.wrap(
-                        deleteIndexResponse -> listener.onFailure(putTransformConfigurationException),
-                        deleteIndexException -> {
-                            String msg = "Failed to delete destination index after creating transform [" + config.getId() + "] failed";
-                            listener.onFailure(
-                                new ElasticsearchStatusException(msg,
-                                    RestStatus.INTERNAL_SERVER_ERROR,
-                                    putTransformConfigurationException));
-                        })
-                )
+            putTransformConfigurationResult -> listener.onResponse(new AcknowledgedResponse(true)),
+            listener::onFailure
         );
 
         // <4> Put our transform
-        ActionListener<Boolean> createDestinationIndexListener = ActionListener.wrap(
-            createIndexResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
-            createDestinationIndexException -> listener.onFailure(
-                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_CREATE_DEST_INDEX,
-                    createDestinationIndexException))
-        );
-
-        // <3> Create the destination index
-        ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> DataframeIndex.createDestinationIndex(client, config, mappings, createDestinationIndexListener),
-            deduceTargetMappingsException -> listener.onFailure(
-                new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_DEDUCE_DEST_MAPPINGS,
-                    deduceTargetMappingsException))
-        );
-
-        // <2> Deduce our mappings for the destination index
         ActionListener<Boolean> pivotValidationListener = ActionListener.wrap(
-            validationResult -> pivot.deduceMappings(client, deduceMappingsListener),
+            validationResult -> dataFrameTransformsConfigManager.putTransformConfiguration(config, putTransformConfigurationListener),
             validationException -> listener.onFailure(
                 new RuntimeException(DataFrameMessages.REST_PUT_DATA_FRAME_FAILED_TO_VALIDATE_DATA_FRAME_CONFIGURATION,
                     validationException))

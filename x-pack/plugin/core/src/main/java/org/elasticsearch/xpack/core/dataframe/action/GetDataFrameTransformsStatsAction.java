@@ -42,16 +42,21 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> {
-        private String id;
+        private final String id;
         private PageParams pageParams = PageParams.defaultParams();
 
         public static final int MAX_SIZE_RETURN = 1000;
         // used internally to expand the queried id expression
-        private List<String> expandedIds = Collections.emptyList();
+        private List<String> expandedIds;
 
         public Request(String id) {
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
@@ -59,13 +64,14 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             } else {
                 this.id = id;
             }
+            this.expandedIds = Collections.singletonList(id);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            expandedIds = in.readList(StreamInput::readString);
-            pageParams = in.readOptionalWriteable(PageParams::new);
+            expandedIds = Collections.unmodifiableList(in.readStringList());
+            pageParams = new PageParams(in);
         }
 
         @Override
@@ -88,7 +94,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         }
 
         public final void setPageParams(PageParams pageParams) {
-            this.pageParams = pageParams;
+            this.pageParams = Objects.requireNonNull(pageParams);
         }
 
         public final PageParams getPageParams() {
@@ -100,7 +106,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             super.writeTo(out);
             out.writeString(id);
             out.writeStringCollection(expandedIds);
-            out.writeOptionalWriteable(pageParams);
+            pageParams.writeTo(out);
         }
 
         @Override
@@ -131,7 +137,7 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         }
     }
 
-    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
+    public static class Response extends BaseTasksResponse implements ToXContentObject {
         private List<DataFrameTransformStateAndStats> transformsStateAndStats;
 
         public Response(List<DataFrameTransformStateAndStats> transformsStateAndStats) {
@@ -145,14 +151,9 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
             this.transformsStateAndStats = transformsStateAndStats;
         }
 
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-            this.transformsStateAndStats = Collections.emptyList();
-        }
-
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            transformsStateAndStats = in.readList(DataFrameTransformStateAndStats::new);
         }
 
         public List<DataFrameTransformStateAndStats> getTransformsStateAndStats() {
@@ -160,15 +161,14 @@ public class GetDataFrameTransformsStatsAction extends Action<GetDataFrameTransf
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            transformsStateAndStats = in.readList(DataFrameTransformStateAndStats::new);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeList(transformsStateAndStats);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override

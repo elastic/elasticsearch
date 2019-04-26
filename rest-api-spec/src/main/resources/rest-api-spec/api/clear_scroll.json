@@ -3,8 +3,15 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html",
     "methods": ["DELETE"],
     "url": {
-      "path": "/_search/scroll/{scroll_id}",
-      "paths": ["/_search/scroll/{scroll_id}", "/_search/scroll"],
+      "path": "/_search/scroll",
+      "paths": [ "/_search/scroll"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/_search/scroll/{scroll_id}",
+          "description" : "A scroll id can be quite large and should be specified as part of the body"
+        }
+      ],
       "parts": {
         "scroll_id": {
           "type" : "list",

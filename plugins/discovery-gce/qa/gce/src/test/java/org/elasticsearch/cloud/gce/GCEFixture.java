@@ -129,7 +129,7 @@ public class GCEFixture extends AbstractHttpFixture {
         // https://cloud.google.com/compute/docs/reference/rest/v1/instances
         handlers.insert(authPath(HttpGet.METHOD_NAME, "/compute/v1/projects/{project}/zones/{zone}/instances"),
             request -> {
-                final List items = new ArrayList();
+                final List<Map<String, Object>> items = new ArrayList();
                 int count = 0;
                 for (String address : Files.readAllLines(nodes)) {
                     count++;
@@ -139,11 +139,11 @@ public class GCEFixture extends AbstractHttpFixture {
                             "name", "test" + count,
                             "kind", "compute#instance",
                             "machineType", "n1-standard-1",
-                            "networkInterfaces", Map.of(
+                            "networkInterfaces", List.of(Map.of(
                                     "accessConfigs", Collections.emptyList(),
                                     "name", "nic0",
                                     "network", "default",
-                                    "networkIP", address),
+                                    "networkIP", address)),
                             "status", "RUNNING",
                             "zone", ZONE));
                 }

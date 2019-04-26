@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.cloud.BatchResult;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
@@ -27,11 +28,10 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
+import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -52,6 +52,7 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -60,8 +61,6 @@ import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
-    
-    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStore.class);
 
     // The recommended maximum size of a blob that should be uploaded in a single
     // request. Larger files should be uploaded over multiple requests (this is
@@ -315,28 +314,39 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             return;
         }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
-        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> client().delete(blobIdsToDelete));
+        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> {
+            final StorageBatch batch = client().batch();
+            final List<Boolean> results = Lists.newArrayList();
+            for (BlobId blob : blobIdsToDelete) {
+                batch.delete(blob).notify(
+                    new BatchResult.Callback<>() {
+                        @Override
+                        public void success(Boolean result) {
+                            results.add(result);
+                        }
+
+                        @Override
+                        public void error(StorageException exception) {
+                            if (exception.getCode() == 404) {
+                                results.add(Boolean.TRUE);
+                            } else {
+                                results.add(Boolean.FALSE);
+                            }
+                        }
+                    });
+            }
+            batch.submit();
+            return Collections.unmodifiableList(results);
+        });
         assert blobIdsToDelete.size() == deletedStatuses.size();
         boolean failed = false;
         for (int i = 0; i < blobIdsToDelete.size(); i++) {
             if (deletedStatuses.get(i) == false) {
-                final BlobId blobId = blobIdsToDelete.get(i);
-                try {
-                    Blob blob = SocketAccess.doPrivilegedIOException(() -> client().get(blobId));
-                    if (blob != null) {
-                        logger.error("Failed to delete blob [{}] in bucket [{}]", blobId.getName(), bucketName);
-                        failed = true;
-                    }
-                } catch (Exception e) {
-                    logger.error(
-                        new ParameterizedMessage(
-                            "Failed to delete and then stat blob [{}] in bucket [{}]", blobId.getName(), bucketName), e);
-                    failed = true;
-                }
+                failed = true;
             }
         }
         if (failed) {
-            throw new IOException("Failed to delete all [" + blobIdsToDelete.size() + "] blobs");
+            throw new IOException("Failed to delete the following blobs " + blobIdsToDelete);
         }
     }
 

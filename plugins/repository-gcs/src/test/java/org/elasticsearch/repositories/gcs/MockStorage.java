@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.gax.paging.Page;
+import com.google.cloud.BatchResult;
 import com.google.cloud.Policy;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.RestorableState;
@@ -34,6 +35,7 @@ import com.google.cloud.storage.CopyWriter;
 import com.google.cloud.storage.ServiceAccount;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageBatch;
+import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageException;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRpcOptionUtils;
@@ -56,6 +58,12 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyVararg;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * {@link MockStorage} mocks a {@link Storage} client by storing all the blobs
@@ -356,8 +364,21 @@ class MockStorage implements Storage {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public StorageBatch batch() {
-        return null;
+        final StorageBatch batch = mock(StorageBatch.class);
+        StorageBatchResult<Boolean> result = mock(StorageBatchResult.class);
+        doAnswer(answer -> {
+            BatchResult.Callback<Boolean, Exception> callback  = (BatchResult.Callback<Boolean, Exception>) answer.getArguments()[0];
+            callback.success(true);
+            return null;
+        }).when(result).notify(any(BatchResult.Callback.class));
+        when(batch.delete(any(BlobId.class), anyVararg())).thenAnswer(invocation -> {
+            final BlobId blobId = (BlobId) invocation.getArguments()[0];
+            delete(blobId);
+            return result;
+        });
+        return batch;
     }
 
     @Override

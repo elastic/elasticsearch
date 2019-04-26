@@ -28,7 +28,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -91,7 +90,6 @@ import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
-import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -542,7 +540,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "start_data_1";
 
         // Set up the index and docs
-        createIndexWithDefaultMapping(indexName);
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         long now = (System.currentTimeMillis()/1000)*1000;
@@ -614,7 +623,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "stop_data_1";
 
         // Set up the index
-        createIndexWithDefaultMapping(indexName);
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
         Job job1 = buildJob(jobId1);
@@ -676,7 +696,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "datafeed_stats_data_1";
 
         // Set up the index
-        createIndexWithDefaultMapping(indexName);
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
         Job job1 = buildJob(jobId1);
@@ -743,7 +774,18 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         String indexName = "preview_data_1";
 
         // Set up the index and docs
-        createIndexWithDefaultMapping(indexName);
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         long now = (System.currentTimeMillis()/1000)*1000;
@@ -796,9 +838,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     private  String createExpiredData(String jobId) throws Exception {
-        String indexName = jobId + "-data";
+        String indexId = jobId + "-data";
         // Set up the index and docs
-        createIndexWithDefaultMapping(indexName);
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexId);
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                    .field("format", "epoch_millis")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
@@ -811,7 +865,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
             int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
             for (int point = 0; point < bucketRate; point++) {
-                IndexRequest indexRequest = new IndexRequest(indexName);
+                IndexRequest indexRequest = new IndexRequest(indexId);
                 indexRequest.source(XContentType.JSON, "timestamp", timestamp, "total", randomInt(1000));
                 bulk.add(indexRequest);
             }
@@ -830,7 +884,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         Job job = buildJobForExpiredDataTests(jobId);
         putJob(job);
         openJob(job);
-        String datafeedId = createAndPutDatafeed(jobId, indexName);
+        String datafeedId = createAndPutDatafeed(jobId, indexId);
 
         startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis - TimeValue.timeValueHours(24).getMillis()));
 
@@ -1297,42 +1351,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
-    public void testStartDataFrameAnalyticsConfig() throws Exception {
-        String sourceIndex = "test-source-index";
-        createIndexWithDefaultMapping(sourceIndex);
-        IndexRequest doc = new IndexRequest(sourceIndex);
-        doc.source("{\"total\": 10000}", XContentType.JSON);  // We need at least one doc in the index to perform the analysis
-        highLevelClient().index(doc, RequestOptions.DEFAULT);
-        String destIndex = "test-dest-index";  // This index must not exist, otherwise the reindexing step will fail
-
-        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(sourceIndex), RequestOptions.DEFAULT));
-        assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
-
-        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String configId = "test-config";
-        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
-            .setSource(new DataFrameAnalyticsSource(sourceIndex))
-            .setDest(new DataFrameAnalyticsDest(destIndex))
-            .setAnalysis(new OutlierDetection())
-            .build();
-
-        execute(
-            new PutDataFrameAnalyticsRequest(config),
-            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
-
-        AcknowledgedResponse startDataFrameAnalyticsResponse = execute(
-            new StartDataFrameAnalyticsRequest(configId),
-            machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
-        assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
-
-        // TODO(przemyslaw.witek): Instead of sleeping, poll for task state "STOPPED" once GetDataFrameAnalyticsStats API method is
-        //                         implemented in MachineLearningClient
-        Thread.sleep(10 * 1000);
-
-        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(sourceIndex), RequestOptions.DEFAULT));
-        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
-    }
-
     public void testDeleteDataFrameAnalyticsConfig() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "test-config";
@@ -1374,21 +1392,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             () -> execute(
                 request, machineLearningClient::deleteDataFrameAnalytics, machineLearningClient::deleteDataFrameAnalyticsAsync));
         assertThat(exception.status().getStatus(), equalTo(404));
-    }
-
-    private void createIndexWithDefaultMapping(String indexName) throws IOException {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
     }
 
     public void testPutFilter() throws Exception {

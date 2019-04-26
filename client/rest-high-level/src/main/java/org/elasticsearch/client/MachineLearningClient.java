@@ -25,6 +25,7 @@ import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
@@ -47,6 +48,8 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
@@ -78,6 +81,8 @@ import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutFilterRequest;
@@ -1872,6 +1877,130 @@ public final class MachineLearningClient {
     public void setUpgradeModeAsync(SetUpgradeModeRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request,
             MLRequestConverters::setUpgradeMode,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Data Frame Analytics config
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">PUT Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link PutDataFrameAnalyticsRequest} containing the
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The {@link PutDataFrameAnalyticsResponse} containing the created
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public PutDataFrameAnalyticsResponse putDataFrameAnalytics(PutDataFrameAnalyticsRequest request,
+                                                               RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::putDataFrameAnalytics,
+            options,
+            PutDataFrameAnalyticsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Creates a new Data Frame Analytics config asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">PUT Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link PutDataFrameAnalyticsRequest} containing the
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void putDataFrameAnalyticsAsync(PutDataFrameAnalyticsRequest request, RequestOptions options,
+                                           ActionListener<PutDataFrameAnalyticsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::putDataFrameAnalytics,
+            options,
+            PutDataFrameAnalyticsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets a single or multiple Data Frame Analytics configs
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">GET Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link GetDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetDataFrameAnalyticsResponse} response object containing the
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig} objects
+     */
+    public GetDataFrameAnalyticsResponse getDataFrameAnalytics(GetDataFrameAnalyticsRequest request,
+                                                               RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalytics,
+            options,
+            GetDataFrameAnalyticsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets a single or multiple Data Frame Analytics configs asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">GET Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link GetDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getDataFrameAnalyticsAsync(GetDataFrameAnalyticsRequest request, RequestOptions options,
+                                           ActionListener<GetDataFrameAnalyticsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalytics,
+            options,
+            GetDataFrameAnalyticsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+
+    /**
+     * Deletes the given Data Frame Analytics config
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">DELETE Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link DeleteDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return action acknowledgement
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public AcknowledgedResponse deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest request,
+                                                         RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::deleteDataFrameAnalytics,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Deletes the given Data Frame Analytics config asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">DELETE Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link DeleteDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void deleteDataFrameAnalyticsAsync(DeleteDataFrameAnalyticsRequest request, RequestOptions options,
+                                              ActionListener<AcknowledgedResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::deleteDataFrameAnalytics,
             options,
             AcknowledgedResponse::fromXContent,
             listener,

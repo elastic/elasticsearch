@@ -75,7 +75,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
     static final String MIN_CHILDREN_0_DEPRECATION_MESSAGE = "[min_children] 0 will be rejected " +
-        "in 8.0, use 1 and your query results won't change.";
+        "starting in 8.0. Using 1 instead of 0 will return the same result set.";
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField MAX_CHILDREN_FIELD = new ParseField("max_children");

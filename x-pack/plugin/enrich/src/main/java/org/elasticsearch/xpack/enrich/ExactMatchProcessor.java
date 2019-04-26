@@ -94,6 +94,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
                     XContentHelper.convertToMap(encoded, false, XContentType.SMILE).v2();
                 for (EnrichProcessorFactory.EnrichSpecification specification : specifications) {
                     Object enrichValue = decoded.get(specification.sourceField);
+                    // TODO: add support over overwrite option (like in SetProcessor)
                     ingestDocument.setFieldValue(specification.targetField, enrichValue);
                 }
             }

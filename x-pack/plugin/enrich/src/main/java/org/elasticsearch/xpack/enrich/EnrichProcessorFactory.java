@@ -26,10 +26,7 @@ final class EnrichProcessorFactory implements Processor.Factory {
 
     EnrichProcessorFactory(Supplier<ClusterState> clusterStateSupplier,
                            Function<String, Engine.Searcher> searchProvider) {
-        this.policyLookup = policyName -> {
-            ClusterState clusterState = clusterStateSupplier.get();
-            return EnrichStore.getPolicy(policyName, clusterState);
-        };
+        this.policyLookup = policyName -> EnrichStore.getPolicy(policyName, clusterStateSupplier.get());
         this.searchProvider = searchProvider;
     }
 
@@ -47,6 +44,7 @@ final class EnrichProcessorFactory implements Processor.Factory {
         final List<EnrichSpecification> specifications;
         final List<Map<?, ?>> specificationConfig = ConfigurationUtils.readList(TYPE, tag, config, "enrich_values");
         specifications = specificationConfig.stream()
+            // TODO: Add templating support in enrich_values source and target options
             .map(entry -> new EnrichSpecification((String) entry.get("source"), (String) entry.get("target")))
             .collect(Collectors.toList());
 

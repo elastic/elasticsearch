@@ -206,8 +206,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(
             "htmlstrip", MovedToAnalysisCommon.class,
-            "mapping", MovedToAnalysisCommon.class
-            "patternreplace", MovedToAnalysisCommon.class
+            "mapping", MovedToAnalysisCommon.class,
+            "patternreplace", MovedToAnalysisCommon.class,
             // TODO: these charfilters are not yet exposed: useful?
             // handling of zwnj for persian
             "persian", Void.class);

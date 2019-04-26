@@ -329,7 +329,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testReadTimeout() throws IOException {
-        TimeValue timeValue = TimeValue.timeValueNanos(500 * 1000 * 1000);
+        TimeValue timeValue = TimeValue.timeValueMillis(500);
         Settings settings = Settings.builder().put(SETTING_HTTP_READ_TIMEOUT.getKey(), timeValue).build();
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
         DefaultFullHttpRequest nettyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");

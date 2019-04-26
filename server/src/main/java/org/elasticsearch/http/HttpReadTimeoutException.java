@@ -20,7 +20,12 @@ package org.elasticsearch.http;
 
 public class HttpReadTimeoutException extends RuntimeException {
 
-    public HttpReadTimeoutException(String message) {
-        super(message);
+    public HttpReadTimeoutException(long readTimeoutMillis) {
+        super("http read timeout after " + readTimeoutMillis + "ms");
+
+    }
+
+    public HttpReadTimeoutException(long readTimeoutMillis, Exception cause) {
+        super("http read timeout after " + readTimeoutMillis + "ms", cause);
     }
 }

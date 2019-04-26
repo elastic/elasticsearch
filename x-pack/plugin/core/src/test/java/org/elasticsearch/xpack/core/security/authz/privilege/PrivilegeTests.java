@@ -214,6 +214,7 @@ public class PrivilegeTests extends ESTestCase {
             assertThat(predicate.test("cluster:admin/slm/get"), is(true));
             assertThat(predicate.test("cluster:admin/ilm/start"), is(true));
             assertThat(predicate.test("cluster:admin/ilm/stop"), is(true));
+            assertThat(predicate.test("cluster:admin/ilm/execute"), is(true));
             assertThat(predicate.test("cluster:admin/ilm/operation_mode/get"), is(true));
             // check non-slm action
             assertThat(predicate.test("cluster:admin/whatever"), is(false));
@@ -227,6 +228,7 @@ public class PrivilegeTests extends ESTestCase {
             assertThat(predicate.test("cluster:admin/slm/get"), is(true));
             assertThat(predicate.test("cluster:admin/ilm/start"), is(false));
             assertThat(predicate.test("cluster:admin/ilm/stop"), is(false));
+            assertThat(predicate.test("cluster:admin/ilm/execute"), is(false));
             assertThat(predicate.test("cluster:admin/ilm/operation_mode/get"), is(true));
             // check non-slm action
             assertThat(predicate.test("cluster:admin/whatever"), is(false));

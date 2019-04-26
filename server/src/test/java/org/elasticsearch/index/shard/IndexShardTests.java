@@ -3753,6 +3753,71 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(shard, false);
     }
 
+    /**
+     * This test simulates a scenario seen rarely in ConcurrentSeqNoVersioningIT. While engine is inside
+     * resetEngineToGlobalCheckpoint snapshot metadata could fail
+     */
+    public void testSnapshotWhileResettingEngine() throws Exception {
+        CountDownLatch readyToSnapshotLatch = new CountDownLatch(1);
+        CountDownLatch snapshotDoneLatch = new CountDownLatch(1);
+        IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
+            @Override
+            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+                InternalEngine internalEngine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
+                readyToSnapshotLatch.countDown();
+                try {
+                    snapshotDoneLatch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+                return internalEngine;
+            }
+        });
+
+        indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
+        final long globalCheckpoint = randomLongBetween(shard.getGlobalCheckpoint(), shard.getLocalCheckpoint());
+        shard.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
+
+        Thread snapshotThread = new Thread(() -> {
+            try {
+                readyToSnapshotLatch.await();
+                shard.snapshotStoreMetadata();
+                {
+                    Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(false);
+                    shard.store().getMetadata(indexCommitRef.getIndexCommit());
+                    indexCommitRef.close();
+                }
+                {
+                    Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit();
+                    shard.store().getMetadata(indexCommitRef.getIndexCommit());
+                    indexCommitRef.close();
+                }
+            } catch (InterruptedException | IOException e) {
+                throw new AssertionError(e);
+            } finally {
+                snapshotDoneLatch.countDown();
+            }
+        });
+
+        snapshotThread.start();
+
+        final CountDownLatch engineResetLatch = new CountDownLatch(1);
+        shard.acquireAllReplicaOperationsPermits(shard.getOperationPrimaryTerm(), shard.getGlobalCheckpoint(), 0L,
+            ActionListener.wrap(r -> {
+                try (r) {
+                    shard.resetEngineToGlobalCheckpoint();
+                } finally {
+                    engineResetLatch.countDown();
+                }
+            }, Assert::assertNotNull), TimeValue.timeValueMinutes(1L));
+
+        engineResetLatch.await();
+
+        snapshotThread.join();
+
+        closeShard(shard, false);
+    }
+
     public void testConcurrentAcquireAllReplicaOperationsPermitsWithPrimaryTermUpdate() throws Exception {
         final IndexShard replica = newStartedShard(false);
         indexOnReplicaWithGaps(replica, between(0, 1000), Math.toIntExact(replica.getLocalCheckpoint()));

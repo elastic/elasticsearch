@@ -32,6 +32,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
@@ -206,11 +207,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     protected volatile IndexShardState state;
     private volatile long pendingPrimaryTerm; // see JavaDocs for getPendingPrimaryTerm
     protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
-    /**
-     * A reference to the new engine being prepared during #resetEngineToGlobalCheckpoint.
-     */
-    private final AtomicReference<Engine> resettingEngineReference = new AtomicReference<>();
-
     final EngineFactory engineFactory;
 
     private final IndexingOperationListener indexingOperationListeners;
@@ -1252,10 +1248,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     }
                 } finally {
                     // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    // If a resetEngineToGlobalCheckpoint is in progress, we close that too here. This ensures it either aborts or we wait
-                    // for the completion of it.
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, this.resettingEngineReference.get(), globalCheckpointListeners, refreshListeners);
+                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners);
                     indexShardOperationPermits.close();
                 }
             }
@@ -3085,29 +3079,50 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     void resetEngineToGlobalCheckpoint() throws IOException {
         assert getActiveOperationsCount() == OPERATIONS_BLOCKED
             : "resetting engine without blocking operations; active operations are [" + getActiveOperations() + ']';
-        assert resettingEngineReference.get() == null : "another reset engine operation is in progress";
         sync(); // persist the global checkpoint to disk
         final SeqNoStats seqNoStats = seqNoStats();
         final TranslogStats translogStats = translogStats();
         // flush to make sure the latest commit, which will be opened by the read-only engine, includes all operations.
         flush(new FlushRequest().waitIfOngoing(true));
-        synchronized (mutex) {
-            verifyNotClosed();
-            // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-            final Engine readOnlyEngine = new ReadOnlyEngine(newEngineConfig(), seqNoStats, translogStats, false, Function.identity());
-            IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
-        }
 
         Engine newEngine = null;
+        SetOnce<Engine> newEngineReference = new SetOnce<>();
         try {
             final long globalCheckpoint = getGlobalCheckpoint();
             synchronized (mutex) {
                 verifyNotClosed();
-                assert currentEngineReference.get() instanceof ReadOnlyEngine : "another write engine is running";
                 // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
+                final Engine readOnlyEngine = new ReadOnlyEngine(newEngineConfig(), seqNoStats, translogStats, false, Function.identity()) {
+                    @Override
+                    public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
+                        synchronized (mutex) {
+                            return newEngineReference.get().acquireLastIndexCommit(flushFirst);
+                        }
+                    }
+
+                    @Override
+                    public IndexCommitRef acquireSafeIndexCommit() {
+                        synchronized (mutex) {
+                            return newEngineReference.get().acquireSafeIndexCommit();
+                        }
+                    }
+
+                    @Override
+                    public void close() throws IOException {
+                        assert Thread.holdsLock(mutex);
+
+                        Engine newEngine = newEngineReference.get();
+                        if (newEngine == currentEngineReference.get()) {
+                            // we successfully installed the new engine so do not close it.
+                            newEngine = null;
+                        }
+                        IOUtils.close(super::close, newEngine);
+                    }
+                };
+                IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
                 newEngine = engineFactory.newReadWriteEngine(newEngineConfig());
+                newEngineReference.set(newEngine);
                 onNewEngine(newEngine);
-                resettingEngineReference.set(newEngine);
             }
             newEngine.advanceMaxSeqNoOfUpdatesOrDeletes(globalCheckpoint);
             final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
@@ -3118,8 +3133,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             synchronized (mutex) {
                 verifyNotClosed();
                 IOUtils.close(currentEngineReference.getAndSet(newEngine));
-                assert resettingEngineReference.get() == newEngine;
-                resettingEngineReference.set(null);
                 // We set active because we are now writing operations to the engine; this way,
                 // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
                 active.set(true);
@@ -3129,7 +3142,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
             onSettingsChanged();
         } finally {
-            resettingEngineReference.set(null);
             IOUtils.close(newEngine);
         }
     }

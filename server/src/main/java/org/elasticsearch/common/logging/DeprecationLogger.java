@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 /**
  * A logger that logs deprecation notices.
@@ -245,11 +244,13 @@ public class DeprecationLogger {
                 @SuppressLoggerChecks(reason = "safely delegates to logger")
                 @Override
                 public Void run() {
-                    String opaqueIds = threadContexts.stream()
-                                                     .map(t -> t.isClosed() ? "" : t.getHeader(Task.X_OPAQUE_ID))
-                                                     .collect(Collectors.joining(" "));
+                    String opaqueId = threadContexts.stream()
+                                                     .filter(t -> t.isClosed() == false)
+                                                     .findFirst()
+                                                     .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+                                                     .orElse("");
 
-                    logger.warn(new DeprecatedMessage(message, opaqueIds, params));
+                    logger.warn(new DeprecatedMessage(message, opaqueId, params));
                     return null;
                 }
             });

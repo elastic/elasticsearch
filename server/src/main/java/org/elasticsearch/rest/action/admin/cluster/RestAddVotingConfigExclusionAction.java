@@ -47,9 +47,10 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = resolveVotingConfigExclusionsRequest(request);
         return channel -> client.execute(
             AddVotingConfigExclusionsAction.INSTANCE,
-            resolveVotingConfigExclusionsRequest(request),
+            votingConfigExclusionsRequest,
             new RestToXContentListener<>(channel)
         );
     }

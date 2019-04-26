@@ -445,9 +445,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             // We copy the block sets here in case of the builder is modified after build is called
             ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder(indices.size());
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
-                indicesBuilder.put(entry.getKey(), unmodifiableSet(new HashSet<>(entry.getValue())));
+                indicesBuilder.put(entry.getKey(), Set.copyOf(entry.getValue()));
             }
-            return new ClusterBlocks(unmodifiableSet(new HashSet<>(global)), indicesBuilder.build());
+            return new ClusterBlocks(Set.copyOf(global), indicesBuilder.build());
         }
     }
 }

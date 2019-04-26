@@ -37,8 +37,8 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
 import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -327,7 +327,7 @@ public class SSLService {
      * Accessor to the loaded ssl configuration objects at the current point in time. This is useful for testing
      */
     Collection<SSLConfiguration> getLoadedSSLConfigurations() {
-        return Collections.unmodifiableSet(new HashSet<>(sslContexts.keySet()));
+        return Set.copyOf(sslContexts.keySet());
     }
 
     /**

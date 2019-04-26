@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-start-datafeed]]
-=== Start {dfeeds} API
+=== Start datafeeds API
 ++++
-<titleabbrev>Start {dfeeds}</titleabbrev>
+<titleabbrev>Start datafeeds</titleabbrev>
 ++++
 
 Starts one or more {dfeeds}.

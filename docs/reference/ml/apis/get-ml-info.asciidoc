@@ -3,7 +3,7 @@
 [[get-ml-info]]
 === Get machine learning info API
 ++++
-<titleabbrev>Get {ml} info</titleabbrev>
+<titleabbrev>Get machine learning info</titleabbrev>
 ++++
 
 Returns defaults and limits used by machine learning.

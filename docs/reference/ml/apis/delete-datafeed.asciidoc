@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-datafeed]]
-=== Delete {dfeeds} API
+=== Delete datafeeds API
 ++++
-<titleabbrev>Delete {dfeeds}</titleabbrev>
+<titleabbrev>Delete datafeeds</titleabbrev>
 ++++
 
 Deletes an existing {dfeed}.

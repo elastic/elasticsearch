@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-data-frame-transform]]
-=== Create {dataframe-transforms} API
+=== Create data frame transforms API
 ++++
-<titleabbrev>Create {dataframe-transforms}</titleabbrev>
+<titleabbrev>Create data frame transforms</titleabbrev>
 ++++
 
 Instantiates a {dataframe-transform}.

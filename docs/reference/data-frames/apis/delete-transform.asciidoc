@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[delete-data-frame-transform]]
-=== Delete {dataframe-transforms} API
+=== Delete data frame transforms API
 ++++
-<titleabbrev>Delete {dataframe-transforms}</titleabbrev>
+<titleabbrev>Delete data frame transforms</titleabbrev>
 ++++
 
 Deletes an existing {dataframe-transform}.

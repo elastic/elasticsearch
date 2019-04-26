@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[ilm-stop]]
-=== Stop {ilm} API
+=== Stop index lifecycle management API
 ++++
-<titleabbrev>Stop {ilm}</titleabbrev>
+<titleabbrev>Stop index lifecycle management</titleabbrev>
 ++++
 
 Stop the {ilm} ({ilm-init}) plugin.

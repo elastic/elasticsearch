@@ -19,6 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.reloadanalyzer;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.reloadanalyzer.TransportReloadAnalyzersAction.ReloadResult;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -35,6 +38,8 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -42,17 +47,20 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 
 /**
  * Indices clear cache action.
  */
-public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeAction<ReloadAnalyzersRequest, ReloadAnalyzersResponse,
-    TransportBroadcastByNodeAction.EmptyResult> {
+public class TransportReloadAnalyzersAction
+        extends TransportBroadcastByNodeAction<ReloadAnalyzersRequest, ReloadAnalyzersResponse, ReloadResult> {
 
+    private static final Logger logger = LogManager.getLogger(TransportReloadAnalyzersAction.class);
     private final IndicesService indicesService;
 
     @Inject
@@ -64,14 +72,27 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
     }
 
     @Override
-    protected EmptyResult readShardResult(StreamInput in) throws IOException {
-        return EmptyResult.readEmptyResultFrom(in);
+    protected ReloadResult readShardResult(StreamInput in) throws IOException {
+        ReloadResult reloadResult = new ReloadResult();
+        reloadResult.readFrom(in);
+        return reloadResult;
     }
 
     @Override
     protected ReloadAnalyzersResponse newResponse(ReloadAnalyzersRequest request, int totalShards, int successfulShards, int failedShards,
-            List<EmptyResult> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
-        return new ReloadAnalyzersResponse(totalShards, successfulShards, failedShards, shardFailures);
+            List<ReloadResult> responses, List<DefaultShardOperationFailedException> shardFailures, ClusterState clusterState) {
+        Map<String, List<String>> reloadedIndicesNodes = new HashMap<String, List<String>>();
+        for (ReloadResult result : responses) {
+            if (reloadedIndicesNodes.containsKey(result.index)) {
+                List<String> nodes = reloadedIndicesNodes.get(result.index);
+                nodes.add(result.nodeId);
+            } else {
+                List<String> nodes = new ArrayList<>();
+                nodes.add(result.nodeId);
+                reloadedIndicesNodes.put(result.index, nodes);
+            }
+        }
+        return new ReloadAnalyzersResponse(totalShards, successfulShards, failedShards, shardFailures, reloadedIndicesNodes);
     }
 
     @Override
@@ -82,11 +103,36 @@ public class TransportReloadAnalyzersAction extends TransportBroadcastByNodeActi
     }
 
     @Override
-    protected EmptyResult shardOperation(ReloadAnalyzersRequest request, ShardRouting shardRouting) throws IOException {
+    protected ReloadResult shardOperation(ReloadAnalyzersRequest request, ShardRouting shardRouting) throws IOException {
         logger.info("reloading analyzers for index shard " + shardRouting);
         IndexService indexService = indicesService.indexService(shardRouting.index());
         indexService.mapperService().reloadSearchAnalyzers(indicesService.getAnalysis());
-        return EmptyResult.INSTANCE;
+        return new ReloadResult(shardRouting.index().getName(), "sdfhsjkd");
+    }
+
+    public static final class ReloadResult implements Streamable {
+        String index;
+        String nodeId;
+
+        private ReloadResult(String index, String nodeId) {
+            this.index = index;
+            this.nodeId = nodeId;
+        }
+
+        private ReloadResult() {
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            this.index = in.readString();
+            this.nodeId = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(index);
+            out.writeString(nodeId);
+        }
     }
 
     /**

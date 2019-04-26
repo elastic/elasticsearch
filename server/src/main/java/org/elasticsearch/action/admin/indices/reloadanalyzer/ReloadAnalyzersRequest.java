@@ -19,13 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.reloadanalyzer;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -34,47 +29,11 @@ import java.util.Objects;
  */
 public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequest> {
 
-    public ReloadAnalyzersRequest() {
-    }
-
     /**
      * Constructs a new request for reloading index search analyzers for one or more indices
      */
     public ReloadAnalyzersRequest(String... indices) {
-        this.indices = indices;
-    }
-
-    /**
-     * Constructs a new request for reloading index search analyzers for one or more indices
-     */
-    public ReloadAnalyzersRequest(Settings settings, String... indices) {
-        this.indices = indices;
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        return validationException;
-    }
-
-    @Override
-    public String[] indices() {
-        return indices;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-    }
-
-    @Override
-    public String toString() {
-        return "indices : " + Arrays.toString(indices);
+        super(indices);
     }
 
     @Override

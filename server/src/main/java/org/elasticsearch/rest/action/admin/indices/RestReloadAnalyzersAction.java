@@ -30,14 +30,14 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
-import java.util.Set;
 
 import static org.elasticsearch.client.Requests.reloadAnalyzersRequest;
 public class RestReloadAnalyzersAction extends BaseRestHandler {
 
     public RestReloadAnalyzersAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.PUT, "/{index}/_reload_search_analyzers", this);
+        controller.registerHandler(RestRequest.Method.GET, "/{index}/_reload_search_analyzers", this);
+        controller.registerHandler(RestRequest.Method.POST, "/{index}/_reload_search_analyzers", this);
     }
 
     @Override
@@ -50,10 +50,5 @@ public class RestReloadAnalyzersAction extends BaseRestHandler {
         ReloadAnalyzersRequest reloadAnalyuersRequest = reloadAnalyzersRequest(Strings.splitStringByCommaToArray(request.param("index")));
         reloadAnalyuersRequest.indicesOptions(IndicesOptions.fromRequest(request, reloadAnalyuersRequest.indicesOptions()));
         return channel -> client.admin().indices().reloadAnalyzers(reloadAnalyuersRequest, new RestToXContentListener<>(channel));
-    }
-
-    @Override
-    protected Set<String> responseParams() {
-        return Settings.FORMAT_PARAMS;
     }
 }

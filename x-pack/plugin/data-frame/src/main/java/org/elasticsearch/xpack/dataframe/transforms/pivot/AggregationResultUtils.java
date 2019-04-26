@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
@@ -21,7 +22,9 @@ import org.elasticsearch.xpack.dataframe.transforms.IDGenerator;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil.isNumericType;
@@ -42,6 +45,7 @@ final class AggregationResultUtils {
     public static Stream<Map<String, Object>> extractCompositeAggregationResults(CompositeAggregation agg,
                                                                                  GroupConfig groups,
                                                                                  Collection<AggregationBuilder> aggregationBuilders,
+                                                                                 Collection<PipelineAggregationBuilder> pipelineAggs,
                                                                                  Map<String, String> fieldTypeMap,
                                                                                  DataFrameIndexerTransformStats stats) {
         return agg.getBuckets().stream().map(bucket -> {
@@ -58,8 +62,10 @@ final class AggregationResultUtils {
                 document.put(destinationFieldName, value);
             });
 
-            for (AggregationBuilder aggregationBuilder : aggregationBuilders) {
-                String aggName = aggregationBuilder.getName();
+            List<String> aggNames = aggregationBuilders.stream().map(AggregationBuilder::getName).collect(Collectors.toList());
+            aggNames.addAll(pipelineAggs.stream().map(PipelineAggregationBuilder::getName).collect(Collectors.toList()));
+
+            for (String aggName: aggNames) {
                 final String fieldType = fieldTypeMap.get(aggName);
 
                 // TODO: support other aggregation types
@@ -67,9 +73,10 @@ final class AggregationResultUtils {
 
                 if (aggResult instanceof NumericMetricsAggregation.SingleValue) {
                     NumericMetricsAggregation.SingleValue aggResultSingleValue = (SingleValue) aggResult;
-                    // If the type is numeric, simply gather the `value` type, otherwise utilize `getValueAsString` so we don't lose
-                    // formatted outputs.
-                    if (isNumericType(fieldType)) {
+                    // If the type is numeric or if the formatted string is the same as simply making the value a string,
+                    //    gather the `value` type, otherwise utilize `getValueAsString` so we don't lose formatted outputs.
+                    if (isNumericType(fieldType) ||
+                        (aggResultSingleValue.getValueAsString().equals(String.valueOf(aggResultSingleValue.value())))) {
                         document.put(aggName, aggResultSingleValue.value());
                     } else {
                         document.put(aggName, aggResultSingleValue.getValueAsString());

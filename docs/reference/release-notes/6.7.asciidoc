@@ -35,6 +35,7 @@ Allocation::
 
 Authorization::
 * Fix role mapping DN field wildcards for users with NULL DNs {pull}41343[#41343] (issue: {issue}41305[#41305])
+* Fix Has Privilege API check on restricted indices {pull}41226[#41226]
 * put mapping authorization for alias with write-index and multiple read indices {pull}40834[#40834] (issue: {issue}40831[#40831])
 * Use alias name from rollover request to query indices stats {pull}40774[#40774] (issue: {issue}40771[#40771])
 
@@ -70,6 +71,7 @@ Infra/Settings::
 
 Machine Learning::
 * [ML] checking if p-tasks metadata is null before updating state {pull}41091[#41091] (issue: {issue}41090[#41090])
+* [ML] Write header to autodetect before it is visible to other calls {pull}41085[#41085] (issue: {issue}40385[#40385])
 * Fix unsafe publication of invalid license enforcer {pull}40985[#40985] (issue: {issue}40957[#40957])
 * [ML] Scrolling datafeed should clear scroll contexts on error {pull}40773[#40773] (issue: {issue}40772[#40772])
 
@@ -104,6 +106,7 @@ Security::
 * Remove dynamic objects from security index {pull}40499[#40499] (issue: {issue}35460[#35460])
 
 Snapshot/Restore::
+* Fix Broken Index Shard Snapshot File Preventing Snapshot Creation {pull}41310[#41310] (issue: {issue}41304[#41304])
 * Do not create missing directories in readonly repo {pull}41249[#41249] (issues: {issue}26909[#26909], {issue}41009[#41009])
 
 [[release-notes-6.7.1]]

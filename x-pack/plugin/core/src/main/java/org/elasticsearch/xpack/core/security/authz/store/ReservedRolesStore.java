@@ -129,7 +129,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("beats_admin", new RoleDescriptor("beats_admin",
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("all").build()
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("create_index", "read", "write").build()
                     },
                     null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(UsernamesField.BEATS_ROLE, new RoleDescriptor(UsernamesField.BEATS_ROLE,

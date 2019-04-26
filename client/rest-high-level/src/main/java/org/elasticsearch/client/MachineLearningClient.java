@@ -1884,15 +1884,16 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Create a new data frame analytics config
+     * Creates a new Data Frame Analytics config
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar.html">
-     * ML create calendar documentation</a>
+     * see <a href="https://www.TODO.com">PUT Data Frame Analytics documentation</a>
      *
-     * @param request The request
+     * @param request The {@link PutDataFrameAnalyticsRequest} containing the
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return The {@link PutDataFrameAnalyticsResponse} containing the config
+     * @return The {@link PutDataFrameAnalyticsResponse} containing the created
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public PutDataFrameAnalyticsResponse putDataFrameAnalytics(PutDataFrameAnalyticsRequest request,
@@ -1905,14 +1906,14 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Create a new machine learning calendar, notifies listener with the created calendar
+     * Creates a new Data Frame Analytics config asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-calendar.html">
-     * ML create calendar documentation</a>
+     * see <a href="https://www.TODO.com">PUT Data Frame Analytics documentation</a>
      *
-     * @param request  The request
-     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param request The {@link PutDataFrameAnalyticsRequest} containing the
+     * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
     public void putDataFrameAnalyticsAsync(PutDataFrameAnalyticsRequest request, RequestOptions options,
@@ -1926,12 +1927,12 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Gets a single or multiple calendars.
+     * Gets a single or multiple Data Frame Analytics configs
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html">ML GET calendars documentation</a>
+     * see <a href="https://www.TODO.com">GET Data Frame Analytics documentation</a>
      *
-     * @param request The request
+     * @param request The {@link GetDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return {@link GetDataFrameAnalyticsResponse} response object containing the
      * {@link org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig} objects
@@ -1946,12 +1947,12 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Gets a single or multiple calendars, notifies listener once the requested records are retrieved.
+     * Gets a single or multiple Data Frame Analytics configs asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html">ML GET calendars documentation</a>
+     * see <a href="https://www.TODO.com">GET Data Frame Analytics documentation</a>
      *
-     * @param request The request
+     * @param request The {@link GetDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
@@ -1967,13 +1968,12 @@ public final class MachineLearningClient {
 
 
     /**
-     * Deletes the given Machine Learning Calendar
+     * Deletes the given Data Frame Analytics config
      * <p>
-     * For additional info see
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html">
-     *     ML Delete calendar documentation</a>
+     * For additional info
+     * see <a href="https://www.TODO.com">DELETE Data Frame Analytics documentation</a>
      *
-     * @param request The request
+     * @param request The {@link DeleteDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return action acknowledgement
      * @throws IOException when there is a serialization issue sending the request or receiving the response
@@ -1988,14 +1988,13 @@ public final class MachineLearningClient {
     }
 
     /**
-     * Deletes the given Machine Learning Job asynchronously and notifies the listener on completion
+     * Deletes the given Data Frame Analytics config asynchronously and notifies listener upon completion
      * <p>
-     * For additional info see
-     * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html">
-     *     ML Delete calendar documentation</a>
+     * For additional info
+     * see <a href="https://www.TODO.com">DELETE Data Frame Analytics documentation</a>
      *
-     * @param request The request
-     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param request The {@link DeleteDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener Listener to be notified upon request completion
      */
     public void deleteDataFrameAnalyticsAsync(DeleteDataFrameAnalyticsRequest request, RequestOptions options,

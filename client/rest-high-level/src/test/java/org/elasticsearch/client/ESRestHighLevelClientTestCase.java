@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -134,12 +133,7 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
 
     private static class HighLevelClient extends RestHighLevelClient {
         private HighLevelClient(RestClient restClient) {
-            super(
-                restClient,
-                (client) -> {},
-                Stream.concat(
-                    new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents().stream(),
-                    new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers().stream()).collect(toList()));
+            super(restClient, (client) -> {}, new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
         }
     }
 

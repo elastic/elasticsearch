@@ -83,8 +83,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -120,15 +118,10 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ContextSetup::parse, CONTEXT_SETUP_FIELD);
         }
 
-        static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS;
-
-        static {
-            Map<String, ScriptContext<?>> supportedContexts = new HashMap<>();
-            supportedContexts.put("painless_test", PainlessTestScript.CONTEXT);
-            supportedContexts.put("filter", FilterScript.CONTEXT);
-            supportedContexts.put("score", ScoreScript.CONTEXT);
-            SUPPORTED_CONTEXTS = Collections.unmodifiableMap(supportedContexts);
-        }
+        static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS = Map.of(
+                "painless_test", PainlessTestScript.CONTEXT,
+                "filter", FilterScript.CONTEXT,
+                "score", ScoreScript.CONTEXT);
 
         static ScriptContext<?> fromScriptContextName(String name) {
             ScriptContext<?> scriptContext = SUPPORTED_CONTEXTS.get(name);

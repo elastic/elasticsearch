@@ -691,7 +691,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         public IndexShardRoutingTable build() {
             // don't allow more than one shard copy with same id to be allocated to same node
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
-            return new IndexShardRoutingTable(shardId, Collections.unmodifiableList(new ArrayList<>(shards)));
+            return new IndexShardRoutingTable(shardId, List.copyOf(shards));
         }
 
         static boolean distinctNodes(List<ShardRouting> shards) {

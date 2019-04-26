@@ -59,12 +59,11 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.zone.ZoneOffsetTransition;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableMap;
+import static java.util.Map.entry;
 
 /**
  * A builder for histograms on date fields.
@@ -75,28 +74,23 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     public static final String NAME = "date_histogram";
     private static DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
-    public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS;
-
-    static {
-        Map<String, Rounding.DateTimeUnit> dateFieldUnits = new HashMap<>();
-        dateFieldUnits.put("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY);
-        dateFieldUnits.put("1y", Rounding.DateTimeUnit.YEAR_OF_CENTURY);
-        dateFieldUnits.put("quarter", Rounding.DateTimeUnit.QUARTER_OF_YEAR);
-        dateFieldUnits.put("1q", Rounding.DateTimeUnit.QUARTER_OF_YEAR);
-        dateFieldUnits.put("month", Rounding.DateTimeUnit.MONTH_OF_YEAR);
-        dateFieldUnits.put("1M", Rounding.DateTimeUnit.MONTH_OF_YEAR);
-        dateFieldUnits.put("week", Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR);
-        dateFieldUnits.put("1w", Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR);
-        dateFieldUnits.put("day", Rounding.DateTimeUnit.DAY_OF_MONTH);
-        dateFieldUnits.put("1d", Rounding.DateTimeUnit.DAY_OF_MONTH);
-        dateFieldUnits.put("hour", Rounding.DateTimeUnit.HOUR_OF_DAY);
-        dateFieldUnits.put("1h", Rounding.DateTimeUnit.HOUR_OF_DAY);
-        dateFieldUnits.put("minute", Rounding.DateTimeUnit.MINUTES_OF_HOUR);
-        dateFieldUnits.put("1m", Rounding.DateTimeUnit.MINUTES_OF_HOUR);
-        dateFieldUnits.put("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE);
-        dateFieldUnits.put("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE);
-        DATE_FIELD_UNITS = unmodifiableMap(dateFieldUnits);
-    }
+    public static final Map<String, Rounding.DateTimeUnit> DATE_FIELD_UNITS = Map.ofEntries(
+            entry("year", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
+            entry("1y", Rounding.DateTimeUnit.YEAR_OF_CENTURY),
+            entry("quarter", Rounding.DateTimeUnit.QUARTER_OF_YEAR),
+            entry("1q", Rounding.DateTimeUnit.QUARTER_OF_YEAR),
+            entry("month", Rounding.DateTimeUnit.MONTH_OF_YEAR),
+            entry("1M", Rounding.DateTimeUnit.MONTH_OF_YEAR),
+            entry("week", Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
+            entry("1w", Rounding.DateTimeUnit.WEEK_OF_WEEKYEAR),
+            entry("day", Rounding.DateTimeUnit.DAY_OF_MONTH),
+            entry("1d", Rounding.DateTimeUnit.DAY_OF_MONTH),
+            entry("hour", Rounding.DateTimeUnit.HOUR_OF_DAY),
+            entry("1h", Rounding.DateTimeUnit.HOUR_OF_DAY),
+            entry("minute", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+            entry("1m", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+            entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
+            entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE));
 
     private static final ObjectParser<DateHistogramAggregationBuilder, Void> PARSER;
     static {

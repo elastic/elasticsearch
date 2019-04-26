@@ -67,8 +67,6 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
-import static java.util.Collections.unmodifiableMap;
-
 /**
  * Context object used to create lucene queries on the shard level.
  */
@@ -187,7 +185,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public Map<String, Query> copyNamedQueries() {
         // This might be a good use case for CopyOnWriteHashMap
-        return unmodifiableMap(new HashMap<>(namedQueries));
+        return Map.copyOf(namedQueries);
     }
 
     /**

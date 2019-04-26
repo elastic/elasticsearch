@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -96,7 +95,7 @@ public final class PutPrivilegesRequest extends ActionRequest implements Applica
     }
 
     public void setPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges) {
-        this.privileges = Collections.unmodifiableList(new ArrayList<>(privileges));
+        this.privileges = List.copyOf(privileges);
     }
 
     @Override

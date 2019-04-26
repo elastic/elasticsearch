@@ -45,7 +45,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -650,7 +649,7 @@ public class Setting<T> implements ToXContentObject {
             super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
             this.key = key;
             this.delegateFactory = delegateFactory;
-            this.dependencies = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(dependencies)));
+            this.dependencies = Set.of(dependencies);
         }
 
         boolean isGroupSetting() {

@@ -51,10 +51,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -791,8 +789,11 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
-                Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA))),
+        return new DiscoveryNode(
+                nodeId,
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA),
                 Version.CURRENT);
     }
 

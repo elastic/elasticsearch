@@ -37,8 +37,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -713,7 +711,7 @@ public class RecoveryState implements ToXContentFragment, Streamable, Writeable 
         }
 
         public synchronized List<File> fileDetails() {
-            return Collections.unmodifiableList(new ArrayList<>(fileDetails.values()));
+            return List.copyOf(fileDetails.values());
         }
 
         public synchronized void reset() {

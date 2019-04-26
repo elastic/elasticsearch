@@ -23,8 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -37,11 +35,13 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -383,7 +383,7 @@ final class TransportClientNodesService implements Closeable {
                 }
             }
 
-            return Collections.unmodifiableList(new ArrayList<>(nodes));
+            return List.copyOf(nodes);
         }
     }
 
@@ -566,7 +566,7 @@ final class TransportClientNodesService implements Closeable {
             }
 
             nodes = establishNodeConnections(newNodes);
-            filteredNodes = Collections.unmodifiableList(new ArrayList<>(newFilteredNodes));
+            filteredNodes = List.copyOf(newFilteredNodes);
         }
     }
 

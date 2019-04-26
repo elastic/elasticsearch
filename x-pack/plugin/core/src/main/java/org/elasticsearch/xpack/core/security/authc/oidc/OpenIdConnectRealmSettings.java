@@ -29,9 +29,9 @@ public class OpenIdConnectRealmSettings {
     private OpenIdConnectRealmSettings() {
     }
 
-    private static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS = Collections.unmodifiableList(
-        Arrays.asList("HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512"));
-    private static final List<String> RESPONSE_TYPES = Arrays.asList("code", "id_token", "id_token token");
+    private static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS =
+            List.of("HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512");
+    private static final List<String> RESPONSE_TYPES = List.of("code", "id_token", "id_token token");
     public static final String TYPE = "oidc";
 
     public static final Setting.AffixSetting<String> RP_CLIENT_ID

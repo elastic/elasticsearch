@@ -205,7 +205,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+            this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
         }
 
         TestTasksResponse(StreamInput in) throws IOException {

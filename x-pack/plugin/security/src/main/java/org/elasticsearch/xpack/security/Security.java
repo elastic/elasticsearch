@@ -200,7 +200,9 @@ import org.elasticsearch.xpack.security.rest.action.RestGetApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
+import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectLogoutAction;
+import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestDeletePrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction;
@@ -212,8 +214,6 @@ import org.elasticsearch.xpack.security.rest.action.role.RestPutRoleAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestDeleteRoleMappingAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction;
-import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
-import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessionAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
@@ -894,13 +894,31 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         }
 
         IPFilter ipFilter = this.ipFilter.get();
-        Map<String, Supplier<Transport>> transports = new HashMap<>();
-        transports.put(SecurityField.NAME4, () -> new SecurityNetty4ServerTransport(settings, Version.CURRENT, threadPool,
-            networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService()));
-        transports.put(SecurityField.NIO, () -> new SecurityNioTransport(settings, Version.CURRENT, threadPool, networkService,
-            pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, ipFilter, getSslService(), getNioGroupFactory(settings)));
-
-        return Collections.unmodifiableMap(transports);
+        return Map.of(
+                // security based on Netty 4
+                SecurityField.NAME4,
+                () -> new SecurityNetty4ServerTransport(
+                        settings,
+                        Version.CURRENT,
+                        threadPool,
+                        networkService,
+                        pageCacheRecycler,
+                        namedWriteableRegistry,
+                        circuitBreakerService,
+                        ipFilter,
+                        getSslService()),
+                // security based on NIO
+                SecurityField.NIO,
+                () -> new SecurityNioTransport(settings,
+                        Version.CURRENT,
+                        threadPool,
+                        networkService,
+                        pageCacheRecycler,
+                        namedWriteableRegistry,
+                        circuitBreakerService,
+                        ipFilter,
+                        getSslService(),
+                        getNioGroupFactory(settings)));
     }
 
     @Override

@@ -20,11 +20,9 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.utils.WellKnownText;
-import org.elasticsearch.index.mapper.BaseGeoShapeFieldMapper;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -41,23 +39,11 @@ public final class GeometryParser {
     /**
      * Parses supplied XContent into Geometry
      */
-    static Geometry parse(XContentParser parser, BaseGeoShapeFieldMapper shapeMapper) throws IOException, ParseException {
+    static Geometry parse(XContentParser parser, boolean orientation, boolean coerce, boolean ignoreZValue) throws IOException,
+        ParseException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            boolean orientation;
-            boolean coerce;
-            boolean ignoreZValue;
-
-            if (shapeMapper == null) {
-                orientation = true;
-                coerce = true;
-                ignoreZValue = true;
-            } else {
-                orientation = shapeMapper.orientation() == ShapeBuilder.Orientation.RIGHT;
-                coerce = shapeMapper.coerce().value();
-                ignoreZValue = shapeMapper.ignoreZValue().value();
-            }
             return GeoJson.fromXContent(parser, orientation, coerce, ignoreZValue);
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             // TODO: Add support for ignoreZValue and coerce to WKT

@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
@@ -83,6 +84,19 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(2, XContentMapValues.extractValue("count", stats));
 
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        // Verify that both transforms have valid stats
+        for (Map<String, Object> transformStats : transformsStats) {
+            Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
+            assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
+            assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
+            assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
+            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
+            assertThat("total_docs is not 1000", progress.get("total_docs"), equalTo(1000));
+            assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
+            assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
+        }
+
         // only pivot_1
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_1/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
@@ -132,6 +146,34 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
             assertThat(((Integer)stat.get("documents_processed")), greaterThan(0));
             assertThat(((Integer)stat.get("search_total")), greaterThan(0));
             assertThat(((Integer)stat.get("pages_processed")), greaterThan(0));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetProgressStatsWithPivotQuery() throws Exception {
+        String transformId = "simpleStatsPivotWithQuery";
+        String dataFrameIndex = "pivot_stats_reviews_user_id_above_20";
+        String query = "\"match\": {\"user_id\": \"user_26\"}";
+        createPivotReviewsTransform(transformId, dataFrameIndex, query);
+        startAndWaitForTransform(transformId, dataFrameIndex);
+
+        // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
+        String authHeader = randomFrom(BASIC_AUTH_VALUE_DATA_FRAME_USER, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN);
+
+        Request getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "simpleStatsPivotWithQuery/_stats", authHeader);
+        Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        // Verify that the transform has stats and the total docs process matches the expected
+        for (Map<String, Object> transformStats : transformsStats) {
+            Map<String, Object> stat = (Map<String, Object>)transformStats.get("stats");
+            assertThat("documents_processed is not > 0.", ((Integer)stat.get("documents_processed")), greaterThan(0));
+            assertThat("search_total is not > 0.", ((Integer)stat.get("search_total")), greaterThan(0));
+            assertThat("pages_processed is not > 0.", ((Integer)stat.get("pages_processed")), greaterThan(0));
+            Map<String, Object> progress = (Map<String, Object>)XContentMapValues.extractValue("state.progress", transformStats);
+            assertThat("total_docs is not 37", progress.get("total_docs"), equalTo(37));
+            assertThat("docs_remaining is not 0", progress.get("docs_remaining"), equalTo(0));
+            assertThat("percent_complete is not 100.0", progress.get("percent_complete"), equalTo(100.0));
         }
     }
 }

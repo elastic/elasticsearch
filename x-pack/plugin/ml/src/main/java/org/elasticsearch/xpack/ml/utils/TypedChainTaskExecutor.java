@@ -43,7 +43,7 @@ public class TypedChainTaskExecutor<T> {
      *                              {@code true} means continue on to the next task.
      *                              Must be able to handle null values.
      * @param failureShortCircuitPredicate The predicate on whether to short circuit execution on a give exception.
-     *                                     {@code true} means that no more tasks should execute and the the listener::onFailure should be
+     *                                     {@code true} means that no more tasks should execute and the listener::onFailure should be
      *                                     called.
      */
     public TypedChainTaskExecutor(ExecutorService executorService,

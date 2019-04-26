@@ -22,11 +22,13 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -98,6 +100,19 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertFalse(((TestRepository) repository).isClosed);
         Repository repository2 = repositoriesService.repository(repoName);
         assertSame(repository, repository2);
+    }
+
+    public void testRegisterRejectsInvalidRepositoryNames() {
+        assertThrowsOnRegister("");
+        assertThrowsOnRegister("contains#InvalidCharacter");
+        for (char c : Strings.INVALID_FILENAME_CHARS) {
+            assertThrowsOnRegister("contains" + c + "InvalidCharacters");
+        }
+    }
+
+    private void assertThrowsOnRegister(String repoName) {
+        PutRepositoryRequest request = new PutRepositoryRequest(repoName);
+        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
     }
 
     private static class TestRepository implements Repository {

@@ -37,14 +37,16 @@ public final class ESToParentBlockJoinQuery extends Query {
 
     private final ToParentBlockJoinQuery query;
     private final String path;
+    private final ScoreMode scoreMode;
 
     public ESToParentBlockJoinQuery(Query childQuery, BitSetProducer parentsFilter, ScoreMode scoreMode, String path) {
-        this(new ToParentBlockJoinQuery(childQuery, parentsFilter, scoreMode), path);
+        this(new ToParentBlockJoinQuery(childQuery, parentsFilter, scoreMode), path, scoreMode);
     }
 
-    private ESToParentBlockJoinQuery(ToParentBlockJoinQuery query, String path) {
+    private ESToParentBlockJoinQuery(ToParentBlockJoinQuery query, String path, ScoreMode scoreMode) {
         this.query = query;
         this.path = path;
+        this.scoreMode = scoreMode;
     }
 
     /** Return the child query. */
@@ -55,6 +57,11 @@ public final class ESToParentBlockJoinQuery extends Query {
     /** Return the path of results of this query, or {@code null} if matches are at the root level. */
     public String getPath() {
         return path;
+    }
+
+    /** Return the score mode for the matching children. **/
+    public ScoreMode getScoreMode() {
+        return scoreMode;
     }
 
     @Override
@@ -68,7 +75,7 @@ public final class ESToParentBlockJoinQuery extends Query {
             // to a MatchNoDocsQuery. In that case it would be fine to lose information
             // about the nested path.
             if (innerRewrite instanceof ToParentBlockJoinQuery) {
-                return new ESToParentBlockJoinQuery((ToParentBlockJoinQuery) innerRewrite, path);
+                return new ESToParentBlockJoinQuery((ToParentBlockJoinQuery) innerRewrite, path, scoreMode);
             } else {
                 return innerRewrite;
             }

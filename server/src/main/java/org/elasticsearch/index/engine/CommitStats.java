@@ -99,7 +99,7 @@ public final class CommitStats implements Streamable, ToXContentFragment {
         for (int i = length; i > 0; i--) {
             entries.add(entry(in.readString(), in.readString()));
         }
-        //noinspection unchecked
+        // noinspection unchecked
         userData = Map.ofEntries(entries.toArray((Map.Entry<String, String>[])new Map.Entry[0]));
         generation = in.readLong();
         id = in.readOptionalString();

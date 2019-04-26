@@ -103,7 +103,7 @@ public final class GeoJson {
 
             @Override
             public XContentBuilder visit(LinearRing ring) {
-                throw new UnsupportedOperationException("line ring cannot be serialized using GeoJson");
+                throw new UnsupportedOperationException("linearRing cannot be serialized using GeoJson");
             }
 
             @Override

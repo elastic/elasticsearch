@@ -36,7 +36,7 @@ public enum ShapeType {
     ENVELOPE, // not part of the actual WKB spec
     CIRCLE; // not part of the actual WKB spec
 
-    public static ShapeType forName(String geoshapename) {
-        return ShapeType.valueOf(geoshapename.toUpperCase(Locale.ROOT));
+    public static ShapeType forName(String shapeName) {
+        return ShapeType.valueOf(shapeName.toUpperCase(Locale.ROOT));
     }
 }

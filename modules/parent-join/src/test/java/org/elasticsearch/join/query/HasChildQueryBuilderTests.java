@@ -141,7 +141,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
      */
     @Override
     protected HasChildQueryBuilder doCreateTestQueryBuilder() {
-        int min = randomIntBetween(0, Integer.MAX_VALUE / 2);
+        int min = randomIntBetween(1, Integer.MAX_VALUE / 2);
         int max = randomIntBetween(min, Integer.MAX_VALUE);
 
         QueryBuilder innerQueryBuilder = new MatchAllQueryBuilder();
@@ -161,6 +161,13 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                     .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
         }
         return hqb;
+    }
+
+    public void testDeprecationOfZeroMinChildren() {
+        QueryBuilder query = new MatchAllQueryBuilder();
+        HasChildQueryBuilder foo = hasChildQuery("foo", query, ScoreMode.None);
+        foo.minMaxChildren(0, 1);
+        assertWarnings(HasChildQueryBuilder.MIN_CHILDREN_0_DEPRECATION_MESSAGE);
     }
 
     @Override

@@ -25,6 +25,7 @@ import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.elasticsearch.xpack.core.dataframe.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameTestCase<DataFrameTransformConfig> {
 
@@ -41,12 +42,12 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
 
     public static DataFrameTransformConfig randomDataFrameTransformConfigWithoutHeaders(String id) {
         return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(), null,
-                PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
+                PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
     }
 
     public static DataFrameTransformConfig randomDataFrameTransformConfig(String id) {
         return new DataFrameTransformConfig(id, randomSourceConfig(), randomDestConfig(), randomHeaders(),
-                PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100));
+                PivotConfigTests.randomPivotConfig(), randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
     }
 
     public static DataFrameTransformConfig randomInvalidDataFrameTransformConfig() {
@@ -164,6 +165,16 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
         }
     }
 
+    public void testMaxLengthDescription() {
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new DataFrameTransformConfig("id",
+            randomSourceConfig(), randomDestConfig(), null, PivotConfigTests.randomPivotConfig(), randomAlphaOfLength(1001)));
+        assertThat(exception.getMessage(), equalTo("[description] must be less than 1000 characters in length."));
+        String description = randomAlphaOfLength(1000);
+        DataFrameTransformConfig config = new DataFrameTransformConfig("id",
+            randomSourceConfig(), randomDestConfig(), null, PivotConfigTests.randomPivotConfig(), description);
+        assertThat(description, equalTo(config.getDescription()));
+    }
+
     public void testSetIdInBody() throws IOException {
         String pivotTransform = "{"
                 + " \"id\" : \"body_id\","
@@ -190,6 +201,7 @@ public class DataFrameTransformConfigTests extends AbstractSerializingDataFrameT
         assertEquals("Inconsistent id; 'body_id' specified in the body differs from 'other_id' specified as a URL argument",
                 ex.getCause().getMessage());
     }
+
 
     private DataFrameTransformConfig createDataFrameTransformConfigFromString(String json, String id) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry(),

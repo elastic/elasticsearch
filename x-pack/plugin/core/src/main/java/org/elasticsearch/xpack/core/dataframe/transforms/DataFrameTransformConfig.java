@@ -44,6 +44,7 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
     public static final ParseField DESCRIPTION = new ParseField("description");
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<DataFrameTransformConfig, String> LENIENT_PARSER = createParser(true);
+    private static final int MAX_DESCRIPTION_LENGTH = 1_000;
 
     private final String id;
     private final SourceConfig source;
@@ -118,6 +119,9 @@ public class DataFrameTransformConfig extends AbstractDiffable<DataFrameTransfor
         // at least one function must be defined
         if (this.pivotConfig == null) {
             throw new IllegalArgumentException(DataFrameMessages.DATA_FRAME_TRANSFORM_CONFIGURATION_NO_TRANSFORM);
+        }
+        if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
+            throw new IllegalArgumentException("[description] must be less than 1000 characters in length.");
         }
     }
 

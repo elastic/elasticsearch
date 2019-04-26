@@ -46,9 +46,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {

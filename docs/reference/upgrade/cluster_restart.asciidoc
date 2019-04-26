@@ -46,6 +46,7 @@ include::remove-xpack.asciidoc[]
 +
 --
 include::upgrade-node.asciidoc[]
+--
 +
 --
 include::set-paths-tip.asciidoc[]

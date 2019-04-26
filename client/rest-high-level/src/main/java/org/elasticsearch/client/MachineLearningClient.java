@@ -50,6 +50,8 @@ import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
 import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.GetDataFrameAnalyticsResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedResponse;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
@@ -1966,6 +1968,44 @@ public final class MachineLearningClient {
             Collections.emptySet());
     }
 
+    /**
+     * Gets the running statistics of a Data Frame Analytics
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">GET Data Frame Analytics Stats documentation</a>
+     *
+     * @param request The {@link GetDataFrameAnalyticsStatsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link GetDataFrameAnalyticsStatsResponse} response object
+     */
+    public GetDataFrameAnalyticsStatsResponse getDataFrameAnalyticsStats(GetDataFrameAnalyticsStatsRequest request,
+                                                                         RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalyticsStats,
+            options,
+            GetDataFrameAnalyticsStatsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Gets the running statistics of a Data Frame Analytics asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">GET Data Frame Analytics Stats documentation</a>
+     *
+     * @param request The {@link GetDataFrameAnalyticsStatsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void getDataFrameAnalyticsStatsAsync(GetDataFrameAnalyticsStatsRequest request, RequestOptions options,
+                                                ActionListener<GetDataFrameAnalyticsStatsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::getDataFrameAnalyticsStats,
+            options,
+            GetDataFrameAnalyticsStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
 
     /**
      * Deletes the given Data Frame Analytics config

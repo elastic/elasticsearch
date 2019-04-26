@@ -24,44 +24,37 @@ import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Nullable;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-public class GetDataFrameAnalyticsRequest implements Validatable {
+/**
+ * Request to get data frame analytics stats
+ */
+public class GetDataFrameAnalyticsStatsRequest implements Validatable {
 
-    private final List<String> ids;
+    private final String id;
     private PageParams pageParams;
 
-    /**
-     * Helper method to create a request that will get ALL Data Frame Analytics
-     * @return new {@link GetDataFrameAnalyticsRequest} object for the id "_all"
-     */
-    public static GetDataFrameAnalyticsRequest getAllDataFrameAnalyticsRequest() {
-        return new GetDataFrameAnalyticsRequest("_all");
+    public GetDataFrameAnalyticsStatsRequest(String id) {
+        this.id = id;
     }
 
-    public GetDataFrameAnalyticsRequest(String... ids) {
-        this.ids = Arrays.asList(ids);
-    }
-
-    public List<String> getIds() {
-        return ids;
+    public String getId() {
+        return id;
     }
 
     public PageParams getPageParams() {
         return pageParams;
     }
 
-    public GetDataFrameAnalyticsRequest setPageParams(@Nullable PageParams pageParams) {
+    public GetDataFrameAnalyticsStatsRequest setPageParams(@Nullable PageParams pageParams) {
         this.pageParams = pageParams;
         return this;
     }
 
     @Override
     public Optional<ValidationException> validate() {
-        if (ids == null || ids.isEmpty()) {
+        if (id == null) {
             return Optional.of(ValidationException.withError("data frame analytics id must not be null"));
         }
         return Optional.empty();
@@ -72,13 +65,12 @@ public class GetDataFrameAnalyticsRequest implements Validatable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        GetDataFrameAnalyticsRequest other = (GetDataFrameAnalyticsRequest) o;
-        return Objects.equals(ids, other.ids)
-            && Objects.equals(pageParams, other.pageParams);
+        GetDataFrameAnalyticsStatsRequest other = (GetDataFrameAnalyticsStatsRequest) o;
+        return Objects.equals(id, other.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, pageParams);
+        return Objects.hash(id);
     }
 }

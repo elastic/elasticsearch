@@ -46,6 +46,7 @@ import org.elasticsearch.client.ml.GetCalendarEventsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetFiltersRequest;
@@ -602,6 +603,28 @@ final class MLRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params(request);
         if (getRequest.getPageParams() != null) {
             PageParams pageParams = getRequest.getPageParams();
+            if (pageParams.getFrom() != null) {
+                params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
+            }
+            if (pageParams.getSize() != null) {
+                params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
+            }
+        }
+        return request;
+    }
+
+    static Request getDataFrameAnalyticsStats(GetDataFrameAnalyticsStatsRequest getStatsRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("data_frame")
+            .addPathPartAsIs("analytics")
+            .addPathPart(getStatsRequest.getId())
+            .addPathPartAsIs("_stats")
+            .build();
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (getStatsRequest.getPageParams() != null) {
+            PageParams pageParams = getStatsRequest.getPageParams();
             if (pageParams.getFrom() != null) {
                 params.putParam(PageParams.FROM.getPreferredName(), pageParams.getFrom().toString());
             }

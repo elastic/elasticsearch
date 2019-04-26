@@ -233,12 +233,6 @@ public class ApiKeyService {
         final Instant expiration = getApiKeyExpiration(created, request);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         final Version version = clusterService.state().nodes().getMinNodeVersion();
-        if (version.before(Version.V_6_7_0)) {
-            logger.warn(
-                    "nodes prior to the minimum supported version for api keys {} exist in the cluster;"
-                            + " these nodes will not be able to use api keys",
-                    Version.V_6_7_0);
-        }
 
         final char[] keyHash = hasher.hash(apiKey);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {

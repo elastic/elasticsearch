@@ -57,7 +57,6 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
     public SettingsBasedSeedHostsProvider(Settings settings, TransportService transportService) {
         if (DISCOVERY_SEED_HOSTS_SETTING.exists(settings)) {
             configuredHosts = DISCOVERY_SEED_HOSTS_SETTING.get(settings);
-            // we only limit to 1 address, makes no sense to ping 100 ports
         } else {
             // if unicast hosts are not specified, fill with simple defaults on the local machine
             int[] ports = transportService.getDefaultPortRange();

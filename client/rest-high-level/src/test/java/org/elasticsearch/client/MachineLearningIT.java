@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
@@ -132,6 +133,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.junit.After;
 
 import java.io.IOException;
@@ -1300,7 +1302,13 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     public void testStartDataFrameAnalyticsConfig() throws Exception {
         String sourceIndex = "test-source-index";
         createIndexWithDefaultMapping(sourceIndex);
-        String destIndex = "test-dest-index";
+        IndexRequest doc = new IndexRequest(sourceIndex);
+        doc.source("{\"total\": 10000}", XContentType.JSON);  // We need at least one doc in the index to perform the analysis
+        highLevelClient().index(doc, RequestOptions.DEFAULT);
+        String destIndex = "test-dest-index";  // This index must not exist, otherwise the reindexing step will fail
+
+        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(sourceIndex), RequestOptions.DEFAULT));
+        assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "test-config";
@@ -1310,21 +1318,21 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setAnalysis(new OutlierDetection())
             .build();
 
-        PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
+        execute(
             new PutDataFrameAnalyticsRequest(config),
             machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
-        DataFrameAnalyticsConfig createdConfig = putDataFrameAnalyticsResponse.getConfig();
 
         AcknowledgedResponse startDataFrameAnalyticsResponse = execute(
             new StartDataFrameAnalyticsRequest(configId),
             machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
         assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
 
-        GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(
-            new GetDataFrameAnalyticsRequest(configId),
-            machineLearningClient::getDataFrameAnalytics, machineLearningClient::getDataFrameAnalyticsAsync);
-        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), hasSize(1));
-        assertThat(getDataFrameAnalyticsResponse.getAnalytics(), contains(createdConfig));
+/*        System.out.println("xxx: Waiting for analysis to complete");
+        Thread.sleep(10 * 1000);
+        System.out.println("xxx: Hopefully finished");
+
+        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(sourceIndex), RequestOptions.DEFAULT));
+        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));*/
     }
 
     public void testDeleteDataFrameAnalyticsConfig() throws Exception {

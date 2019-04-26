@@ -39,7 +39,7 @@ public class OutlierDetection implements DataFrameAnalysis {
         return PARSER.apply(parser, null);
     }
 
-    static final ParseField NAME = new ParseField("outlier_detection");
+    public static final ParseField NAME = new ParseField("outlier_detection");
     static final ParseField N_NEIGHBORS = new ParseField("n_neighbors");
     static final ParseField METHOD = new ParseField("method");
 

@@ -127,13 +127,11 @@ import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.junit.After;
 
 import java.io.IOException;
@@ -1327,12 +1325,12 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
         assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
 
-/*        System.out.println("xxx: Waiting for analysis to complete");
+        // TODO(przemyslaw.witek): Instead of sleeping, poll for task state "STOPPED" once GetDataFrameAnalyticsStats API method is
+        //                         implemented in MachineLearningClient
         Thread.sleep(10 * 1000);
-        System.out.println("xxx: Hopefully finished");
 
         assertTrue(highLevelClient().indices().exists(new GetIndexRequest(sourceIndex), RequestOptions.DEFAULT));
-        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));*/
+        assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
     }
 
     public void testDeleteDataFrameAnalyticsConfig() throws Exception {

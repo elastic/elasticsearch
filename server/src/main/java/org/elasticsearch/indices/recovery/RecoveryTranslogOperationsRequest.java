@@ -106,7 +106,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();
         maxSeqNoOfUpdatesOrDeletesOnPrimary = in.readZLong();
         retentionLeases = new RetentionLeases(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
             mappingVersionOnPrimary = in.readVLong();
         } else {
             mappingVersionOnPrimary = Long.MAX_VALUE;
@@ -123,7 +123,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
         out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
         retentionLeases.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
             out.writeVLong(mappingVersionOnPrimary);
         }
     }

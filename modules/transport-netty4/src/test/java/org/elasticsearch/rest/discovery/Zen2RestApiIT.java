@@ -160,4 +160,18 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
             );
         }
     }
+
+    public void testRemoveTwoNodesAtOnce() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(2);
+        List<String> nodes = internalCluster().startNodes(3);
+        ensureStableCluster(3);
+        RestClient restClient = getRestClient();
+        Response response = restClient.performRequest(new Request("POST", "/_cluster/voting_config_exclusions/" +
+            nodes.get(2) + "," + nodes.get(0)));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        assertThat(response.getEntity().getContentLength(), is(0L));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(2)));
+        ensureStableCluster(1);
+    }
 }

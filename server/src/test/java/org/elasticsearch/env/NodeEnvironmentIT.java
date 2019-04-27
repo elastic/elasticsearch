@@ -33,7 +33,8 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         final String indexName = "test-fail-on-data";
 
         logger.info("--> starting one node");
-        internalCluster().startNode();
+        String node = internalCluster().startNode();
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
 
         logger.info("--> creating index");
         prepareCreate(indexName, Settings.builder()
@@ -63,12 +64,11 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 + Node.NODE_MASTER_SETTING.getKey()
                 + "=false, but has index metadata"));
 
-        // client() also starts the node
+        logger.info("--> start the node again with node.data=true and node.master=true");
+        internalCluster().startNode(dataPathSettings);
+
         logger.info("--> indexing a simple document");
         client().prepareIndex(indexName, "type1", "1").setSource("field1", "value1").get();
-
-        logger.info("--> restarting the node with node.data=true and node.master=true");
-        internalCluster().restartRandomDataNode();
 
         logger.info("--> restarting the node with node.data=false");
         ex = expectThrows(IllegalStateException.class,

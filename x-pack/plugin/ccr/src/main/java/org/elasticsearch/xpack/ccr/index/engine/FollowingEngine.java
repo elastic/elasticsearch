@@ -132,6 +132,12 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     @Override
+    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+        assert getMaxSeqNoOfUpdatesOrDeletes() >= seqNo : seqNo + " < " + getMaxSeqNoOfUpdatesOrDeletes();
+        super.advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(seqNo); // extra safe in production code
+    }
+
+    @Override
     public int fillSeqNoGaps(long primaryTerm) throws IOException {
         // a noop implementation, because follow shard does not own the history but the leader shard does.
         return 0;

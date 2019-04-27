@@ -268,7 +268,7 @@ public abstract class Engine implements Closeable {
      * Performs the pre-closing action on the {@link Engine}.
      *
      * @param syncId a syncId that an engine can use to seal its index commit. If there was no indexing activity since the last seal,
-     *               the engine can chooses to skip synced-flush and returns the existing syncId instead of the provided syncId.
+     *               the engine can choose to skip synced-flush and returns the existing syncId instead of the provided syncId.
      * @return either the provided syncId or the existing syncId
      * @throws IllegalStateException if the sanity checks failed
      */

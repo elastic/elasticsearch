@@ -29,8 +29,6 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -50,17 +48,12 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
-    
-    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStore.class);
 
     // The recommended maximum size of a blob that should be uploaded in a single
     // request. Larger files should be uploaded over multiple requests (this is
@@ -88,11 +81,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new GoogleCloudStorageBlobContainer(path, this);
-    }
-
-    @Override
-    public void delete(BlobPath path) throws IOException {
-        deleteBlobsByPrefix(path.buildAsString());
     }
 
     @Override
@@ -287,44 +275,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final boolean deleted = SocketAccess.doPrivilegedIOException(() -> client().delete(blobId));
         if (deleted == false) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
-    }
-
-    /**
-     * Deletes multiple blobs from the specific bucket all of which have prefixed names
-     *
-     * @param prefix prefix of the blobs to delete
-     */
-    void deleteBlobsByPrefix(String prefix) throws IOException {
-        deleteBlobs(listBlobsByPrefix("", prefix).keySet());
-    }
-
-    /**
-     * Deletes multiple blobs from the specific bucket using a batch request
-     *
-     * @param blobNames names of the blobs to delete
-     */
-    void deleteBlobs(Collection<String> blobNames) throws IOException {
-        if (blobNames.isEmpty()) {
-            return;
-        }
-        // for a single op submit a simple delete instead of a batch of size 1
-        if (blobNames.size() == 1) {
-            deleteBlob(blobNames.iterator().next());
-            return;
-        }
-        final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
-        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> client().delete(blobIdsToDelete));
-        assert blobIdsToDelete.size() == deletedStatuses.size();
-        boolean failed = false;
-        for (int i = 0; i < blobIdsToDelete.size(); i++) {
-            if (deletedStatuses.get(i) == false) {
-                logger.error("Failed to delete blob [{}] in bucket [{}]", blobIdsToDelete.get(i).getName(), bucketName);
-                failed = true;
-            }
-        }
-        if (failed) {
-            throw new IOException("Failed to delete all [" + blobIdsToDelete.size() + "] blobs");
         }
     }
 

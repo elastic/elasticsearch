@@ -634,7 +634,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void endVerification(String seed) {
         if (isReadOnly() == false) {
             try {
-                blobStore().delete(basePath().add(testBlobPrefix(seed)));
+                blobStore().blobContainer(basePath()).deleteBlob(testBlobPrefix(seed));
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }

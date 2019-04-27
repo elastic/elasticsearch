@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -58,7 +59,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
     AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
         String nodeName = request.param("node_name");
         return new AddVotingConfigExclusionsRequest(
-            nodeName.split(","),
+            Strings.splitStringByCommaToArray(nodeName),
             TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
         );
     }

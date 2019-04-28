@@ -2772,13 +2772,10 @@ public class InternalEngine extends Engine {
             ensureOpen();
             syncTranslog(); // make sure that we persist the global checkpoint to translog checkpoint
             verifyEngineBeforeIndexClosing();
-            final String existingSyncId = lastCommittedSegmentInfos.userData.get(Engine.SYNC_COMMIT_ID);
-            // some out of order operations don't change Lucene but fill in sequence numbers and advance the local checkpoint.
-            final long committedCheckpoint = Long.parseLong(lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
-            if (existingSyncId != null && committedCheckpoint == getLocalCheckpoint() && indexWriter.hasUncommittedChanges() == false) {
-                return existingSyncId;
+            // we can reuse the existing syncId if there was indexing activity since the last synced-flush.
+            if (indexWriter.hasUncommittedChanges() == false && lastCommittedSegmentInfos.userData.containsKey(Engine.SYNC_COMMIT_ID)) {
+                syncId = lastCommittedSegmentInfos.userData.get(Engine.SYNC_COMMIT_ID);
             }
-            // force flush then synced-flush with the provided syncId
             final CommitId commitId = flush(true, true);
             if (syncId != null) {
                 syncFlush(syncId, commitId);

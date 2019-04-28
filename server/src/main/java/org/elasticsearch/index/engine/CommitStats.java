@@ -19,7 +19,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -28,8 +27,11 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Map;
+
+import static java.util.Map.entry;
 
 /** a class the returns dynamic information with respect to the last commit point of this shard */
 public final class CommitStats implements Streamable, ToXContentFragment {
@@ -41,7 +43,7 @@ public final class CommitStats implements Streamable, ToXContentFragment {
 
     public CommitStats(SegmentInfos segmentInfos) {
         // clone the map to protect against concurrent changes
-        userData = MapBuilder.<String, String>newMapBuilder().putAll(segmentInfos.getUserData()).immutableMap();
+        userData = Map.copyOf(segmentInfos.getUserData());
         // lucene calls the current generation, last generation.
         generation = segmentInfos.getLastGeneration();
         id = Base64.getEncoder().encodeToString(segmentInfos.getId());
@@ -92,11 +94,13 @@ public final class CommitStats implements Streamable, ToXContentFragment {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        MapBuilder<String, String> builder = MapBuilder.newMapBuilder();
-        for (int i = in.readVInt(); i > 0; i--) {
-            builder.put(in.readString(), in.readString());
+        final int length = in.readVInt();
+        final var entries = new ArrayList<Map.Entry<String, String>>(length);
+        for (int i = length; i > 0; i--) {
+            entries.add(entry(in.readString(), in.readString()));
         }
-        userData = builder.immutableMap();
+        // noinspection unchecked
+        userData = Map.ofEntries(entries.toArray((Map.Entry<String, String>[])new Map.Entry[0]));
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();

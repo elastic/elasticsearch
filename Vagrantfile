@@ -405,7 +405,7 @@ def windows_common(config, name)
 
   config.vm.provision 'windows-jdk-11', type: 'shell', inline: <<-SHELL
     New-Item -ItemType Directory -Force -Path "C:/java"
-    Invoke-WebRequest "https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_windows-x64_bin.zip" -OutFile "C:/java/jdk-11.zip"
+    Invoke-WebRequest "https://download.oracle.com/java/GA/jdk11/9/GPL/openjdk-11.0.2_windows-x64_bin.zip" -OutFile "C:/java/jdk-11.zip"
     Expand-Archive -Path "C:/java/jdk-11.zip" -DestinationPath "C:/java/"
   SHELL
 

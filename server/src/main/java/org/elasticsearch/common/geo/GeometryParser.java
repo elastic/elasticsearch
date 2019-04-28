@@ -39,7 +39,7 @@ public final class GeometryParser {
     /**
      * Parses supplied XContent into Geometry
      */
-    static Geometry parse(XContentParser parser, boolean orientation, boolean coerce, boolean ignoreZValue) throws IOException,
+    public static Geometry parse(XContentParser parser, boolean orientation, boolean coerce, boolean ignoreZValue) throws IOException,
         ParseException {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;

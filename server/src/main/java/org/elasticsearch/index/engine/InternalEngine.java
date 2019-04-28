@@ -2772,7 +2772,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             syncTranslog(); // make sure that we persist the global checkpoint to translog checkpoint
             verifyEngineBeforeIndexClosing();
-            // we can reuse the existing syncId if there was indexing activity since the last synced-flush.
+            // we can reuse the existing syncId if there was no indexing activity since the last synced-flush.
             if (indexWriter.hasUncommittedChanges() == false && lastCommittedSegmentInfos.userData.containsKey(Engine.SYNC_COMMIT_ID)) {
                 syncId = lastCommittedSegmentInfos.userData.get(Engine.SYNC_COMMIT_ID);
             }

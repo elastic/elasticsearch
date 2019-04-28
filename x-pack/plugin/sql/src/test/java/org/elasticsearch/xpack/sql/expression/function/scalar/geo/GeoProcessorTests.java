@@ -77,9 +77,6 @@ public class GeoProcessorTests extends AbstractWireSerializingTestCase<GeoProces
             new GeoShape("geometrycollection (point (20.0 10.0),point (1.0 2.0))")));
     }
 
-    // That doesn't work correctly at the moment because shape builder changes the order or points in polygons, so the second point
-    // sometimes becomes the first
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40908")
     public void testApplyGetXYToPolygons() throws Exception {
         assertEquals(3.0, new GeoProcessor(GeoOperation.X).process(new GeoShape("polygon ((3.0 1.0, 4.0 2.0, 4.0 3.0, 3.0 1.0))")));
         assertEquals(1.0, new GeoProcessor(GeoOperation.Y).process(new GeoShape("polygon ((3.0 1.0, 4.0 2.0, 4.0 3.0, 3.0 1.0))")));

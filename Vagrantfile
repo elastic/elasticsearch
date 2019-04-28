@@ -244,7 +244,7 @@ def linux_common(config,
   SHELL
 
   config.vm.provision 'jdk-11', type: 'shell', inline: <<-SHELL
-    curl -sSL https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz | tar xz -C /opt/
+    curl -sSL https://download.oracle.com/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz | tar xz -C /opt/
   SHELL
 
   # This prevents leftovers from previous tests using the

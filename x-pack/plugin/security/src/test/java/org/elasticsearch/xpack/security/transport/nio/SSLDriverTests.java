@@ -181,7 +181,7 @@ public class SSLDriverTests extends ESTestCase {
         clientDriver.init();
         serverDriver.init();
 
-        assertTrue(clientDriver.needsNonApplicationWrite());
+        assertTrue(clientDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
         assertFalse(serverDriver.needsNonApplicationWrite());
         sendHandshakeMessages(clientDriver, serverDriver);
         sendHandshakeMessages(serverDriver, clientDriver);
@@ -296,12 +296,12 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private void sendNonApplicationWrites(SSLDriver sendDriver, SSLDriver receiveDriver) throws SSLException {
-        SSLOutboundBuffer outboundBuffer = new SSLOutboundBuffer((n) -> new Page(ByteBuffer.allocate(n)));
+        SSLOutboundBuffer outboundBuffer = sendDriver.getOutboundBuffer();
         while (sendDriver.needsNonApplicationWrite() || outboundBuffer.hasEncryptedBytesToFlush()) {
             if (outboundBuffer.hasEncryptedBytesToFlush()) {
                 sendData(outboundBuffer.buildNetworkFlushOperation(), receiveDriver);
             } else {
-                sendDriver.nonApplicationWrite(outboundBuffer);
+                sendDriver.nonApplicationWrite();
             }
         }
     }
@@ -316,7 +316,7 @@ public class SSLDriverTests extends ESTestCase {
             serverDriver.init();
         }
 
-        assertTrue(clientDriver.needsNonApplicationWrite());
+        assertTrue(clientDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
         assertFalse(serverDriver.needsNonApplicationWrite());
         sendHandshakeMessages(clientDriver, serverDriver);
 
@@ -331,7 +331,6 @@ public class SSLDriverTests extends ESTestCase {
         sendHandshakeMessages(clientDriver, serverDriver);
 
         assertTrue(clientDriver.isHandshaking());
-        assertTrue(serverDriver.isHandshaking());
 
         sendHandshakeMessages(serverDriver, clientDriver);
 
@@ -340,20 +339,20 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private void sendHandshakeMessages(SSLDriver sendDriver, SSLDriver receiveDriver) throws IOException {
-        assertTrue(sendDriver.needsNonApplicationWrite());
+        assertTrue(sendDriver.needsNonApplicationWrite() || sendDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
 
-        SSLOutboundBuffer outboundBuffer = new SSLOutboundBuffer((n) -> new Page(ByteBuffer.allocate(n)));
+        SSLOutboundBuffer outboundBuffer = sendDriver.getOutboundBuffer();
 
         while (sendDriver.needsNonApplicationWrite() || outboundBuffer.hasEncryptedBytesToFlush()) {
             if (outboundBuffer.hasEncryptedBytesToFlush()) {
                 sendData(outboundBuffer.buildNetworkFlushOperation(), receiveDriver);
                 receiveDriver.read(genericBuffer);
             } else {
-                sendDriver.nonApplicationWrite(outboundBuffer);
+                sendDriver.nonApplicationWrite();
             }
         }
         if (receiveDriver.isHandshaking()) {
-            assertTrue(receiveDriver.needsNonApplicationWrite());
+            assertTrue(receiveDriver.needsNonApplicationWrite() || receiveDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
         }
     }
 
@@ -361,12 +360,12 @@ public class SSLDriverTests extends ESTestCase {
         assertFalse(sendDriver.needsNonApplicationWrite());
 
         int bytesToEncrypt = Arrays.stream(message).mapToInt(Buffer::remaining).sum();
-        SSLOutboundBuffer outboundBuffer = new SSLOutboundBuffer((n) -> new Page(ByteBuffer.allocate(n)));
+        SSLOutboundBuffer outboundBuffer = sendDriver.getOutboundBuffer();
         FlushOperation flushOperation = new FlushOperation(message, (r, l) -> {});
 
         int bytesEncrypted = 0;
         while (bytesToEncrypt > bytesEncrypted) {
-            bytesEncrypted += sendDriver.write(flushOperation, outboundBuffer);
+            bytesEncrypted += sendDriver.write(flushOperation);
             sendData(outboundBuffer.buildNetworkFlushOperation(), receiveDriver);
         }
     }

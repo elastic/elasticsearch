@@ -175,7 +175,8 @@ public class BinaryRangeUtilTests extends ESTestCase {
             double start = randomDouble();
             double end = randomDoubleBetween(Math.nextUp(start), Double.MAX_VALUE, false);
             RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeType.DOUBLE, start, end, true, true);
-            List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeDoubleRanges(BinaryRangeUtil.encodeDoubleRanges(singleton(expected)));
+            List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeDoubleRanges(BinaryRangeUtil.encodeDoubleRanges(
+                singleton(expected)));
             assertEquals(1, decoded.size());
             RangeFieldMapper.Range actual = decoded.get(0);
             assertEquals(expected, actual);
@@ -194,7 +195,8 @@ public class BinaryRangeUtilTests extends ESTestCase {
                 end = temp;
             }
             RangeFieldMapper.Range expected = new RangeFieldMapper.Range(RangeType.FLOAT, start, end, true, true);
-            List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeFloatRanges(BinaryRangeUtil.encodeFloatRanges(singleton(expected)));
+            List<RangeFieldMapper.Range> decoded = BinaryRangeUtil.decodeFloatRanges(BinaryRangeUtil.encodeFloatRanges(
+                singleton(expected)));
             assertEquals(1, decoded.size());
             RangeFieldMapper.Range actual = decoded.get(0);
             assertEquals(expected, actual);

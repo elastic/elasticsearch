@@ -109,7 +109,8 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
+                                  boolean includeTo) {
             if (includeFrom == false) {
                 from = nextUp(from);
             }
@@ -208,7 +209,8 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
+                                  boolean includeTo) {
             return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
         }
 
@@ -273,7 +275,8 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
+                                  boolean includeTo) {
             if (includeFrom == false) {
                 from = nextUp(from);
             }
@@ -337,7 +340,8 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
+                                  boolean includeTo) {
             if (includeFrom == false) {
                 from = nextUp(from);
             }
@@ -404,7 +408,8 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
+                                  boolean includeTo) {
             return LONG.dvRangeQuery(field, queryType, from, to, includeFrom, includeTo);
         }
 
@@ -457,7 +462,8 @@ public enum RangeType {
         }
 
         @Override
-        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom, boolean includeTo) {
+        public Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to, boolean includeFrom,
+                                  boolean includeTo) {
             if (includeFrom == false) {
                 from = nextUp(from);
             }
@@ -559,12 +565,14 @@ public enum RangeType {
         return fields;
     }
     /** parses from value. rounds according to included flag */
-    public Object parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included) throws IOException {
+    public Object parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce,
+                            boolean included) throws IOException {
         Number value = numberType.parse(parser, coerce);
         return included ? value : (Number)nextUp(value);
     }
     /** parses to value. rounds according to included flag */
-    public Object parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included) throws IOException {
+    public Object parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce,
+                          boolean included) throws IOException {
         Number value = numberType.parse(parser, coerce);
         return included ? value : (Number)nextDown(value);
     }
@@ -657,4 +665,5 @@ public enum RangeType {
          * Return the length of the value that starts at {@code offset} in {@code bytes}.
          */
         public abstract int readLength(byte[] bytes, int offset);
-    }}
+    }
+}

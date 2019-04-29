@@ -82,7 +82,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -1396,7 +1396,7 @@ public final class InternalTestCluster extends TestCluster {
                     if (primaryShard == null) {
                         continue;
                     }
-                    final List<DocIdSeqNoAndTerm> docsOnPrimary;
+                    final List<DocIdSeqNoAndSource> docsOnPrimary;
                     try {
                         docsOnPrimary = IndexShardTestCase.getDocIdAndSeqNos(primaryShard);
                     } catch (AlreadyClosedException ex) {
@@ -1407,7 +1407,7 @@ public final class InternalTestCluster extends TestCluster {
                         if (replicaShard == null) {
                             continue;
                         }
-                        final List<DocIdSeqNoAndTerm> docsOnReplica;
+                        final List<DocIdSeqNoAndSource> docsOnReplica;
                         try {
                             docsOnReplica = IndexShardTestCase.getDocIdAndSeqNos(replicaShard);
                         } catch (AlreadyClosedException ex) {

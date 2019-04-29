@@ -553,7 +553,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     // We clean those up here before checking a blob-store for stale files.
     private void cleanupEmptyTrees(Path repoPath) {
         try {
-            Files.walkFileTree(repoPath, new SimpleFileVisitor<>() {
+            Files.walkFileTree(repoPath, new SimpleFileVisitor<Path>() {
 
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {

@@ -85,11 +85,6 @@ public class GetDataFrameAnalyticsStatsResponse {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(analyticsStats, nodeFailures, taskFailures);
-    }
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -98,5 +93,10 @@ public class GetDataFrameAnalyticsStatsResponse {
         return Objects.equals(analyticsStats, other.analyticsStats)
             && Objects.equals(nodeFailures, other.nodeFailures)
             && Objects.equals(taskFailures, other.taskFailures);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(analyticsStats, nodeFailures, taskFailures);
     }
 }

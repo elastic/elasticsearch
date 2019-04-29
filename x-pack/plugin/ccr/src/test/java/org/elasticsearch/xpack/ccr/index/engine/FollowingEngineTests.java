@@ -24,7 +24,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -623,7 +623,7 @@ public class FollowingEngineTests extends ESTestCase {
                         assertThat(failure.getExistingPrimaryTerm().getAsLong(), equalTo(operationWithTerms.get(op.seqNo())));
                     }
                 }
-                for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
+                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
                     assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
                 }
                 // Replica should accept duplicates
@@ -635,7 +635,7 @@ public class FollowingEngineTests extends ESTestCase {
                     Engine.Result result = applyOperation(followingEngine, op, newTerm, nonPrimary);
                     assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
                 }
-                for (DocIdSeqNoAndTerm docId : getDocIds(followingEngine, true)) {
+                for (DocIdSeqNoAndSource docId : getDocIds(followingEngine, true)) {
                     assertThat(docId.getPrimaryTerm(), equalTo(operationWithTerms.get(docId.getSeqNo())));
                 }
             }

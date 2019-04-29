@@ -276,11 +276,11 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 }
                 assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, mapperService);
                 // have to verify without source since we are randomly testing without _source
-                List<DocIdSeqNoAndTerm> docsWithoutSourceOnFollower = getDocIds(engine, true).stream()
-                    .map(d -> new DocIdSeqNoAndTerm(d.getId(), null, d.getSeqNo(), d.getPrimaryTerm(), d.getVersion()))
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnFollower = getDocIds(engine, true).stream()
+                    .map(d -> new DocIdSeqNoAndSource(d.getId(), null, d.getSeqNo(), d.getPrimaryTerm(), d.getVersion()))
                     .collect(Collectors.toList());
-                List<DocIdSeqNoAndTerm> docsWithoutSourceOnLeader = getDocIds(leader, true).stream()
-                    .map(d -> new DocIdSeqNoAndTerm(d.getId(), null, d.getSeqNo(), d.getPrimaryTerm(), d.getVersion()))
+                List<DocIdSeqNoAndSource> docsWithoutSourceOnLeader = getDocIds(leader, true).stream()
+                    .map(d -> new DocIdSeqNoAndSource(d.getId(), null, d.getSeqNo(), d.getPrimaryTerm(), d.getVersion()))
                     .collect(Collectors.toList());
                 assertThat(docsWithoutSourceOnFollower, equalTo(docsWithoutSourceOnLeader));
             } catch (Exception ex) {

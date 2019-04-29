@@ -24,15 +24,15 @@ import org.apache.lucene.util.BytesRef;
 
 import java.util.Objects;
 
-/** A tuple of document id, sequence number and primary term of a document */
-public final class DocIdSeqNoAndTerm {
+/** A tuple of document id, sequence number, primary term, source and version of a document */
+public final class DocIdSeqNoAndSource {
     private final String id;
     private final BytesRef source;
     private final long seqNo;
     private final long primaryTerm;
     private final long version;
 
-    public DocIdSeqNoAndTerm(String id, BytesRef source, long seqNo, long primaryTerm, long version) {
+    public DocIdSeqNoAndSource(String id, BytesRef source, long seqNo, long primaryTerm, long version) {
         this.id = id;
         this.source = source;
         this.seqNo = seqNo;
@@ -64,7 +64,7 @@ public final class DocIdSeqNoAndTerm {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        DocIdSeqNoAndTerm that = (DocIdSeqNoAndTerm) o;
+        DocIdSeqNoAndSource that = (DocIdSeqNoAndSource) o;
         return Objects.equals(id, that.id) && Objects.equals(source, that.source)
             && seqNo == that.seqNo && primaryTerm == that.primaryTerm && version == that.version;
     }

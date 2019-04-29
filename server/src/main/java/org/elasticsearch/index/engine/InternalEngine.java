@@ -145,7 +145,7 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeqNoOfNonAppendOnlyOperations = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-    // max_seq_no_of_updates_or_deletes tracks the max seq_no of update or delete operations have been processed in this engine.
+    // max_seq_no_of_updates_or_deletes tracks the max seq_no of update or delete operations that have been processed in this engine.
     // An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
     // The value of this marker never goes backwards, and is tracked/updated differently on primary and replica.
     private final AtomicLong maxSeqNoOfUpdatesOrDeletes;

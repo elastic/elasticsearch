@@ -88,8 +88,8 @@ The top-level keys that the policy supports are described below:
   be created with the <<modules-snapshots,snapshot repository API>>.
 
 | `config` | Configuration for each snapshot that will be created by this
-  policy. Any configuration is included with create snapshot requests issued by
-  this policy.
+  policy. Any configuration is included with <<modules-snapshots,create snapshot
+  requests>> issued by this policy.
 |==================
 
 To update an existing policy, simply use the put snapshot lifecycle policy API

@@ -33,6 +33,8 @@ a `query`.
 `pivot`:: Defines the pivot function `group by` fields and the aggregation to
 reduce the data.
 
+`description`:: Optional free text description of the data frame transform
+
 
 //==== Authorization
 
@@ -73,7 +75,8 @@ PUT _data_frame/transforms/ecommerce_transform
         }
       }
     }
-  }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia"
 }
 --------------------------------------------------
 // CONSOLE

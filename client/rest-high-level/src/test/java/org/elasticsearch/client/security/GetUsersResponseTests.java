@@ -31,13 +31,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.client.security.GetUsersResponse.toMap;
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 
 /** tests the Response for getting users from the security HLRC */
@@ -91,8 +89,8 @@ public class GetUsersResponseTests extends ESTestCase {
     }
 
     private static GetUsersResponse createTestInstance() {
-        final Set<User> users = new HashSet<>();
-        final Set<User> enabledUsers = new HashSet<>();
+        final List<User> users = new ArrayList<>();
+        final List<User> enabledUsers = new ArrayList<>();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put(randomAlphaOfLengthBetween(1, 5), randomInt());
 
@@ -109,12 +107,12 @@ public class GetUsersResponseTests extends ESTestCase {
             Arrays.asList(new String[] {randomAlphaOfLength(5), randomAlphaOfLength(5)}),
             metadata2, randomAlphaOfLength(10), null);
         users.add(user2);
-        return new GetUsersResponse(users, enabledUsers);
+        return new GetUsersResponse(toMap(users), toMap(enabledUsers));
     }
 
     public void testEqualsHashCode() {
-        final Set<User> users = new HashSet<>();
-        final Set<User> enabledUsers = new HashSet<>();
+        final List<User> users = new ArrayList<>();
+        final List<User> enabledUsers = new ArrayList<>();
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("intelligence", 1);
         final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
@@ -125,41 +123,43 @@ public class GetUsersResponseTests extends ESTestCase {
         metadata2.put("intelligence", 9);
         metadata2.put("specialty", "geo");
         final User user2 = new User("testUser2", Arrays.asList(new String[] {"admin"}),
-            metadata, "Test User 2", "testuser2@example.com");
+            metadata2, "Test User 2", "testuser2@example.com");
         users.add(user2);
         enabledUsers.add(user2);
-        final GetUsersResponse getUsersResponse = new GetUsersResponse(users, enabledUsers);
+        final GetUsersResponse getUsersResponse = new GetUsersResponse(toMap(users), toMap(enabledUsers));
         assertNotNull(getUsersResponse);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersResponse, (original) -> {
-            return new GetUsersResponse(original.getUsers(), original.getEnabledUsers());
-        });
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(getUsersResponse, (original) -> {
-            return new GetUsersResponse(original.getUsers(), original.getEnabledUsers());
-        }, GetUsersResponseTests::mutateTestItem);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                getUsersResponse,
+                (original) -> new GetUsersResponse(toMap(original.getUsers()), toMap(original.getEnabledUsers())));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+                getUsersResponse,
+                (original) -> new GetUsersResponse(toMap(original.getUsers()), toMap(original.getEnabledUsers())),
+                GetUsersResponseTests::mutateTestItem);
     }
 
     private static GetUsersResponse mutateTestItem(GetUsersResponse original) {
         if (randomBoolean()) {
-            final Set<User> users = new HashSet<>();
-            final Set<User> enabledUsers = new HashSet<>();
+            final List<User> users = new ArrayList<>();
+            final List<User> enabledUsers = new ArrayList<>();
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("intelligence", 1);
             final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
                 metadata, "Test User 1", null);
             users.add(user1);
             enabledUsers.add(user1);
-            return new GetUsersResponse(users, enabledUsers);
+            return new GetUsersResponse(toMap(users), toMap(enabledUsers));
         }
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("intelligence", 5);  // change intelligence
         final User user1 = new User("testUser1", Arrays.asList(new String[] {"admin", "other_role1"}),
             metadata, "Test User 1", null);
-        Set<User> newUsers = original.getUsers().stream().collect(Collectors.toSet());
-        Set<User> enabledUsers = original.getEnabledUsers().stream().collect(Collectors.toSet());
+        List<User> newUsers = new ArrayList<>(original.getUsers());
+        List<User> enabledUsers = new ArrayList<>(original.getEnabledUsers());
         newUsers.clear();
         enabledUsers.clear();
         newUsers.add(user1);
         enabledUsers.add(user1);
-        return new GetUsersResponse(newUsers, enabledUsers);
+        return new GetUsersResponse(toMap(newUsers), toMap(enabledUsers));
     }
+
 }

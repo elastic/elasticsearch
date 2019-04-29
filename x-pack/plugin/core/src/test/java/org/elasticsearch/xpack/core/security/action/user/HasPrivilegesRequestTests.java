@@ -25,29 +25,18 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class HasPrivilegesRequestTests extends ESTestCase {
 
-    public void testSerializationV64OrLater() throws IOException {
+    public void testSerializationCurrentVersion() throws IOException {
         final HasPrivilegesRequest original = randomRequest();
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, Version.CURRENT);
+        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         final HasPrivilegesRequest copy = serializeAndDeserialize(original, version);
 
         assertThat(copy.username(), equalTo(original.username()));
         assertThat(copy.clusterPrivileges(), equalTo(original.clusterPrivileges()));
         assertThat(copy.indexPrivileges(), equalTo(original.indexPrivileges()));
         assertThat(copy.applicationPrivileges(), equalTo(original.applicationPrivileges()));
-    }
-
-    public void testSerializationV63() throws IOException {
-        final HasPrivilegesRequest original = randomRequest();
-        final HasPrivilegesRequest copy = serializeAndDeserialize(original, Version.V_6_3_0);
-
-        assertThat(copy.username(), equalTo(original.username()));
-        assertThat(copy.clusterPrivileges(), equalTo(original.clusterPrivileges()));
-        assertThat(copy.indexPrivileges(), equalTo(original.indexPrivileges()));
-        assertThat(copy.applicationPrivileges(), nullValue());
     }
 
     public void testValidateNullPrivileges() {

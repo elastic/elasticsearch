@@ -22,6 +22,9 @@ package org.elasticsearch.client.documentation;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
@@ -51,6 +54,14 @@ import org.elasticsearch.client.indexlifecycle.ShrinkAction;
 import org.elasticsearch.client.indexlifecycle.StartILMRequest;
 import org.elasticsearch.client.indexlifecycle.StopILMRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
+import org.elasticsearch.client.snapshotlifecycle.DeleteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyResponse;
+import org.elasticsearch.client.snapshotlifecycle.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.snapshotlifecycle.SnapshotLifecyclePolicy;
+import org.elasticsearch.client.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -60,6 +71,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -68,6 +82,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -738,6 +753,73 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::ilm-remove-lifecycle-policy-from-index-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testAddSnapshotLifecyclePolicy() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        PutRepositoryRequest repoRequest = new PutRepositoryRequest();
+
+        Settings.Builder settingsBuilder = Settings.builder().put("location", ".");
+        repoRequest.settings(settingsBuilder);
+        repoRequest.name("my_repository");
+        repoRequest.type(FsRepository.TYPE);
+        org.elasticsearch.action.support.master.AcknowledgedResponse response =
+            client.snapshot().createRepository(repoRequest, RequestOptions.DEFAULT);
+        assertTrue(response.isAcknowledged());
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("indices", Collections.singletonList("idx"));
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("id", "name", "1 2 3 * * ?", "my_repository", config);
+
+        PutSnapshotLifecyclePolicyRequest request = new PutSnapshotLifecyclePolicyRequest(policy);
+        AcknowledgedResponse resp = client.indexLifecycle().putSnapshotLifecyclePolicy(request, RequestOptions.DEFAULT);
+        assertTrue(resp.isAcknowledged());
+
+        GetSnapshotLifecyclePolicyRequest getRequest = new GetSnapshotLifecyclePolicyRequest("id");
+        GetSnapshotLifecyclePolicyResponse getResponse =
+            client.indexLifecycle().getSnapshotLifecyclePolicy(getRequest, RequestOptions.DEFAULT);
+
+        assertThat(getResponse.getPolicies().size(), equalTo(1));
+        SnapshotLifecyclePolicyMetadata policyMeta = getResponse.getPolicies().get("id");
+        assertNotNull(policyMeta);
+        assertThat(policyMeta.getPolicy(), equalTo(policy));
+        assertThat(policyMeta.getVersion(), equalTo(1L));
+
+        createIndex("idx", Settings.builder().put("index.number_of_shards", 1).build());
+
+        ExecuteSnapshotLifecyclePolicyRequest executeRequest = new ExecuteSnapshotLifecyclePolicyRequest("id");
+        ExecuteSnapshotLifecyclePolicyResponse executeResponse =
+            client.indexLifecycle().executeSnapshotLifecyclePolicy(executeRequest, RequestOptions.DEFAULT);
+        final String snapshotName = executeResponse.getSnapshotName();
+
+        assertBusy(() -> {
+            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest("my_repository", new String[]{snapshotName});
+            final GetSnapshotsResponse snaps;
+            try {
+                 snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
+            } catch (Exception e) {
+                if (e.getMessage().contains("snapshot_missing_exception")) {
+                    fail("snapshot does not exist: " + snapshotName);
+                }
+                throw e;
+            }
+            Optional<SnapshotInfo> info = snaps.getSnapshots().stream().findFirst();
+
+            if (info.isPresent()) {
+                info.ifPresent(si -> {
+                    assertThat(si.snapshotId().getName(), equalTo(snapshotName));
+                    assertThat(si.state(), equalTo(SnapshotState.SUCCESS));
+                });
+            } else {
+                fail("unable to find snapshot; " + snapshotName);
+            }
+        });
+
+        DeleteSnapshotLifecyclePolicyRequest deleteRequest = new DeleteSnapshotLifecyclePolicyRequest("id");
+        AcknowledgedResponse deleteResp = client.indexLifecycle().deleteSnapshotLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT);
+        assertTrue(deleteResp.isAcknowledged());
+
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

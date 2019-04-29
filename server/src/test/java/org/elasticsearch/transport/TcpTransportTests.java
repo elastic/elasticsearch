@@ -26,6 +26,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
+import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
@@ -84,6 +86,18 @@ public class TcpTransportTests extends ESTestCase {
             () -> TcpTransport.parse("[::1]:100-200", 1000)
         );
         assertTrue(expected.getMessage().contains("Port ranges are not supported"));
+    }
+
+    public void testCombinesHostsAndPorts() {
+        List<String> actualAddresses = TcpTransport.combineHostsAndPorts(
+            List.of("[::1]", "127.0.0.1"),
+            IntStream.range(9300, 9401).toArray()
+        );
+        List<String> expectedAddresses = List.of(
+            "[::1]:9300", "[::1]:9301", "[::1]:9302", "[::1]:9303", "[::1]:9304", "[::1]:9305",
+            "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302", "127.0.0.1:9303", "127.0.0.1:9304", "127.0.0.1:9305"
+        );
+        assertEquals(expectedAddresses, actualAddresses);
     }
 
     public void testDecodeWithIncompleteHeader() throws IOException {

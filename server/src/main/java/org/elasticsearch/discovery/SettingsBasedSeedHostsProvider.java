@@ -49,9 +49,6 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
     public static final Setting<List<String>> DISCOVERY_SEED_HOSTS_SETTING =
         Setting.listSetting("discovery.seed_hosts", emptyList(), Function.identity(), Property.NodeScope);
 
-    // these limits are per-address
-    private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
-
     private final List<String> configuredHosts;
 
     public SettingsBasedSeedHostsProvider(Settings settings, TransportService transportService) {
@@ -59,14 +56,7 @@ public class SettingsBasedSeedHostsProvider implements SeedHostsProvider {
             configuredHosts = DISCOVERY_SEED_HOSTS_SETTING.get(settings);
         } else {
             // if unicast hosts are not specified, fill with simple defaults on the local machine
-            int[] ports = transportService.getDefaultPortRange();
-            configuredHosts = transportService.getLocalAddresses().stream()
-                .flatMap(
-                    address -> Arrays.stream(ports)
-                        .limit(LIMIT_LOCAL_PORTS_COUNT)
-                        .mapToObj(port -> address + ":" + port)
-                )
-                .collect(Collectors.toList());
+            configuredHosts = transportService.getDefaultSeedAddresses();
         }
 
         logger.debug("using initial hosts {}", configuredHosts);

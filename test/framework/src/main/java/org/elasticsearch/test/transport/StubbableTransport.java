@@ -120,13 +120,8 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public int[] defaultPortRange() {
-        return delegate.defaultPortRange();
-    }
-
-    @Override
-    public List<String> getLocalAddresses() {
-        return delegate.getLocalAddresses();
+    public List<String> getDefaultSeedAddresses() {
+        return delegate.getDefaultSeedAddresses();
     }
 
     @Override

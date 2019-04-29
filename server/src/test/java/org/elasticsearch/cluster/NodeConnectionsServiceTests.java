@@ -406,11 +406,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public int[] defaultPortRange() {
-            return new int[0];
-        }
-
-        @Override
         public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
             if (profile == null && randomConnectionExceptions && randomBoolean()) {
                 threadPool.generic().execute(() -> listener.onFailure(new ConnectTransportException(node, "simulated")));
@@ -445,7 +440,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public List<String> getLocalAddresses() {
+        public List<String> getDefaultSeedAddresses() {
             return null;
         }
 

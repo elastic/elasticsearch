@@ -213,11 +213,6 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public int[] defaultPortRange() {
-        return new int[0];
-    }
-
-    @Override
     public Lifecycle.State lifecycleState() {
         return null;
     }
@@ -243,7 +238,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public List<String> getLocalAddresses() {
+    public List<String> getDefaultSeedAddresses() {
         return Collections.emptyList();
     }
 

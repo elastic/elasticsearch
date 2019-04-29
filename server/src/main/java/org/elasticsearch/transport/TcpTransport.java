@@ -86,6 +86,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
@@ -101,6 +102,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
+
+    // this limit is per-address
+    private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
 
     protected final Settings settings;
     protected final ThreadPool threadPool;
@@ -311,14 +315,24 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public List<String> getLocalAddresses() {
+    public List<String> getDefaultSeedAddresses() {
         List<String> local = new ArrayList<>();
         local.add("127.0.0.1");
         // check if v6 is supported, if so, v4 will also work via mapped addresses.
         if (NetworkUtils.SUPPORTS_V6) {
             local.add("[::1]"); // may get ports appended!
         }
-        return local;
+        return combineHostsAndPorts(local, defaultPortRange());
+    }
+
+    static List<String> combineHostsAndPorts(List<String> hosts, int[] ports) {
+        return hosts.stream()
+            .flatMap(
+                address -> Arrays.stream(ports)
+                    .limit(LIMIT_LOCAL_PORTS_COUNT)
+                    .mapToObj(port -> address + ":" + port)
+            )
+            .collect(Collectors.toList());
     }
 
     protected void bindServer(ProfileSettings profileSettings) {
@@ -460,8 +474,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return parse(address, defaultPortRange()[0]);
     }
 
-    @Override
-    public int[] defaultPortRange() {
+    private int[] defaultPortRange() {
         return new PortsRange(settings.get("transport.profiles.default.port", TransportSettings.PORT.get(settings))).ports();
     }
 
@@ -515,12 +528,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             port = ports[0];
         }
 
-        Set<InetAddress> addresses = new HashSet<>(Arrays.asList(InetAddress.getAllByName(host)));
-        List<TransportAddress> transportAddresses = new ArrayList<>();
-        for (InetAddress address : addresses) {
-            transportAddresses.add(new TransportAddress(address, port));
-        }
-        return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
+        return Arrays.stream(InetAddress.getAllByName(host))
+            .distinct()
+            .map(address -> new TransportAddress(address, port))
+            .toArray(TransportAddress[]::new);
     }
 
     @Override

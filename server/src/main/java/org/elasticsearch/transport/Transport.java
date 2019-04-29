@@ -70,13 +70,10 @@ public interface Transport extends LifecycleComponent {
      */
     TransportAddress[] addressesFromString(String address) throws UnknownHostException;
 
-    int[] defaultPortRange();
-
-
     /**
-     * Returns a list of all local adresses for this transport
+     * Returns a list of all local addresses for this transport
      */
-    List<String> getLocalAddresses();
+    List<String> getDefaultSeedAddresses();
 
     default CircuitBreaker getInFlightRequestBreaker() {
         return new NoopCircuitBreaker("in-flight-noop");

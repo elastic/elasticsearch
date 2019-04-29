@@ -19,7 +19,7 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -151,12 +151,6 @@ public class NodeAttributes implements ToXContentObject {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(getClass())
-            .add("id", id)
-            .add("name", name)
-            .add("ephemeralId", ephemeralId)
-            .add("transportAddress", transportAddress)
-            .add("attributes", attributes)
-            .toString();
+        return Strings.toString(this);
     }
 }

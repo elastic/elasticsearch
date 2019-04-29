@@ -104,6 +104,11 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
         testEmptySet(() -> md.getPseudoColumns(null, null, null, null));
     }
 
+    public void testGetSchemas() throws Exception {
+        testEmptySet(() -> md.getSchemas());
+        testEmptySet(() -> md.getSchemas(null, null));
+    }
+
     private static void testEmptySet(CheckedSupplier<ResultSet, SQLException> supplier) throws SQLException {
         try (ResultSet result = supplier.get()) {
             assertNotNull(result);

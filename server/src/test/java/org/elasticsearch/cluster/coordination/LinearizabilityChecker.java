@@ -19,7 +19,10 @@
 package org.elasticsearch.cluster.coordination;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
@@ -32,7 +35,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -43,6 +50,8 @@ import java.util.function.Function;
  *   FORTE (2015). http://dx.doi.org/10.1007/978-3-319-19195-9_4
  */
 public class LinearizabilityChecker {
+
+    private static final Logger logger = LogManager.getLogger(LinearizabilityChecker.class);
 
     /**
      * Sequential specification of a datatype. Used as input for the linearizability checker.
@@ -114,12 +123,17 @@ public class LinearizabilityChecker {
      * Sequence of invocations and responses, recording the run of a concurrent system.
      */
     public static class History {
-        private final List<Event> events;
-        private int nextId;
+        private final Queue<Event> events;
+        private AtomicInteger nextId = new AtomicInteger();
 
         public History() {
-            events = new ArrayList<>();
-            nextId = 0;
+            events = new ConcurrentLinkedQueue<>();
+        }
+
+        public History(Collection<Event> events) {
+            this();
+            this.events.addAll(events);
+            this.nextId.set(events.stream().mapToInt(e -> e.id).max().orElse(-1) + 1);
         }
 
         /**
@@ -129,7 +143,7 @@ public class LinearizabilityChecker {
          * @return an id that can be used to record the corresponding response event
          */
         public int invoke(Object input) {
-            final int id = nextId++;
+            final int id = nextId.getAndIncrement();
             events.add(new Event(EventType.INVOCATION, input, id));
             return id;
         }
@@ -154,6 +168,13 @@ public class LinearizabilityChecker {
         }
 
         /**
+         * Copy the list of events for external use.
+         * @return list of events in the order recorded.
+         */
+        public List<Event> copyEvents() {
+            return new ArrayList<>(events);
+        }
+        /**
          * Completes the history with response events for invocations that are missing corresponding responses
          *
          * @param missingResponseGenerator a function from invocation input to response output, used to generate the corresponding response
@@ -177,10 +198,7 @@ public class LinearizabilityChecker {
 
         @Override
         public History clone() {
-            final History history = new History();
-            history.events.addAll(events);
-            history.nextId = nextId;
-            return history;
+            return new History(events);
         }
 
         /**
@@ -197,6 +215,7 @@ public class LinearizabilityChecker {
                 ", nextId=" + nextId +
                 '}';
         }
+
     }
 
     /**
@@ -210,15 +229,16 @@ public class LinearizabilityChecker {
     public boolean isLinearizable(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
         history = history.clone(); // clone history before completing it
         history.complete(missingResponseGenerator); // complete history
-        final Collection<List<Event>> partitions = spec.partition(history.events);
+        final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
         return partitions.stream().allMatch(h -> isLinearizable(spec, h));
     }
 
     private boolean isLinearizable(SequentialSpec spec, List<Event> history) {
+        logger.debug("Checking history of size: {}: {}", history.size(), history);
         Object state = spec.initialState(); // the current state of the datatype
         final FixedBitSet linearized = new FixedBitSet(history.size() / 2); // the linearized prefix of the history
 
-        final Cache cache = new Cache();
+        final Cache cache = new Cache(); // cache of explored <state, linearized prefix> pairs
         final Deque<Tuple<Entry, Object>> calls = new LinkedList<>(); // path we're currently exploring
 
         final Entry headEntry = createLinkedEntries(history);
@@ -268,6 +288,54 @@ public class LinearizabilityChecker {
     }
 
     /**
+     * Return a visual representation of the history
+     */
+    public static String visualize(SequentialSpec spec, History history, Function<Object, Object> missingResponseGenerator) {
+        history = history.clone();
+        history.complete(missingResponseGenerator);
+        final Collection<List<Event>> partitions = spec.partition(history.copyEvents());
+        StringBuilder builder = new StringBuilder();
+        partitions.forEach(new Consumer<List<Event>>() {
+            int index = 0;
+            @Override
+            public void accept(List<Event> events) {
+                builder.append("Partition " ).append(index++).append("\n");
+                builder.append(visualizePartition(events));
+            }
+        });
+
+        return builder.toString();
+    }
+
+    private static String visualizePartition(List<Event> events) {
+        StringBuilder builder = new StringBuilder();
+        Entry entry = createLinkedEntries(events).next;
+        Map<Tuple<EventType, Integer>, Integer> eventToPosition = new HashMap<>();
+        for (Event event : events) {
+            eventToPosition.put(Tuple.tuple(event.type, event.id), eventToPosition.size());
+        }
+        while (entry != null) {
+            if (entry.match != null) {
+                builder.append(visualizeEntry(entry, eventToPosition)).append("\n");
+            }
+            entry = entry.next;
+        }
+        return builder.toString();
+    }
+
+    private static String visualizeEntry(Entry entry, Map<Tuple<EventType, Integer>, Integer> eventToPosition) {
+        String input = String.valueOf(entry.event.value);
+        String output = String.valueOf(entry.match.event.value);
+        int id = entry.event.id;
+        int beginIndex = eventToPosition.get(Tuple.tuple(EventType.INVOCATION, id));
+        int endIndex = eventToPosition.get(Tuple.tuple(EventType.RESPONSE, id));
+        input = input.substring(0, Math.min(beginIndex + 25, input.length()));
+        return Strings.padStart(input, beginIndex + 25, ' ') +
+            "   "  + Strings.padStart("", endIndex-beginIndex, 'X') + "   "
+            + output + "  (" + entry.event.id + ")";
+    }
+
+    /**
      * Creates the internal linked data structure used by the linearizability checker.
      * Generates contiguous internal ids for the events so that they can be efficiently recorded in bit sets.
      */
@@ -314,7 +382,7 @@ public class LinearizabilityChecker {
         return first;
     }
 
-    enum EventType {
+    public enum EventType {
         INVOCATION,
         RESPONSE
     }

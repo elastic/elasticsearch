@@ -188,46 +188,48 @@ to the client. This means it includes the time spent waiting in thread pools,
 executing a distributed search across the whole cluster and gathering all the
 results.
 
-include::request/query.asciidoc[]
-
-include::request/from-size.asciidoc[]
-
-include::request/sort.asciidoc[]
-
-include::request/track-total-hits.asciidoc[]
-
-include::request/source-filtering.asciidoc[]
-
-include::request/stored-fields.asciidoc[]
-
-include::request/script-fields.asciidoc[]
-
 include::request/docvalue-fields.asciidoc[]
-
-include::request/post-filter.asciidoc[]
-
-include::request/highlighting.asciidoc[]
-
-include::request/rescore.asciidoc[]
-
-include::request/search-type.asciidoc[]
-
-include::request/scroll.asciidoc[]
-
-include::request/preference.asciidoc[]
 
 include::request/explain.asciidoc[]
 
-include::request/version-and-seq-no.asciidoc[]
+include::request/collapse.asciidoc[]
+
+include::request/from-size.asciidoc[]
+
+include::request/highlighting.asciidoc[]
 
 include::request/index-boost.asciidoc[]
+
+include::request/inner-hits.asciidoc[]
 
 include::request/min-score.asciidoc[]
 
 include::request/named-queries-and-filters.asciidoc[]
 
-include::request/inner-hits.asciidoc[]
+include::request/post-filter.asciidoc[]
 
-include::request/collapse.asciidoc[]
+include::request/preference.asciidoc[]
+
+include::request/query.asciidoc[]
+
+include::request/rescore.asciidoc[]
+
+include::request/script-fields.asciidoc[]
+
+include::request/scroll.asciidoc[]
 
 include::request/search-after.asciidoc[]
+
+include::request/search-type.asciidoc[]
+
+include::request/seq-no.asciidoc[]
+
+include::request/sort.asciidoc[]
+
+include::request/source-filtering.asciidoc[]
+
+include::request/stored-fields.asciidoc[]
+
+include::request/track-total-hits.asciidoc[]
+
+include::request/version.asciidoc[]

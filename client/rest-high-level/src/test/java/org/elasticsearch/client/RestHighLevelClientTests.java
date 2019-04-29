@@ -20,6 +20,7 @@
 package org.elasticsearch.client;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -61,6 +62,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
@@ -176,7 +178,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         MainResponse testInfo = new MainResponse("nodeName", new MainResponse.Version("number", "buildFlavor", "buildType", "buildHash",
             "buildDate", true, "luceneVersion", "minimumWireCompatibilityVersion", "minimumIndexCompatibilityVersion"),
             "clusterName", "clusterUuid", "You Know, for Search");
-        mockResponse((builder, params) -> {
+        mockResponse((ToXContentFragment) (builder, params) -> {
             // taken from the server side MainResponse
             builder.field("name", testInfo.getNodeName());
             builder.field("cluster_name", testInfo.getClusterName());
@@ -762,12 +764,12 @@ public class RestHighLevelClientTests extends ESTestCase {
                     Collectors.mapping(Tuple::v2, Collectors.toSet())));
 
         // TODO remove in 8.0 - we will undeprecate indices.get_template because the current getIndexTemplate
-        // impl will replace the existing getTemplate method. 
+        // impl will replace the existing getTemplate method.
         // The above general-purpose code ignores all deprecated methods which in this case leaves `getTemplate`
-        // looking like it doesn't have a valid implementatation when it does. 
+        // looking like it doesn't have a valid implementatation when it does.
         apiUnsupported.remove("indices.get_template");
-        
-        
+
+
 
         for (Map.Entry<String, Set<Method>> entry : methods.entrySet()) {
             String apiName = entry.getKey();
@@ -830,7 +832,7 @@ public class RestHighLevelClientTests extends ESTestCase {
             assertThat("the return type for method [" + method + "] is incorrect",
                 method.getReturnType().getSimpleName(), equalTo("boolean"));
         } else {
-            // It's acceptable for 404s to be represented as empty Optionals 
+            // It's acceptable for 404s to be represented as empty Optionals
             if (!method.getReturnType().isAssignableFrom(Optional.class)) {
                 assertThat("the return type for method [" + method + "] is incorrect",
                     method.getReturnType().getSimpleName(), endsWith("Response"));

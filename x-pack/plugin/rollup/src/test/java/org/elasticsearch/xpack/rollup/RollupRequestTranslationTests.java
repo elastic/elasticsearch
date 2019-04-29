@@ -65,9 +65,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 .extendedBounds(new ExtendedBounds(0L, 1000L))
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
-
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
+ 
+        List<AggregationBuilder> translated = translateAggregation(histo, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), Matchers.instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
@@ -93,22 +92,6 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("test_histo._count"), Matchers.instanceOf(SumAggregationBuilder.class));
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
-
-        assertThat(filterConditions.size(), equalTo(1));
-        for (QueryBuilder q : filterConditions) {
-            if (q instanceof TermQueryBuilder) {
-                switch (((TermQueryBuilder) q).fieldName()) {
-                    case "foo.date_histogram.time_zone":
-                        assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
-                        break;
-                    default:
-                        fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
-                        break;
-                }
-            } else {
-                fail("Unexpected query builder in filter conditions");
-            }
-        }
     }
 
     public void testFormattedDateHisto() {
@@ -118,9 +101,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
             .extendedBounds(new ExtendedBounds(0L, 1000L))
             .format("yyyy-MM-dd")
             .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
+        List<AggregationBuilder> translated = translateAggregation(histo, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), Matchers.instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
@@ -133,7 +115,6 @@ public class RollupRequestTranslationTests extends ESTestCase {
     public void testSimpleMetric() {
         int i = ESTestCase.randomIntBetween(0, 2);
         List<AggregationBuilder> translated = new ArrayList<>();
-        List<QueryBuilder> filterConditions = new ArrayList<>();
 
         Class clazz = null;
         String fieldName = null;
@@ -141,17 +122,17 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
         if (i == 0) {
             translated = translateAggregation(new MaxAggregationBuilder("test_metric")
-                    .field("foo"), filterConditions, namedWriteableRegistry);
+                    .field("foo"), namedWriteableRegistry);
             clazz = MaxAggregationBuilder.class;
             fieldName =  "foo.max.value";
         } else if (i == 1) {
             translated = translateAggregation(new MinAggregationBuilder("test_metric")
-                    .field("foo"), filterConditions, namedWriteableRegistry);
+                    .field("foo"), namedWriteableRegistry);
             clazz = MinAggregationBuilder.class;
             fieldName =  "foo.min.value";
         } else if (i == 2) {
             translated = translateAggregation(new SumAggregationBuilder("test_metric")
-                    .field("foo"), filterConditions, namedWriteableRegistry);
+                    .field("foo"), namedWriteableRegistry);
             clazz = SumAggregationBuilder.class;
             fieldName =  "foo.sum.value";
         }
@@ -160,14 +141,12 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(translated.get(0), Matchers.instanceOf(clazz));
         assertThat((translated.get(0)).getName(), equalTo("test_metric"));
         assertThat(((ValuesSourceAggregationBuilder)translated.get(0)).field(), equalTo(fieldName));
-
-        assertThat(filterConditions.size(), equalTo(0));
     }
 
     public void testUnsupportedMetric() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> translateAggregation(new StatsAggregationBuilder("test_metric")
-                        .field("foo"), Collections.emptyList(), namedWriteableRegistry));
+                        .field("foo"), namedWriteableRegistry));
         assertThat(e.getMessage(), equalTo("Unable to translate aggregation tree into Rollup.  Aggregation [test_metric] is of type " +
                 "[StatsAggregationBuilder] which is currently unsupported."));
     }
@@ -178,9 +157,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 .field("foo")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
+        List<AggregationBuilder> translated = translateAggregation(histo, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
@@ -206,20 +184,6 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("test_histo._count"), instanceOf(SumAggregationBuilder.class));
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
-
-        assertThat(filterConditions.size(), equalTo(1));
-
-        for (QueryBuilder q : filterConditions) {
-            if (q instanceof TermQueryBuilder) {
-               if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
-                    assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
-                } else {
-                    fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
-                }
-            } else {
-                fail("Unexpected query builder in filter conditions");
-            }
-        }
     }
 
     public void testDateHistoLongIntervalWithMinMax() {
@@ -228,9 +192,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 .field("foo")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
+        List<AggregationBuilder> translated = translateAggregation(histo, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
@@ -258,20 +221,6 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.date_histogram._count"));
 
-        assertThat(filterConditions.size(), equalTo(1));
-
-        for (QueryBuilder q : filterConditions) {
-            if (q instanceof TermQueryBuilder) {
-                if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
-                    assertThat(((TermQueryBuilder) q).value(), equalTo("UTC"));
-                }  else {
-                    fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
-                }
-            } else {
-                fail("Unexpected query builder in filter conditions");
-            }
-        }
-
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
             "or [calendar_interval] in the future.");
     }
@@ -282,9 +231,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
         histo.interval(86400000)
             .field("foo")
             .timeZone(timeZone);
-        List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
+        List<AggregationBuilder> translated = translateAggregation(histo, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), instanceOf(DateHistogramAggregationBuilder.class));
         DateHistogramAggregationBuilder translatedHisto = (DateHistogramAggregationBuilder)translated.get(0);
@@ -292,25 +240,11 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(translatedHisto.interval(), equalTo(86400000L));
         assertThat(translatedHisto.field(), equalTo("foo.date_histogram.timestamp"));
         assertThat(translatedHisto.timeZone(), equalTo(timeZone));
-        assertThat(filterConditions.size(), equalTo(1));
-
-        for (QueryBuilder q : filterConditions) {
-            if (q instanceof TermQueryBuilder) {
-                if (((TermQueryBuilder) q).fieldName().equals("foo.date_histogram.time_zone")) {
-                    assertThat(((TermQueryBuilder) q).value(), equalTo(timeZone.toString()));
-                }  else {
-                    fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
-                }
-            } else {
-                fail("Unexpected query builder in filter conditions");
-            }
-        }
     }
 
     public void testAvgMetric() {
-        List<QueryBuilder> filterConditions = new ArrayList<>();
         List<AggregationBuilder> translated = translateAggregation(new AvgAggregationBuilder("test_metric")
-                .field("foo"), filterConditions, namedWriteableRegistry);
+                .field("foo"), namedWriteableRegistry);
 
         assertThat(translated.size(), equalTo(2));
         Map<String, AggregationBuilder> metrics = translated.stream()
@@ -323,8 +257,6 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(metrics.get("test_metric._count"), Matchers.instanceOf(SumAggregationBuilder.class));
         assertThat(((SumAggregationBuilder)metrics.get("test_metric._count")).field(),
                 equalTo("foo.avg._count"));
-
-        assertThat(filterConditions.size(), equalTo(0));
     }
 
     public void testStringTerms() throws IOException {
@@ -333,9 +265,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
         terms.field("foo")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        List<AggregationBuilder> translated = translateAggregation(terms, filterConditions, namedWriteableRegistry);
+        List<AggregationBuilder> translated = translateAggregation(terms, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), Matchers.instanceOf(TermsAggregationBuilder.class));
         TermsAggregationBuilder translatedHisto = (TermsAggregationBuilder)translated.get(0);
@@ -360,8 +291,6 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("test_string_terms._count"), Matchers.instanceOf(SumAggregationBuilder.class));
         assertThat(((SumAggregationBuilder)subAggs.get("test_string_terms._count")).field(),
                 equalTo("foo.terms._count"));
-
-        assertThat(filterConditions.size(), equalTo(0));
     }
 
     public void testBasicHisto() {
@@ -372,9 +301,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
                 .extendedBounds(0.0, 1000.0)
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
 
-        List<AggregationBuilder> translated = translateAggregation(histo, filterConditions, namedWriteableRegistry);
+        List<AggregationBuilder> translated = translateAggregation(histo, namedWriteableRegistry);
         assertThat(translated.size(), equalTo(1));
         assertThat(translated.get(0), Matchers.instanceOf(HistogramAggregationBuilder.class));
         HistogramAggregationBuilder translatedHisto = (HistogramAggregationBuilder)translated.get(0);
@@ -399,19 +327,6 @@ public class RollupRequestTranslationTests extends ESTestCase {
         assertThat(subAggs.get("test_histo._count"), Matchers.instanceOf(SumAggregationBuilder.class));
         assertThat(((SumAggregationBuilder)subAggs.get("test_histo._count")).field(),
                 equalTo("foo.histogram._count"));
-
-        assertThat(filterConditions.size(), equalTo(0));
-        for (QueryBuilder q : filterConditions) {
-            if (q instanceof TermQueryBuilder) {
-                switch (((TermQueryBuilder) q).fieldName()) {
-                    default:
-                        fail("Unexpected Term Query in filter conditions: [" + ((TermQueryBuilder) q).fieldName() + "]");
-                        break;
-                }
-            } else {
-                fail("Unexpected query builder in filter conditions");
-            }
-        }
     }
 
     public void testUnsupportedAgg() {
@@ -419,10 +334,9 @@ public class RollupRequestTranslationTests extends ESTestCase {
         geo.field("foo")
                 .subAggregation(new MaxAggregationBuilder("the_max").field("max_field"))
                 .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
-        List<QueryBuilder> filterConditions = new ArrayList<>();
 
         Exception e = expectThrows(RuntimeException.class,
-                () -> translateAggregation(geo, filterConditions, namedWriteableRegistry));
+                () -> translateAggregation(geo, namedWriteableRegistry));
         assertThat(e.getMessage(), equalTo("Unable to translate aggregation tree into Rollup.  Aggregation [test_geo] is of type " +
                 "[GeoDistanceAggregationBuilder] which is currently unsupported."));
     }

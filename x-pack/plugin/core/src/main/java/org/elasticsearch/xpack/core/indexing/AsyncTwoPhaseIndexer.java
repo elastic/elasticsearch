@@ -14,7 +14,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
@@ -150,8 +149,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 // fire off the search. Note this is async, the method will return from here
                 executor.execute(() -> {
                     onStart(now, ActionListener.wrap(r -> {
-                        stats.markStartSearch();
-                        doNextSearch(buildSearchRequest(), ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
+                        nextSearch(ActionListener.wrap(this::onSearchResponse, this::finishWithSearchFailure));
                     }, e -> {
                         finishAndSetState();
                         onFailure(e);
@@ -305,10 +303,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (checkState(getState()) == false) {
                 return;
             }
-            if (searchResponse.getShardFailures().length != 0) {
-                throw new RuntimeException("Shard failures encountered while running indexer for job [" + getJobId() + "]: "
-                        + Arrays.toString(searchResponse.getShardFailures()));
-            }
+
+            // allowPartialSearchResults is set to false, so we should never see shard failures here
+            assert (searchResponse.getShardFailures().length == 0);
 
             stats.incrementNumPages(1);
             IterationResult<JobPosition> iterationResult = doProcess(searchResponse);
@@ -362,16 +359,21 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             // TODO probably something more intelligent than every-50 is needed
             if (stats.getNumPages() > 0 && stats.getNumPages() % 50 == 0) {
                 doSaveState(IndexerState.INDEXING, position, () -> {
-                    stats.markStartSearch();
-                    doNextSearch(buildSearchRequest(), listener);
+                    nextSearch(listener);
                 });
             } else {
-                stats.markStartSearch();
-                doNextSearch(buildSearchRequest(), listener);
+                nextSearch(listener);
             }
         } catch (Exception e) {
             finishWithIndexingFailure(e);
         }
+    }
+
+    private void nextSearch(ActionListener<SearchResponse> listener) {
+        stats.markStartSearch();
+        // ensure that partial results are not accepted and cause a search failure
+        SearchRequest searchRequest = buildSearchRequest().allowPartialSearchResults(false);
+        doNextSearch(searchRequest, listener);
     }
 
     /**

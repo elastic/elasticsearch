@@ -169,18 +169,7 @@ public final class RepositoryData {
         newSnapshotStates.put(snapshotId.getUUID(), snapshotState);
         Map<IndexId, Set<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
         for (final IndexId indexId : snapshottedIndices) {
-            if (allIndexSnapshots.containsKey(indexId)) {
-                Set<SnapshotId> ids = allIndexSnapshots.get(indexId);
-                if (ids == null) {
-                    ids = new LinkedHashSet<>();
-                    allIndexSnapshots.put(indexId, ids);
-                }
-                ids.add(snapshotId);
-            } else {
-                Set<SnapshotId> ids = new LinkedHashSet<>();
-                ids.add(snapshotId);
-                allIndexSnapshots.put(indexId, ids);
-            }
+            allIndexSnapshots.computeIfAbsent(indexId, k -> new LinkedHashSet<>()).add(snapshotId);
         }
         return new RepositoryData(genId, snapshots, newSnapshotStates, allIndexSnapshots, incompatibleSnapshotIds);
     }
@@ -308,7 +297,7 @@ public final class RepositoryData {
      * Writes the snapshots metadata and the related indices metadata to x-content, omitting the
      * incompatible snapshots.
      */
-    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder) throws IOException {
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
@@ -453,18 +442,16 @@ public final class RepositoryData {
     /**
      * Writes the incompatible snapshot ids to x-content.
      */
-    public XContentBuilder incompatibleSnapshotsToXContent(final XContentBuilder builder, final ToXContent.Params params)
-        throws IOException {
+    public void incompatibleSnapshotsToXContent(final XContentBuilder builder) throws IOException {
 
         builder.startObject();
         // write the incompatible snapshots list
         builder.startArray(INCOMPATIBLE_SNAPSHOTS);
         for (final SnapshotId snapshot : getIncompatibleSnapshotIds()) {
-            snapshot.toXContent(builder, params);
+            snapshot.toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         builder.endArray();
         builder.endObject();
-        return builder;
     }
 
     /**

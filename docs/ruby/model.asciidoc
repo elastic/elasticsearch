@@ -1,3 +1,4 @@
+[[activemodel_activerecord]]
 == ActiveModel / ActiveRecord
 
 The `elasticsearch-model` http://rubygems.org/gems/elasticsearch-model[Rubygem]

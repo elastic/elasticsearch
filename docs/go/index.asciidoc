@@ -1,0 +1,70 @@
+= go-elasticsearch
+
+== Overview
+
+An official Go client for Elasticsearch.
+
+Full documentation is hosted at https://github.com/elastic/go-elasticsearch[GitHub]
+and https://godoc.org/github.com/elastic/go-elasticsearch[GoDoc]
+-- this page provides only an overview.
+
+=== Elasticsearch Version Compatibility
+
+The client major versions correspond to the Elasticsearch major versions:
+to connect to Elasticsearch `6.x`, use a `6.x` version of the client,
+to connect to Elasticsearch `7.x`, use a `7.x` version of the client, and so on.
+
+The `master` branch of the client is compatible with the `master` branch of Elasticsearch.
+
+=== Installation
+
+Add the package to your `go.mod` file:
+
+[source,text]
+------------------------------------
+require github.com/elastic/go-elasticsearch/v7 7.x
+------------------------------------
+
+=== Usage
+
+[source,go]
+------------------------------------
+package main
+
+import (
+  "log"
+
+  "github.com/elastic/go-elasticsearch/v7"
+)
+
+func main() {
+  es, _ := elasticsearch.NewDefaultClient()
+  log.Println(es.Info())
+}
+------------------------------------
+
+[NOTE]
+Please have a look at the collection of comprehensive examples in the repository
+at https://github.com/elastic/go-elasticsearch/tree/master/_examples.
+
+== Resources
+
+* https://github.com/elastic/go-elasticsearch[Source Code]
+* https://godoc.org/github.com/elastic/go-elasticsearch[API Documentation]
+* https://github.com/elastic/go-elasticsearch/tree/master/_examples[Examples and Recipes]
+
+== License
+
+Copyright 2019 Elasticsearch
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

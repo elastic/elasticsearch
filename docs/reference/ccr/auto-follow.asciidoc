@@ -3,8 +3,6 @@
 [[ccr-auto-follow]]
 === Automatically following indices
 
-beta[]
-
 In time series use cases where you want to follow new indices that are
 periodically created (such as daily Beats indices), manually configuring follower
 indices for each new leader index can be an operational burden. The auto-follow

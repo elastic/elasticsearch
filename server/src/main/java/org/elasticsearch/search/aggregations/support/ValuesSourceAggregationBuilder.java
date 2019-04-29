@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -146,11 +144,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            timeZone = DateUtils.dateTimeZoneToZoneId(in.readOptionalTimeZone());
-        } else {
-            timeZone = in.readOptionalZoneId();
-        }
+        timeZone = in.readOptionalZoneId();
     }
 
     @Override
@@ -171,11 +165,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalTimeZone(DateUtils.zoneIdToDateTimeZone(timeZone));
-        } else {
-            out.writeOptionalZoneId(timeZone);
-        }
+        out.writeOptionalZoneId(timeZone);
         innerWriteTo(out);
     }
 

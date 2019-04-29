@@ -19,13 +19,11 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryStats;
@@ -235,11 +233,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         scriptStats = in.readOptionalWriteable(ScriptStats::new);
         discoveryStats = in.readOptionalWriteable(DiscoveryStats::new);
         ingestStats = in.readOptionalWriteable(IngestStats::new);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
-        } else {
-            adaptiveSelectionStats = null;
-        }
+        adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
     }
 
     @Override
@@ -263,9 +257,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(scriptStats);
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeOptionalWriteable(adaptiveSelectionStats);
-        }
+        out.writeOptionalWriteable(adaptiveSelectionStats);
     }
 
     @Override

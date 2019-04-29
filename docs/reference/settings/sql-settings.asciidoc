@@ -1,8 +1,8 @@
 [role="xpack"]
 [[sql-settings]]
-===  SQL Access Settings in Elasticsearch
+=== SQL access settings in Elasticsearch
 ++++
-<titleabbrev>SQL Access Settings</titleabbrev>
+<titleabbrev>SQL access settings</titleabbrev>
 ++++
 
 SQL Access is enabled by default. You can configure

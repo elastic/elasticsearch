@@ -95,7 +95,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .get();
 
         // verifying the email password is stored encrypted in the index
-        GetResponse response = client().prepareGet(Watch.INDEX, Watch.DOC_TYPE, "_id").get();
+        GetResponse response = client().prepareGet().setIndex(Watch.INDEX).setId("_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getId(), is("_id"));
         Map<String, Object> source = response.getSource();

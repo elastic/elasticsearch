@@ -344,9 +344,6 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(releasedIndexCompatible, indexCompatible.released);
 
         List<String> unreleasedIndexCompatible = new ArrayList<>(VersionUtils.allUnreleasedVersions().stream()
-                /* Gradle skips the current version because being backwards compatible
-                 * with yourself is implied. Java lists the version because it is useful. */
-                .filter(v -> !Version.CURRENT.equals(v))
                 /* Java lists all versions from the 5.x series onwards, but we only want to consider
                  * ones that we're supposed to be compatible with. */
                 .filter(v -> v.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion()))
@@ -374,9 +371,6 @@ public class VersionUtilsTests extends ESTestCase {
         assertEquals(releasedWireCompatible, wireCompatible.released);
 
         List<String> unreleasedWireCompatible = VersionUtils.allUnreleasedVersions().stream()
-                /* Gradle skips the current version because being backwards compatible
-                 * with yourself is implied. Java lists the version because it is useful. */
-                .filter(v -> !Version.CURRENT.equals(v))
                 .filter(v -> v.onOrAfter(minimumCompatibleVersion))
                 .map(Object::toString)
                 .collect(toList());

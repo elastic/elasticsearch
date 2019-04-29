@@ -12,6 +12,9 @@ class org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime {
 class org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth {
 }
 
+class java.time.OffsetTime {
+}
+
 class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalSqlScriptUtils {
 
 #
@@ -44,8 +47,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   Boolean isNotNull(Object)
 
 #
-# Null
+# Conditional
 #
+  def caseFunction(java.util.List)
   def coalesce(java.util.List)
   def greatest(java.util.List)
   def least(java.util.List)
@@ -64,7 +68,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   def div(Object, Object)
   def mod(Object, Object)
   def mul(Object, Object)
+  Number atan2(Number, Number)
   Number neg(Number)
+  Number power(Number, Number)
   Number round(Number, Number)
   Number truncate(Number, Number)
   
@@ -105,6 +111,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   IntervalDayTime intervalDayTime(String, String)
   IntervalYearMonth intervalYearMonth(String, String)
   ZonedDateTime asDateTime(Object)
+  OffsetTime asTime(String)
 
 #
 # ASCII Functions

@@ -4,7 +4,7 @@
 = SQL access
 
 :sql-tests: {xes-repo-dir}/../../plugin/sql/qa
-:sql-specs: {sql-tests}/src/main/resources
+:sql-specs: {sql-tests}/src/main/resources/
 :jdbc-tests: {sql-tests}/src/main/java/org/elasticsearch/xpack/sql/qa/jdbc
 :security-tests: {sql-tests}/security/src/test/java/org/elasticsearch/xpack/sql/qa/security
 :es-sql: Elasticsearch SQL

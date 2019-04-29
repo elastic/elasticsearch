@@ -20,7 +20,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A step that waits until the index it's used on is no longer a leader index.
@@ -57,8 +59,11 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
             boolean isCurrentlyLeaderIndex = Arrays.stream(indexStats.getShards())
                 .map(ShardStats::getRetentionLeaseStats)
-                .flatMap(retentionLeaseStats -> retentionLeaseStats.retentionLeases().leases().stream())
-                .anyMatch(lease -> CCR_LEASE_KEY.equals(lease.source()));
+                .map(Optional::ofNullable)
+                .map(o -> o.flatMap(stats -> Optional.ofNullable(stats.retentionLeases())))
+                .map(o -> o.flatMap(leases -> Optional.ofNullable(leases.leases())))
+                .map(o -> o.map(Collection::stream))
+                .anyMatch(lease -> lease.isPresent() && lease.get().anyMatch(l -> CCR_LEASE_KEY.equals(l.source())));
 
             if (isCurrentlyLeaderIndex) {
                 listener.onResponse(false, new Info());

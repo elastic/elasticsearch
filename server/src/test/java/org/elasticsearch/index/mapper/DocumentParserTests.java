@@ -79,6 +79,56 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertNotNull(doc.rootDoc().getField(IdFieldMapper.NAME));
     }
 
+    public void testDotsWithFieldDisabled() throws IOException {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo").field("enabled", false).endObject()
+            .endObject().endObject().endObject());
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        {
+            BytesReference bytes = BytesReference.bytes(jsonBuilder()
+                .startObject()
+                .field("foo.bar", 111)
+                .endObject());
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON));
+            assertNull(doc.rootDoc().getField("foo"));
+            assertNull(doc.rootDoc().getField("bar"));
+            assertNull(doc.rootDoc().getField("foo.bar"));
+        }
+        {
+            BytesReference bytes = BytesReference.bytes(jsonBuilder()
+                .startObject()
+                .field("foo.bar", new int[]{1, 2, 3})
+                .endObject());
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON));
+            assertNull(doc.rootDoc().getField("foo"));
+            assertNull(doc.rootDoc().getField("bar"));
+            assertNull(doc.rootDoc().getField("foo.bar"));
+        }
+        {
+            BytesReference bytes = BytesReference.bytes(jsonBuilder()
+                .startObject()
+                .field("foo.bar", Collections.singletonMap("key", "value"))
+                .endObject());
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON));
+            assertNull(doc.rootDoc().getField("foo"));
+            assertNull(doc.rootDoc().getField("bar"));
+            assertNull(doc.rootDoc().getField("foo.bar"));
+        }
+        {
+            BytesReference bytes = BytesReference.bytes(jsonBuilder()
+                .startObject()
+                .field("foo.bar", "string value")
+                .field("blub", 222)
+                .endObject());
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON));
+            assertNull(doc.rootDoc().getField("foo"));
+            assertNull(doc.rootDoc().getField("bar"));
+            assertNull(doc.rootDoc().getField("foo.bar"));
+            assertNotNull(doc.rootDoc().getField("blub"));
+        }
+    }
+
     public void testDotsWithExistingMapper() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")

@@ -592,7 +592,8 @@ public class HttpExporter extends Exporter {
             resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, templateLoader));
         }
 
-        // add old templates, like ".monitoring-data-2" and ".monitoring-es-2" so that other versions can continue to work
+        // Add dummy templates (e.g. ".monitoring-es-6") to enable the ability to check which version of the actual
+        // index template (e.g. ".monitoring-es") should be applied.
         boolean createLegacyTemplates =
                 TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING.getConcreteSettingForNamespace(config.name()).get(config.settings());
         if (createLegacyTemplates) {

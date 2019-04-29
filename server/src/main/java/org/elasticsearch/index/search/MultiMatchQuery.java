@@ -59,6 +59,12 @@ public class MultiMatchQuery extends MatchQuery {
 
     public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
                        Object value, String minimumShouldMatch) throws IOException {
+        boolean hasMappedField = fieldNames.keySet().stream()
+            .anyMatch(k -> context.fieldMapper(k) != null);
+        if (hasMappedField == false) {
+            // all query fields are unmapped
+            return Queries.newUnmappedFieldsQuery(fieldNames.keySet());
+        }
         final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
         final List<Query> queries;
         switch (type) {
@@ -66,6 +72,7 @@ public class MultiMatchQuery extends MatchQuery {
             case PHRASE_PREFIX:
             case BEST_FIELDS:
             case MOST_FIELDS:
+            case BOOL_PREFIX:
                 queries = buildFieldQueries(type, fieldNames, value, minimumShouldMatch);
                 break;
 
@@ -90,7 +97,7 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     private List<Query> buildFieldQueries(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames,
-                                          Object value, String minimumShouldMatch) throws IOException{
+                                          Object value, String minimumShouldMatch) throws IOException {
         List<Query> queries = new ArrayList<>();
         for (String fieldName : fieldNames.keySet()) {
             if (context.fieldMapper(fieldName) == null) {
@@ -179,8 +186,21 @@ public class MultiMatchQuery extends MatchQuery {
         }
 
         @Override
-        public Query newTermQuery(Term term) {
+        protected Query newTermQuery(Term term) {
             return blendTerm(context, term.bytes(), commonTermsCutoff, tieBreaker, lenient, blendedFields);
+        }
+
+        @Override
+        protected Query newPrefixQuery(String field, Term term) {
+            List<Query> disjunctions = new ArrayList<>();
+            for (FieldAndBoost fieldType : blendedFields) {
+                Query query = fieldType.fieldType.prefixQuery(term.text(), null, context);
+                if (fieldType.boost != 1f) {
+                    query = new BoostQuery(query, fieldType.boost);
+                }
+                disjunctions.add(query);
+            }
+            return new DisjunctionMaxQuery(disjunctions, tieBreaker);
         }
 
         @Override

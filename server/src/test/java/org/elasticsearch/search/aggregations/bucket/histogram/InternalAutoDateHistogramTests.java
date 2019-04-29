@@ -110,6 +110,13 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39497")
+    // TODO: When resolving the above AwaitsFix, just delete this override. Method is only overriden to apply the annotation.
+    public void testReduceRandom() {
+        super.testReduceRandom();
+    }
+
+    @Override
     protected void assertReduced(InternalAutoDateHistogram reduced, List<InternalAutoDateHistogram> inputs) {
 
         long lowest = Long.MAX_VALUE;

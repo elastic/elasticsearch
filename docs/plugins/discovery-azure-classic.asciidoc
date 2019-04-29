@@ -4,9 +4,7 @@
 The Azure Classic Discovery plugin uses the Azure Classic API to identify the
 addresses of seed hosts.
 
-// TODO: Link to ARM plugin when ready
-// See issue https://github.com/elastic/elasticsearch/issues/19146
-deprecated[5.0.0, Use coming Azure ARM Discovery plugin instead]
+deprecated[5.0.0, This plugin will be removed in the future]
 
 :plugin_name: discovery-azure-classic
 include::install_remove.asciidoc[]

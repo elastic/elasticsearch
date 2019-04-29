@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -23,7 +25,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 public class TooManyJobsIT extends BaseMlIntegTestCase {
@@ -66,10 +67,10 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         int maxNumberOfJobsPerNode = 1;
         int maxNumberOfLazyNodes = 2;
         internalCluster().ensureAtMostNumDataNodes(0);
-        logger.info("[{}] is [{}]", AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode);
+        logger.info("[{}] is [{}]", MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode);
         for (int i = 0; i < numNodes; i++) {
             internalCluster().startNode(Settings.builder()
-                .put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+                .put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);
@@ -111,7 +112,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
 
         // Add another Node so we can get allocated
         internalCluster().startNode(Settings.builder()
-            .put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+            .put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
         ensureStableCluster(numNodes+1);
 
         // We should automatically get allocated and opened to new node
@@ -124,15 +125,15 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
     }
 
     public void testSingleNode() throws Exception {
-        verifyMaxNumberOfJobsLimit(1, randomIntBetween(1, 20));
+        verifyMaxNumberOfJobsLimit(1, randomIntBetween(1, 20), randomBoolean());
     }
 
     public void testMultipleNodes() throws Exception {
-        verifyMaxNumberOfJobsLimit(3, randomIntBetween(1, 20));
+        verifyMaxNumberOfJobsLimit(3, randomIntBetween(1, 20), randomBoolean());
     }
 
-    private void verifyMaxNumberOfJobsLimit(int numNodes, int maxNumberOfJobsPerNode) throws Exception {
-        startMlCluster(numNodes, maxNumberOfJobsPerNode);
+    private void verifyMaxNumberOfJobsLimit(int numNodes, int maxNumberOfJobsPerNode, boolean testDynamicChange) throws Exception {
+        startMlCluster(numNodes, testDynamicChange ? 1 : maxNumberOfJobsPerNode);
         long maxMlMemoryPerNode = calculateMaxMlMemory();
         ByteSizeValue jobModelMemoryLimit = new ByteSizeValue(2, ByteSizeUnit.MB);
         long memoryFootprintPerJob = jobModelMemoryLimit.getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
@@ -140,6 +141,11 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         int clusterWideMaxNumberOfJobs = numNodes * maxNumberOfJobsPerNode;
         boolean expectMemoryLimitBeforeCountLimit = maxJobsPerNodeDueToMemoryLimit < maxNumberOfJobsPerNode;
         for (int i = 1; i <= (clusterWideMaxNumberOfJobs + 1); i++) {
+            if (i == 2 && testDynamicChange) {
+                ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest().transientSettings(
+                        Settings.builder().put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode).build());
+                client().execute(ClusterUpdateSettingsAction.INSTANCE, clusterUpdateSettingsRequest).actionGet();
+            }
             Job.Builder job = createJob("max-number-of-jobs-limit-job-" + Integer.toString(i), jobModelMemoryLimit);
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             client().execute(PutJobAction.INSTANCE, putJobRequest).get();
@@ -192,13 +198,13 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         fail("shouldn't be able to add more than [" + clusterWideMaxNumberOfJobs + "] jobs");
     }
 
-    private void startMlCluster(int numNodes, int maxNumberOfJobsPerNode) throws Exception {
+    private void startMlCluster(int numNodes, int maxNumberOfWorkersPerNode) throws Exception {
         // clear all nodes, so that we can set xpack.ml.max_open_jobs setting:
         internalCluster().ensureAtMostNumDataNodes(0);
-        logger.info("[{}] is [{}]", AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode);
+        logger.info("[{}] is [{}]", MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfWorkersPerNode);
         for (int i = 0; i < numNodes; i++) {
             internalCluster().startNode(Settings.builder()
-                    .put(AutodetectProcessManager.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfJobsPerNode));
+                    .put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), maxNumberOfWorkersPerNode));
         }
         logger.info("Started [{}] nodes", numNodes);
         ensureStableCluster(numNodes);

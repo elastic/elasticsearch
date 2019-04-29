@@ -54,9 +54,9 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * shard id gets resolved by the transport action before performing request operation
      * and at request creation time for shard-level bulk, refresh and flush requests.
      */
-    protected ShardId shardId;
+    protected final ShardId shardId;
 
-    protected TimeValue timeout = DEFAULT_TIMEOUT;
+    protected TimeValue timeout;
     protected String index;
 
     /**
@@ -66,16 +66,26 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     private long routedBasedOnClusterVersion = 0;
 
-    public ReplicationRequest() {
-
+    public ReplicationRequest(StreamInput in) throws IOException {
+        super(in);
+        if (in.readBoolean()) {
+            shardId = ShardId.readShardId(in);
+        } else {
+            shardId = null;
+        }
+        waitForActiveShards = ActiveShardCount.readFrom(in);
+        timeout = in.readTimeValue();
+        index = in.readString();
+        routedBasedOnClusterVersion = in.readVLong();
     }
 
     /**
      * Creates a new request with resolved shard id
      */
-    public ReplicationRequest(ShardId shardId) {
-        this.index = shardId.getIndexName();
+    public ReplicationRequest(@Nullable ShardId shardId) {
+        this.index = shardId == null ? null : shardId.getIndexName();
         this.shardId = shardId;
+        this.timeout = DEFAULT_TIMEOUT;
     }
 
     /**
@@ -179,27 +189,13 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        if (in.readBoolean()) {
-            shardId = ShardId.readShardId(in);
-        } else {
-            shardId = null;
-        }
-        waitForActiveShards = ActiveShardCount.readFrom(in);
-        timeout = in.readTimeValue();
-        index = in.readString();
-        routedBasedOnClusterVersion = in.readVLong();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (shardId != null) {
-            out.writeBoolean(true);
-            shardId.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalWriteable(shardId);
         waitForActiveShards.writeTo(out);
         out.writeTimeValue(timeout);
         out.writeString(index);
@@ -209,16 +205,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new ReplicationTask(id, type, action, getDescription(), parentTaskId, headers);
-    }
-
-    /**
-     * Sets the target shard id for the request. The shard id is set when a
-     * index/delete request is resolved by the transport action
-     */
-    @SuppressWarnings("unchecked")
-    public Request setShardId(ShardId shardId) {
-        this.shardId = shardId;
-        return (Request) this;
     }
 
     @Override

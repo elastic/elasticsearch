@@ -1,0 +1,103 @@
+--
+:api: put-data-frame-transform
+:request: PutDataFrameTransformRequest
+:response: AcknowledgedResponse
+--
+[id="{upid}-{api}"]
+=== Put Data Frame Transform API
+
+The Put Data Frame Transform API is used to create a new {dataframe-transform}.
+
+The API accepts a +{request}+ object as a request and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Put Data Frame Request
+
+A +{request}+ requires the following argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The configuration of the {dataframe-job} to create
+
+[id="{upid}-{api}-config"]
+==== Data Frame Transform Configuration
+
+The `DataFrameTransformConfig` object contains all the details about the {dataframe-transform}
+configuration and contains the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-config]
+--------------------------------------------------
+<1> The {dataframe-transform} ID
+<2> The source indices and query from which to gather data
+<3> The destination index
+<4> The PivotConfig
+<5> Optional free text description of the transform
+
+[id="{upid}-{api}-query-config"]
+
+==== SourceConfig
+
+The indices and the query from which to collect data.
+If query is not set, a `match_all` query is used by default.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-source-config]
+--------------------------------------------------
+
+===== QueryConfig
+
+The query with which to select data from the source.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-query-config]
+--------------------------------------------------
+
+==== PivotConfig
+
+Defines the pivot function `group by` fields and the aggregation to reduce the data.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-pivot-config]
+--------------------------------------------------
+
+===== GroupConfig
+The grouping terms. Defines the group by and destination fields
+which are produced by the pivot function. There are 3 types of
+groups
+
+* Terms
+* Histogram
+* Date Histogram
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-group-config]
+--------------------------------------------------
+<1> The destination field
+<2> Group by values of the `user_id` field
+
+===== AggregationConfig
+
+Defines the aggregations for the group fields.
+// TODO link to the supported aggregations
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-agg-config]
+--------------------------------------------------
+<1> Aggregate the average star rating
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ acknowledges the successful creation of
+the new {dataframe-transform} or an error if the configuration is invalid.

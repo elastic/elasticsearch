@@ -31,7 +31,7 @@ public class DatabaseFunctionTests extends ESTestCase {
                 new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
                                   Protocol.PAGE_TIMEOUT, null, 
                                   randomFrom(Mode.values()), randomAlphaOfLength(10),
-                                  null, clusterName),
+                                  null, clusterName, randomBoolean()),
                 new FunctionRegistry(),
                 IndexResolution.valid(test),
                 new Verifier(new Metrics())

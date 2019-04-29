@@ -68,6 +68,10 @@ There are a few restrictions on the target of an alias:
 Additionally, a field alias can only have one target. This means that it is not possible to use a
 field alias to query over multiple target fields in a single clause.
 
+An alias can be changed to refer to a new target through a mappings update. A known limitation is that
+if any stored percolator queries contain the field alias, they will still refer to its original target.
+More information can be found in the <<percolator, percolator documentation>>.
+
 [[unsupported-apis]]
 ==== Unsupported APIs
 

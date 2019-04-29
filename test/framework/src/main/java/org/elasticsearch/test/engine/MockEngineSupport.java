@@ -24,9 +24,14 @@ import org.apache.lucene.index.AssertingDirectoryReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.AssertingIndexSearcher;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.XIndexSearcher;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Setting;
@@ -42,6 +47,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -145,8 +151,19 @@ public final class MockEngineSupport {
         if (reader instanceof DirectoryReader && mockContext.wrapReader) {
             wrappedReader = wrapReader((DirectoryReader) reader);
         }
+        final IndexSearcher delegate = new IndexSearcher(wrappedReader);
+        delegate.setSimilarity(searcher.searcher().getSimilarity());
+        delegate.setQueryCache(filterCache);
+        delegate.setQueryCachingPolicy(filterCachingPolicy);
+        final XIndexSearcher wrappedSearcher = new XIndexSearcher(delegate);
         // this executes basic query checks and asserts that weights are normalized only once etc.
-        final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader);
+        final AssertingIndexSearcher assertingIndexSearcher = new AssertingIndexSearcher(mockContext.random, wrappedReader) {
+            @Override
+            protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+                // we cannot use the asserting searcher because the weight is created by the ContextIndexSearcher
+                wrappedSearcher.search(leaves, weight, collector);
+            }
+        };
         assertingIndexSearcher.setSimilarity(searcher.searcher().getSimilarity());
         assertingIndexSearcher.setQueryCache(filterCache);
         assertingIndexSearcher.setQueryCachingPolicy(filterCachingPolicy);

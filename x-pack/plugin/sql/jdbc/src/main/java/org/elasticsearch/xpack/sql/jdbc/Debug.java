@@ -91,11 +91,11 @@ final class Debug {
     static Statement proxy(Object statement, StatementProxy handler) {
         Class<? extends Statement> i = Statement.class;
 
-        if (statement instanceof PreparedStatement) {
-            i = PreparedStatement.class;
-        }
-        else if (statement instanceof CallableStatement) {
+        if (statement instanceof CallableStatement) {
             i = CallableStatement.class;
+        }
+        else if (statement instanceof PreparedStatement) {
+            i = PreparedStatement.class;
         }
 
         return createProxy(i, handler);

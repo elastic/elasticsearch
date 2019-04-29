@@ -46,7 +46,7 @@ For example, the path `"my_bucket>my_stats.avg"` will path to the `avg` value in
 contained in the `"my_bucket"` bucket aggregation.
 
 Paths are relative from the position of the pipeline aggregation; they are not absolute paths, and the path cannot go back "up" the
-aggregation tree. For example, this moving average is embedded inside a date_histogram and refers to a "sibling"
+aggregation tree. For example, this derivative is embedded inside a date_histogram and refers to a "sibling"
 metric `"the_sum"`:
 
 [source,js]
@@ -63,8 +63,8 @@ POST /_search
                 "the_sum":{
                     "sum":{ "field": "lemmings" } <1>
                 },
-                "the_movavg":{
-                    "moving_avg":{ "buckets_path": "the_sum" } <2>
+                "the_deriv":{
+                    "derivative":{ "buckets_path": "the_sum" } <2>
                 }
             }
         }
@@ -72,7 +72,6 @@ POST /_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
 <1> The metric is called `"the_sum"`
 <2> The `buckets_path` refers to the metric via a relative path `"the_sum"`
 
@@ -115,7 +114,8 @@ POST /_search
 === Special Paths
 
 Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path.  This instructs
-the pipeline aggregation to use the document count as its input.  For example, a moving average can be calculated on the document count of each bucket, instead of a specific metric:
+the pipeline aggregation to use the document count as its input.  For example, a derivative can be calculated
+on the document count of each bucket, instead of a specific metric:
 
 [source,js]
 --------------------------------------------------
@@ -128,8 +128,8 @@ POST /_search
                 "interval":"day"
             },
             "aggs": {
-                "the_movavg": {
-                    "moving_avg": { "buckets_path": "_count" } <1>
+                "the_deriv": {
+                    "derivative": { "buckets_path": "_count" } <1>
                 }
             }
         }
@@ -137,8 +137,7 @@ POST /_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.]
-<1> By using `_count` instead of a metric name, we can calculate the moving average of document counts in the histogram
+<1> By using `_count` instead of a metric name, we can calculate the derivative of document counts in the histogram
 
 The `buckets_path` can also use `"_bucket_count"` and path to a multi-bucket aggregation to use the number of buckets
 returned by that aggregation in the pipeline aggregation instead of a metric. for example a `bucket_selector` can be

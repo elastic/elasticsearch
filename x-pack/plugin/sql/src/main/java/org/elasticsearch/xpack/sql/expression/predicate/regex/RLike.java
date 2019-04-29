@@ -6,29 +6,35 @@
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
 import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
-public class RLike extends RegexMatch {
+public class RLike extends RegexMatch<String> {
 
-    private final String pattern;
-
-    public RLike(Source source, Expression left, String pattern) {
-        super(source, left, pattern);
-        this.pattern = pattern;
-    }
-
-    public String pattern() {
-        return pattern;
+    public RLike(Source source, Expression value, String pattern) {
+        super(source, value, pattern);
     }
 
     @Override
     protected NodeInfo<RLike> info() {
-        return NodeInfo.create(this, RLike::new, field(), pattern);
+        return NodeInfo.create(this, RLike::new, field(), pattern());
     }
 
     @Override
     protected RLike replaceChild(Expression newChild) {
-        return new RLike(source(), newChild, pattern);
+        return new RLike(source(), newChild, pattern());
+    }
+    
+    @Override
+    public Boolean fold() {
+        Object val = field().fold();
+        return RegexOperation.match(val, pattern());
+    }
+
+    @Override
+    protected Processor makeProcessor() {
+        return new RegexProcessor(pattern());
     }
 }

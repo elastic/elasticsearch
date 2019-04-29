@@ -271,28 +271,6 @@ POST test/_doc/1?pipeline=drop_guests_network
 // CONSOLE
 // TEST[continued]
 
-////
-Hidden example assertion:
-[source,js]
---------------------------------------------------
-GET test/_doc/1
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-// TEST[catch:missing]
-
-[source,js]
---------------------------------------------------
-{
-  "_index": "test",
-  "_type": "_doc",
-  "_id": "1",
-  "found": false
-}
---------------------------------------------------
-// TESTRESPONSE
-////
-
 Thanks to the `?.` operator the following document will not throw an error.
 If the pipeline used a `.` the following document would throw a NullPointerException
 since the `network` object is not part of the source document.
@@ -392,28 +370,6 @@ POST test/_doc/3?pipeline=drop_guests_network
 // CONSOLE
 // TEST[continued]
 
-////
-Hidden example assertion:
-[source,js]
---------------------------------------------------
-GET test/_doc/3
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-// TEST[catch:missing]
-
-[source,js]
---------------------------------------------------
-{
-  "_index": "test",
-  "_type": "_doc",
-  "_id": "3",
-  "found": false
-}
---------------------------------------------------
-// TESTRESPONSE
-////
-
 The `?.` operators works well for use in the `if` conditional
 because the {painless}/painless-operators-reference.html#null-safe-operator[null safe operator]
 returns null if the object is null and `==` is null safe (as well as many other
@@ -510,28 +466,6 @@ POST test/_doc/1?pipeline=not_prod_dropper
 
 The document is <<drop-processor,dropped>> since `prod` (case insensitive)
 is not found in the tags.
-
-////
-Hidden example assertion:
-[source,js]
---------------------------------------------------
-GET test/_doc/1
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-// TEST[catch:missing]
-
-[source,js]
---------------------------------------------------
-{
-  "_index": "test",
-  "_type": "_doc",
-  "_id": "1",
-  "found": false
-}
---------------------------------------------------
-// TESTRESPONSE
-////
 
 The following document is indexed (i.e. not dropped) since
 `prod` (case insensitive) is found in the tags.

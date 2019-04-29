@@ -26,7 +26,7 @@ value.
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[database]
+include-tagged::{sql-specs}/docs/docs.csv-spec[database]
 --------------------------------------------------
 
 [[sql-functions-system-user]]
@@ -48,5 +48,5 @@ return `null` in case {stack-ov}/elasticsearch-security.html[Security] is disabl
 
 ["source","sql",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{sql-specs}/docs.csv-spec[user]
+include-tagged::{sql-specs}/docs/docs.csv-spec[user]
 --------------------------------------------------

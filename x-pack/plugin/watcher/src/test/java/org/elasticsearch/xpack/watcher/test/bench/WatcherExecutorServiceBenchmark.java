@@ -74,7 +74,7 @@ public class WatcherExecutorServiceBenchmark {
         public static void main(String[] args) throws Exception {
             start();
             client.admin().indices().prepareCreate("test").get();
-            client.prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
+            client.prepareIndex().setIndex("test").setId("1").setSource("{}", XContentType.JSON).get();
 
             int numAlerts = 1000;
             for (int i = 0; i < numAlerts; i++) {
@@ -129,7 +129,7 @@ public class WatcherExecutorServiceBenchmark {
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
                                 .extractKeys("hits.total.value"))
                         .condition(new ScriptCondition(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 == 1", emptyMap())))
-                        .addAction("_id", indexAction("index", "type")).buildAsBytes(XContentType.JSON), XContentType.JSON);
+                        .addAction("_id", indexAction("index")).buildAsBytes(XContentType.JSON), XContentType.JSON);
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
             }

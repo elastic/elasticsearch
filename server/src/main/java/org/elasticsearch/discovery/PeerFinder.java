@@ -287,7 +287,7 @@ public abstract class PeerFinder {
         return peersRemoved;
     }
 
-    private void startProbe(TransportAddress transportAddress) {
+    protected void startProbe(TransportAddress transportAddress) {
         assert holdsLock() : "PeerFinder mutex not held";
         if (active == false) {
             logger.trace("startProbe({}) not running", transportAddress);

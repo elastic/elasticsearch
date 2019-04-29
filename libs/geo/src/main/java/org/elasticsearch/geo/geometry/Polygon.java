@@ -30,10 +30,12 @@ public final class Polygon implements Geometry {
     public static final Polygon EMPTY = new Polygon();
     private final LinearRing polygon;
     private final List<LinearRing> holes;
+    private final boolean hasAlt;
 
     private Polygon() {
         polygon = LinearRing.EMPTY;
         holes = Collections.emptyList();
+        hasAlt = false;
     }
 
     /**
@@ -45,10 +47,15 @@ public final class Polygon implements Geometry {
         if (holes == null) {
             throw new IllegalArgumentException("holes must not be null");
         }
+        boolean hasAlt = polygon.hasAlt();
         checkRing(polygon);
         for (LinearRing hole : holes) {
+            if (hole.hasAlt() != hasAlt) {
+                throw new IllegalArgumentException("holes must have the same number of dimensions as the polygon");
+            }
             checkRing(hole);
         }
+        this.hasAlt = hasAlt;
     }
 
     /**
@@ -85,7 +92,7 @@ public final class Polygon implements Geometry {
     }
 
     @Override
-    public <T> T visit(GeometryVisitor<T> visitor) {
+    public <T, E extends Exception> T visit(GeometryVisitor<T, E> visitor) throws E {
         return visitor.visit(this);
     }
 
@@ -94,6 +101,10 @@ public final class Polygon implements Geometry {
         return polygon.isEmpty();
     }
 
+    @Override
+    public boolean hasAlt() {
+        return hasAlt;
+    }
 
     @Override
     public String toString() {

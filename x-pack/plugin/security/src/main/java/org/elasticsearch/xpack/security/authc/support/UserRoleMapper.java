@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
@@ -62,10 +63,12 @@ public interface UserRoleMapper {
                         Map<String, Object> metadata, RealmConfig realm) {
             this.username = username;
             this.dn = dn;
+            // noinspection Java9CollectionFactory (because null values happen in some tests, is this realistic?)
             this.groups = groups == null || groups.isEmpty()
                     ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(groups));
+            // noinspection Java9CollectionFactory (because null values happen in production code, can such keys be dropped?)
             this.metadata = metadata == null || metadata.isEmpty()
-                    ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+                    ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(metadata));
             this.realm = realm;
         }
 
@@ -79,8 +82,12 @@ public interface UserRoleMapper {
         public ExpressionModel asModel() {
             final ExpressionModel model = new ExpressionModel();
             model.defineField("username", username);
-            model.defineField("dn", dn, new DistinguishedNamePredicate(dn));
+            if (dn != null) {
+                // null dn fields get the default NULL_PREDICATE
+                model.defineField("dn", dn, new DistinguishedNamePredicate(dn));
+            }
             model.defineField("groups", groups, groups.stream()
+                    .filter(group -> group != null)
                     .<Predicate<FieldExpression.FieldValue>>map(DistinguishedNamePredicate::new)
                     .reduce(Predicate::or)
                     .orElse(fieldValue -> false)
@@ -165,22 +172,19 @@ public interface UserRoleMapper {
         private final DN dn;
 
         public DistinguishedNamePredicate(String string) {
+            assert string != null : "DN string should not be null. Use the dedicated NULL_PREDICATE for every user null field.";
             this.string = string;
             this.dn = parseDn(string);
         }
 
         private static DN parseDn(String string) {
-            if (string == null) {
-                return null;
-            } else {
-                try {
-                    return new DN(string);
-                } catch (LDAPException | LDAPSDKUsageException e) {
-                    if (LOGGER.isTraceEnabled()) {
-                        LOGGER.trace(new ParameterizedMessage("failed to parse [{}] as a DN", string), e);
-                    }
-                    return null;
+            try {
+                return new DN(string);
+            } catch (LDAPException | LDAPSDKUsageException e) {
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace(new ParameterizedMessage("failed to parse [{}] as a DN", string), e);
                 }
+                return null;
             }
         }
 
@@ -240,7 +244,7 @@ public interface UserRoleMapper {
                 }
                 return testString.equalsIgnoreCase(dn.toNormalizedString());
             }
-            return string == null && fieldValue.getValue() == null;
+            return false;
         }
     }
 }

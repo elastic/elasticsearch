@@ -75,7 +75,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                 listener.onFailure(new ElasticsearchStatusException("watch[{}] is running currently, cannot ack until finished",
                     RestStatus.CONFLICT, request.getWatchId()));
             } else {
-                GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
+                GetRequest getRequest = new GetRequest(Watch.INDEX, request.getWatchId())
                     .preference(Preference.LOCAL.type()).realtime(true);
 
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
@@ -99,7 +99,7 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
                                 return;
                             }
 
-                            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId());
+                            UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, request.getWatchId());
                             // this may reject this action, but prevents concurrent updates from a watch execution
                             updateRequest.setIfSeqNo(getResponse.getSeqNo());
                             updateRequest.setIfPrimaryTerm(getResponse.getPrimaryTerm());

@@ -36,7 +36,7 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
     protected static final Recycler.C<byte[]> RECYCLER_C = new AbstractRecyclerC<byte[]>() {
 
         @Override
-        public byte[] newInstance(int sizing) {
+        public byte[] newInstance() {
             byte[] value = new byte[10];
             // "fresh" is intentionally not 0 to ensure we covered this code path
             Arrays.fill(value, FRESH);

@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
@@ -78,6 +79,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final Auditor auditor;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportStartDatafeedAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -85,7 +87,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                         PersistentTasksService persistentTasksService,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         Client client, JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
-                                        Auditor auditor) {
+                                        Auditor auditor, NamedXContentRegistry xContentRegistry) {
         super(StartDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 StartDatafeedAction.Request::new);
         this.licenseState = licenseState;
@@ -95,11 +97,15 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.auditor = auditor;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        this.xContentRegistry = xContentRegistry;
     }
 
-    static void validate(Job job, DatafeedConfig datafeedConfig, PersistentTasksCustomMetaData tasks) {
-        DatafeedJobValidator.validate(datafeedConfig, job);
-        DatafeedConfig.validateAggregations(datafeedConfig.getParsedAggregations());
+    static void validate(Job job,
+                         DatafeedConfig datafeedConfig,
+                         PersistentTasksCustomMetaData tasks,
+                         NamedXContentRegistry xContentRegistry) {
+        DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
+        DatafeedConfig.validateAggregations(datafeedConfig.getParsedAggregations(xContentRegistry));
         JobState jobState = MlTasks.getJobState(datafeedConfig.getJobId(), tasks);
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
             throw ExceptionsHelper.conflictStatusException("cannot start datafeed [" + datafeedConfig.getId() +
@@ -108,10 +114,10 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     //Get the deprecation warnings from the parsed query and aggs to audit
-    static void auditDeprecations(DatafeedConfig datafeed, Job job, Auditor auditor) {
+    static void auditDeprecations(DatafeedConfig datafeed, Job job, Auditor auditor, NamedXContentRegistry xContentRegistry) {
         List<String> deprecationWarnings = new ArrayList<>();
-        deprecationWarnings.addAll(datafeed.getAggDeprecations());
-        deprecationWarnings.addAll(datafeed.getQueryDeprecations());
+        deprecationWarnings.addAll(datafeed.getAggDeprecations(xContentRegistry));
+        deprecationWarnings.addAll(datafeed.getQueryDeprecations(xContentRegistry));
         if (deprecationWarnings.isEmpty() == false) {
             String msg = "datafeed [" + datafeed.getId() +"] configuration has deprecations. [" +
                 Strings.collectionToDelimitedString(deprecationWarnings, ", ") + "]";
@@ -200,8 +206,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 jobBuilder -> {
                     try {
                         Job job = jobBuilder.build();
-                        validate(job, datafeedConfigHolder.get(), tasks);
-                        auditDeprecations(datafeedConfigHolder.get(), job, auditor);
+                        validate(job, datafeedConfigHolder.get(), tasks, xContentRegistry);
+                        auditDeprecations(datafeedConfigHolder.get(), job, auditor, xContentRegistry);
                         createDataExtrator.accept(job);
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -231,7 +237,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private void createDataExtractor(Job job, DatafeedConfig datafeed, StartDatafeedAction.DatafeedParams params,
                                      ActionListener<PersistentTasksCustomMetaData.PersistentTask<StartDatafeedAction.DatafeedParams>>
                                              listener) {
-        DataExtractorFactory.create(client, datafeed, job, ActionListener.wrap(
+        DataExtractorFactory.create(client, datafeed, job, xContentRegistry, ActionListener.wrap(
                 dataExtractorFactory ->
                         persistentTasksService.sendStartRequest(MlTasks.datafeedTaskId(params.getDatafeedId()),
                                 MlTasks.DATAFEED_TASK_NAME, params, listener)

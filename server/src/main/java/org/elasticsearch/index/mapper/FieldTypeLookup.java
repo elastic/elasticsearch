@@ -22,11 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -70,8 +68,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             MappedFieldType fieldType = fieldMapper.fieldType();
             MappedFieldType fullNameFieldType = fullName.get(fieldType.name());
 
-            if (!Objects.equals(fieldType, fullNameFieldType)) {
-                validateField(fullNameFieldType, fieldType, aliases);
+            if (Objects.equals(fieldType, fullNameFieldType) == false) {
                 fullName = fullName.copyAndPut(fieldType.name(), fieldType);
             }
         }
@@ -80,65 +77,15 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
 
-            validateAlias(aliasName, path, aliases, fullName);
-            aliases = aliases.copyAndPut(aliasName, path);
+            String existingPath = aliases.get(aliasName);
+            if (Objects.equals(path, existingPath) == false) {
+                aliases = aliases.copyAndPut(aliasName, path);
+            }
         }
 
         return new FieldTypeLookup(fullName, aliases);
     }
 
-    /**
-     * Checks that the new field type is valid.
-     */
-    private void validateField(MappedFieldType existingFieldType,
-                               MappedFieldType newFieldType,
-                               CopyOnWriteHashMap<String, String> aliasToConcreteName) {
-        String fieldName = newFieldType.name();
-        if (aliasToConcreteName.containsKey(fieldName)) {
-            throw new IllegalArgumentException("The name for field [" + fieldName + "] has already" +
-                " been used to define a field alias.");
-        }
-
-        if (existingFieldType != null) {
-            List<String> conflicts = new ArrayList<>();
-            existingFieldType.checkCompatibility(newFieldType, conflicts);
-            if (conflicts.isEmpty() == false) {
-                throw new IllegalArgumentException("Mapper for [" + fieldName +
-                    "] conflicts with existing mapping:\n" + conflicts.toString());
-            }
-        }
-    }
-
-    /**
-     * Checks that the new field alias is valid.
-     *
-     * Note that this method assumes that new concrete fields have already been processed, so that it
-     * can verify that an alias refers to an existing concrete field.
-     */
-    private void validateAlias(String aliasName,
-                               String path,
-                               CopyOnWriteHashMap<String, String> aliasToConcreteName,
-                               CopyOnWriteHashMap<String, MappedFieldType> fullNameToFieldType) {
-        if (fullNameToFieldType.containsKey(aliasName)) {
-            throw new IllegalArgumentException("The name for field alias [" + aliasName + "] has already" +
-                " been used to define a concrete field.");
-        }
-
-        if (path.equals(aliasName)) {
-            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
-                aliasName + "]: an alias cannot refer to itself.");
-        }
-
-        if (aliasToConcreteName.containsKey(path)) {
-            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
-                aliasName + "]: an alias cannot refer to another alias.");
-        }
-
-        if (!fullNameToFieldType.containsKey(path)) {
-            throw new IllegalArgumentException("Invalid [path] value [" + path + "] for field alias [" +
-                aliasName + "]: an alias must refer to an existing field in the mappings.");
-        }
-    }
 
     /** Returns the field for the given field */
     public MappedFieldType get(String field) {

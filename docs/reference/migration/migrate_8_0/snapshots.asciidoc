@@ -1,0 +1,30 @@
+[float]
+[[breaking_80_snapshots_changes]]
+=== Snapshot and Restore changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+==== Deprecated node level compress setting removed
+
+For shared file system repositories (`"type": "fs"`), the node level setting `repositories.fs.compress` could
+previously be used to enable compression for all shared file system repositories where `compress` was not specified.
+The `repositories.fs.compress` setting has been removed.
+
+Instead use the repository specific `compress` setting to enable compression. See <<modules-snapshots>> for information
+on the `compress` setting.
+
+[float]
+==== Compression of meta data files is now on by default
+
+Previously, the default value for `compress` was `false`. The default has been changed to `true`.
+
+This change will affect both newly created repositories and existing repositories where `compress=false` has not been
+explicitly specified.
+
+For more information on the compress option, see <<modules-snapshots>>

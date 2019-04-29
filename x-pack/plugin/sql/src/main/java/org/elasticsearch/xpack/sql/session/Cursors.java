@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.sql.execution.search.ScrollCursor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractors;
 import org.elasticsearch.xpack.sql.execution.search.extractor.HitExtractors;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
-import org.elasticsearch.xpack.sql.expression.literal.Intervals;
+import org.elasticsearch.xpack.sql.expression.literal.Literals;
 import org.elasticsearch.xpack.sql.plugin.TextFormatterCursor;
 
 import java.io.ByteArrayOutputStream;
@@ -57,7 +57,7 @@ public final class Cursors {
         entries.addAll(BucketExtractors.getNamedWriteables());
 
         // and custom types
-        entries.addAll(Intervals.getNamedWriteables());
+        entries.addAll(Literals.getNamedWriteables());
 
         return entries;
     }
@@ -76,7 +76,7 @@ public final class Cursors {
             }
             return os.toString(StandardCharsets.UTF_8.name());
         } catch (Exception ex) {
-            throw new SqlIllegalArgumentException("Unexpected failure retriving next page", ex);
+            throw new SqlIllegalArgumentException("Unexpected failure retrieving next page", ex);
         }
     }
 

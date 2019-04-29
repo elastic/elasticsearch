@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -49,11 +48,6 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
     @Override
     public Result evaluate(Stats stats) {
         return new Result(this, stats.indexSize.getBytes() >= value.getBytes());
-    }
-
-    @Override
-    boolean includedInVersion(Version version) {
-        return version.onOrAfter(Version.V_6_1_0);
     }
 
     @Override

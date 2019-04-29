@@ -84,7 +84,8 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                     choice.equals(GEO_POINT_ALIAS_FIELD_NAME) ||
                     choice.equals(GEO_SHAPE_FIELD_NAME) ||
                     choice.equals(INT_RANGE_FIELD_NAME) ||
-                    choice.equals(DATE_RANGE_FIELD_NAME),
+                    choice.equals(DATE_RANGE_FIELD_NAME) ||
+                    choice.equals(DATE_NANOS_FIELD_NAME), // TODO: needs testing for date_nanos type
                 () -> getRandomFieldName());
             Object[] values = new Object[randomInt(5)];
             for (int i = 0; i < values.length; i++) {

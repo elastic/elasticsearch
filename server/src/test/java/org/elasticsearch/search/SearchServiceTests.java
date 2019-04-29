@@ -19,6 +19,7 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -197,7 +198,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testCloseSearchContextOnRewriteException() {
-        createIndex("index");
+        // if refresh happens while checking the exception, the subsequent reference count might not match, so we switch it off
+        createIndex("index", Settings.builder().put("index.refresh_interval", -1).build());
         client().prepareIndex("index", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
 
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -650,16 +652,17 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         searchRequest.allowPartialSearchResults(randomBoolean());
         ShardSearchTransportRequest request = new ShardSearchTransportRequest(OriginalIndices.NONE, searchRequest, shardId,
             indexService.numberOfShards(), AliasFilter.EMPTY, 1f, nowInMillis, clusterAlias, Strings.EMPTY_ARRAY);
-        DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()));
-        SearchShardTarget searchShardTarget = searchContext.shardTarget();
-        QueryShardContext queryShardContext = searchContext.getQueryShardContext();
-        String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;
-        assertEquals(expectedIndexName, queryShardContext.getFullyQualifiedIndex().getName());
-        assertEquals(expectedIndexName, searchShardTarget.getFullyQualifiedIndexName());
-        assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
-        assertEquals(shardId, searchShardTarget.getShardId());
-        assertSame(searchShardTarget, searchContext.dfsResult().getSearchShardTarget());
-        assertSame(searchShardTarget, searchContext.queryResult().getSearchShardTarget());
-        assertSame(searchShardTarget, searchContext.fetchResult().getSearchShardTarget());
+        try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
+            SearchShardTarget searchShardTarget = searchContext.shardTarget();
+            QueryShardContext queryShardContext = searchContext.getQueryShardContext();
+            String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;
+            assertEquals(expectedIndexName, queryShardContext.getFullyQualifiedIndex().getName());
+            assertEquals(expectedIndexName, searchShardTarget.getFullyQualifiedIndexName());
+            assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
+            assertEquals(shardId, searchShardTarget.getShardId());
+            assertSame(searchShardTarget, searchContext.dfsResult().getSearchShardTarget());
+            assertSame(searchShardTarget, searchContext.queryResult().getSearchShardTarget());
+            assertSame(searchShardTarget, searchContext.fetchResult().getSearchShardTarget());
+        }
     }
 }

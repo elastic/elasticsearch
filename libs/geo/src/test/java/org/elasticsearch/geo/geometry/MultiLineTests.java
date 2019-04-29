@@ -30,11 +30,11 @@ import java.util.List;
 public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
 
     @Override
-    protected MultiLine createTestInstance() {
+    protected MultiLine createTestInstance(boolean hasAlt) {
         int size = randomIntBetween(1, 10);
         List<Line> arr = new ArrayList<Line>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomLine());
+            arr.add(randomLine(hasAlt));
         }
         return new MultiLine(arr);
     }

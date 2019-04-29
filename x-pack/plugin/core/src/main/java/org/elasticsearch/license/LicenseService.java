@@ -114,7 +114,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final String LICENSE_JOB = "licenseJob";
 
-    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMMM dd, yyyy");
+    private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMM dd, yyyy");
 
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
@@ -134,11 +134,15 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     private void logExpirationWarning(long expirationMillis, boolean expired) {
+        logger.warn("{}", buildExpirationMessage(expirationMillis, expired));
+    }
+
+    static CharSequence buildExpirationMessage(long expirationMillis, boolean expired) {
         String expiredMsg = expired ? "expired" : "will expire";
         String general = LoggerMessageFormat.format(null, "License [{}] on [{}].\n" +
-                "# If you have a new license, please update it. Otherwise, please reach out to\n" +
-                "# your support contact.\n" +
-                "# ", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
+            "# If you have a new license, please update it. Otherwise, please reach out to\n" +
+            "# your support contact.\n" +
+            "# ", expiredMsg, DATE_FORMATTER.formatMillis(expirationMillis));
         if (expired) {
             general = general.toUpperCase(Locale.ROOT);
         }
@@ -161,7 +165,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 }
             }
         });
-        logger.warn("{}", builder);
+        return builder;
     }
 
     private void populateExpirationCallbacks() {

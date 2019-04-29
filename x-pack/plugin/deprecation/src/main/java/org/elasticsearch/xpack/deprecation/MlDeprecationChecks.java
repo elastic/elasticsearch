@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 
@@ -18,8 +19,8 @@ final class MlDeprecationChecks {
     private MlDeprecationChecks() {
     }
 
-    static DeprecationIssue checkDataFeedQuery(DatafeedConfig datafeedConfig) {
-        List<String> deprecations = datafeedConfig.getQueryDeprecations();
+    static DeprecationIssue checkDataFeedQuery(DatafeedConfig datafeedConfig, NamedXContentRegistry xContentRegistry) {
+        List<String> deprecations = datafeedConfig.getQueryDeprecations(xContentRegistry);
         if (deprecations.isEmpty()) {
             return null;
         } else {
@@ -30,8 +31,8 @@ final class MlDeprecationChecks {
         }
     }
 
-    static DeprecationIssue checkDataFeedAggregations(DatafeedConfig datafeedConfig) {
-        List<String> deprecations = datafeedConfig.getAggDeprecations();
+    static DeprecationIssue checkDataFeedAggregations(DatafeedConfig datafeedConfig, NamedXContentRegistry xContentRegistry) {
+        List<String> deprecations = datafeedConfig.getAggDeprecations(xContentRegistry);
         if (deprecations.isEmpty()) {
             return null;
         } else {

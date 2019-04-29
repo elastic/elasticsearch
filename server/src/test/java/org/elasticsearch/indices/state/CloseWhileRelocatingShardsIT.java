@@ -40,6 +40,7 @@ import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.transport.TransportService;
@@ -86,6 +87,8 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
         return 3;
     }
 
+    @TestLogging("_root_:DEBUG,org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.action.admin.indices.close:TRACE,"
+        + "org.elasticsearch.cluster.metadata.MetaDataIndexStateService:DEBUG")
     public void testCloseWhileRelocatingShards() throws Exception {
         final String[] indices = new String[randomIntBetween(3, 5)];
         final Map<String, Long> docsPerIndex = new HashMap<>();

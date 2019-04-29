@@ -19,16 +19,17 @@
 
 package org.elasticsearch.index.store;
 
-import java.io.FilterOutputStream;
-import java.io.IOException;
-import java.nio.channels.Channels;
-import java.nio.file.Files;
-import java.nio.file.StandardOpenOption;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
+
+import java.io.FilterOutputStream;
+import java.io.IOException;
+import java.nio.channels.Channels;
+import java.nio.file.Files;
+import java.nio.file.StandardOpenOption;
 
 /**
  * This class is used to wrap an existing {@link org.apache.lucene.store.FSDirectory} so that

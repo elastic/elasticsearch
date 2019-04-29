@@ -6,8 +6,6 @@
 <titleabbrev>Create follower</titleabbrev>
 ++++
 
-beta[]
-
 Creates a follower index.
 
 ==== Description

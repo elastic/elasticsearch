@@ -177,7 +177,7 @@ public class ESLoggerUsageChecker {
         private final Predicate<String> methodsToCheck;
 
         ClassChecker(Consumer<WrongLoggerUsage> wrongUsageCallback, Predicate<String> methodsToCheck) {
-            super(Opcodes.ASM5);
+            super(Opcodes.ASM7);
             this.wrongUsageCallback = wrongUsageCallback;
             this.methodsToCheck = methodsToCheck;
         }
@@ -480,6 +480,11 @@ public class ESLoggerUsageChecker {
     }
 
     private static final class PlaceHolderStringInterpreter extends BasicInterpreter {
+
+        PlaceHolderStringInterpreter() {
+            super(Opcodes.ASM7);
+        }
+
         @Override
         public BasicValue newOperation(AbstractInsnNode insnNode) throws AnalyzerException {
             if (insnNode.getOpcode() == Opcodes.LDC) {
@@ -504,6 +509,11 @@ public class ESLoggerUsageChecker {
     }
 
     private static final class ArraySizeInterpreter extends BasicInterpreter {
+
+        ArraySizeInterpreter() {
+            super(Opcodes.ASM7);
+        }
+
         @Override
         public BasicValue newOperation(AbstractInsnNode insnNode) throws AnalyzerException {
             switch (insnNode.getOpcode()) {

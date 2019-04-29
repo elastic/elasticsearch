@@ -177,7 +177,7 @@ public class RecoverySourceHandler {
                 startingSeqNo = 0;
                 try {
                     final int estimateNumOps = shard.estimateNumberOfHistoryOperations("peer-recovery", startingSeqNo);
-                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), () -> estimateNumOps);
+                    sendFileResult = phase1(phase1Snapshot.getIndexCommit(), shard.getGlobalCheckpoint(), () -> estimateNumOps);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
@@ -219,8 +219,9 @@ public class RecoverySourceHandler {
                 final long maxSeenAutoIdTimestamp = shard.getMaxSeenAutoIdTimestamp();
                 final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
                 final RetentionLeases retentionLeases = shard.getRetentionLeases();
+                final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetaData().getMappingVersion();
                 phase2(startingSeqNo, endingSeqNo, phase2Snapshot, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes,
-                    retentionLeases, sendSnapshotStep);
+                    retentionLeases, mappingVersionOnPrimary, sendSnapshotStep);
                 sendSnapshotStep.whenComplete(
                     r -> IOUtils.close(phase2Snapshot),
                     e -> {
@@ -253,9 +254,8 @@ public class RecoverySourceHandler {
 
     private boolean isTargetSameHistory() {
         final String targetHistoryUUID = request.metadataSnapshot().getHistoryUUID();
-        assert targetHistoryUUID != null || shard.indexSettings().getIndexVersionCreated().before(Version.V_6_0_0_rc1) :
-            "incoming target history N/A but index was created after or on 6.0.0-rc1";
-        return targetHistoryUUID != null && targetHistoryUUID.equals(shard.getHistoryUUID());
+        assert targetHistoryUUID != null : "incoming target history missing";
+        return targetHistoryUUID.equals(shard.getHistoryUUID());
     }
 
     static void runUnderPrimaryPermit(CancellableThreads.Interruptible runnable, String reason,
@@ -332,7 +332,7 @@ public class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    public SendFileResult phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
+    public SendFileResult phase1(final IndexCommit snapshot, final long globalCheckpoint, final Supplier<Integer> translogOps) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -422,7 +422,7 @@ public class RecoverySourceHandler {
                 // are deleted
                 try {
                     cancellableThreads.executeIO(() ->
-                        recoveryTarget.cleanFiles(translogOps.get(), recoverySourceMetadata));
+                        recoveryTarget.cleanFiles(translogOps.get(), globalCheckpoint, recoverySourceMetadata));
                 } catch (RemoteTransportException | IOException targetException) {
                     final IOException corruptIndexException;
                     // we realized that after the index was copied and we wanted to finalize the recovery
@@ -511,6 +511,7 @@ public class RecoverySourceHandler {
             final long maxSeenAutoIdTimestamp,
             final long maxSeqNoOfUpdatesOrDeletes,
             final RetentionLeases retentionLeases,
+            final long mappingVersion,
             final ActionListener<SendSnapshotResult> listener) throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
@@ -552,7 +553,7 @@ public class RecoverySourceHandler {
         };
 
         final StopWatch stopWatch = new StopWatch().start();
-        final ActionListener<Long> batchedListener = ActionListener.wrap(
+        final ActionListener<Long> batchedListener = ActionListener.map(listener,
             targetLocalCheckpoint -> {
                 assert snapshot.totalOperations() == snapshot.skippedOperations() + skippedOps.get() + totalSentOps.get()
                     : String.format(Locale.ROOT, "expected total [%d], overridden [%d], skipped [%d], total sent [%d]",
@@ -560,9 +561,8 @@ public class RecoverySourceHandler {
                 stopWatch.stop();
                 final TimeValue tookTime = stopWatch.totalTime();
                 logger.trace("recovery [phase2]: took [{}]", tookTime);
-                listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps.get(), tookTime));
-            },
-            listener::onFailure
+                return new SendSnapshotResult(targetLocalCheckpoint, totalSentOps.get(), tookTime);
+            }
         );
 
         sendBatch(
@@ -573,6 +573,7 @@ public class RecoverySourceHandler {
                 maxSeenAutoIdTimestamp,
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
+                mappingVersion,
                 batchedListener);
     }
 
@@ -584,7 +585,9 @@ public class RecoverySourceHandler {
             final long maxSeenAutoIdTimestamp,
             final long maxSeqNoOfUpdatesOrDeletes,
             final RetentionLeases retentionLeases,
+            final long mappingVersionOnPrimary,
             final ActionListener<Long> listener) throws IOException {
+        assert ThreadPool.assertCurrentMethodIsNotCalledRecursively();
         final List<Translog.Operation> operations = nextBatch.get();
         // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
         if (operations.isEmpty() == false || firstBatch) {
@@ -595,6 +598,7 @@ public class RecoverySourceHandler {
                         maxSeenAutoIdTimestamp,
                         maxSeqNoOfUpdatesOrDeletes,
                         retentionLeases,
+                        mappingVersionOnPrimary,
                         ActionListener.wrap(
                                 newCheckpoint -> {
                                     sendBatch(
@@ -605,6 +609,7 @@ public class RecoverySourceHandler {
                                             maxSeenAutoIdTimestamp,
                                             maxSeqNoOfUpdatesOrDeletes,
                                             retentionLeases,
+                                            mappingVersionOnPrimary,
                                             listener);
                                 },
                                 listener::onFailure

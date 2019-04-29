@@ -105,3 +105,8 @@ grant {
   // since the gradle test worker jar is on the test classpath, our tests should be able to read it
   permission java.io.FilePermission "${gradle.worker.jar}", "read";
 };
+
+grant codeBase "${codebase.junit-rt.jar}" {
+  // allows IntelliJ IDEA JUnit test runner to control number of test iterations
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};

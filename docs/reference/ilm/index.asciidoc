@@ -49,13 +49,11 @@ hardware.
 
 *Snapshot Lifecycle Management*
 
-ILM itself does allow managing indices, however, outside of the scope of an
-index-level policy is managing snapshots for a set of indices. Since snapshots
-contain more than one index, they are ill-suited for configuring with an
-index-level policy. Instead, there are separate APIs for managing snapshot
-lifecycles. Please see the <<snapshot-lifecycle-management-api,Snapshot
-Lifecycle Management>> documentation for information about configuring
-snapshots.
+ILM itself does allow managing indices, however, managing snapshots for a set of
+indices is outside of the scope of an index-level policy. Instead, there are
+separate APIs for managing snapshot lifecycles. Please see the
+<<snapshot-lifecycle-management-api,Snapshot Lifecycle Management>>
+documentation for information about configuring snapshots.
 
 [IMPORTANT]
 ===========================

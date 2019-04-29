@@ -85,8 +85,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.Collections.unmodifiableSet;
-
 /**
  * A component that holds all data paths for a single node.
  */
@@ -693,7 +691,7 @@ public final class NodeEnvironment  implements Closeable {
      */
     public Set<ShardId> lockedShards() {
         synchronized (shardLocks) {
-            return unmodifiableSet(new HashSet<>(shardLocks.keySet()));
+            return Set.copyOf(shardLocks.keySet());
         }
     }
 

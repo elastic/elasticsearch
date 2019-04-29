@@ -10,11 +10,17 @@ data folder and freshly-started nodes that are joining an existing cluster
 obtain this information from the cluster's elected master. 
 
 The initial set of master-eligible nodes is defined in the
-<<initial_master_nodes,`cluster.initial_master_nodes` setting>>. This is a list
-of the <<node.name,node names>> or IP addresses of the master-eligible nodes in
-the new cluster. If you do not configure `node.name` then it is set to the
-node's hostname, so in this case you can use hostnames in
-`cluster.initial_master_nodes` too.
+<<initial_master_nodes,`cluster.initial_master_nodes` setting>>. This should be
+set to a list containing one of the following items for each master-eligible
+node:
+
+- The <<node.name,node name>> of the node.
+- The node's hostname if `node.name` is not set, because `node.name` defaults
+  to the node's hostname.
+- The IP address of the node's <<modules-transport,publish address>> which is
+  normally the IP address to which <<common-network-settings,`network.host`>>
+  resolves but <<advanced-network-settings,this can be overridden>>.
+- The IP address and port of the node's publish address, in the form `IP:PORT`.
 
 When you start a master-eligible node, you can provide this setting on the
 command line or in the `elasticsearch.yml` file. After the cluster has formed,
@@ -47,11 +53,8 @@ cluster.initial_master_nodes:
   - master-c
 --------------------------------------------------
 
-You can also use IP addresses, or even a mix of IP addresses and node names. If
-there is more than one {es} node with the same IP address then the IP addresses
-can be distinguished by appending each node's transport port as shown below.
-However, {es} nodes should have unique node names so {es} does not allow two
-nodes with the same name to be distinguished by their transport port like this.
+You can also use IP addresses, or IP addresses and ports, or even a mix of IP
+addresses and node names:
 
 [source,yaml]
 --------------------------------------------------
@@ -59,7 +62,7 @@ cluster.initial_master_nodes:
   - 10.0.10.101
   - 10.0.10.102:9300
   - 10.0.10.102:9301
-  - master-node-hostname
+  - master-node-name
 --------------------------------------------------
 
 Like all node settings, it is also possible to specify the initial set of master

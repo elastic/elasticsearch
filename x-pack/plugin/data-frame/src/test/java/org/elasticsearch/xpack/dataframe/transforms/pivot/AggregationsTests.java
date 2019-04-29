@@ -41,5 +41,9 @@ public class AggregationsTests extends ESTestCase {
         // scripted_metric
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", null));
         assertEquals("_dynamic", Aggregations.resolveTargetMapping("scripted_metric", "int"));
+
+        // scripted_metric
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", null));
+        assertEquals("_dynamic", Aggregations.resolveTargetMapping("bucket_script", "int"));
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -83,6 +84,12 @@ public final class SchemaUtil {
                 listener.onFailure(new RuntimeException("Unsupported aggregation type [" + agg.getType() + "]"));
                 return;
             }
+        }
+
+        // For pipeline aggs, since they are referencing other aggregations in the payload, they do not have any
+        // sourcefieldnames to put into the payload. Though, certain ones, i.e. avg_bucket, do have determinant value types
+        for (PipelineAggregationBuilder agg : config.getAggregationConfig().getPipelineAggregatorFactories()) {
+            aggregationTypes.put(agg.getName(), agg.getType());
         }
 
         Map<String, String> allFieldNames = new HashMap<>();

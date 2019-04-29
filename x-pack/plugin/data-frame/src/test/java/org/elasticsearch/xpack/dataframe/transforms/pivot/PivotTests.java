@@ -184,6 +184,12 @@ public class PivotTests extends ESTestCase {
                 "  }\n" +
                 "}}");
         }
+        if (agg.equals(AggregationType.BUCKET_SCRIPT.getName())) {
+            return parseAggregations("{\"pivot_bucket_script\":{" +
+                "\"bucket_script\":{" +
+                "\"buckets_path\":{\"param_1\":\"other_bucket\"}," +
+                "\"script\":\"return params.param_1\"}}}");
+        }
         return parseAggregations("{\n" + "  \"pivot_" + agg + "\": {\n" + "    \"" + agg + "\": {\n" + "      \"field\": \"values\"\n"
                 + "    }\n" + "  }" + "}");
     }

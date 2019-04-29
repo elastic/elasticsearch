@@ -67,7 +67,6 @@ public class ListEnrichPolicyAction extends Action<ListEnrichPolicyAction.Respon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeList(policies);
-
         }
 
         @Override

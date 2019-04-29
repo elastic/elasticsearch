@@ -20,7 +20,7 @@ the running mode of ILM. SLM operations can be stopped and started by using the
 === Put Snapshot Lifecycle Policy API
 
 Creates or updates a snapshot policy. If the policy already exists, the version
-in increamented. Only the latest version of a policy is stored.
+is incremented. Only the latest version of a policy is stored.
 
 When a policy is created it is immediately scheduled based on the schedule of
 the policy, if an existing policy was already scheduled the previous policy is

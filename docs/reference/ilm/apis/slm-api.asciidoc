@@ -329,7 +329,7 @@ It is a good idea to test policies using the execute API to ensure they work.
 
 A policy can be deleted by issuing a delete request with the policy id. Note
 that this prevents any future snapshots from being taken, but does not cancel
-any currently ongoing snapshots.
+any currently ongoing snapshots or remove any previously taken snapshots.
 
 ==== Path Parameters
 

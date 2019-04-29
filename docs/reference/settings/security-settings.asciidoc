@@ -1526,13 +1526,30 @@ Controls the verification of certificates. Valid values are:
 The default value is `full`.
 
 `*.ssl.cipher_suites`::
-Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
-Java Cryptography Architecture documentation]. Defaults to `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
-`TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
-`TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA`. If the _Java Cryptography Extension (JCE) Unlimited Strength
-Jurisdiction Policy Files_ has been installed, the default value also includes `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`,
-`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`,
-`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`.
+Supported cipher suites can be found in Oracle's
+https://docs.oracle.com/en/java/javase/11/security/oracle-providers.html#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2[Java
+ Cryptography Architecture documentation].
+Defaults to `TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`,
+`TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`,
+`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
+`TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`,
+`TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,
+`TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`,
+`TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`,
+`TLS_RSA_WITH_AES_256_CBC_SHA`, `TLS_RSA_WITH_AES_128_CBC_SHA`.
++
+--
+NOTE: The default cipher suites list above includes TLSv1.3 ciphers and ciphers
+that require the _Java Cryptography Extension (JCE) Unlimited Strength
+Jurisdiction Policy Files_ for 256-bit AES encryption. If TLSv1.3 is not
+available, the TLSv1.3 ciphers TLS_AES_256_GCM_SHA384`, `TLS_AES_128_GCM_SHA256`
+will not be included in the default list. If 256-bit AES is unavailable, ciphers
+with `AES_256` in their names wil not be included in the default list. Finally,
+AES GCM has known performance issues in Java versions prior to 11 and will only
+be included in the default list when using Java 11 or above.
+--
 
 [float]
 [[tls-ssl-key-settings]]

@@ -22,7 +22,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
@@ -72,7 +71,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 public class ExecutionService {
 
@@ -342,10 +340,9 @@ public class ExecutionService {
         // at the moment we store the status together with the watch,
         // so we just need to update the watch itself
         // we do not want to update the status.state field, as it might have been deactivated in-between
-        Map<String, String> parameters = MapBuilder.<String, String>newMapBuilder()
-            .put(Watch.INCLUDE_STATUS_KEY, "true")
-            .put(WatchStatus.INCLUDE_STATE, "false")
-            .immutableMap();
+        Map<String, String> parameters = Map.of(
+            Watch.INCLUDE_STATUS_KEY, "true",
+            WatchStatus.INCLUDE_STATE, "false");
         ToXContent.MapParams params = new ToXContent.MapParams(parameters);
         XContentBuilder source = JsonXContent.contentBuilder().
             startObject()
@@ -356,7 +353,7 @@ public class ExecutionService {
         updateRequest.doc(source);
         updateRequest.setIfSeqNo(watch.getSourceSeqNo());
         updateRequest.setIfPrimaryTerm(watch.getSourcePrimaryTerm());
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             client.update(updateRequest).actionGet(indexDefaultTimeout);
         } catch (DocumentMissingException e) {
             // do not rethrow this exception, otherwise the watch history will contain an exception
@@ -500,7 +497,7 @@ public class ExecutionService {
      * @return The GetResponse of calling the get API of this watch
      */
     private GetResponse getWatch(String id) {
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             GetRequest getRequest = new GetRequest(Watch.INDEX, id).preference(Preference.LOCAL.type()).realtime(true);
             PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
             client.get(getRequest, future);

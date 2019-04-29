@@ -116,7 +116,7 @@ public abstract class AbstractScopedSettings {
         this.scope = other.scope;
         complexMatchers = other.complexMatchers;
         keySettings = other.keySettings;
-        settingUpgraders = Collections.unmodifiableMap(new HashMap<>(other.settingUpgraders));
+        settingUpgraders = Map.copyOf(other.settingUpgraders);
         settingUpdaters.addAll(other.settingUpdaters);
     }
 

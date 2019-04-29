@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -644,10 +643,10 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     /**
-     * Test that {@link FollowingEngine#prepareEngineBeforeIndexClosing(String)} never fails
+     * Test that {@link FollowingEngine#verifyEngineBeforeIndexClosing()} never fails
      * whatever the value of the global checkpoint to check is.
      */
-    public void testPrepareShardBeforeIndexClosingIsNoOp() throws IOException {
+    public void testVerifyShardBeforeIndexClosingIsNoOp() throws IOException {
         final long seqNo = randomIntBetween(0, Integer.MAX_VALUE);
         runIndexTest(
             seqNo,
@@ -655,9 +654,7 @@ public class FollowingEngineTests extends ESTestCase {
             (followingEngine, index) -> {
                 globalCheckpoint.set(randomNonNegativeLong());
                 try {
-                    String syncId = UUIDs.randomBase64UUID();
-                    followingEngine.prepareEngineBeforeIndexClosing(syncId);
-                    assertThat(followingEngine.commitStats().syncId(), equalTo(syncId));
+                    followingEngine.verifyEngineBeforeIndexClosing();
                 } catch (final IllegalStateException e) {
                     fail("Following engine pre-closing verifications failed");
                 }

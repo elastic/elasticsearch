@@ -265,14 +265,18 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Performs the pre-closing action on the {@link Engine}.
+     * Performs the pre-closing checks on the {@link Engine}.
      *
-     * @param syncId a syncId that an engine can use to seal its index commit. If there was no indexing activity since the last seal,
-     *               the engine can choose to skip synced-flush and returns the existing syncId instead of the provided syncId.
-     * @return either the provided syncId or the existing syncId
      * @throws IllegalStateException if the sanity checks failed
      */
-    public abstract String prepareEngineBeforeIndexClosing(String syncId) throws IOException;
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
+        final long maxSeqNo = getSeqNoStats(globalCheckpoint).getMaxSeqNo();
+        if (globalCheckpoint != maxSeqNo) {
+            throw new IllegalStateException("Global checkpoint [" + globalCheckpoint
+                + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
+        }
+    }
 
     /**
      * A throttling class that can be activated, causing the

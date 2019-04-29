@@ -1346,14 +1346,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 assertTrue("store info should not be present", reuseStore);
                 assertEquals(Token.START_OBJECT, parser.nextToken());
                 parser.nextToken();
-                if ("matching_sync_id".equals(parser.currentName())) {
-                    parser.nextToken();
-                    assertTrue(parser.booleanValue());
-                } else {
-                    assertEquals("matching_size_in_bytes", parser.currentName());
-                    parser.nextToken();
-                    assertThat(parser.longValue(), greaterThan(0L));
-                }
+                assertEquals("matching_size_in_bytes", parser.currentName());
+                parser.nextToken();
+                assertThat(parser.longValue(), greaterThan(0L));
                 assertEquals(Token.END_OBJECT, parser.nextToken());
                 parser.nextToken();
             }

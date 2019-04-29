@@ -2756,31 +2756,4 @@ public class InternalEngine extends Engine {
         final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogPath, translogUUID);
         store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, engineConfig.getIndexSettings().getIndexVersionCreated());
     }
-
-    protected void verifyEngineBeforeIndexClosing() {
-        final long globalCheckpoint = translog.getLastSyncedGlobalCheckpoint();
-        final long maxSeqNo = localCheckpointTracker.getMaxSeqNo();
-        if (globalCheckpoint != maxSeqNo) {
-            throw new IllegalStateException("Global checkpoint [" + globalCheckpoint
-                + "] mismatches maximum sequence number [" + maxSeqNo + "] on index shard " + shardId);
-        }
-    }
-
-    @Override
-    public String prepareEngineBeforeIndexClosing(String syncId) throws IOException {
-        try (ReleasableLock ignored = writeLock.acquire()) {
-            ensureOpen();
-            syncTranslog(); // make sure that we persist the global checkpoint to translog checkpoint
-            verifyEngineBeforeIndexClosing();
-            // we can reuse the existing syncId if there was no indexing activity since the last synced-flush.
-            if (indexWriter.hasUncommittedChanges() == false && lastCommittedSegmentInfos.userData.containsKey(Engine.SYNC_COMMIT_ID)) {
-                syncId = lastCommittedSegmentInfos.userData.get(Engine.SYNC_COMMIT_ID);
-            }
-            final CommitId commitId = flush(true, true);
-            if (syncId != null) {
-                syncFlush(syncId, commitId);
-            }
-            return syncId;
-        }
-    }
 }

@@ -146,18 +146,17 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public String prepareEngineBeforeIndexClosing(String syncId) {
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
         // the value of the global checkpoint is verified when the read-only engine is opened,
         // and it is not expected to change during the lifecycle of the engine. We could also
         // check this value before closing the read-only engine but if something went wrong
         // and the global checkpoint is not in-sync with the max. sequence number anymore,
         // checking the value here again would prevent the read-only engine to be closed and
         // reopened as an internal engine, which would be the path to fix the issue.
-        return lastCommittedSegmentInfos.userData.get(Engine.SYNC_COMMIT_ID);
     }
 
     protected final DirectoryReader wrapReader(DirectoryReader reader,
-                                               Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
+                                                    Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
         reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);

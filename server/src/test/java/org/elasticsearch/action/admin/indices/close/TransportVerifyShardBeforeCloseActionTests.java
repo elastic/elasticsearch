@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.indices.close;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
@@ -38,8 +39,8 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
@@ -55,6 +56,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
 import java.util.List;
@@ -69,7 +71,8 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.anyString;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -135,7 +138,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
     private void executeOnPrimaryOrReplica() throws Throwable {
         final TaskId taskId = new TaskId("_node_id", randomNonNegativeLong());
         final TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, UUIDs.randomBase64UUID(), taskId);
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(indexShard.shardId(), clusterBlock, taskId);
         final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
         action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(
             r -> {
@@ -153,12 +156,22 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         }
     }
 
+    public void testShardIsFlushed() throws Throwable {
+        final ArgumentCaptor<FlushRequest> flushRequest = ArgumentCaptor.forClass(FlushRequest.class);
+        when(indexShard.flush(flushRequest.capture())).thenReturn(new Engine.CommitId(new byte[0]));
+
+        executeOnPrimaryOrReplica();
+        verify(indexShard, times(1)).flush(any(FlushRequest.class));
+        assertThat(flushRequest.getValue().force(), is(true));
+    }
+
     public void testOperationFailsWhenNotBlocked() {
         when(indexShard.getActiveOperationsCount()).thenReturn(randomIntBetween(0, 10));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
         assertThat(exception.getMessage(),
             equalTo("Index shard " + indexShard.shardId() + " is not blocking all operations during closing"));
+        verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
     public void testOperationFailsWithNoBlock() {
@@ -167,17 +180,20 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         IllegalStateException exception = expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
         assertThat(exception.getMessage(),
             equalTo("Index shard " + indexShard.shardId() + " must be blocked by " + clusterBlock + " before closing"));
+        verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
     public void testVerifyShardBeforeIndexClosing() throws Throwable {
         executeOnPrimaryOrReplica();
-        verify(indexShard, times(1)).prepareShardBeforeIndexClosing(anyString());
+        verify(indexShard, times(1)).verifyShardBeforeIndexClosing();
+        verify(indexShard, times(1)).flush(any(FlushRequest.class));
     }
 
-    public void testVerifyShardBeforeIndexClosingFailed() throws Exception {
-        doThrow(new IllegalStateException("test")).when(indexShard).prepareShardBeforeIndexClosing(anyString());
+    public void testVerifyShardBeforeIndexClosingFailed() {
+        doThrow(new IllegalStateException("test")).when(indexShard).verifyShardBeforeIndexClosing();
         expectThrows(IllegalStateException.class, this::executeOnPrimaryOrReplica);
-        verify(indexShard, times(1)).prepareShardBeforeIndexClosing(anyString());
+        verify(indexShard, times(1)).verifyShardBeforeIndexClosing();
+        verify(indexShard, times(0)).flush(any(FlushRequest.class));
     }
 
     public void testUnavailableShardsMarkedAsStale() throws Exception {
@@ -211,7 +227,7 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
         final PlainActionFuture<PrimaryResult> listener = new PlainActionFuture<>();
         TaskId taskId = new TaskId(clusterService.localNode().getId(), 0L);
         TransportVerifyShardBeforeCloseAction.ShardRequest request =
-            new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, clusterBlock, UUIDs.randomBase64UUID(), taskId);
+            new TransportVerifyShardBeforeCloseAction.ShardRequest(shardId, clusterBlock, taskId);
         ReplicationOperation.Replicas<TransportVerifyShardBeforeCloseAction.ShardRequest> proxy = action.newReplicasProxy();
         ReplicationOperation<TransportVerifyShardBeforeCloseAction.ShardRequest,
             TransportVerifyShardBeforeCloseAction.ShardRequest, PrimaryResult> operation = new ReplicationOperation<>(

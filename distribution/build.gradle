@@ -235,7 +235,7 @@ String jdkBuild = jdkVersionMatcher.group(3)
 
 repositories {
   ivy {
-    url "https://download.java.net"
+    url "https://download.oracle.com"
     patternLayout {
       artifact "java/GA/jdk${jdkMajor}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
     }

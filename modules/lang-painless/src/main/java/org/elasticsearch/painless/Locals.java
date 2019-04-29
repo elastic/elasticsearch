@@ -24,11 +24,9 @@ import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 
 import java.lang.invoke.MethodType;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -71,9 +69,7 @@ public final class Locals {
     public static final String THIS   = "#this";
 
     /** Set of reserved keywords. */
-    public static final Set<String> KEYWORDS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        THIS, LOOP
-    )));
+    public static final Set<String> KEYWORDS = Set.of(THIS, LOOP);
 
     /** Creates a new local variable scope (e.g. loop) inside the current scope */
     public static Locals newLocalScope(Locals currentScope) {

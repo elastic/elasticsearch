@@ -139,7 +139,7 @@ public class CompositeRolesStore {
             nlcBuilder.setMaximumWeight(nlcCacheSize);
         }
         this.negativeLookupCache = nlcBuilder.build();
-        this.builtInRoleProviders = Collections.unmodifiableList(Arrays.asList(reservedRolesStore, fileRolesStore, nativeRolesStore));
+        this.builtInRoleProviders = List.of(reservedRolesStore, fileRolesStore, nativeRolesStore);
         if (rolesProviders.isEmpty()) {
             this.allRoleProviders = this.builtInRoleProviders;
         } else {

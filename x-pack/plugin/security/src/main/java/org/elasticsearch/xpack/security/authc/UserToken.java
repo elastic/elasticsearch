@@ -73,11 +73,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         this.id = input.readString();
         this.authentication = new Authentication(input);
         this.expirationTime = Instant.ofEpochSecond(input.readLong(), input.readInt());
-        if (version.before(Version.V_6_2_0)) {
-            this.metadata = Collections.emptyMap();
-        } else {
-            this.metadata = input.readMap();
-        }
+        this.metadata = input.readMap();
     }
 
     @Override
@@ -86,9 +82,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         authentication.writeTo(out);
         out.writeLong(expirationTime.getEpochSecond());
         out.writeInt(expirationTime.getNano());
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeMap(metadata);
-        }
+        out.writeMap(metadata);
     }
 
     /**

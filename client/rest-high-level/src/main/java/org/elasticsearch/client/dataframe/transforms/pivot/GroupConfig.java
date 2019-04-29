@@ -184,11 +184,7 @@ public class GroupConfig implements ToXContentObject {
     }
 
     public static class Builder {
-        private final Map<String, SingleGroupSource> groups;
-
-        public Builder() {
-            this.groups = new HashMap<>();
-        }
+        private final Map<String, SingleGroupSource> groups = new HashMap<>();
 
         /**
          * Add a new grouping to the builder

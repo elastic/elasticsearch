@@ -13,9 +13,8 @@ SLM policy management is split into three different CRUD APIs, a way to put or u
 policies, a way to retrieve policies, and a way to delete unwanted policies, as
 well as a separate API for immediately invoking a snapshot based on a policy.
 
-Since SLM falls under the same category as ILM, its operations are subject to
-the running mode of ILM. SLM operations can be stopped and started by using the
-<<start-stop-ilm,start and stop>> ILM APIs.
+Since SLM falls under the same category as ILM, it is stopped and started by
+using the <<start-stop-ilm,start and stop>> ILM APIs.
 
 === Put Snapshot Lifecycle Policy API
 

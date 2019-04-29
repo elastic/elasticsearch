@@ -281,7 +281,7 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
         if (this == other) {
             return true;
         }
-        if (other == null || other instanceof DateHistogramGroupConfig == false) {
+        if (other == null || getClass() != other.getClass()) {
             return false;
         }
         final DateHistogramGroupConfig that = (DateHistogramGroupConfig) other;

@@ -18,6 +18,7 @@ To search `text` field values, use the <<query-dsl-match-query,`match`>> query
 instead.
 ====
 
+[[term-query-ex-request]]
 ==== Example request
 
 [source,js]

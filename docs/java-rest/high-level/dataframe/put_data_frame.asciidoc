@@ -35,6 +35,7 @@ include-tagged::{doc-tests-file}[{api}-config]
 <2> The source indices and query from which to gather data
 <3> The destination index
 <4> The PivotConfig
+<5> Optional free text description of the transform
 
 [id="{upid}-{api}-query-config"]
 

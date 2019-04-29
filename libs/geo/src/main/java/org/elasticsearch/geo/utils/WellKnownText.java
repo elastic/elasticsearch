@@ -68,7 +68,7 @@ public class WellKnownText {
         if (geometry.isEmpty()) {
             sb.append(EMPTY);
         } else {
-            geometry.visit(new GeometryVisitor<Void>() {
+            geometry.visit(new GeometryVisitor<Void, RuntimeException>() {
                 @Override
                 public Void visit(Circle circle) {
                     sb.append(LPAREN);
@@ -543,7 +543,7 @@ public class WellKnownText {
     }
 
     public static String getWKTName(Geometry geometry) {
-        return geometry.visit(new GeometryVisitor<String>() {
+        return geometry.visit(new GeometryVisitor<String, RuntimeException>() {
             @Override
             public String visit(Circle circle) {
                 return "circle";

@@ -349,22 +349,26 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
             .put("index.routing.rebalance.enable", "none")
             .build());
-        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
-            .mapToObj(i -> client().prepareIndex(indexName, "_doc").setSource("num", i)).collect(toList()));
-        ensureGreen(indexName);
+        int iterations = between(1, 3);
+        for (int iter = 0; iter < iterations; iter++) {
+            indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+                .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+            ensureGreen(indexName);
 
-        // Closing an index should execute noop peer recovery
-        assertAcked(client().admin().indices().prepareClose(indexName).get());
-        assertIndexIsClosed(indexName);
-        ensureGreen(indexName);
-        assertNoFileBasedRecovery(indexName);
+            // Closing an index should execute noop peer recovery
+            assertAcked(client().admin().indices().prepareClose(indexName).get());
+            assertIndexIsClosed(indexName);
+            ensureGreen(indexName);
+            assertNoFileBasedRecovery(indexName);
+            internalCluster().assertSameDocIdsOnShards();
 
-        // Open a closed index should execute noop recovery
-        assertAcked(client().admin().indices().prepareOpen(indexName).get());
-        assertIndexIsOpened(indexName);
-        ensureGreen(indexName);
-        assertNoFileBasedRecovery(indexName);
-        internalCluster().assertSameDocIdsOnShards();
+            // Open a closed index should execute noop recovery
+            assertAcked(client().admin().indices().prepareOpen(indexName).get());
+            assertIndexIsOpened(indexName);
+            ensureGreen(indexName);
+            assertNoFileBasedRecovery(indexName);
+            internalCluster().assertSameDocIdsOnShards();
+        }
     }
 
     static void assertIndexIsClosed(final String... indices) {

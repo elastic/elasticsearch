@@ -296,7 +296,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param prefix prefix of the blobs to delete
      */
     private void deleteBlobsByPrefix(String prefix) throws IOException {
-        deleteBlobs(listBlobsByPrefix("", prefix).keySet());
+        deleteBlobsIgnoringIfNotExists(listBlobsByPrefix("", prefix).keySet());
     }
 
     /**
@@ -304,7 +304,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *
      * @param blobNames names of the blobs to delete
      */
-    void deleteBlobs(Collection<String> blobNames) throws IOException {
+    void deleteBlobsIgnoringIfNotExists(Collection<String> blobNames) throws IOException {
         if (blobNames.isEmpty()) {
             return;
         }
@@ -327,7 +327,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
                         @Override
                         public void error(StorageException exception) {
-                            if (exception.getCode() == 404) {
+                            if (exception.getCode() == HTTP_NOT_FOUND) {
                                 results.add(Boolean.TRUE);
                             } else {
                                 results.add(Boolean.FALSE);
@@ -346,7 +346,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             }
         }
         if (failed) {
-            throw new IOException("Failed to delete the following blobs " + blobIdsToDelete);
+            throw new IOException("Failed to delete blobs " + blobIdsToDelete);
         }
     }
 

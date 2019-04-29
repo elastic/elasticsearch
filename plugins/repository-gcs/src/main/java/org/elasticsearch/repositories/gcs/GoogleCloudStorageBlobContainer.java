@@ -82,7 +82,7 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        blobStore.deleteBlobs(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
+        blobStore.deleteBlobsIgnoringIfNotExists(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
     }
 
     private String buildKey(String blobName) {

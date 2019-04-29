@@ -41,6 +41,7 @@ import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRpcOptionUtils;
 import com.google.cloud.storage.StorageTestUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -63,7 +64,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyVararg;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * {@link MockStorage} mocks a {@link Storage} client by storing all the blobs
@@ -366,18 +366,22 @@ class MockStorage implements Storage {
     @Override
     @SuppressWarnings("unchecked")
     public StorageBatch batch() {
-        final StorageBatch batch = mock(StorageBatch.class);
-        StorageBatchResult<Boolean> result = mock(StorageBatchResult.class);
+        final Answer<?> throwOnMissingMock = invocationOnMock -> {
+            throw new AssertionError("Did not expect call to method [" + invocationOnMock.getMethod().getName() + ']');
+        };
+        final StorageBatch batch = mock(StorageBatch.class, throwOnMissingMock);
+        StorageBatchResult<Boolean> result = mock(StorageBatchResult.class, throwOnMissingMock);
         doAnswer(answer -> {
-            BatchResult.Callback<Boolean, Exception> callback  = (BatchResult.Callback<Boolean, Exception>) answer.getArguments()[0];
+            BatchResult.Callback<Boolean, Exception> callback = (BatchResult.Callback<Boolean, Exception>) answer.getArguments()[0];
             callback.success(true);
             return null;
         }).when(result).notify(any(BatchResult.Callback.class));
-        when(batch.delete(any(BlobId.class), anyVararg())).thenAnswer(invocation -> {
+        doAnswer(invocation -> {
             final BlobId blobId = (BlobId) invocation.getArguments()[0];
             delete(blobId);
             return result;
-        });
+        }).when(batch).delete(any(BlobId.class), anyVararg());
+        doAnswer(invocation -> null).when(batch).submit();
         return batch;
     }
 

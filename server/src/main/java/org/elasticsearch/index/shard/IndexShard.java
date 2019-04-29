@@ -3097,7 +3097,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         @Override
                         public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
                             synchronized (mutex) {
-                                return newEngineReference.get().acquireLastIndexCommit(flushFirst);
+                                // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
+                                return newEngineReference.get().acquireLastIndexCommit(false);
                             }
                         }
 

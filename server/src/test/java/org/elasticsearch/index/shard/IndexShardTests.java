@@ -3784,7 +3784,7 @@ public class IndexShardTests extends IndexShardTestCase {
             try {
                 readyToSnapshotLatch.await();
                 shard.snapshotStoreMetadata();
-                try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(false)) {
+                try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(randomBoolean())) {
                     shard.store().getMetadata(indexCommitRef.getIndexCommit());
                 }
                 try (Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit()) {

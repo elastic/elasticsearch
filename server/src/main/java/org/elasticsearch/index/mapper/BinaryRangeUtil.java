@@ -34,7 +34,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
-public enum BinaryRangeUtil {
+enum BinaryRangeUtil {
 
     ;
 
@@ -55,7 +55,7 @@ public enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeIPRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.IP, BinaryRangeUtil::decodeIP);
+        return decodeRanges(encodedRanges, RangeType.IP, BinaryRangeUtil::decodeIP);
     }
 
     private static InetAddress decodeIP(byte[] bytes, int offset, int length) {
@@ -83,7 +83,7 @@ public enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.LONG,
+        return decodeRanges(encodedRanges, RangeType.LONG,
             BinaryRangeUtil::decodeLong);
     }
 
@@ -106,19 +106,19 @@ public enum BinaryRangeUtil {
     }
 
     static List<RangeFieldMapper.Range> decodeDoubleRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.DOUBLE,
+        return decodeRanges(encodedRanges, RangeType.DOUBLE,
             BinaryRangeUtil::decodeDouble);
     }
 
     static List<RangeFieldMapper.Range> decodeFloatRanges(BytesRef encodedRanges) {
-        return decodeRanges(encodedRanges, RangeFieldMapper.RangeType.FLOAT,
+        return decodeRanges(encodedRanges, RangeType.FLOAT,
             BinaryRangeUtil::decodeFloat);
     }
 
-    static List<RangeFieldMapper.Range> decodeRanges(BytesRef encodedRanges, RangeFieldMapper.RangeType rangeType,
+    static List<RangeFieldMapper.Range> decodeRanges(BytesRef encodedRanges, RangeType rangeType,
                                                      TriFunction<byte[], Integer, Integer, Object> decodeBytes) {
 
-        LengthType lengthType = rangeType.lengthType;
+        RangeType.LengthType lengthType = rangeType.lengthType;
         ByteArrayDataInput in = new ByteArrayDataInput();
         in.reset(encodedRanges.bytes, encodedRanges.offset, encodedRanges.length);
         int numRanges = in.readVInt();
@@ -257,42 +257,4 @@ public enum BinaryRangeUtil {
         return encoded;
     }
 
-    public enum LengthType {
-        FIXED_4 {
-            @Override
-            public int readLength(byte[] bytes, int offset) {
-                return 4;
-            }
-        },
-        FIXED_8 {
-            @Override
-            public int readLength(byte[] bytes, int offset) {
-                return 8;
-            }
-        },
-        FIXED_16 {
-            @Override
-            public int readLength(byte[] bytes, int offset) {
-                return 16;
-            }
-        },
-        VARIABLE {
-            @Override
-            public int readLength(byte[] bytes, int offset) {
-                // the first bit encodes the sign and the next 4 bits encode the number
-                // of additional bytes
-                int token = Byte.toUnsignedInt(bytes[offset]);
-                int length = (token >>> 3) & 0x0f;
-                if ((token & 0x80) == 0) {
-                    length = 0x0f - length;
-                }
-                return 1 + length;
-            }
-        };
-
-        /**
-         * Return the length of the value that starts at {@code offset} in {@code bytes}.
-         */
-        public abstract int readLength(byte[] bytes, int offset);
-    }
 }

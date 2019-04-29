@@ -32,16 +32,16 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
 public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
     private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
 
-    private String watchId = randomAlphaOfLength(20);
+    private String watchId = null;
 
     @Before
     public void startWatcher() throws Exception {
+        watchId = randomAlphaOfLength(20);
         Request createAllowedDoc = new Request("PUT", "/my_test_index/_doc/1");
         createAllowedDoc.setJsonEntity("{ \"value\" : \"15\" }");
         createAllowedDoc.addParameter("refresh", "true");
@@ -83,7 +83,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         });
 
         assertBusy(() -> {
-            for (String template : XPackRestTestConstants.TEMPLATE_NAMES) {
+            for (String template : XPackRestTestConstants.TEMPLATE_NAMES_NO_ILM) {
                 assertOK(adminClient().performRequest(new Request("HEAD", "_template/" + template)));
             }
         });
@@ -92,6 +92,10 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
     @After
     public void stopWatcher() throws Exception {
         adminClient().performRequest(new Request("DELETE", "/my_test_index"));
+        Response response = adminClient().performRequest(new Request("GET", "_watcher/watch/" + watchId));
+        if (response.getStatusLine().getStatusCode() == 200) {
+            adminClient().performRequest(new Request("DELETE", "_watcher/watch/" + watchId));
+        }
 
         assertBusy(() -> {
             try {

@@ -191,6 +191,6 @@ public class Monitoring extends Plugin implements ActionPlugin {
     @Override
     public List<String> getSettingsFilter() {
         final String exportersKey = "xpack.monitoring.exporters.";
-        return Collections.unmodifiableList(Arrays.asList(exportersKey + "*.auth.*", exportersKey + "*.ssl.*"));
+        return List.of(exportersKey + "*.auth.*", exportersKey + "*.ssl.*");
     }
 }

@@ -27,7 +27,7 @@ public class ListEnrichPolicyAction extends Action<ListEnrichPolicyAction.Respon
     public static final ListEnrichPolicyAction INSTANCE = new ListEnrichPolicyAction();
     public static final String NAME = "cluster:admin/xpack/enrich/list";
 
-    protected ListEnrichPolicyAction() {
+    private ListEnrichPolicyAction() {
         super(NAME);
     }
 

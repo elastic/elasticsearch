@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -102,10 +103,12 @@ public class Pivot {
 
         GroupConfig groups = config.getGroupConfig();
         Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
+        Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
 
         return AggregationResultUtils.extractCompositeAggregationResults(agg,
             groups,
             aggregationBuilders,
+            pipelineAggregationBuilders,
             fieldTypeMap,
             dataFrameIndexerTransformStats);
     }
@@ -148,6 +151,7 @@ public class Pivot {
                     LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
             compositeAggregation = CompositeAggregationBuilder.parse(COMPOSITE_AGGREGATION_NAME, parser);
             config.getAggregationConfig().getAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
+            config.getAggregationConfig().getPipelineAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
         } catch (IOException e) {
             throw new RuntimeException(DataFrameMessages.DATA_FRAME_TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);
         }

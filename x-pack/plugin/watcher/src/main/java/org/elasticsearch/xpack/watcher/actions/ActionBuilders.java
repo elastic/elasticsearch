@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
@@ -46,12 +45,8 @@ public final class ActionBuilders {
         return IndexAction.builder(index);
     }
 
-    public static JiraAction.Builder jiraAction(String account, MapBuilder<String, Object> fields) {
-        return jiraAction(account, fields.immutableMap());
-    }
-
     public static JiraAction.Builder jiraAction(String account, Map<String, Object> fields) {
-        return JiraAction.builder(account, fields);
+        return JiraAction.builder(account, Map.copyOf(fields));
     }
 
     public static WebhookAction.Builder webhookAction(HttpRequestTemplate.Builder httpRequest) {

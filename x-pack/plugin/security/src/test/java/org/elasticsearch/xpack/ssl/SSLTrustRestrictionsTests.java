@@ -179,6 +179,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             tryConnect(untrustedCert);
             fail("handshake should have failed, but was successful");
         } catch (SSLException | SocketException ex) {
+            logger.info("caught expected exception", ex);
             // expected
         }
     }
@@ -237,6 +238,9 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));
+            // Need to not use client mode for TLSv1.3; otherwise the handshake completes prior to the trust restrictions
+            // causing the server to close the connection
+            socket.setUseClientMode(false);
             // The test simply relies on this (synchronously) connecting (or not), so we don't need a handshake handler
             socket.startHandshake();
         }

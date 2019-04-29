@@ -126,7 +126,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
         Settings.Builder builder = Settings.builder()
                 .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NIO)//randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
                 .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
                 //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)

@@ -337,7 +337,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             return ioe.get();
         });
         if (e != null) {
-            throw e;
+            throw new IOException(e);
         }
     }
 

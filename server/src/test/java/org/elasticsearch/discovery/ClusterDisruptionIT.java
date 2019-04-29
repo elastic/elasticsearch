@@ -67,6 +67,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
@@ -135,6 +136,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         final List<Exception> exceptedExceptions = new CopyOnWriteArrayList<>();
 
         final ConflictMode conflictMode = ConflictMode.randomMode();
+        final List<String> fieldNames = IntStream.rangeClosed(0, randomInt(10)).mapToObj(n -> "f" + n).collect(Collectors.toList());
 
         logger.info("starting indexers using conflict mode " + conflictMode);
         try {
@@ -157,7 +159,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                                 int shard = Math.floorMod(Murmur3HashFunction.hash(id), numPrimaries);
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                 IndexRequestBuilder indexRequestBuilder = client.prepareIndex("test", "type", id)
-                                    .setSource(Map.of("f" + randomIntBetween(1, 20), randomNonNegativeLong()), XContentType.JSON)
+                                    .setSource(Map.of(randomFrom(fieldNames), randomNonNegativeLong()), XContentType.JSON)
                                     .setTimeout(timeout);
 
                                 if (conflictMode == ConflictMode.external) {

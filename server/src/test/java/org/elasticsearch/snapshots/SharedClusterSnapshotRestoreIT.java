@@ -2704,19 +2704,17 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 shards.put(new ShardId(idxName, "_na_", 0), new ShardSnapshotStatus("unknown-node", State.ABORTED, "aborted"));
                 shards.put(new ShardId(idxName, "_na_", 1), new ShardSnapshotStatus("unknown-node", State.ABORTED, "aborted"));
                 shards.put(new ShardId(idxName, "_na_", 2), new ShardSnapshotStatus("unknown-node", State.ABORTED, "aborted"));
-                List<Entry> entries = new ArrayList<>();
-                entries.add(new Entry(new Snapshot(repositoryName,
-                                                   createSnapshotResponse.getSnapshotInfo().snapshotId()),
-                                                   true,
-                                                   false,
-                                                   State.ABORTED,
-                                                   Collections.singletonList(indexId),
-                                                   System.currentTimeMillis(),
-                                                   repositoryData.getGenId(),
-                                                   shards.build()));
                 return ClusterState.builder(currentState)
-                    .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(Collections.unmodifiableList(entries)))
-                    .build();
+                        .putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(List.of(new Entry(
+                                new Snapshot(repositoryName, createSnapshotResponse.getSnapshotInfo().snapshotId()),
+                                true,
+                                false,
+                                State.ABORTED,
+                                Collections.singletonList(indexId),
+                                System.currentTimeMillis(),
+                                repositoryData.getGenId(),
+                                shards.build()))))
+                        .build();
             }
 
             @Override

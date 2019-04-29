@@ -45,7 +45,7 @@ import java.util.function.Supplier;
  * <p>
  * This is a filter snapshot repository that only snapshots the minimal required information
  * that is needed to recreate the index. In other words instead of snapshotting the entire shard
- * with all it's lucene indexed fields, doc values, points etc. it only snapshots the the stored
+ * with all it's lucene indexed fields, doc values, points etc. it only snapshots the stored
  * fields including _source and _routing as well as the live docs in oder to distinguish between
  * live and deleted docs.
  * </p>

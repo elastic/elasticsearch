@@ -173,3 +173,8 @@ GET _msearch/template
 -----------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+[float]
+[[multi-search-partial-responses]]
+=== Partial responses
+To ensure fast responses, the multi search API will respond with partial results if one or more shards fail. See <<shard-failures, Shard failures>> for more information.

@@ -224,7 +224,7 @@ xpack.subprojects.findAll { it.parent == xpack }.each { Project xpackModule ->
  *****************************************************************************/
 // extract the bundled jdk version, broken into elements as: [feature, interim, update, build]
 // Note the "patch" version is not yet handled here, as it has not yet been used by java.
-Pattern JDK_VERSION = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)")
+Pattern JDK_VERSION = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)@([a-f0-9]{32})?")
 Matcher jdkVersionMatcher = JDK_VERSION.matcher(VersionProperties.bundledJdk)
 if (jdkVersionMatcher.matches() == false) {
   throw new IllegalArgumentException("Malformed jdk version [" + VersionProperties.bundledJdk + "]")
@@ -232,12 +232,21 @@ if (jdkVersionMatcher.matches() == false) {
 String jdkVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "")
 String jdkMajor = jdkVersionMatcher.group(1)
 String jdkBuild = jdkVersionMatcher.group(3)
+String hash = jdkVersionMatcher.group(4)
 
 repositories {
+  // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
   ivy {
     url "https://download.oracle.com"
     patternLayout {
       artifact "java/GA/jdk${jdkMajor}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
+    }
+  }
+  // current pattern since 12.0.1
+  ivy {
+    url "https://download.oracle.com"
+    patternLayout {
+      artifact "java/GA/jdk${jdkVersion}/${hash}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
     }
   }
 }

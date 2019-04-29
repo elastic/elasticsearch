@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -50,6 +51,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_A
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -338,6 +340,33 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertIndexIsClosed(indexName);
     }
 
+    public void testNoopPeerRecoveriesWhenIndexClosed() throws Exception {
+        final String indexName = "peer-recovery-test";
+        int numberOfReplicas = between(1, 2);
+        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+            .put("index.routing.rebalance.enable", "none")
+            .build());
+        indexRandom(randomBoolean(), false, randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(i -> client().prepareIndex(indexName, "_doc").setSource("num", i)).collect(toList()));
+        ensureGreen(indexName);
+
+        // Closing an index should execute noop peer recovery
+        assertAcked(client().admin().indices().prepareClose(indexName).get());
+        assertIndexIsClosed(indexName);
+        ensureGreen(indexName);
+        assertNoFileBasedRecovery(indexName);
+
+        // Open a closed index should execute noop recovery
+        assertAcked(client().admin().indices().prepareOpen(indexName).get());
+        assertIndexIsOpened(indexName);
+        ensureGreen(indexName);
+        assertNoFileBasedRecovery(indexName);
+        internalCluster().assertSameDocIdsOnShards();
+    }
+
     static void assertIndexIsClosed(final String... indices) {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         for (String index : indices) {
@@ -381,6 +410,14 @@ public class CloseIndexIT extends ESIntegTestCase {
             assertThat(indexNotFoundException.getIndex().getName(), equalTo(indexName));
         } else {
             fail("Unexpected exception: " + t);
+        }
+    }
+
+    void assertNoFileBasedRecovery(String indexName) {
+        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+            if (recovery.getPrimary() == false) {
+                assertThat(recovery.getIndex().fileDetails(), empty());
+            }
         }
     }
 }

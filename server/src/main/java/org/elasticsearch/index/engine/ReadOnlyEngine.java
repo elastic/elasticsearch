@@ -300,7 +300,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return false;
+        return startingSeqNo > seqNoStats.getLocalCheckpoint();
     }
 
     @Override

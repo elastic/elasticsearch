@@ -1971,7 +1971,7 @@ public final class MachineLearningClient {
      * Starts Data Frame Analytics
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">POST Data Frame Analytics documentation</a>
+     * see <a href="https://www.TODO.com">Start Data Frame Analytics documentation</a>
      *
      * @param request The {@link StartDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1991,7 +1991,7 @@ public final class MachineLearningClient {
      * Starts Data Frame Analytics asynchronously and notifies listener upon completion
      * <p>
      * For additional info
-     * see <a href="https://www.TODO.com">POST Data Frame Analytics documentation</a>
+     * see <a href="https://www.TODO.com">Start Data Frame Analytics documentation</a>
      *
      * @param request The {@link StartDataFrameAnalyticsRequest}
      * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

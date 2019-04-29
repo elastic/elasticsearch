@@ -32,6 +32,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -66,13 +68,14 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     /**
      * The default minimum number of children that are required to match for the parent to be considered a match.
      */
-    public static final int DEFAULT_MIN_CHILDREN = 0;
+    public static final int DEFAULT_MIN_CHILDREN = 1;
 
     /**
      * The default value for ignore_unmapped.
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
-
+    static final String MIN_CHILDREN_0_DEPRECATION_MESSAGE = "[min_children] 0 will be rejected " +
+        "starting in 8.0. Using 1 instead of 0 will return the same result set.";
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField MAX_CHILDREN_FIELD = new ParseField("max_children");
@@ -80,7 +83,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
     private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
-
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(HasChildQueryBuilder.class));
     private final QueryBuilder query;
     private final String type;
     private final ScoreMode scoreMode;
@@ -135,6 +139,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     public HasChildQueryBuilder minMaxChildren(int minChildren, int maxChildren) {
         if (minChildren < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
+        }
+        if (minChildren == 0) {
+            deprecationLogger.deprecatedAndMaybeLog("min_children", MIN_CHILDREN_0_DEPRECATION_MESSAGE);
         }
         if (maxChildren < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");

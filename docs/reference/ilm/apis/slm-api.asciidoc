@@ -22,8 +22,8 @@ Creates or updates a snapshot policy. If the policy already exists, the version
 is incremented. Only the latest version of a policy is stored.
 
 When a policy is created it is immediately scheduled based on the schedule of
-the policy, if an existing policy was already scheduled the previous policy is
-cancelled and the updated policy is scheduled instead.
+the policy, when a policy is updated its schedule changes are immediately
+applied.
 
 ==== Path Parameters
 

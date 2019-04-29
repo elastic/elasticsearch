@@ -1,0 +1,8 @@
+[float]
+[[breaking_80_search_changes]]
+=== Search Changes
+
+[float]
+==== Removal of types
+
+The `/{index}/{type}/_search` and `/{index}/{type}/_search/template` REST endpoints have been removed in favour of `/{index}/_search` and `/{index}/_search/template`. Since indexes can now only contain a single unnamed type these typed endpoints are obselete.

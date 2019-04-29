@@ -26,7 +26,7 @@ import java.util.Map;
 /**
  * Processor that URL-decodes a string
  */
-public final class URLDecodeProcessor extends AbstractStringProcessor {
+public final class URLDecodeProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "urldecode";
 

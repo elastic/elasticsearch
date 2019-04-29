@@ -234,7 +234,6 @@ setup:
         Content-Type: application/json
       index:
         index: .ml-anomalies-shared
-        type: doc
         id: job-stats-v54-bwc-test-data-counts
         body:
           {
@@ -259,7 +258,6 @@ setup:
         Content-Type: application/json
       index:
         index: .ml-anomalies-shared
-        type: doc
         id: job-stats-v54-bwc-test-model_size_stats
         body:
           {

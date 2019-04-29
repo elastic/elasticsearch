@@ -21,7 +21,3 @@ esplugin {
   description 'The Mapper Size plugin allows document to record their uncompressed size at index time.'
   classname 'org.elasticsearch.plugin.mapper.MapperSizePlugin'
 }
-
-// TODO: migrate to points
-compileJava.options.compilerArgs << "-Xlint:-deprecation"
-compileTestJava.options.compilerArgs << "-Xlint:-deprecation"

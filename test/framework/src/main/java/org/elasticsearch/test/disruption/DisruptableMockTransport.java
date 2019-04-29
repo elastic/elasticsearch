@@ -116,8 +116,10 @@ public abstract class DisruptableMockTransport extends MockTransport {
         destinationTransport.execute(action, new Runnable() {
             @Override
             public void run() {
-                switch (getConnectionStatus(destinationTransport.getLocalNode())) {
+                final ConnectionStatus connectionStatus = getConnectionStatus(destinationTransport.getLocalNode());
+                switch (connectionStatus) {
                     case BLACK_HOLE:
+                    case BLACK_HOLE_REQUESTS_ONLY:
                         onBlackholedDuringSend(requestId, action, destinationTransport);
                         break;
 
@@ -128,6 +130,9 @@ public abstract class DisruptableMockTransport extends MockTransport {
                     case CONNECTED:
                         onConnectedDuringSend(requestId, action, request, destinationTransport);
                         break;
+
+                    default:
+                        throw new AssertionError("unexpected status: " + connectionStatus);
                 }
             }
 
@@ -197,11 +202,20 @@ public abstract class DisruptableMockTransport extends MockTransport {
                 execute(action, new Runnable() {
                     @Override
                     public void run() {
-                        if (destinationTransport.getConnectionStatus(getLocalNode()) != ConnectionStatus.CONNECTED) {
-                            logger.trace("dropping response to {}: channel is not CONNECTED",
-                                requestDescription);
-                        } else {
-                            handleResponse(requestId, response);
+                        final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
+                        switch (connectionStatus) {
+                            case CONNECTED:
+                            case BLACK_HOLE_REQUESTS_ONLY:
+                                handleResponse(requestId, response);
+                                break;
+
+                            case BLACK_HOLE:
+                            case DISCONNECTED:
+                                logger.trace("dropping response to {}: channel is {}", requestDescription, connectionStatus);
+                                break;
+
+                            default:
+                                throw new AssertionError("unexpected status: " + connectionStatus);
                         }
                     }
 
@@ -217,11 +231,20 @@ public abstract class DisruptableMockTransport extends MockTransport {
                 execute(action, new Runnable() {
                     @Override
                     public void run() {
-                        if (destinationTransport.getConnectionStatus(getLocalNode()) != ConnectionStatus.CONNECTED) {
-                            logger.trace("dropping response to {}: channel is not CONNECTED",
-                                requestDescription);
-                        } else {
-                            handleRemoteError(requestId, exception);
+                        final ConnectionStatus connectionStatus = destinationTransport.getConnectionStatus(getLocalNode());
+                        switch (connectionStatus) {
+                            case CONNECTED:
+                            case BLACK_HOLE_REQUESTS_ONLY:
+                                handleRemoteError(requestId, exception);
+                                break;
+
+                            case BLACK_HOLE:
+                            case DISCONNECTED:
+                                logger.trace("dropping exception response to {}: channel is {}", requestDescription, connectionStatus);
+                                break;
+
+                            default:
+                                throw new AssertionError("unexpected status: " + connectionStatus);
                         }
                     }
 
@@ -251,9 +274,29 @@ public abstract class DisruptableMockTransport extends MockTransport {
         }
     }
 
+    /**
+     * Response type from {@link DisruptableMockTransport#getConnectionStatus(DiscoveryNode)} indicating whether, and how, messages should
+     * be disrupted on this transport.
+     */
     public enum ConnectionStatus {
+        /**
+         * No disruption: deliver messages normally.
+         */
         CONNECTED,
-        DISCONNECTED, // network requests to or from this node throw a ConnectTransportException
-        BLACK_HOLE // network traffic to or from the corresponding node is silently discarded
+
+        /**
+         * Simulate disconnection: inbound and outbound messages throw a {@link ConnectTransportException}.
+         */
+        DISCONNECTED,
+
+        /**
+         * Simulate a blackhole partition: inbound and outbound messages are silently discarded.
+         */
+        BLACK_HOLE,
+
+        /**
+         * Simulate an asymmetric partition: outbound messages are silently discarded, but inbound messages are delivered normally.
+         */
+        BLACK_HOLE_REQUESTS_ONLY
     }
 }

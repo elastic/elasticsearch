@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -117,27 +116,6 @@ public class DiscoveryModuleTests extends ESTestCase {
         assertTrue(created.get());
     }
 
-    public void testLegacyHostsProvider() {
-        Settings settings = Settings.builder().put(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "custom").build();
-        AtomicBoolean created = new AtomicBoolean(false);
-        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
-            created.set(true);
-            return hostsResolver -> Collections.emptyList();
-        });
-        newModule(settings, Collections.singletonList(plugin));
-        assertTrue(created.get());
-        assertWarnings("[discovery.zen.hosts_provider] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
-    }
-
-    public void testLegacyAndNonLegacyProvidersRejected() {
-        Settings settings = Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey())
-            .putList(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()).build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            newModule(settings, Collections.emptyList()));
-        assertEquals("it is forbidden to set both [discovery.seed_providers] and [discovery.zen.hosts_provider]", e.getMessage());
-    }
-
     public void testUnknownSeedsProvider() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
@@ -194,15 +172,14 @@ public class DiscoveryModuleTests extends ESTestCase {
 
     public void testJoinValidator() {
         BiConsumer<DiscoveryNode, ClusterState> consumer = (a, b) -> {};
-        // TODO: move to zen2 once join validators are implemented
         DiscoveryModule module = newModule(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-            DiscoveryModule.ZEN_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
+            DiscoveryModule.ZEN2_DISCOVERY_TYPE).build(), Collections.singletonList(new DiscoveryPlugin() {
             @Override
             public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
                 return consumer;
             }
         }));
-        ZenDiscovery discovery = (ZenDiscovery) module.getDiscovery();
+        Coordinator discovery = (Coordinator) module.getDiscovery();
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators = discovery.getOnJoinValidators();
         assertEquals(2, onJoinValidators.size());
         assertTrue(onJoinValidators.contains(consumer));

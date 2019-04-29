@@ -18,11 +18,11 @@ import java.time.ZonedDateTime;
 public abstract class BaseDateTimeProcessor implements Processor {
 
     private final ZoneId zoneId;
-    
+
     BaseDateTimeProcessor(ZoneId zoneId) {
         this.zoneId = zoneId;
     }
-    
+
     BaseDateTimeProcessor(StreamInput in) throws IOException {
         zoneId = ZoneId.of(in.readString());
     }
@@ -31,7 +31,7 @@ public abstract class BaseDateTimeProcessor implements Processor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(zoneId.getId());
     }
-    
+
     ZoneId zoneId() {
         return zoneId;
     }
@@ -43,7 +43,7 @@ public abstract class BaseDateTimeProcessor implements Processor {
         }
 
         if (!(input instanceof ZonedDateTime)) {
-            throw new SqlIllegalArgumentException("A date is required; received {}", input);
+            throw new SqlIllegalArgumentException("A [date], a [time] or a [datetime] is required; received {}", input);
         }
 
         return doProcess(((ZonedDateTime) input).withZoneSameInstant(zoneId));

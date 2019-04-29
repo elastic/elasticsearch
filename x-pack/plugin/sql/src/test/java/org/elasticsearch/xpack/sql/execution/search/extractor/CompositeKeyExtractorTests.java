@@ -9,22 +9,23 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
-import java.io.IOException;
 import java.time.ZoneId;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<CompositeKeyExtractor> {
 
     public static CompositeKeyExtractor randomCompositeKeyExtractor() {
-        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomSafeZone());
+        return new CompositeKeyExtractor(randomAlphaOfLength(16), randomFrom(asList(Property.values())), randomSafeZone(), randomBoolean());
     }
 
     @Override
@@ -38,19 +39,23 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
     }
 
     @Override
-    protected CompositeKeyExtractor mutateInstance(CompositeKeyExtractor instance) throws IOException {
-        return new CompositeKeyExtractor(instance.key() + "mutated", instance.property(), instance.zoneId());
+    protected CompositeKeyExtractor mutateInstance(CompositeKeyExtractor instance) {
+        return new CompositeKeyExtractor(
+            instance.key() + "mutated",
+            randomValueOtherThan(instance.property(), () -> randomFrom(Property.values())),
+            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
+            !instance.isDateTimeBased());
     }
 
     public void testExtractBucketCount() {
         Bucket bucket = new TestBucket(emptyMap(), randomLong(), new Aggregations(emptyList()));
         CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.COUNT,
-                randomZone());
+                randomZone(), false);
         assertEquals(bucket.getDocCount(), extractor.extract(bucket));
     }
 
     public void testExtractKey() {
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, null);
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, UTC, false);
 
         Object value = new Object();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), new Aggregations(emptyList()));
@@ -58,7 +63,7 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
     }
 
     public void testExtractDate() {
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomSafeZone());
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomSafeZone(), true);
 
         long millis = System.currentTimeMillis();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), millis), randomLong(), new Aggregations(emptyList()));
@@ -66,7 +71,7 @@ public class CompositeKeyExtractorTests extends AbstractWireSerializingTestCase<
     }
 
     public void testExtractIncorrectDateKey() {
-        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomZone());
+        CompositeKeyExtractor extractor = new CompositeKeyExtractor(randomAlphaOfLength(16), Property.VALUE, randomZone(), true);
 
         Object value = new Object();
         Bucket bucket = new TestBucket(singletonMap(extractor.key(), value), randomLong(), new Aggregations(emptyList()));

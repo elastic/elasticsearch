@@ -64,16 +64,6 @@ public class Count extends AggregateFunction {
     }
 
     @Override
-    public String name() {
-        if (distinct()) {
-            StringBuilder sb = new StringBuilder(super.name());
-            sb.insert(sb.indexOf("(") + 1, "DISTINCT ");
-            return sb.toString();
-        }
-        return super.name();
-    }
-
-    @Override
     public AggregateFunctionAttribute toAttribute() {
         // COUNT(*) gets its value from the parent aggregation on which _count is called
         if (field() instanceof Literal) {

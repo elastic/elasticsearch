@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -302,7 +303,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             return this;
         }
 
-        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers) {
+        public Builder putDatafeed(DatafeedConfig datafeedConfig, Map<String, String> headers, NamedXContentRegistry xContentRegistry) {
             if (datafeeds.containsKey(datafeedConfig.getId())) {
                 throw ExceptionsHelper.datafeedAlreadyExists(datafeedConfig.getId());
             }
@@ -310,7 +311,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
             String jobId = datafeedConfig.getJobId();
             checkJobIsAvailableForDatafeed(jobId);
             Job job = jobs.get(jobId);
-            DatafeedJobValidator.validate(datafeedConfig, job);
+            DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry);
 
             if (headers.isEmpty() == false) {
                 // Adjust the request, adding security headers from the current thread context

@@ -30,6 +30,7 @@ You can get information for a single calendar or for all calendars by using
 
 ==== Request Body
 
+`page`::
 `from`:::
     (integer) Skips the specified number of calendars.
 

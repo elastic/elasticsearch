@@ -40,7 +40,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -488,20 +488,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             IndexShard newReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
 
             CountDownLatch recoveryStart = new CountDownLatch(1);
-            AtomicBoolean opsSent = new AtomicBoolean(false);
+            AtomicBoolean recoveryDone = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
-                return new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
+                return new RecoveryTarget(indexShard, node, recoveryListener) {
                     @Override
-                    public void indexTranslogOperations(
-                            final List<Translog.Operation> operations,
-                            final int totalTranslogOps,
-                            final long maxSeenAutoIdTimestamp,
-                            final long msu,
-                            final RetentionLeases retentionLeases,
-                            final ActionListener<Long> listener) {
-                        opsSent.set(true);
-                        super.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestamp, msu, retentionLeases, listener);
+                    public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
+                        recoveryDone.set(true);
+                        super.finalizeRecovery(globalCheckpoint, listener);
                     }
                 };
             });
@@ -512,7 +506,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final int indexedDuringRecovery = shards.indexDocs(randomInt(5));
             docs += indexedDuringRecovery;
 
-            assertBusy(() -> assertFalse("recovery should not wait for on pending docs", opsSent.get()));
+            assertBusy(() -> assertTrue("recovery should not wait for on pending docs", recoveryDone.get()));
 
             primaryEngineFactory.releaseLatchedIndexers();
             pendingDocsDone.await();
@@ -562,7 +556,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final IndexShard replica = shards.addReplica();
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(
                     replica,
-                    (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, l -> {}) {
+                    (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
                         @Override
                         public void indexTranslogOperations(
                                 final List<Translog.Operation> operations,
@@ -570,6 +564,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                                 final long maxAutoIdTimestamp,
                                 final long maxSeqNoOfUpdates,
                                 final RetentionLeases retentionLeases,
+                                final long mappingVersion,
                                 final ActionListener<Long> listener) {
                             // index a doc which is not part of the snapshot, but also does not complete on replica
                             replicaEngineFactory.latchIndexers(1);
@@ -603,6 +598,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                                     maxAutoIdTimestamp,
                                     maxSeqNoOfUpdates,
                                     retentionLeases,
+                                    mappingVersion,
                                     listener);
                         }
                     });
@@ -774,7 +770,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 }
             }
             shards.refresh("test");
-            List<DocIdSeqNoAndTerm> docsBelowGlobalCheckpoint = EngineTestCase.getDocIds(getEngine(newPrimary), randomBoolean())
+            List<DocIdSeqNoAndSource> docsBelowGlobalCheckpoint = EngineTestCase.getDocIds(getEngine(newPrimary), randomBoolean())
                 .stream().filter(doc -> doc.getSeqNo() <= newPrimary.getGlobalCheckpoint()).collect(Collectors.toList());
             CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean done = new AtomicBoolean();
@@ -784,7 +780,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 latch.countDown();
                 while (done.get() == false) {
                     try {
-                        List<DocIdSeqNoAndTerm> exposedDocs = EngineTestCase.getDocIds(getEngine(randomFrom(replicas)), randomBoolean());
+                        List<DocIdSeqNoAndSource> exposedDocs = EngineTestCase.getDocIds(getEngine(randomFrom(replicas)), randomBoolean());
                         assertThat(docsBelowGlobalCheckpoint, everyItem(isIn(exposedDocs)));
                         assertThat(randomFrom(replicas).getLocalCheckpoint(), greaterThanOrEqualTo(initDocs - 1L));
                     } catch (AlreadyClosedException ignored) {
@@ -817,7 +813,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         public BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery,
                               IndexShard shard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
                               Logger logger) {
-            super(shard, sourceNode, listener, version -> {});
+            super(shard, sourceNode, listener);
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;
@@ -851,17 +847,19 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final long maxAutoIdTimestamp,
                 final long maxSeqNoOfUpdates,
                 final RetentionLeases retentionLeases,
+                final long mappingVersion,
                 final ActionListener<Long> listener) {
             if (hasBlocked() == false) {
                 blockIfNeeded(RecoveryState.Stage.TRANSLOG);
             }
-            super.indexTranslogOperations(operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates, retentionLeases, listener);
+            super.indexTranslogOperations(
+                operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdates, retentionLeases, mappingVersion, listener);
         }
 
         @Override
-        public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
+        public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
             blockIfNeeded(RecoveryState.Stage.INDEX);
-            super.cleanFiles(totalTranslogOps, sourceMetaData);
+            super.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
         }
 
         @Override

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.indexlifecycle.TerminalPolicyStep;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -125,7 +126,7 @@ public class PolicyStepsRegistry {
                 List<Step> policyAsSteps = policyMetadata.getPolicy().toSteps(policyClient);
                 if (policyAsSteps.isEmpty() == false) {
                     firstStepMap.put(policyMetadata.getName(), policyAsSteps.get(0));
-                    final Map<Step.StepKey, Step> stepMapForPolicy = new HashMap<>();
+                    final Map<Step.StepKey, Step> stepMapForPolicy = new LinkedHashMap<>();
                     for (Step step : policyAsSteps) {
                         assert ErrorStep.NAME.equals(step.getKey().getName()) == false : "unexpected error step in policy";
                         stepMapForPolicy.put(step.getKey(), step);

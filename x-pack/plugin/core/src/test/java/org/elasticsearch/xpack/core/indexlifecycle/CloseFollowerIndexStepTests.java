@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.indexlifecycle;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -43,8 +43,8 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
             assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
             @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            listener.onResponse(new AcknowledgedResponse(true));
+            ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
+            listener.onResponse(new CloseIndexResponse(true, true));
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 

@@ -36,6 +36,7 @@ import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.NioGroup;
 import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
@@ -64,7 +65,7 @@ public class NioTransport extends TcpTransport {
     protected NioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                            PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                            CircuitBreakerService circuitBreakerService, NioGroupFactory groupFactory) {
-        super("nio", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
         this.groupFactory = groupFactory;
     }
 
@@ -157,9 +158,9 @@ public class NioTransport extends TcpTransport {
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
-            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
+            Supplier<Page> pageSupplier = () -> {
                 Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
+                return new Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, NioTransport.this);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
@@ -171,7 +172,7 @@ public class NioTransport extends TcpTransport {
 
         @Override
         public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) {
-            NioTcpServerChannel nioChannel = new NioTcpServerChannel(profileName, channel);
+            NioTcpServerChannel nioChannel = new NioTcpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(nioChannel, e);
             Consumer<NioSocketChannel> acceptor = NioTransport.this::acceptChannel;
             ServerChannelContext context = new ServerChannelContext(nioChannel, this, selector, acceptor, exceptionHandler);

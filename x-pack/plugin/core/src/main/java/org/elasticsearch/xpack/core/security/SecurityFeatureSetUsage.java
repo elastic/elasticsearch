@@ -49,10 +49,6 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         }
         auditUsage = in.readMap();
         ipFilterUsage = in.readMap();
-        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-            // system key has been removed but older send its usage, so read the map and ignore
-            in.readMap();
-        }
         anonymousUsage = in.readMap();
         roleMappingStoreUsage = in.readMap();
     }
@@ -86,10 +82,6 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         }
         out.writeMap(auditUsage);
         out.writeMap(ipFilterUsage);
-        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
-            // system key has been removed but older versions still expected it so send a empty map
-            out.writeMap(Collections.emptyMap());
-        }
         out.writeMap(anonymousUsage);
         out.writeMap(roleMappingStoreUsage);
     }
@@ -107,6 +99,10 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field(AUDIT_XFIELD, auditUsage);
             builder.field(IP_FILTER_XFIELD, ipFilterUsage);
             builder.field(ANONYMOUS_XFIELD, anonymousUsage);
+        } else if (sslUsage.isEmpty() == false) {
+            // A trial (or basic) license can have SSL without security.
+            // This is because security defaults to disabled on that license, but that dynamic-default does not disable SSL.
+            builder.field(SSL_XFIELD, sslUsage);
         }
     }
 

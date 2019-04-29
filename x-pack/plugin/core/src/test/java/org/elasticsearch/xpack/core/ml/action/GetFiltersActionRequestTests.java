@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction.Request;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 
 public class GetFiltersActionRequestTests extends AbstractStreamableTestCase<GetFiltersAction.Request> {
 

@@ -8,6 +8,7 @@
       "parts": {
         "index": {
           "type": "list",
+          "required" : true,
           "description": "A comma-separated list of index patterns; use `_all` to perform the operation on all indices"
         }
       }

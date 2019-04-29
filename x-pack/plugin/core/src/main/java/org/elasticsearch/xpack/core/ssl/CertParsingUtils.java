@@ -92,6 +92,9 @@ public class CertParsingUtils {
         for (Path path : certPaths) {
             try (InputStream input = Files.newInputStream(path)) {
                 certificates.addAll((Collection<Certificate>) certFactory.generateCertificates(input));
+                if (certificates.isEmpty()) {
+                    throw new CertificateException("failed to parse any certificates from [" + path.toAbsolutePath() + "]");
+                }
             }
         }
         return certificates.toArray(new Certificate[0]);

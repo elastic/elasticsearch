@@ -50,7 +50,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                 }
                 job = new Job.Builder(job).setAnalysisConfig(analysisConfig).build();
                 builder.putJob(job, false);
-                builder.putDatafeed(datafeedConfig, Collections.emptyMap());
+                builder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
             } else {
                 builder.putJob(job, false);
             }
@@ -151,7 +151,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             metadataBuilder.putJob(entry.getValue(), true);
         }
         for (Map.Entry<String, DatafeedConfig> entry : datafeeds.entrySet()) {
-            metadataBuilder.putDatafeed(entry.getValue(), Collections.emptyMap());
+            metadataBuilder.putDatafeed(entry.getValue(), Collections.emptyMap(), xContentRegistry());
         }
 
         switch (between(0, 1)) {
@@ -172,7 +172,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             }
             randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).build();
             metadataBuilder.putJob(randomJob, false);
-            metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap());
+            metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

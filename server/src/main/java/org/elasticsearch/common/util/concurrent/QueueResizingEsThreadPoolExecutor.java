@@ -125,13 +125,6 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
     }
 
     /**
-     * Returns the current queue capacity
-     */
-    public int getCurrentCapacity() {
-        return workQueue.capacity();
-    }
-
-    /**
      * Returns the exponentially weighted moving average of the task execution time
      */
     public double getTaskExecutionEWMA() {

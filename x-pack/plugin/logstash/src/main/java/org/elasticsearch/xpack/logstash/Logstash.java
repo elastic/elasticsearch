@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -63,6 +64,8 @@ public class Logstash extends Plugin implements ActionPlugin {
             templates.keySet().removeIf(OLD_LOGSTASH_INDEX_NAME::equals);
             TemplateUtils.loadTemplateIntoMap("/" + LOGSTASH_TEMPLATE_FILE_NAME + ".json", templates, LOGSTASH_INDEX_TEMPLATE_NAME,
                     Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN, LogManager.getLogger(Logstash.class));
+            //internal representation of typeless templates requires the default "_doc" type, which is also required for internal templates
+            assert templates.get(LOGSTASH_INDEX_TEMPLATE_NAME).mappings().get(MapperService.SINGLE_MAPPING_NAME) != null;
             return templates;
         };
     }

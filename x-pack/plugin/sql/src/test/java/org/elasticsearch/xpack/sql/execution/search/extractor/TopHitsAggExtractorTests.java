@@ -15,20 +15,23 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.time.ZoneId;
 import java.util.Collections;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class TopHitsAggExtractorTests extends AbstractWireSerializingTestCase<TopHitsAggExtractor> {
 
     public static TopHitsAggExtractor randomTopHitsAggExtractor() {
-        return new TopHitsAggExtractor(randomAlphaOfLength(16), randomFrom(DataType.values()));
+        return new TopHitsAggExtractor(randomAlphaOfLength(16), randomFrom(DataType.values()), randomZone());
     }
 
     @Override
@@ -43,7 +46,10 @@ public class TopHitsAggExtractorTests extends AbstractWireSerializingTestCase<To
 
     @Override
     protected TopHitsAggExtractor mutateInstance(TopHitsAggExtractor instance) {
-        return new TopHitsAggExtractor(instance.name() + "mutated", randomFrom(DataType.values()));
+        return new TopHitsAggExtractor(
+            instance.name() + "mutated",
+            randomValueOtherThan(instance.fieldDataType(), () -> randomFrom(DataType.values())),
+            randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone));
     }
 
     public void testNoAggs() {
@@ -63,7 +69,7 @@ public class TopHitsAggExtractorTests extends AbstractWireSerializingTestCase<To
     }
 
     public void testExtractValue() {
-        TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataType.KEYWORD);
+        TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataType.KEYWORD, UTC);
 
         String value = "Str_Value";
         Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null, null);
@@ -72,12 +78,13 @@ public class TopHitsAggExtractorTests extends AbstractWireSerializingTestCase<To
     }
 
     public void testExtractDateValue() {
-        TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataType.DATETIME);
+        ZoneId zoneId = randomZone();
+        TopHitsAggExtractor extractor = new TopHitsAggExtractor("topHitsAgg", DataType.DATETIME, zoneId);
 
         long value = 123456789L;
         Aggregation agg = new InternalTopHits(extractor.name(), 0, 1, null, searchHitsOf(value), null, null);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTime(value), extractor.extract(bucket));
+        assertEquals(DateUtils.asDateTime(value, zoneId), extractor.extract(bucket));
     }
 
     private SearchHits searchHitsOf(Object value) {

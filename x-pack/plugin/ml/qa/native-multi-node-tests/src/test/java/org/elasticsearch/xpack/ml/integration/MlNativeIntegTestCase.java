@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -52,6 +53,12 @@ import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgno
  * Base class of ML integration tests that use a native autodetect process
  */
 abstract class MlNativeIntegTestCase extends ESIntegTestCase {
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -363,19 +363,11 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 final List<Transport.Connection> establishedConnections = new CopyOnWriteArrayList<>();
 
                 clientService.addConnectBehavior(remoteService, (transport, discoveryNode, profile, listener) ->
-                    transport.openConnection(discoveryNode, profile, new ActionListener<Transport.Connection>() {
-                        @Override
-                        public void onResponse(Transport.Connection connection) {
+                    transport.openConnection(discoveryNode, profile,
+                        ActionListener.delegateFailure(listener, (delegatedListener, connection) -> {
                             establishedConnections.add(connection);
-                            listener.onResponse(connection);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }));
-
+                            delegatedListener.onResponse(connection);
+                        })));
 
                 clientService.start();
                 clientService.acceptIncomingRequests();
@@ -427,7 +419,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
 
             DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(transportService.getLocalDiscoNode()).build();
             ClusterState build = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodes).build();
-            channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, 0L, false));
+            channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build, false));
         }
 
         void failToRespond() {

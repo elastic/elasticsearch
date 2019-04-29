@@ -42,6 +42,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -1603,5 +1604,22 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertEquals(1, buckets.get(0).getDocCount());
         assertEquals(946771200000L, ((ZonedDateTime)buckets.get(1).getKey()).toEpochSecond() * 1000);
         assertEquals(1, buckets.get(1).getDocCount());
+    }
+
+    public void testDateKeyFormatting() {
+        SearchResponse response = client().prepareSearch("idx")
+                                          .addAggregation(dateHistogram("histo")
+                                              .field("date")
+                                              .dateHistogramInterval(DateHistogramInterval.MONTH)
+                                              .timeZone(ZoneId.of("America/Edmonton")))
+                                          .get();
+
+        assertSearchResponse(response);
+
+        InternalDateHistogram histogram = response.getAggregations().get("histo");
+        List<InternalDateHistogram.Bucket> buckets = histogram.getBuckets();
+        assertThat(buckets.get(0).getKeyAsString(), equalTo("2012-01-01T00:00:00.000-07:00"));
+        assertThat(buckets.get(1).getKeyAsString(), equalTo("2012-02-01T00:00:00.000-07:00"));
+        assertThat(buckets.get(2).getKeyAsString(), equalTo("2012-03-01T00:00:00.000-07:00"));
     }
 }

@@ -31,20 +31,12 @@ import java.nio.channels.ServerSocketChannel;
  */
 public class NioTcpServerChannel extends NioServerSocketChannel implements TcpServerChannel {
 
-    private final String profile;
-
-    public NioTcpServerChannel(String profile, ServerSocketChannel socketChannel) {
+    public NioTcpServerChannel(ServerSocketChannel socketChannel) {
         super(socketChannel);
-        this.profile = profile;
     }
 
     public void close() {
         getContext().closeChannel();
-    }
-
-    @Override
-    public String getProfile() {
-        return profile;
     }
 
     @Override

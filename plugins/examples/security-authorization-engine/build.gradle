@@ -5,11 +5,13 @@ esplugin {
   description 'An example spi extension plugin for security that implements an Authorization Engine'
   classname 'org.elasticsearch.example.AuthorizationEnginePlugin'
   extendedPlugins = ['x-pack-security']
+  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile rootProject.file('NOTICE.txt')
 }
 
 dependencies {
-  compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile "org.elasticsearch.client.x-pack-transport:${version}"
+  compileOnly "org.elasticsearch.plugin:x-pack-core:${versions.elasticsearch}"
+  testCompile "org.elasticsearch.client:x-pack-transport:${versions.elasticsearch}"
 }
 
 
@@ -19,6 +21,8 @@ integTestRunner {
 
 integTestCluster {
   dependsOn buildZip
+  distribution = 'default'
+
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'

@@ -98,7 +98,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override
@@ -217,7 +217,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             void getRemoteClusterState(String remoteCluster,
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override
@@ -274,7 +274,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             void getRemoteClusterState(String remoteCluster,
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override
@@ -729,7 +729,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
                 assertThat(metadataVersion, greaterThan(previousRequestedMetadataVersion));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), leaderStates.poll(), 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), leaderStates.poll(), false), null);
             }
 
             @Override
@@ -788,7 +788,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 counter.incrementAndGet();
                 assertThat(remoteCluster, equalTo("remote"));
                 assertThat(metadataVersion, greaterThan(previousRequestedMetadataVersion));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), null, 1L, true), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), null, true), null);
             }
 
             @Override
@@ -838,7 +838,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override
@@ -914,7 +914,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                        long metadataVersion,
                                        BiConsumer<ClusterStateResponse, Exception> handler) {
                 assertThat(remoteCluster, equalTo("remote"));
-                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, 1L, false), null);
+                handler.accept(new ClusterStateResponse(new ClusterName("name"), remoteState, false), null);
             }
 
             @Override

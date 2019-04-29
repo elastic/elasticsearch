@@ -9,16 +9,21 @@ up: nodes that have already joined a cluster store this information in their
 data folder and freshly-started nodes that are joining an existing cluster
 obtain this information from the cluster's elected master. 
 
-The initial set of master-eligible nodes is defined in the 
-<<initial_master_nodes,`cluster.initial_master_nodes` setting>>. When you
-start a master-eligible node, you can provide this setting on the command line
-or in the `elasticsearch.yml` file. After the cluster has formed, this setting
-is no longer required and is ignored. It need not be set
-on master-ineligible nodes, nor on master-eligible nodes that are started to
-join an existing cluster. Note that master-eligible nodes should use storage
-that persists across restarts. If they do not, and
-`cluster.initial_master_nodes` is set, and a full cluster restart occurs, then
-another brand-new cluster will form and this may result in data loss.
+The initial set of master-eligible nodes is defined in the
+<<initial_master_nodes,`cluster.initial_master_nodes` setting>>. This is a list
+of the <<node.name,node names>> or IP addresses of the master-eligible nodes in
+the new cluster. If you do not configure `node.name` then it is set to the
+node's hostname, so in this case you can use hostnames in
+`cluster.initial_master_nodes` too.
+
+When you start a master-eligible node, you can provide this setting on the
+command line or in the `elasticsearch.yml` file. After the cluster has formed,
+this setting is no longer required and is ignored. It need not be set on
+master-ineligible nodes, nor on master-eligible nodes that are started to join
+an existing cluster. Note that master-eligible nodes should use storage that
+persists across restarts. If they do not, and `cluster.initial_master_nodes` is
+set, and a full cluster restart occurs, then another brand-new cluster will
+form and this may result in data loss.
 
 It is technically sufficient to set `cluster.initial_master_nodes` on a single
 master-eligible node in the cluster, and only to mention that single node in the
@@ -26,10 +31,6 @@ setting's value, but this provides no fault tolerance before the cluster has
 fully formed. It is therefore better to bootstrap using at least three
 master-eligible nodes, each with a `cluster.initial_master_nodes` setting
 containing all three nodes.
-
-NOTE: In alpha releases, all listed master-eligible nodes are required to be
-discovered before bootstrapping can take place. This requirement will be relaxed
-in production-ready releases.
 
 WARNING: You must set `cluster.initial_master_nodes` to the same list of nodes
 on each node on which it is set in order to be sure that only a single cluster
@@ -46,10 +47,9 @@ cluster.initial_master_nodes:
   - master-c
 --------------------------------------------------
 
-Alternatively the IP addresses or hostnames (<<node.name,if node name defaults
-to the host name>>) can be used. If there is more than one Elasticsearch node
-with the same IP address or hostname then the transport ports must also be given
-to specify exactly which node is meant:
+You can use a mix of IP addresses and node names too. If there is more than one
+Elasticsearch node with the same IP address then the transport port must also
+be given to specify exactly which node is meant:
 
 [source,yaml]
 --------------------------------------------------
@@ -67,6 +67,37 @@ nodes on the command-line that is used to start Elasticsearch:
 --------------------------------------------------
 $ bin/elasticsearch -Ecluster.initial_master_nodes=master-a,master-b,master-c
 --------------------------------------------------
+
+[NOTE]
+==================================================
+
+[[modules-discovery-bootstrap-cluster-fqdns]] The node names used in the
+`cluster.initial_master_nodes` list must exactly match the `node.name`
+properties of the nodes. By default the node name is set to the machine's
+hostname which may or may not be fully-qualified depending on your system
+configuration. If each node name is a fully-qualified domain name such as
+`master-a.example.com` then you must use fully-qualified domain names in the
+`cluster.initial_master_nodes` list too; conversely if your node names are bare
+hostnames (without the `.example.com` suffix) then you must use bare hostnames
+in the `cluster.initial_master_nodes` list. If you use a mix of fully-qualifed
+and bare hostnames, or there is some other mismatch between `node.name` and
+`cluster.initial_master_nodes`, then the cluster will not form successfully and
+you will see log messages like the following.
+
+[source,text]
+--------------------------------------------------
+[master-a.example.com] master not discovered yet, this node has
+not previously joined a bootstrapped (v7+) cluster, and this
+node must discover master-eligible nodes [master-a, master-b] to
+bootstrap a cluster: have discovered [{master-b.example.com}{...
+--------------------------------------------------
+
+This message shows the node names `master-a.example.com` and
+`master-b.example.com` as well as the `cluster.initial_master_nodes` entries
+`master-a` and `master-b`, and it is clear from this message that they do not
+match exactly.
+
+==================================================
 
 [float]
 ==== Choosing a cluster name

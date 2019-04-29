@@ -18,6 +18,8 @@
  */
 import org.gradle.util.GradleVersion
 
+import java.util.regex.Matcher
+
 plugins {
   id 'java-gradle-plugin'
   id 'groovy'
@@ -82,10 +84,8 @@ sourceSets {
   }
 }
 compileMinimumRuntimeGroovy {
-  // We can't use BuildPlugin here, so read from file
-  String minimumRuntimeVersion = file('src/main/resources/minimumRuntimeVersion').text.trim()
-  targetCompatibility = minimumRuntimeVersion
-  sourceCompatibility = minimumRuntimeVersion
+  targetCompatibility = 8
+  sourceCompatibility = 8
 }
 dependencies {
   if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
@@ -111,8 +111,6 @@ repositories {
 
 dependencies {
   compile localGroovy()
-  compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
-  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
   
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
@@ -121,20 +119,11 @@ dependencies {
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'org.apache.rat:apache-rat:0.11'
   compile "org.elasticsearch:jna:4.5.1"
-  compile 'com.github.jengelman.gradle.plugins:shadow:2.0.4'
+  compile 'com.github.jengelman.gradle.plugins:shadow:4.0.3'
   compile 'de.thetaphi:forbiddenapis:2.6'
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   testCompile "junit:junit:${props.getProperty('junit')}"
-}
-
-
-// Gradle 2.14+ removed ProgressLogger(-Factory) classes from the public APIs
-// Use logging dependency instead
-// Gradle 4.3.1 stopped releasing the logging jars to jcenter, just use the last available one
-GradleVersion logVersion = GradleVersion.current() > GradleVersion.version('4.3') ? GradleVersion.version('4.3') : GradleVersion.current()
-
-dependencies {
-  compileOnly "org.gradle:gradle-logging:${logVersion.getVersion()}"
+  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
 }
 
 /*****************************************************************************
@@ -196,16 +185,7 @@ if (project != rootProject) {
     from configurations.distribution
     into localDownloads
   }
-
-  unitTest {
-    // The test task is configured to runtimeJava version, but build-tools doesn't support all of them, so test
-    // with compiler instead on the ones that are too old.
-    if (project.runtimeJavaVersion <= JavaVersion.VERSION_1_10) {
-      jvm = "${project.compilerJavaHome}/bin/java"
-    }
-  }
-
-  // This can't be an RandomizedTestingTask because we can't yet reference it
+    
   task integTest(type: Test) {
     // integration test requires the local testing repo for example plugin builds
     dependsOn project.rootProject.allprojects.collect {
@@ -213,8 +193,6 @@ if (project != rootProject) {
     }
     dependsOn setupLocalDownloads
     exclude "**/*Tests.class"
-    testClassesDirs = sourceSets.test.output.classesDirs
-    classpath = sourceSets.test.runtimeClasspath
     inputs.dir(file("src/testKit"))
     // tell BuildExamplePluginsIT where to find the example plugins
     systemProperty (
@@ -226,7 +204,11 @@ if (project != rootProject) {
     systemProperty 'test.local-test-repo-path', "${rootProject.buildDir}/local-test-repo"
     systemProperty 'test.local-test-downloads-path', localDownloads
     systemProperty 'test.version_under_test', version
-    systemProperty 'test.lucene-snapshot-revision', (versions.lucene =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
+    Matcher isLuceneSnapshot = (/\w+-snapshot-([a-z0-9]+)/ =~ versions.lucene)
+    if (isLuceneSnapshot) {
+      systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
+    }
+    maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
   }
   check.dependsOn(integTest)
 
@@ -235,6 +217,7 @@ if (project != rootProject) {
 
   forbiddenPatterns {
     exclude '**/*.wav'
+    exclude '**/*.p12'
     // the file that actually defines nocommit
     exclude '**/ForbiddenPatternsTask.java'
   }

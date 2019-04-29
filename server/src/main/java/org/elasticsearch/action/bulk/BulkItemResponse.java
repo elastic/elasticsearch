@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -238,16 +237,8 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             id = in.readOptionalString();
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                seqNo = in.readZLong();
-            } else {
-                seqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
-            }
-            if (supportsAbortedFlag(in.getVersion())) {
-                aborted = in.readBoolean();
-            } else {
-                aborted = false;
-            }
+            seqNo = in.readZLong();
+            aborted = in.readBoolean();
         }
 
         @Override
@@ -256,17 +247,8 @@ public class BulkItemResponse implements Streamable, StatusToXContentObject {
             out.writeString(getType());
             out.writeOptionalString(getId());
             out.writeException(getCause());
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                out.writeZLong(getSeqNo());
-            }
-            if (supportsAbortedFlag(out.getVersion())) {
-                out.writeBoolean(aborted);
-            }
-        }
-
-        private static boolean supportsAbortedFlag(Version version) {
-            // The "aborted" flag was not in 6.0.0-beta2
-            return version.after(Version.V_6_0_0_beta2);
+            out.writeZLong(getSeqNo());
+            out.writeBoolean(aborted);
         }
 
         /**

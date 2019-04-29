@@ -68,7 +68,6 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
-        markSeqNoAsSeen(index.seqNo());
         // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
@@ -89,13 +88,12 @@ public final class FollowingEngine extends InternalEngine {
                     shardId, index.seqNo(), lookupPrimaryTerm(index.seqNo()));
                 return IndexingStrategy.skipDueToVersionConflict(error, false, index.version(), index.primaryTerm());
             } else {
-                return IndexingStrategy.processButSkipLucene(false, index.seqNo(), index.version());
+                return IndexingStrategy.processButSkipLucene(false, index.version());
             }
         } else if (maxSeqNoOfUpdatesOrDeletes <= getLocalCheckpoint()) {
             assert maxSeqNoOfUpdatesOrDeletes < index.seqNo() : "seq_no[" + index.seqNo() + "] <= msu[" + maxSeqNoOfUpdatesOrDeletes + "]";
             numOfOptimizedIndexing.inc();
-            return InternalEngine.IndexingStrategy.optimizedAppendOnly(index.seqNo(), index.version());
-
+            return InternalEngine.IndexingStrategy.optimizedAppendOnly(index.version());
         } else {
             return planIndexingAsNonPrimary(index);
         }
@@ -104,7 +102,6 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.DeletionStrategy deletionStrategyForOperation(final Delete delete) throws IOException {
         preFlight(delete);
-        markSeqNoAsSeen(delete.seqNo());
         if (delete.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(delete)) {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
@@ -124,6 +121,19 @@ public final class FollowingEngine extends InternalEngine {
         } else {
             return super.preFlightCheckForNoOp(noOp);
         }
+    }
+
+    @Override
+    protected long generateSeqNoForOperationOnPrimary(final Operation operation) {
+        assert operation.origin() == Operation.Origin.PRIMARY;
+        assert operation.seqNo() >= 0 : "ops should have an assigned seq no. but was: " + operation.seqNo();
+        markSeqNoAsSeen(operation.seqNo()); // even though we're not generating a sequence number, we mark it as seen
+        return operation.seqNo();
+    }
+
+    @Override
+    protected void advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(long seqNo) {
+        // ignore, this is not really a primary
     }
 
     @Override

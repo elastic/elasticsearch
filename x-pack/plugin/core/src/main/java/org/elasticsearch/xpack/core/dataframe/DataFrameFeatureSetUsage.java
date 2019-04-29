@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.dataframe.transform.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 
 import java.io.IOException;
 import java.util.Map;

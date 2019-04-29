@@ -1,0 +1,15 @@
+[role="xpack"]
+[[ilm-settings]]
+=== {ilm-cap} settings
+
+These index-level {ilm-init} settings are typically configured through index
+templates. For more information, see <<ilm-gs-create-policy>>.
+
+`index.lifecycle.name`::
+The name of the policy to use to manage the index.
+
+`index.lifecycle.rollover_alias`::
+The index alias to update when the index rolls over. Specify when using a
+policy that contains a rollover action. When the index rolls over, the alias is
+updated to reflect that the index is no longer the write index. For more
+information about rollover, see <<using-policies-rollover>>.

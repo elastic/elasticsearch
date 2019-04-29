@@ -64,7 +64,7 @@ node.ml: false <5>
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> The `node.ingest` role is enabled by default.
-<4> Disable cross-cluster search (enabled by default).
+<4> Disable {ccs} (enabled by default).
 <5> Disable the `node.ml` role (enabled by default in {xpack}).
 
 To create a dedicated coordinating node when {xpack} is installed, set:
@@ -80,7 +80,7 @@ node.ml: false <5>
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
-<4> Disable cross-cluster search (enabled by default).
+<4> Disable {ccs} (enabled by default).
 <5> Disable the `node.ml` role (enabled by default in {xpack}).
 
 [float]
@@ -111,6 +111,6 @@ xpack.ml.enabled: true <6>
 <1> Disable the `node.master` role (enabled by default).
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
-<4> Disable cross-cluster search (enabled by default).
+<4> Disable {ccs} (enabled by default).
 <5> The `node.ml` role is enabled by default in {xpack}.
 <6> The `xpack.ml.enabled` setting is enabled by default in {xpack}.

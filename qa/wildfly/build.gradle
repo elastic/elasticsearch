@@ -211,7 +211,7 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
 
 check.dependsOn(integTest)
 
-unitTest.enabled = false
+test.enabled = false
 
 dependencyLicenses.enabled = false
 dependenciesInfo.enabled = false

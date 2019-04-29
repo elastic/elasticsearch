@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -30,7 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -370,11 +369,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 shardFailures[i] = readShardSearchFailure(in);
             }
         }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            clusters = new Clusters(in);
-        } else {
-            clusters = Clusters.EMPTY;
-        }
+        clusters = new Clusters(in);
         scrollId = in.readOptionalString();
         tookInMillis = in.readVLong();
         skippedShards = in.readVInt();
@@ -391,9 +386,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         for (ShardSearchFailure shardSearchFailure : shardFailures) {
             shardSearchFailure.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            clusters.writeTo(out);
-        }
+        clusters.writeTo(out);
         out.writeOptionalString(scrollId);
         out.writeVLong(tookInMillis);
         out.writeVInt(skippedShards);
@@ -408,7 +401,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      * Holds info about the clusters that the search was executed on: how many in total, how many of them were successful
      * and how many of them were skipped.
      */
-    public static class Clusters implements ToXContent, Writeable {
+    public static class Clusters implements ToXContentFragment, Writeable {
 
         public static final Clusters EMPTY = new Clusters(0, 0, 0);
 

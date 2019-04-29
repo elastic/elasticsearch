@@ -62,7 +62,7 @@ public final class IndexSettings {
         Setting.boolSetting("index.query.parse.allow_unmapped_fields", true, Property.IndexScope);
     public static final Setting<TimeValue> INDEX_TRANSLOG_SYNC_INTERVAL_SETTING =
         Setting.timeSetting("index.translog.sync_interval", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(100),
-            Property.IndexScope);
+            Property.Dynamic, Property.IndexScope);
     public static final Setting<TimeValue> INDEX_SEARCH_IDLE_AFTER =
         Setting.timeSetting("index.search.idle.after", TimeValue.timeValueSeconds(30),
             TimeValue.timeValueMinutes(0), Property.IndexScope, Property.Dynamic);
@@ -261,9 +261,9 @@ public final class IndexSettings {
     /**
      * Controls the maximum length of time since a retention lease is created or renewed before it is considered expired.
      */
-    public static final Setting<TimeValue> INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING =
+    public static final Setting<TimeValue> INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING =
             Setting.timeSetting(
-                    "index.soft_deletes.retention.lease",
+                    "index.soft_deletes.retention_lease.period",
                     TimeValue.timeValueHours(12),
                     TimeValue.ZERO,
                     Property.Dynamic,
@@ -316,7 +316,7 @@ public final class IndexSettings {
     private final boolean queryStringAllowLeadingWildcard;
     private final boolean defaultAllowUnmappedFields;
     private volatile Translog.Durability durability;
-    private final TimeValue syncInterval;
+    private volatile TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue translogRetentionAge;
@@ -460,7 +460,7 @@ public final class IndexSettings {
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = version.onOrAfter(Version.V_6_5_0) && scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
-        retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING).millis();
+        retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
         maxResultWindow = scopedSettings.get(MAX_RESULT_WINDOW_SETTING);
         maxInnerResultWindow = scopedSettings.get(MAX_INNER_RESULT_WINDOW_SETTING);
@@ -501,6 +501,7 @@ public final class IndexSettings {
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING, mergeSchedulerConfig::setMaxThreadAndMergeCount);
         scopedSettings.addSettingsUpdateConsumer(MergeSchedulerConfig.AUTO_THROTTLE_SETTING, mergeSchedulerConfig::setAutoThrottle);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_DURABILITY_SETTING, this::setTranslogDurability);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_SYNC_INTERVAL_SETTING, this::setTranslogSyncInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_RESULT_WINDOW_SETTING, this::setMaxResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_INNER_RESULT_WINDOW_SETTING, this::setMaxInnerResultWindow);
         scopedSettings.addSettingsUpdateConsumer(MAX_ADJACENCY_MATRIX_FILTERS_SETTING, this::setMaxAdjacencyMatrixFilters);
@@ -529,7 +530,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_PIPELINE, this::setDefaultPipeline);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING, this::setSoftDeleteRetentionOperations);
         scopedSettings.addSettingsUpdateConsumer(INDEX_SEARCH_THROTTLED, this::setSearchThrottled);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_SETTING, this::setRetentionLeaseMillis);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) { this.searchIdleAfter = searchIdleAfter; }
@@ -701,6 +702,10 @@ public final class IndexSettings {
         return syncInterval;
     }
 
+    public void setTranslogSyncInterval(TimeValue translogSyncInterval) {
+        this.syncInterval = translogSyncInterval;
+    }
+    
     /**
      * Returns this interval in which the shards of this index are asynchronously refreshed. {@code -1} means async refresh is disabled.
      */

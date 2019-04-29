@@ -22,7 +22,6 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import com.carrotsearch.hppc.ObjectHashSet;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -308,15 +307,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
         source = in.readString();
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            in.readBoolean(); // updateAllTypes
-        }
         concreteIndex = in.readOptionalWriteable(Index::new);
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
-        }
+        origin = in.readOptionalString();
     }
 
     @Override
@@ -326,13 +318,8 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalString(type);
         out.writeString(source);
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeBoolean(true); // updateAllTypes
-        }
         out.writeOptionalWriteable(concreteIndex);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeOptionalString(origin);
-        }
+        out.writeOptionalString(origin);
     }
 
     @Override

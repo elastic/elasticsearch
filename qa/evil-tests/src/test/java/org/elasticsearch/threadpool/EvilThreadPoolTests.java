@@ -163,20 +163,12 @@ public class EvilThreadPoolTests extends ESTestCase {
 
     public void testExecutionExceptionOnDefaultThreadPoolTypes() throws InterruptedException {
         for (String executor : ThreadPool.THREAD_POOL_TYPES.keySet()) {
-            final boolean expectExceptionOnExecute =
-                // fixed_auto_queue_size wraps stuff into TimedRunnable, which is an AbstractRunnable
-                // TODO: this is dangerous as it will silently swallow exceptions, and possibly miss calling a response listener
-                ThreadPool.THREAD_POOL_TYPES.get(executor) != ThreadPool.ThreadPoolType.FIXED_AUTO_QUEUE_SIZE;
-            checkExecutionException(getExecuteRunner(threadPool.executor(executor)), expectExceptionOnExecute);
+            checkExecutionException(getExecuteRunner(threadPool.executor(executor)), true);
 
             // here, it's ok for the exception not to bubble up. Accessing the future will yield the exception
             checkExecutionException(getSubmitRunner(threadPool.executor(executor)), false);
 
-            final boolean expectExceptionOnSchedule =
-                // fixed_auto_queue_size wraps stuff into TimedRunnable, which is an AbstractRunnable
-                // TODO: this is dangerous as it will silently swallow exceptions, and possibly miss calling a response listener
-                ThreadPool.THREAD_POOL_TYPES.get(executor) != ThreadPool.ThreadPoolType.FIXED_AUTO_QUEUE_SIZE;
-            checkExecutionException(getScheduleRunner(executor), expectExceptionOnSchedule);
+            checkExecutionException(getScheduleRunner(executor), true);
         }
     }
 
@@ -213,8 +205,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             1, 1, 1, TimeValue.timeValueSeconds(10), EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
         try {
             // fixed_auto_queue_size wraps stuff into TimedRunnable, which is an AbstractRunnable
-            // TODO: this is dangerous as it will silently swallow exceptions, and possibly miss calling a response listener
-            checkExecutionException(getExecuteRunner(autoQueueFixedExecutor), false);
+            checkExecutionException(getExecuteRunner(autoQueueFixedExecutor), true);
             checkExecutionException(getSubmitRunner(autoQueueFixedExecutor), false);
         } finally {
             ThreadPool.terminate(autoQueueFixedExecutor, 10, TimeUnit.SECONDS);

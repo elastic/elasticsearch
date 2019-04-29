@@ -23,11 +23,28 @@ public final class DataFrameField {
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField WAIT_FOR_COMPLETION = new ParseField("wait_for_completion");
     public static final ParseField STATS_FIELD = new ParseField("stats");
+    public static final ParseField INDEX_DOC_TYPE = new ParseField("doc_type");
+    public static final ParseField SOURCE = new ParseField("source");
+    public static final ParseField DESTINATION = new ParseField("dest");
+    public static final ParseField FORCE = new ParseField("force");
+
+    /**
+     * Fields for checkpointing
+     */
+    // the timestamp of the checkpoint, mandatory
+    public static final ParseField TIMESTAMP_MILLIS = new ParseField("timestamp_millis");
+    public static final ParseField TIMESTAMP = new ParseField("timestamp");
+    // checkpoint for for time based sync
+    // TODO: consider a lower bound for usecases where you want to transform on a window of a stream
+    public static final ParseField TIME_UPPER_BOUND_MILLIS = new ParseField("time_upper_bound_millis");
+    public static final ParseField TIME_UPPER_BOUND = new ParseField("time_upper_bound");
 
     // common strings
     public static final String TASK_NAME = "data_frame/transforms";
     public static final String REST_BASE_PATH = "/_data_frame/";
-    public static final String REST_BASE_PATH_TRANSFORMS_BY_ID = REST_BASE_PATH + "transforms/{id}/";
+    public static final String REST_BASE_PATH_TRANSFORMS = REST_BASE_PATH + "transforms/";
+    public static final String REST_BASE_PATH_TRANSFORMS_BY_ID = REST_BASE_PATH_TRANSFORMS + "{id}/";
+    public static final String TRANSFORM_ID = "transform_id";
 
     // note: this is used to match tasks
     public static final String PERSISTENT_TASK_DESCRIPTION_PREFIX = "data_frame_";
@@ -46,6 +63,9 @@ public final class DataFrameField {
      * API's)
      */
     public static final String FOR_INTERNAL_STORAGE = "for_internal_storage";
+
+    // internal document id
+    public static String DOCUMENT_ID_FIELD = "_id";
 
     private DataFrameField() {
     }

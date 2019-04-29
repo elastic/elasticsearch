@@ -31,6 +31,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -52,10 +53,11 @@ import java.util.Map;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
 
@@ -91,10 +93,11 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
 
         // sets other parameters of the multi match query
         if (randomBoolean()) {
-            if (fieldName.equals(STRING_FIELD_NAME)) {
+            if (fieldName.equals(STRING_FIELD_NAME) || fieldName.equals(STRING_ALIAS_FIELD_NAME) || fieldName.equals(STRING_FIELD_NAME_2)) {
                 query.type(randomFrom(MultiMatchQueryBuilder.Type.values()));
             } else {
-                query.type(randomValueOtherThan(MultiMatchQueryBuilder.Type.PHRASE_PREFIX,
+                query.type(randomValueOtherThanMany(
+                    (type) -> type == Type.PHRASE_PREFIX || type == Type.BOOL_PREFIX,
                     () -> randomFrom(MultiMatchQueryBuilder.Type.values())));
             }
         }
@@ -104,7 +107,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean() && fieldName.equals(STRING_FIELD_NAME)) {
             query.analyzer(randomAnalyzer());
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && query.type() != Type.BOOL_PREFIX) {
             query.slop(randomIntBetween(0, 5));
         }
         if (fieldName.equals(STRING_FIELD_NAME) && randomBoolean() &&
@@ -126,7 +129,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.tieBreaker(randomFloat());
         }
-        if (randomBoolean()) {
+        if (randomBoolean() && query.type() != Type.BOOL_PREFIX) {
             query.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
         }
         if (randomBoolean()) {
@@ -158,12 +161,21 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     @Override
     protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         // we rely on integration tests for deeper checks here
-        assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(TermQuery.class))
-                .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
-                .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
-                .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
-                .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class))
-                .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
+        assertThat(query, anyOf(Arrays.asList(
+            instanceOf(BoostQuery.class),
+            instanceOf(TermQuery.class),
+            instanceOf(BooleanQuery.class),
+            instanceOf(DisjunctionMaxQuery.class),
+            instanceOf(FuzzyQuery.class),
+            instanceOf(MultiPhrasePrefixQuery.class),
+            instanceOf(MatchAllDocsQuery.class),
+            instanceOf(ExtendedCommonTermsQuery.class),
+            instanceOf(MatchNoDocsQuery.class),
+            instanceOf(PhraseQuery.class),
+            instanceOf(PointRangeQuery.class),
+            instanceOf(IndexOrDocValuesQuery.class),
+            instanceOf(PrefixQuery.class)
+        )));
     }
 
     public void testIllegaArguments() {
@@ -238,6 +250,51 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             instanceOf(MatchNoDocsQuery.class));
         assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()),
             instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testToQueryBooleanPrefixSingleField() throws IOException {
+        final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME);
+        builder.type(Type.BOOL_PREFIX);
+        final Query query = builder.toQuery(createShardContext());
+        assertThat(query, instanceOf(BooleanQuery.class));
+        final BooleanQuery booleanQuery = (BooleanQuery) query;
+        assertThat(booleanQuery.clauses(), hasSize(2));
+        assertThat(assertBooleanSubQuery(booleanQuery, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
+        assertThat(assertBooleanSubQuery(booleanQuery, PrefixQuery.class, 1).getPrefix(), equalTo(new Term(STRING_FIELD_NAME, "bar")));
+    }
+
+    public void testToQueryBooleanPrefixMultipleFields() throws IOException {
+        {
+            final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
+            builder.type(Type.BOOL_PREFIX);
+            final Query query = builder.toQuery(createShardContext());
+            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+            final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
+            assertThat(disMaxQuery.getDisjuncts(), hasSize(2));
+            for (Query disjunctQuery : disMaxQuery.getDisjuncts()) {
+                assertThat(disjunctQuery, instanceOf(BooleanQuery.class));
+                final BooleanQuery booleanQuery = (BooleanQuery) disjunctQuery;
+                assertThat(booleanQuery.clauses(), hasSize(2));
+                assertThat(assertBooleanSubQuery(booleanQuery, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
+                assertThat(assertBooleanSubQuery(booleanQuery, PrefixQuery.class, 1).getPrefix(),
+                    equalTo(new Term(STRING_FIELD_NAME, "bar")));
+            }
+        }
+
+        {
+            // STRING_FIELD_NAME_2 is a keyword field
+            final MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_FIELD_NAME_2);
+            queryBuilder.type(Type.BOOL_PREFIX);
+            final Query query = queryBuilder.toQuery(createShardContext());
+            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+            final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
+            assertThat(disMaxQuery.getDisjuncts(), hasSize(2));
+            final BooleanQuery firstDisjunct = assertDisjunctionSubQuery(disMaxQuery, BooleanQuery.class, 0);
+            assertThat(firstDisjunct.clauses(), hasSize(2));
+            assertThat(assertBooleanSubQuery(firstDisjunct, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
+            final PrefixQuery secondDisjunct = assertDisjunctionSubQuery(disMaxQuery, PrefixQuery.class, 1);
+            assertThat(secondDisjunct.getPrefix(), equalTo(new Term(STRING_FIELD_NAME_2, "foo bar")));
+        }
     }
 
     public void testFromJson() throws IOException {

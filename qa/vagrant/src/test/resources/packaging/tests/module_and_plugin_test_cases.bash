@@ -162,22 +162,6 @@ fi
     remove_plugin_example
 }
 
-@test "[$GROUP] fail if java executable is not found" {
-  [ "$GROUP" == "TAR PLUGINS" ] || skip "Test case only supported by TAR PLUGINS"
-  local JAVA=$(which java)
-
-  sudo chmod -x $JAVA
-  run "$ESHOME/bin/elasticsearch-plugin"
-  sudo chmod +x $JAVA
-
-  [ "$status" -eq 1 ]
-  local expected="could not find java; set JAVA_HOME"
-  [[ "$output" == *"$expected"* ]] || {
-    echo "Expected error message [$expected] but found: $output"
-    false
-  }
-}
-
 # Note that all of the tests from here to the end of the file expect to be run
 # in sequence and don't take well to being run one at a time.
 @test "[$GROUP] install a sample plugin" {
@@ -446,7 +430,7 @@ fi
     local java_home=$JAVA_HOME
 
     # create a JAVA_HOME with a space
-    local java=$(which java)
+    local java="$SYSTEM_JAVA_HOME"/bin/java
     local temp=`mktemp -d --suffix="java home"`
     mkdir -p "$temp/bin"
     ln -s "$java" "$temp/bin/java"

@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -84,9 +83,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     public CompletionSuggestion(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            skipDuplicates = in.readBoolean();
-        }
+        skipDuplicates = in.readBoolean();
     }
 
     @Override
@@ -97,9 +94,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(skipDuplicates);
-        }
+        out.writeBoolean(skipDuplicates);
     }
 
     /**
@@ -145,7 +140,16 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
         @Override
         protected boolean lessThan(ShardOptions a, ShardOptions b) {
-            return COMPARATOR.compare(a.current, b.current) < 0;
+            int compare = COMPARATOR.compare(a.current, b.current);
+            if (compare != 0) {
+                return compare < 0;
+            }
+            ScoreDoc aDoc = a.current.getDoc();
+            ScoreDoc bDoc = b.current.getDoc();
+            if (aDoc.shardIndex == bDoc.shardIndex) {
+                return aDoc.doc < bDoc.doc;
+            }
+            return aDoc.shardIndex < bDoc.shardIndex;
         }
     }
 
@@ -157,6 +161,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             assert optionsIterator.hasNext();
             this.optionsIterator = optionsIterator;
             this.current = optionsIterator.next();
+            assert this.current.getDoc().shardIndex != -1 : "shardIndex is not set";
         }
 
         boolean advanceToNextOption() {

@@ -54,6 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UnassignedInfoTests extends ESAllocationTestCase {
+
     public void testReasonOrdinalOrder() {
         UnassignedInfo.Reason[] order = new UnassignedInfo.Reason[]{
                 UnassignedInfo.Reason.INDEX_CREATED,
@@ -70,7 +71,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 UnassignedInfo.Reason.REALLOCATED_REPLICA,
                 UnassignedInfo.Reason.PRIMARY_FAILED,
                 UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
-                UnassignedInfo.Reason.MANUAL_ALLOCATION,};
+                UnassignedInfo.Reason.MANUAL_ALLOCATION,
+                UnassignedInfo.Reason.INDEX_CLOSED,};
         for (int i = 0; i < order.length; i++) {
             assertThat(order[i].ordinal(), equalTo(i));
         }

@@ -1,0 +1,42 @@
+--
+:api: get-data-frame-transform-stats
+:request: GetDataFrameTransformStatsRequest
+:response: GetDataFrameTransformStatsResponse
+--
+[id="{upid}-{api}"]
+=== Get Data Frame Transform Stats API
+
+The Get Data Frame Transform Stats API is used read the operational statistics
+of one or more {dataframe-transform}s.
+The API accepts a +{request}+ object and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Get Data Frame Transform Stats Request
+
+A +{request}+ requires a data frame transform id or the special wildcard `_all`
+to get the statistics for all {dataframe-transform}s
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new GET Stats request referencing an existing {dataframe-transform}
+
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the requested {dataframe-transform} statistics.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The response contains a list of `DataFrameTransformStateAndStats` objects
+<2> The running state of the transform task e.g `started`
+<3> The running state of the transform indexer e.g `started`, `indexing`, etc.
+<4> The overall transform statistics recording the number of documents indexed etc.
+<5> The progress of the current run in the transform. Supplies the number of docs left until the next checkpoint
+and the total number of docs expected.

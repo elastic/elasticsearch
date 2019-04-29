@@ -22,8 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -59,20 +57,12 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
      */
     public TypeQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            type = in.readString();
-        } else {
-            type = in.readBytesRef().utf8ToString();
-        }
+        type = in.readString();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeString(type);
-        } else {
-            out.writeBytesRef(new BytesRef(type));
-        }
+        out.writeString(type);
     }
 
     public String type() {

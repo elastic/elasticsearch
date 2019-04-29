@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.sql.action.SqlTranslateAction;
 import org.elasticsearch.xpack.sql.action.SqlTranslateRequest;
 import org.elasticsearch.xpack.sql.action.SqlTranslateResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.Configuration;
 
 import static org.elasticsearch.xpack.sql.plugin.Transports.clusterName;
@@ -53,9 +54,9 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
 
         Configuration cfg = new Configuration(request.zoneId(), request.fetchSize(),
-                request.requestTimeout(), request.pageTimeout(), request.filter(), 
+                request.requestTimeout(), request.pageTimeout(), request.filter(),
                 request.mode(), request.clientId(),
-                username(securityContext), clusterName(clusterService));
+                username(securityContext), clusterName(clusterService), Protocol.FIELD_MULTI_VALUE_LENIENCY);
 
         planExecutor.searchSource(cfg, request.query(), request.params(), ActionListener.wrap(
                 searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)), listener::onFailure));

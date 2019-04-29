@@ -43,6 +43,17 @@ import org.elasticsearch.xpack.core.beats.BeatsFeatureSetUsage;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.graph.GraphFeatureSetUsage;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
@@ -54,9 +65,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;
@@ -360,7 +371,16 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 RemoveIndexLifecyclePolicyAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
                 RetryAction.INSTANCE,
-                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE
+                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
+                // Data Frame
+                PutDataFrameTransformAction.INSTANCE,
+                StartDataFrameTransformAction.INSTANCE,
+                StartDataFrameTransformTaskAction.INSTANCE,
+                StopDataFrameTransformAction.INSTANCE,
+                DeleteDataFrameTransformAction.INSTANCE,
+                GetDataFrameTransformsAction.INSTANCE,
+                GetDataFrameTransformsStatsAction.INSTANCE,
+                PreviewDataFrameTransformAction.INSTANCE
         );
     }
 
@@ -442,7 +462,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
                 new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, UnfollowAction::new),
                 // Data Frame
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_FRAME, DataFrameFeatureSetUsage::new));
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_FRAME, DataFrameFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DataFrameField.TASK_NAME, DataFrameTransform::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, DataFrameField.TASK_NAME, DataFrameTransformState::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameField.TASK_NAME, DataFrameTransformState::new)
+        );
     }
 
     @Override
@@ -471,7 +495,14 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(RollupJobStatus.NAME),
                         RollupJobStatus::fromXContent),
                 new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(RollupJobStatus.NAME),
-                        RollupJobStatus::fromXContent)
+                        RollupJobStatus::fromXContent),
+                // Data Frame
+                new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(DataFrameField.TASK_NAME),
+                        DataFrameTransform::fromXContent),
+                new NamedXContentRegistry.Entry(Task.Status.class, new ParseField(DataFrameField.TASK_NAME),
+                        DataFrameTransformState::fromXContent),
+                new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DataFrameField.TASK_NAME),
+                        DataFrameTransformState::fromXContent)
             );
     }
 

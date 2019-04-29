@@ -433,24 +433,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             int shards = in.readVInt();
             for (int j = 0; j < shards; j++) {
                 ShardId shardId = ShardId.readShardId(in);
-                if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-                    builder.put(shardId, new ShardSnapshotStatus(in));
-                } else {
-                    String nodeId = in.readOptionalString();
-                    State shardState = State.fromValue(in.readByte());
-                    // Workaround for https://github.com/elastic/elasticsearch/issues/25878
-                    // Some old snapshot might still have null in shard failure reasons
-                    String reason = shardState.failed() ? "" : null;
-                    builder.put(shardId, new ShardSnapshotStatus(nodeId, shardState, reason));
-                }
+                builder.put(shardId, new ShardSnapshotStatus(in));
             }
             long repositoryStateId = in.readLong();
-            final String failure;
-            if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-                failure = in.readOptionalString();
-            } else {
-                failure = null;
-            }
+            final String failure = in.readOptionalString();
             entries[i] = new Entry(snapshot,
                                    includeGlobalState,
                                    partial,
@@ -480,17 +466,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeVInt(entry.shards().size());
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards()) {
                 shardEntry.key.writeTo(out);
-                if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-                    shardEntry.value.writeTo(out);
-                } else {
-                    out.writeOptionalString(shardEntry.value.nodeId());
-                    out.writeByte(shardEntry.value.state().value());
-                }
+                shardEntry.value.writeTo(out);
             }
             out.writeLong(entry.repositoryStateId);
-            if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-                out.writeOptionalString(entry.failure);
-            }
+            out.writeOptionalString(entry.failure);
         }
     }
 

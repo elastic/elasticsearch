@@ -71,10 +71,10 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
     public void testRoundInputValidation() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Round(EMPTY, l(5), l("foobarbar")).makePipe().asProcessor().process(null));
-        assertEquals("A number is required; received foobarbar", siae.getMessage());
+        assertEquals("A number is required; received [foobarbar]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Round(EMPTY, l("bla"), l(0)).makePipe().asProcessor().process(null));
-        assertEquals("A number is required; received bla", siae.getMessage());
+        assertEquals("A number is required; received [bla]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Round(EMPTY, l(123.34), l(0.1)).makePipe().asProcessor().process(null));
         assertEquals("An integer number is required; received [0.1] as second parameter", siae.getMessage());
@@ -103,10 +103,10 @@ public class BinaryMathProcessorTests extends AbstractWireSerializingTestCase<Bi
     public void testTruncateInputValidation() {
         SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Truncate(EMPTY, l(5), l("foobarbar")).makePipe().asProcessor().process(null));
-        assertEquals("A number is required; received foobarbar", siae.getMessage());
+        assertEquals("A number is required; received [foobarbar]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Truncate(EMPTY, l("bla"), l(0)).makePipe().asProcessor().process(null));
-        assertEquals("A number is required; received bla", siae.getMessage());
+        assertEquals("A number is required; received [bla]", siae.getMessage());
         siae = expectThrows(SqlIllegalArgumentException.class,
                 () -> new Truncate(EMPTY, l(123.34), l(0.1)).makePipe().asProcessor().process(null));
         assertEquals("An integer number is required; received [0.1] as second parameter", siae.getMessage());

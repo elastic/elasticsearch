@@ -19,9 +19,12 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -32,8 +35,10 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,6 +57,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -70,8 +76,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
 
-        logger.info("--> creating an index with 1 primary, 0 replicas");
-        createIndexAndIndexData(1, 0);
+        prepareIndex(1, 0);
 
         logger.info("--> stopping the node with the primary");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName()));
@@ -149,8 +154,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting 3 nodes");
         internalCluster().startNodes(3);
 
-        logger.info("--> creating an index with 1 primary, 1 replica");
-        createIndexAndIndexData(1, 1);
+        prepareIndex(1, 1);
         logger.info("--> stopping the node with the replica");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode().getName()));
         ensureStableCluster(2);
@@ -268,8 +272,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting 3 nodes");
         List<String> nodes = internalCluster().startNodes(3);
 
-        logger.info("--> creating an index with 1 primary and 1 replica");
-        createIndexAndIndexData(1, 1);
+        prepareIndex(1, 1);
         String primaryNodeName = primaryNodeName();
         nodes.remove(primaryNodeName);
 
@@ -390,7 +393,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         internalCluster().startNodes(2);
 
         logger.info("--> creating an index with 1 primary, 0 replicas, with allocation filtering so the primary can't be assigned");
-        createIndexAndIndexData(1, 0, Settings.builder().put("index.routing.allocation.include._name", "non_existent_node").build(),
+        prepareIndex(IndexMetaData.State.OPEN, 1, 0,
+            Settings.builder().put("index.routing.allocation.include._name", "non_existent_node").build(),
             ActiveShardCount.NONE);
 
         boolean includeYesDecisions = randomBoolean();
@@ -481,8 +485,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
 
-        logger.info("--> creating an index with 1 primary and 0 replicas");
-        createIndexAndIndexData(1, 0);
+        prepareIndex(1, 0);
 
         logger.info("--> setting up allocation filtering to prevent allocation to both nodes");
         client().admin().indices().prepareUpdateSettings("idx").setSettings(
@@ -591,8 +594,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         internalCluster().startNode();
         ensureStableCluster(1);
 
-        logger.info("--> creating an index with 5 shards, all allocated to the single node");
-        createIndexAndIndexData(5, 0);
+        prepareIndex(5, 0);
 
         logger.info("--> disabling rebalancing on the index");
         client().admin().indices().prepareUpdateSettings("idx").setSettings(
@@ -704,8 +706,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         internalCluster().startNode();
         ensureStableCluster(1);
 
-        logger.info("--> creating an index with 5 shards, all allocated to the single node");
-        createIndexAndIndexData(5, 0);
+        prepareIndex(5, 0);
 
         logger.info("--> setting balancing threshold really high, so it won't be met");
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(
@@ -808,8 +809,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         String firstNode = internalCluster().startNode();
         ensureStableCluster(1);
 
-        logger.info("--> creating an index with 5 shards, all allocated to the single node");
-        createIndexAndIndexData(5, 0);
+        prepareIndex(5, 0);
 
         logger.info("--> setting up allocation filtering to only allow allocation to the current node");
         client().admin().indices().prepareUpdateSettings("idx").setSettings(
@@ -918,9 +918,9 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting 3 nodes");
         List<String> nodes = internalCluster().startNodes(3);
 
-        logger.info("--> creating an index with 1 primary and 2 replicas");
         String excludedNode = nodes.get(randomIntBetween(0, 2));
-        createIndexAndIndexData(1, 2, Settings.builder().put("index.routing.allocation.exclude._name", excludedNode).build(),
+        prepareIndex(randomIndexState(), 1, 2,
+            Settings.builder().put("index.routing.allocation.exclude._name", excludedNode).build(),
             ActiveShardCount.from(2));
 
         boolean includeYesDecisions = randomBoolean();
@@ -1019,8 +1019,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         final String replicaNode = internalCluster().startNode();
         final String primaryNode = internalCluster().startNode();
 
-        logger.info("--> creating an index with 1 primary and 1 replica");
-        createIndexAndIndexData(1, 1,
+        prepareIndex(IndexMetaData.State.OPEN, 1, 1,
             Settings.builder()
                 .put("index.routing.allocation.include._name", primaryNode)
                 .put("index.routing.allocation.exclude._name", masterNode)
@@ -1037,8 +1036,22 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> stop node with the replica shard");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
 
-        logger.info("--> index more data, now the replica is stale");
-        indexData();
+        final IndexMetaData.State indexState = randomIndexState();
+        if (indexState == IndexMetaData.State.OPEN) {
+            logger.info("--> index more data, now the replica is stale");
+            indexData();
+        } else {
+            logger.info("--> close the index, now the replica is stale");
+            assertAcked(client().admin().indices().prepareClose("idx"));
+
+            final ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth("idx")
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForActiveShards(ActiveShardCount.ONE)
+                .setWaitForNoInitializingShards(true)
+                .setWaitForEvents(Priority.LANGUID)
+                .get();
+            assertThat(clusterHealthResponse.getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));
+        }
 
         logger.info("--> stop the node with the primary");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
@@ -1147,21 +1160,39 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         return explanation;
     }
 
-    private void createIndexAndIndexData(int numPrimaries, int numReplicas) {
-        createIndexAndIndexData(numPrimaries, numReplicas, Settings.EMPTY, ActiveShardCount.ALL);
+    private void prepareIndex(final int numPrimaries, final int numReplicas) {
+        prepareIndex(randomIndexState(), numPrimaries, numReplicas, Settings.EMPTY, ActiveShardCount.ALL);
     }
 
-    private void createIndexAndIndexData(int numPrimaries, int numReplicas, Settings settings, ActiveShardCount activeShardCount) {
-        client().admin().indices().prepareCreate("idx")
+    private void prepareIndex(final IndexMetaData.State state, final int numPrimaries, final int numReplicas,
+                              final Settings settings, final ActiveShardCount activeShardCount) {
+
+        logger.info("--> creating a {} index with {} primary, {} replicas", state, numPrimaries, numReplicas);
+        assertAcked(client().admin().indices().prepareCreate("idx")
             .setSettings(Settings.builder()
                              .put("index.number_of_shards", numPrimaries)
                              .put("index.number_of_replicas", numReplicas)
                              .put(settings))
             .setWaitForActiveShards(activeShardCount)
-            .get();
+            .get());
+
         if (activeShardCount != ActiveShardCount.NONE) {
             indexData();
         }
+        if (state == IndexMetaData.State.CLOSE) {
+            assertAcked(client().admin().indices().prepareClose("idx"));
+
+            final ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth("idx")
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForActiveShards(activeShardCount)
+                .setWaitForEvents(Priority.LANGUID)
+                .get();
+            assertThat(clusterHealthResponse.getStatus().value(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW.value()));
+        }
+    }
+
+    private static IndexMetaData.State randomIndexState() {
+        return randomFrom(IndexMetaData.State.values());
     }
 
     private void indexData() {

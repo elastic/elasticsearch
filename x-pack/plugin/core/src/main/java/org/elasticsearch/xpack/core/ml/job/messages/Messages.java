@@ -26,8 +26,8 @@ public final class Messages {
         "delayed_data_check_config: check_window [{0}] must be greater than the bucket_span [{1}]";
     public static final String DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS =
         "delayed_data_check_config: check_window [{0}] must be less than 10,000x the bucket_span [{1}]";
-    public static final String DATAFEED_CONFIG_QUERY_BAD_FORMAT = "Datafeed [{0}] query is not parsable";
-    public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed [{0}] aggregations are not parsable";
+    public static final String DATAFEED_CONFIG_QUERY_BAD_FORMAT = "Datafeed query is not parsable";
+    public static final String DATAFEED_CONFIG_AGG_BAD_FORMAT = "Datafeed aggregations are not parsable";
 
     public static final String DATAFEED_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "A job configured with datafeed cannot support latency";
     public static final String DATAFEED_NOT_FOUND = "No datafeed with id [{0}] exists";
@@ -147,6 +147,8 @@ public final class Messages {
     public static final String JOB_CONFIG_UPDATE_ANALYSIS_LIMITS_MODEL_MEMORY_LIMIT_CANNOT_BE_DECREASED =
             "Invalid update value for analysis_limits: model_memory_limit cannot be decreased below current usage; " +
                     "current usage [{0}], update had [{1}]";
+    public static final String JOB_CONFIG_DUPLICATE_DETECTORS_DISALLOWED =
+            "Duplicate detectors are not allowed: [{0}]";
     public static final String JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME =
             "{0} and {1} cannot be the same: ''{2}''";
     public static final String JOB_CONFIG_DETECTOR_COUNT_DISALLOWED =

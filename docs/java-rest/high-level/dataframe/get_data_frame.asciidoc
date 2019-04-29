@@ -1,0 +1,45 @@
+--
+:api: get-data-frame-transform
+:request: GetDataFrameTransformRequest
+:response: GetDataFrameTransformResponse
+--
+[id="{upid}-{api}"]
+=== Get Data Frame Transform API
+
+The Get Data Frame Transform API is used get one or more {dataframe-transform}.
+The API accepts a +{request}+ object and returns a +{response}+.
+
+[id="{upid}-{api}-request"]
+==== Get Data Frame Request
+
+A +{request}+ requires either a data frame transform id, a comma separated list of ids or
+the special wildcard `_all` to get all {dataframe-transform}s
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> Constructing a new GET request referencing an existing {dataframe-transform}
+
+==== Optional Arguments
+
+The following arguments are optional.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-options]
+--------------------------------------------------
+<1> Page {dataframe-transform}s starting from this value
+<2> Return at most `size` {dataframe-transform}s
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the requested {dataframe-transform}s.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------

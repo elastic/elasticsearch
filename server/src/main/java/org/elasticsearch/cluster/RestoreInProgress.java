@@ -21,7 +21,6 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -38,17 +37,11 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * Meta data about restore processes that are currently executing
  */
 public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements Custom, Iterable<RestoreInProgress.Entry> {
-
-    /**
-     * Fallback UUID used for restore operations that were started before v6.6 and don't have a uuid in the cluster state.
-     */
-    public static final String BWC_UUID = new UUID(0, 0).toString();
 
     public static final String TYPE = "restore";
 
@@ -436,11 +429,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         final ImmutableOpenMap.Builder<String, Entry> entriesBuilder = ImmutableOpenMap.builder(count);
         for (int i = 0; i < count; i++) {
             final String uuid;
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                uuid = in.readString();
-            } else {
-                uuid = BWC_UUID;
-            }
+            uuid = in.readString();
             Snapshot snapshot = new Snapshot(in);
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
@@ -468,9 +457,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         out.writeVInt(entries.size());
         for (ObjectCursor<Entry> v : entries.values()) {
             Entry entry = v.value;
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                out.writeString(entry.uuid);
-            }
+            out.writeString(entry.uuid);
             entry.snapshot().writeTo(out);
             out.writeByte(entry.state().value());
             out.writeVInt(entry.indices().size());

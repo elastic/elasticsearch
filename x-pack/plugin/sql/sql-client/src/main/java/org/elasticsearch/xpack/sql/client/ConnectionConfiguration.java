@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.sql.client;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.LinkedHashSet;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -148,13 +148,13 @@ public class ConnectionConfiguration {
         }
     }
 
-    private Collection<String> optionNames() {
-        Collection<String> options = new ArrayList<>(OPTION_NAMES);
+    protected Collection<String> optionNames() {
+        Set<String> options = new TreeSet<>(OPTION_NAMES);
         options.addAll(extraOptions());
         return options;
     }
 
-    protected Collection<? extends String> extraOptions() {
+    protected Collection<String> extraOptions() {
         return emptyList();
     }
 

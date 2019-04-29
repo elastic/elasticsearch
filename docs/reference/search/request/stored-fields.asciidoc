@@ -1,5 +1,5 @@
 [[search-request-stored-fields]]
-=== Fields
+=== Stored Fields
 
 WARNING: The `stored_fields` parameter is about fields that are explicitly marked as
 stored in the mapping, which is off by default and generally not recommended.

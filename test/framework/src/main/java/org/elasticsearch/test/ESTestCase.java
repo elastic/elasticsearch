@@ -441,13 +441,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     private void resetDeprecationLogger(final boolean setNewThreadContext) {
         // "clear" current warning headers by setting a new ThreadContext
         DeprecationLogger.removeThreadContext(this.threadContext);
-        try {
-            this.threadContext.close();
-            // catch IOException to avoid that call sites have to deal with it. It is only declared because this class implements Closeable
-            // but it is impossible that this implementation will ever throw an IOException.
-        } catch (IOException ex) {
-            throw new AssertionError("IOException thrown while closing deprecation logger's thread context", ex);
-        }
+        this.threadContext.close();
         if (setNewThreadContext) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             DeprecationLogger.setThreadContext(this.threadContext);

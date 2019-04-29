@@ -31,7 +31,7 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
     @Override
     protected void doExecute(Task task, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tuple -> {
-            final String tokenStr = tokenService.getUserTokenString(tuple.v1());
+            final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
             final String scope = getResponseScopeValue(request.getScope());
 
             final CreateTokenResponse response =

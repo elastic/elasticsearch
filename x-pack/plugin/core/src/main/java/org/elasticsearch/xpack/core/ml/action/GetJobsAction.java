@@ -8,17 +8,15 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -119,60 +117,21 @@ public class GetJobsAction extends Action<GetJobsAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private QueryPage<Job> jobs;
+    public static class Response extends AbstractGetResourcesResponse<Job> implements ToXContentObject {
 
         public Response(QueryPage<Job> jobs) {
-            this.jobs = jobs;
+            super(jobs);
         }
 
         public Response() {}
 
         public QueryPage<Job> getResponse() {
-            return jobs;
+            return getResources();
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            jobs = new QueryPage<>(in, Job::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            jobs.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            jobs.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(jobs);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(jobs, other.jobs);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+        protected Reader<Job> getReader() {
+            return Job::new;
         }
     }
 

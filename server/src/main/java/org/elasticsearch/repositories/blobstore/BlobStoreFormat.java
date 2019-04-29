@@ -100,19 +100,18 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
     /**
      * Checks obj in the blob container
      */
-    public boolean exists(BlobContainer blobContainer, String name) throws IOException {
+    public boolean exists(BlobContainer blobContainer, String name) {
         return blobContainer.blobExists(blobName(name));
     }
 
-    protected String blobName(String name) {
+    public String blobName(String name) {
         return String.format(Locale.ROOT, blobNameFormat, name);
     }
 
     protected T read(BytesReference bytes) throws IOException {
         try (XContentParser parser = XContentHelper
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes)) {
-            T obj = reader.apply(parser);
-            return obj;
+            return reader.apply(parser);
         }
     }
 

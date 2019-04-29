@@ -30,11 +30,11 @@ import java.util.List;
 public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
 
     @Override
-    protected MultiPolygon createTestInstance() {
+    protected MultiPolygon createTestInstance(boolean hasAlt) {
         int size = randomIntBetween(1, 10);
         List<Polygon> arr = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            arr.add(randomPolygon());
+            arr.add(randomPolygon(hasAlt));
         }
         return new MultiPolygon(arr);
     }

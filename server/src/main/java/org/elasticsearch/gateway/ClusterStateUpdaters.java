@@ -31,8 +31,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesService;
 
 import java.util.Map;
 
@@ -90,26 +88,6 @@ public class ClusterStateUpdaters {
         }
 
         return ClusterState.builder(state).blocks(blocks).build();
-    }
-
-    static ClusterState closeBadIndices(final ClusterState clusterState, final IndicesService indicesService) {
-        final MetaData.Builder builder = MetaData.builder(clusterState.metaData()).removeAllIndices();
-
-        for (IndexMetaData metaData : clusterState.metaData()) {
-            try {
-                if (metaData.getState() == IndexMetaData.State.OPEN) {
-                    // verify that we can actually create this index - if not we recover it as closed with lots of warn logs
-                    indicesService.verifyIndexMetadata(metaData, metaData);
-                }
-            } catch (final Exception e) {
-                final Index electedIndex = metaData.getIndex();
-                logger.warn(() -> new ParameterizedMessage("recovering index {} failed - recovering as closed", electedIndex), e);
-                metaData = IndexMetaData.builder(metaData).state(IndexMetaData.State.CLOSE).build();
-            }
-            builder.put(metaData, false);
-        }
-
-        return ClusterState.builder(clusterState).metaData(builder).build();
     }
 
     static ClusterState updateRoutingTable(final ClusterState state) {

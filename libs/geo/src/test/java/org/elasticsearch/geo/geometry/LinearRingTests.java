@@ -33,7 +33,14 @@ public class LinearRingTests extends ESTestCase {
     public void testInitValidation() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
             () -> new LinearRing(new double[]{1, 2, 3}, new double[]{3, 4, 5}));
-        assertEquals("first and last points of the linear ring must be the same (it must close itself): lats[0]=1.0 lats[2]=3.0",
+        assertEquals("first and last points of the linear ring must be the same (it must close itself): lats[0]=1.0 lats[2]=3.0 " +
+                "lons[0]=3.0 lons[2]=5.0",
+            ex.getMessage());
+
+        ex = expectThrows(IllegalArgumentException.class,
+            () -> new LinearRing(new double[]{1, 2, 1}, new double[]{3, 4, 3}, new double[]{1, 2, 3}));
+        assertEquals("first and last points of the linear ring must be the same (it must close itself): lats[0]=1.0 lats[2]=1.0 " +
+                "lons[0]=3.0 lons[2]=3.0 alts[0]=1.0 alts[2]=3.0",
             ex.getMessage());
 
         ex = expectThrows(IllegalArgumentException.class, () -> new LinearRing(new double[]{1}, new double[]{3}));

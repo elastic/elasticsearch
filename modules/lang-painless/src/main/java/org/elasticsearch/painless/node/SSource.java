@@ -178,7 +178,7 @@ public final class SSource extends AStatement {
             }
         }
 
-        Locals locals = Locals.newProgramScope(painlessLookup, methods.values());
+        Locals locals = Locals.newProgramScope(scriptClassInfo, painlessLookup, methods.values());
         analyze(locals);
     }
 

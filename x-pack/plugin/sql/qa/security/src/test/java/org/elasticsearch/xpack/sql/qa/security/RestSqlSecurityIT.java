@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.mode;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.randomMode;
-import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -101,9 +101,9 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
             String mode = randomMode();
             Map<String, Object> expected = new HashMap<>(3);
             expected.put("columns", Arrays.asList(
-                    columnInfo(mode, "column", "keyword", JDBCType.VARCHAR, 0),
-                    columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 0),
-                    columnInfo(mode, "mapping", "keyword", JDBCType.VARCHAR, 0)));
+                    columnInfo(mode, "column", "keyword", JDBCType.VARCHAR, 32766),
+                    columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 32766),
+                    columnInfo(mode, "mapping", "keyword", JDBCType.VARCHAR, 32766)));
             List<List<String>> rows = new ArrayList<>(columns.size());
             for (Map.Entry<String, List<String>> column : columns.entrySet()) {
                 List<String> cols = new ArrayList<>();
@@ -120,8 +120,8 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
         public void expectShowTables(List<String> tables, String user) throws Exception {
             String mode = randomMode();
             List<Object> columns = new ArrayList<>();
-            columns.add(columnInfo(mode, "name", "keyword", JDBCType.VARCHAR, 0));
-            columns.add(columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 0));
+            columns.add(columnInfo(mode, "name", "keyword", JDBCType.VARCHAR, 32766));
+            columns.add(columnInfo(mode, "type", "keyword", JDBCType.VARCHAR, 32766));
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", columns);
             List<List<String>> rows = new ArrayList<>();

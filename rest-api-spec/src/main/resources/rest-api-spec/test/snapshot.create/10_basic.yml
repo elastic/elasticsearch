@@ -40,9 +40,6 @@ setup:
 
 ---
 "Create a snapshot for missing index":
-  - skip:
-      version: " - 6.0.0"
-      reason: ignore_unavailable default is false in 6.0.0
 
   - do:
       catch: missing

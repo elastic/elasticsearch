@@ -49,8 +49,9 @@ public class StartDataFrameAnalyticsRequest implements Validatable {
         return timeout;
     }
 
-    public void setTimeout(@Nullable TimeValue timeout) {
+    public StartDataFrameAnalyticsRequest setTimeout(@Nullable TimeValue timeout) {
         this.timeout = timeout;
+        return this;
     }
 
     @Override

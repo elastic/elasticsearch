@@ -714,8 +714,8 @@ public class MLRequestConvertersTests extends ESTestCase {
     }
 
     public void testStartDataFrameAnalytics_WithTimeout() {
-        StartDataFrameAnalyticsRequest startRequest = new StartDataFrameAnalyticsRequest(randomAlphaOfLength(10));
-        startRequest.setTimeout(TimeValue.timeValueMinutes(1));
+        StartDataFrameAnalyticsRequest startRequest = new StartDataFrameAnalyticsRequest(randomAlphaOfLength(10))
+            .setTimeout(TimeValue.timeValueMinutes(1));
         Request request = MLRequestConverters.startDataFrameAnalytics(startRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + startRequest.getId() + "/_start", request.getEndpoint());

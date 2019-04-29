@@ -3709,7 +3709,8 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch closeDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner,
+                                                      long recoverUpToSeqNo) throws IOException {
                 readyToCloseLatch.countDown();
                 try {
                     closeDoneLatch.await();
@@ -3762,7 +3763,8 @@ public class IndexShardTests extends IndexShardTestCase {
         CountDownLatch snapshotDoneLatch = new CountDownLatch(1);
         IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
             @Override
-            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
+            public InternalEngine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner,
+                                                      long recoverUpToSeqNo) throws IOException {
                 InternalEngine internalEngine = super.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo);
                 readyToSnapshotLatch.countDown();
                 try {
@@ -3782,15 +3784,11 @@ public class IndexShardTests extends IndexShardTestCase {
             try {
                 readyToSnapshotLatch.await();
                 shard.snapshotStoreMetadata();
-                {
-                    Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(false);
+                try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(false)) {
                     shard.store().getMetadata(indexCommitRef.getIndexCommit());
-                    indexCommitRef.close();
                 }
-                {
-                    Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit();
+                try (Engine.IndexCommitRef indexCommitRef = shard.acquireSafeIndexCommit()) {
                     shard.store().getMetadata(indexCommitRef.getIndexCommit());
-                    indexCommitRef.close();
                 }
             } catch (InterruptedException | IOException e) {
                 throw new AssertionError(e);

@@ -3092,33 +3092,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             synchronized (mutex) {
                 verifyNotClosed();
                 // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
-                final Engine readOnlyEngine = new ReadOnlyEngine(newEngineConfig(), seqNoStats, translogStats, false, Function.identity()) {
-                    @Override
-                    public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
-                        synchronized (mutex) {
-                            return newEngineReference.get().acquireLastIndexCommit(flushFirst);
+                final Engine readOnlyEngine =
+                    new ReadOnlyEngine(newEngineConfig(), seqNoStats, translogStats, false, Function.identity()) {
+                        @Override
+                        public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
+                            synchronized (mutex) {
+                                return newEngineReference.get().acquireLastIndexCommit(flushFirst);
+                            }
                         }
-                    }
 
-                    @Override
-                    public IndexCommitRef acquireSafeIndexCommit() {
-                        synchronized (mutex) {
-                            return newEngineReference.get().acquireSafeIndexCommit();
+                        @Override
+                        public IndexCommitRef acquireSafeIndexCommit() {
+                            synchronized (mutex) {
+                                return newEngineReference.get().acquireSafeIndexCommit();
+                            }
                         }
-                    }
 
-                    @Override
-                    public void close() throws IOException {
-                        assert Thread.holdsLock(mutex);
+                        @Override
+                        public void close() throws IOException {
+                            assert Thread.holdsLock(mutex);
 
-                        Engine newEngine = newEngineReference.get();
-                        if (newEngine == currentEngineReference.get()) {
-                            // we successfully installed the new engine so do not close it.
-                            newEngine = null;
+                            Engine newEngine = newEngineReference.get();
+                            if (newEngine == currentEngineReference.get()) {
+                                // we successfully installed the new engine so do not close it.
+                                newEngine = null;
+                            }
+                            IOUtils.close(super::close, newEngine);
                         }
-                        IOUtils.close(super::close, newEngine);
-                    }
-                };
+                    };
                 IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
                 newEngine = engineFactory.newReadWriteEngine(newEngineConfig());
                 newEngineReference.set(newEngine);

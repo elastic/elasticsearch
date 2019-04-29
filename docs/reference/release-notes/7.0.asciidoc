@@ -1,3 +1,102 @@
+[[release-notes-7.0.1]]
+== {es} version 7.0.1
+
+Also see <<breaking-changes-7.0,Breaking changes in 7.0>>.
+
+[[enhancement-7.0.1]]
+[float]
+=== Enhancements
+
+CCR::
+* Reduce security permissions in CCR plugin {pull}41391[#41391]
+
+Infra/Packaging::
+* Be lenient when parsing build flavor and type on the wire {pull}40734[#40734] (issues: {issue}39378[#39378], {issue}40723[#40723])
+
+Machine Learning::
+* [ML] Allow xpack.ml.max_machine_memory_percent higher than 100% {pull}41193[#41193]
+
+
+
+[[bug-7.0.1]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Short-circuit rebalancing when disabled {pull}40966[#40966] (issue: {issue}40942[#40942])
+
+Authorization::
+* Fix role mapping DN field wildcards for users with NULL DNs {pull}41343[#41343] (issue: {issue}41305[#41305])
+* Fix Has Privilege API check on restricted indices {pull}41226[#41226]
+* Fix put mapping authorization for aliases with a write-index and multiple read indices {pull}40834[#40834] (issue: {issue}40831[#40831])
+* Use alias name from rollover request to query indices stats {pull}40774[#40774] (issue: {issue}40771[#40771])
+
+CCR::
+* Suppress lease background sync failures if stopping {pull}40902[#40902]
+
+Cluster Coordination::
+* Fix multi-node parsing in voting config exclusions REST API {pull}41588[#41588] (issue: {issue}41587[#41587])
+* Validate cluster UUID when joining Zen1 cluster {pull}41063[#41063] (issue: {issue}37775[#37775])
+
+Engine::
+* Mark searcher as accessed in acquireSearcher {pull}41335[#41335]
+
+Features/Monitoring::
+* Properly handle all Monitoring exporters being disabled {pull}40920[#40920] (issue: {issue}40919[#40919])
+
+Features/Watcher::
+* Use environment settings instead of state settings for Watcher config {pull}41087[#41087] (issue: {issue}41042[#41042])
+
+Highlighting::
+* Unified highlighter should ignore terms that target the _id field {pull}41275[#41275] (issue: {issue}37525[#37525])
+* Unified highlighter should respect no_match_size with number_of_fragments set to 0 {pull}41069[#41069] (issue: {issue}41066[#41066])
+
+Infra/Settings::
+* Always check for archiving broken index settings {pull}41209[#41209]
+
+Machine Learning::
+* [ML] Write header to autodetect before it is visible to other calls {pull}41085[#41085] (issue: {issue}40385[#40385])
+* Fix unsafe publication of invalid license enforcer {pull}40985[#40985] (issue: {issue}40957[#40957])
+
+Mapping::
+* Fix error applying `ignore_malformed` to boolean values {pull}41261[#41261] (issue: {issue}11498[#11498])
+
+SQL::
+* SQL: Fix bug with optimization of null related conditionals {pull}41355[#41355]
+* SQL: Predicate diff takes into account all values {pull}41346[#41346] (issue: {issue}40835[#40835])
+* SQL: Fix LIMIT bug in agg sorting {pull}41258[#41258] (issue: {issue}40984[#40984])
+* SQL: Allow current_date/time/timestamp to be also used as a function escape pattern {pull}41254[#41254] (issue: {issue}41240[#41240])
+* SQL: Translate MIN/MAX on keyword fields as FIRST/LAST {pull}41247[#41247] (issues: {issue}37936[#37936], {issue}41195[#41195])
+* SQL: Tweak pattern matching in SYS TABLES {pull}41243[#41243] (issue: {issue}40775[#40775])
+* SQL: Change schema calls to empty set {pull}41034[#41034] (issue: {issue}41028[#41028])
+* SQL: Use ResultSets over exceptions in metadata {pull}40641[#40641] (issue: {issue}40533[#40533])
+* SQL: Fix catalog filtering in SYS COLUMNS {pull}40583[#40583] (issue: {issue}40582[#40582])
+
+Search::
+* BlendedTermQuery should ignore fields that don't exist in the index {pull}41125[#41125] (issue: {issue}41118[#41118])
+* Full text queries should not always ignore unmapped fields {pull}41062[#41062] (issue: {issue}41022[#41022])
+* ProfileScorer should propagate `setMinCompetitiveScore`. {pull}40958[#40958]
+* Fix rewrite of inner queries in DisMaxQueryBuilder {pull}40956[#40956] (issue: {issue}40953[#40953])
+
+Security::
+* Fix unsafe publication in opt-out query cache {pull}40957[#40957]
+* Remove dynamic objects from security index {pull}40499[#40499] (issue: {issue}35460[#35460])
+
+Snapshot/Restore::
+* Fix Broken Index Shard Snapshot File Preventing Snapshot Creation {pull}41310[#41310] (issue: {issue}41304[#41304])
+* Do not create missing directories in readonly repo {pull}41249[#41249] (issues: {issue}26909[#26909], {issue}41009[#41009])
+
+
+
+[[upgrade-7.0.1]]
+[float]
+=== Upgrades
+
+Infra/Packaging::
+* Bump the bundled JDK to 12.0.1 {pull}41627[#41627]
+
+
+
 [[release-notes-7.0.0]]
 == {es} version 7.0.0
 

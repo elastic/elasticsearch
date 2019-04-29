@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.enrich.EnrichProcessorFactory.EnrichSpecification;
 
 import java.util.List;
 import java.util.Map;
@@ -34,14 +35,15 @@ final class ExactMatchProcessor extends AbstractProcessor {
     private final String policyName;
     private final String enrichKey;
     private final boolean ignoreMissing;
-    private final List<EnrichProcessorFactory.EnrichSpecification> specifications;
+    private final List<EnrichSpecification> specifications;
 
     ExactMatchProcessor(String tag,
                         Function<String, EnrichPolicy> policyLookup,
-                        Function<String, Engine.Searcher> searchProvider, String policyName,
+                        Function<String, Engine.Searcher> searchProvider,
+                        String policyName,
                         String enrichKey,
                         boolean ignoreMissing,
-                        List<EnrichProcessorFactory.EnrichSpecification> specifications) {
+                        List<EnrichSpecification> specifications) {
         super(tag);
         this.policyLookup = policyLookup;
         this.searchProvider = searchProvider;
@@ -92,7 +94,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
                 final BytesReference encoded = new BytesArray(source);
                 final Map<String, Object> decoded =
                     XContentHelper.convertToMap(encoded, false, XContentType.SMILE).v2();
-                for (EnrichProcessorFactory.EnrichSpecification specification : specifications) {
+                for (EnrichSpecification specification : specifications) {
                     Object enrichValue = decoded.get(specification.sourceField);
                     // TODO: add support over overwrite option (like in SetProcessor)
                     ingestDocument.setFieldValue(specification.targetField, enrichValue);
@@ -119,7 +121,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
-    List<EnrichProcessorFactory.EnrichSpecification> getSpecifications() {
+    List<EnrichSpecification> getSpecifications() {
         return specifications;
     }
 }

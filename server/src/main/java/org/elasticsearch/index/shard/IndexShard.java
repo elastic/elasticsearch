@@ -785,11 +785,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try {
             if (logger.isTraceEnabled()) {
                 // don't use index.source().utf8ToString() here source might not be valid UTF-8
-                logger.trace("index [{}][{}] seq# [{}] allocation-id {}",
-                    index.type(), index.id(), index.seqNo(), routingEntry().allocationId());
+                logger.trace("index [{}][{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
+                    index.type(), index.id(), index.seqNo(), routingEntry().allocationId(), index.primaryTerm(), getOperationPrimaryTerm(),
+                    index.origin());
             }
             result = engine.index(index);
+            if (logger.isTraceEnabled()) {
+                logger.trace("index-done [{}][{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] " +
+                        "result-seq# [{}] result-term [{}] failure [{}]",
+                    index.type(), index.id(), index.seqNo(), routingEntry().allocationId(), index.primaryTerm(), getOperationPrimaryTerm(),
+                    index.origin(), result.getSeqNo(), result.getTerm(), result.getFailure());
+            }
         } catch (Exception e) {
+            if (logger.isTraceEnabled()) {
+                logger.trace(new ParameterizedMessage(
+                    "index-fail [{}][{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
+                    index.type(), index.id(), index.seqNo(), routingEntry().allocationId(), index.primaryTerm(), getOperationPrimaryTerm(),
+                    index.origin()
+                ), e);
+            }
             indexingOperationListeners.postIndex(shardId, index, e);
             throw e;
         }

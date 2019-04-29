@@ -24,6 +24,8 @@ import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Nullable;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -32,15 +34,15 @@ import java.util.Optional;
  */
 public class GetDataFrameAnalyticsStatsRequest implements Validatable {
 
-    private final String id;
+    private final List<String> ids;
     private PageParams pageParams;
 
-    public GetDataFrameAnalyticsStatsRequest(String id) {
-        this.id = id;
+    public GetDataFrameAnalyticsStatsRequest(String... ids) {
+        this.ids = Arrays.asList(ids);
     }
 
-    public String getId() {
-        return id;
+    public List<String> getIds() {
+        return ids;
     }
 
     public PageParams getPageParams() {
@@ -54,7 +56,7 @@ public class GetDataFrameAnalyticsStatsRequest implements Validatable {
 
     @Override
     public Optional<ValidationException> validate() {
-        if (id == null) {
+        if (ids == null || ids.isEmpty()) {
             return Optional.of(ValidationException.withError("data frame analytics id must not be null"));
         }
         return Optional.empty();
@@ -66,11 +68,12 @@ public class GetDataFrameAnalyticsStatsRequest implements Validatable {
         if (o == null || getClass() != o.getClass()) return false;
 
         GetDataFrameAnalyticsStatsRequest other = (GetDataFrameAnalyticsStatsRequest) o;
-        return Objects.equals(id, other.id);
+        return Objects.equals(ids, other.ids)
+            && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(ids, pageParams);
     }
 }

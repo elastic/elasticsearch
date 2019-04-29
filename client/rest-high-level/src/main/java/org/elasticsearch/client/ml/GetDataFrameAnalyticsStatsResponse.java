@@ -22,7 +22,7 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.client.dataframe.AcknowledgedTasksResponse;
-import org.elasticsearch.client.ml.dataframe.stats.DataFrameAnalyticsStats;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

@@ -707,11 +707,15 @@ public class MLRequestConvertersTests extends ESTestCase {
     }
 
     public void testGetDataFrameAnalyticsStats() {
-        GetDataFrameAnalyticsStatsRequest getStatsRequest = new GetDataFrameAnalyticsStatsRequest(randomAlphaOfLength(10))
+        String configId1 = randomAlphaOfLength(10);
+        String configId2 = randomAlphaOfLength(10);
+        String configId3 = randomAlphaOfLength(10);
+        GetDataFrameAnalyticsStatsRequest getStatsRequest = new GetDataFrameAnalyticsStatsRequest(configId1, configId2, configId3)
             .setPageParams(new PageParams(100, 300));
+
         Request request = MLRequestConverters.getDataFrameAnalyticsStats(getStatsRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("/_ml/data_frame/analytics/" + getStatsRequest.getId() + "/_stats", request.getEndpoint());
+        assertEquals("/_ml/data_frame/analytics/" + configId1 + "," + configId2 + "," + configId3 + "/_stats", request.getEndpoint());
         assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300")));
         assertNull(request.getEntity());
     }

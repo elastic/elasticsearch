@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.client.ml.dataframe.stats;
+package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.client.ml.NodeAttributes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,11 +39,11 @@ public class DataFrameAnalyticsStats {
         return PARSER.parse(parser, null);
     }
 
-    private static final ParseField ID = new ParseField("id");
-    private static final ParseField STATE = new ParseField("state");
-    private static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
-    private static final ParseField NODE_ATTRIBUTES = new ParseField("node");
-    private static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
+    static final ParseField ID = new ParseField("id");
+    static final ParseField STATE = new ParseField("state");
+    static final ParseField PROGRESS_PERCENT = new ParseField("progress_percent");
+    static final ParseField NODE = new ParseField("node");
+    static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
 
     private static final ConstructingObjectParser<DataFrameAnalyticsStats, Void> PARSER =
         new ConstructingObjectParser<>(
@@ -63,7 +64,7 @@ public class DataFrameAnalyticsStats {
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, STATE, ObjectParser.ValueType.STRING);
         PARSER.declareInt(optionalConstructorArg(), PROGRESS_PERCENT);
-        PARSER.declareObject(optionalConstructorArg(), NodeAttributes.PARSER, NODE_ATTRIBUTES);
+        PARSER.declareObject(optionalConstructorArg(), NodeAttributes.PARSER, NODE);
         PARSER.declareString(optionalConstructorArg(), ASSIGNMENT_EXPLANATION);
     }
 
@@ -118,5 +119,16 @@ public class DataFrameAnalyticsStats {
     @Override
     public int hashCode() {
         return Objects.hash(id, state, progressPercent, node, assignmentExplanation);
+    }
+
+    @Override
+    public String toString() {
+        return new ToStringBuilder(getClass())
+            .add("id", id)
+            .add("state", state)
+            .add("progressPercent", progressPercent)
+            .add("node", node)
+            .add("assignmentExplanation", assignmentExplanation)
+            .toString();
     }
 }

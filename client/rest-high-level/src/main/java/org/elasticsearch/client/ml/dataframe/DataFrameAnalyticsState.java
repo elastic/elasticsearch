@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.client.ml.dataframe.stats;
+package org.elasticsearch.client.ml.dataframe;
 
 import java.util.Locale;
 

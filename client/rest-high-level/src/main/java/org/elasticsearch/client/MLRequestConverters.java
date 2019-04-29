@@ -582,9 +582,7 @@ final class MLRequestConverters {
 
     static Request putDataFrameAnalytics(PutDataFrameAnalyticsRequest putRequest) throws IOException {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
-            .addPathPartAsIs("data_frame")
-            .addPathPartAsIs("analytics")
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(putRequest.getConfig().getId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -594,9 +592,7 @@ final class MLRequestConverters {
 
     static Request getDataFrameAnalytics(GetDataFrameAnalyticsRequest getRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
-            .addPathPartAsIs("data_frame")
-            .addPathPartAsIs("analytics")
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getIds()))
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -615,10 +611,8 @@ final class MLRequestConverters {
 
     static Request getDataFrameAnalyticsStats(GetDataFrameAnalyticsStatsRequest getStatsRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
-            .addPathPartAsIs("data_frame")
-            .addPathPartAsIs("analytics")
-            .addPathPart(getStatsRequest.getId())
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(Strings.collectionToCommaDelimitedString(getStatsRequest.getIds()))
             .addPathPartAsIs("_stats")
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
@@ -637,9 +631,7 @@ final class MLRequestConverters {
 
     static Request deleteDataFrameAnalytics(DeleteDataFrameAnalyticsRequest deleteRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
-            .addPathPartAsIs("data_frame")
-            .addPathPartAsIs("analytics")
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(deleteRequest.getId())
             .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);

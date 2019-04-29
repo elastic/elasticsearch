@@ -16,8 +16,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class ListEnrichPolicyAction extends Action<ListEnrichPolicyAction.Response> {
 
@@ -48,19 +51,22 @@ public class ListEnrichPolicyAction extends Action<ListEnrichPolicyAction.Respon
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final Map<String, EnrichPolicy> policyMap;
+        private final List<EnrichPolicy.NamedPolicy> policies;
 
-        public Response(Map<String, EnrichPolicy> policyMap) {
-            this.policyMap = Objects.requireNonNull(policyMap, "policy cannot be null");
+        public Response(Map<String, EnrichPolicy> policies) {
+            Objects.requireNonNull(policies, "policies cannot be null");
+            // use a treemap to guarantee ordering in the set, then transform it to the list of named policies
+            this.policies = new TreeMap<>(policies).entrySet().stream()
+                .map(entry -> new EnrichPolicy.NamedPolicy(entry.getKey(), entry.getValue())).collect(Collectors.toList());
         }
 
         public Response(StreamInput in) throws IOException {
-            policyMap = in.readMap(StreamInput::readString, EnrichPolicy::new);
+            policies = in.readList(EnrichPolicy.NamedPolicy::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(policyMap, StreamOutput::writeString, (o, value) -> value.writeTo(out));
+            out.writeList(policies);
 
         }
 
@@ -70,12 +76,8 @@ public class ListEnrichPolicyAction extends Action<ListEnrichPolicyAction.Respon
             {
                 builder.startArray("policies");
                 {
-                    for (Map.Entry<String, EnrichPolicy> entry : policyMap.entrySet()) {
-                        builder.startObject();
-                        {
-                            entry.getValue().toXContent(builder, params);
-                        }
-                        builder.endObject();
+                    for (EnrichPolicy.NamedPolicy policy: policies) {
+                        policy.toXContent(builder, params);
                     }
                 }
                 builder.endArray();
@@ -85,8 +87,8 @@ public class ListEnrichPolicyAction extends Action<ListEnrichPolicyAction.Respon
             return builder;
         }
 
-        public Map<String, EnrichPolicy> getPolicyMap() {
-            return policyMap;
+        public List<EnrichPolicy.NamedPolicy> getPolicies() {
+            return policies;
         }
 
         @Override
@@ -94,12 +96,12 @@ public class ListEnrichPolicyAction extends Action<ListEnrichPolicyAction.Respon
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return policyMap.equals(response.policyMap);
+            return policies.equals(response.policies);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(policyMap);
+            return Objects.hash(policies);
         }
     }
 }

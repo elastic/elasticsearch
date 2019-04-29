@@ -5,7 +5,6 @@
       enrich.put_policy:
         name: policy-crud
         body:
-          name: foo
           type: exact_match
           index_pattern: "bar*"
           enrich_key: baz
@@ -16,7 +15,7 @@
   - do:
       enrich.list_policy: {}
   - length: { policies: 1 }
-  - match: { policies.0.name: foo }
+  - match: { policies.0.name: policy-crud }
   - match: { policies.0.type: exact_match }
   - match: { policies.0.index_pattern: "bar*" }
   - match: { policies.0.enrich_key: baz }

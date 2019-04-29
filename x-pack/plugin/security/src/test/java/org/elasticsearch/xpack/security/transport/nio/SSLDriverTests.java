@@ -214,7 +214,7 @@ public class SSLDriverTests extends ESTestCase {
         clientDriver.init();
         serverDriver.init();
 
-        assertTrue(clientDriver.needsNonApplicationWrite());
+        assertTrue(clientDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
         assertFalse(serverDriver.needsNonApplicationWrite());
         sendHandshakeMessages(clientDriver, serverDriver);
         sendHandshakeMessages(serverDriver, clientDriver);
@@ -229,9 +229,6 @@ public class SSLDriverTests extends ESTestCase {
         sendNonApplicationWrites(serverDriver, clientDriver);
         // We are immediately fully closed due to SSLEngine inconsistency
         assertTrue(serverDriver.isClosed());
-        // This should not throw exception yet as the SSLEngine will not UNWRAP data while attempting to WRAP
-        clientDriver.read(clientBuffer);
-        sendNonApplicationWrites(clientDriver, serverDriver);
         SSLException sslException = expectThrows(SSLException.class, () -> clientDriver.read(clientBuffer));
         assertEquals("Received close_notify during handshake", sslException.getMessage());
         assertTrue(clientDriver.needsNonApplicationWrite());

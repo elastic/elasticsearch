@@ -97,4 +97,28 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
     public int hashCode() {
         return Objects.hash(field, interval);
     }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private String field;
+        private double interval;
+
+        public Builder setField(String field) {
+            this.field = field;
+            return this;
+        }
+
+        public Builder setInterval(double interval) {
+            this.interval = interval;
+            return this;
+        }
+
+        public HistogramGroupSource build() {
+            return new HistogramGroupSource(field, interval);
+        }
+    }
 }

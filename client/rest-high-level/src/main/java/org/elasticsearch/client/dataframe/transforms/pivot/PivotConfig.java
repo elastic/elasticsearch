@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -95,5 +96,33 @@ public class PivotConfig implements ToXContentObject {
 
     public boolean isValid() {
         return groups.isValid() && aggregationConfig.isValid();
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private GroupConfig groups;
+        private AggregationConfig aggregationConfig;
+
+        public Builder setGroups(GroupConfig groups) {
+            this.groups = groups;
+            return this;
+        }
+
+        public Builder setAggregationConfig(AggregationConfig aggregationConfig) {
+            this.aggregationConfig = aggregationConfig;
+            return this;
+        }
+
+        public Builder setAggregations(AggregatorFactories.Builder aggregations) {
+            this.aggregationConfig = new AggregationConfig(aggregations);
+            return this;
+        }
+
+        public PivotConfig build() {
+            return new PivotConfig(groups, aggregationConfig);
+        }
     }
 }

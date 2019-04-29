@@ -168,4 +168,55 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
     public int hashCode() {
         return Objects.hash(field, interval, dateHistogramInterval, timeZone, format);
     }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private String field;
+        private long interval = 0;
+        private DateHistogramInterval dateHistogramInterval;
+        private String format;
+        private ZoneId timeZone;
+
+        public Builder setField(String field) {
+            this.field = field;
+            return this;
+        }
+
+        public Builder setInterval(long interval) {
+            this.interval = interval;
+            return this;
+        }
+
+        public Builder setDateHistgramInterval(DateHistogramInterval interval) {
+            this.dateHistogramInterval = interval;
+            return this;
+        }
+
+        public Builder setFormat(String format) {
+            this.format = format;
+            return this;
+        }
+
+        public Builder setTimeZone(ZoneId timeZone) {
+            this.timeZone = timeZone;
+            return this;
+        }
+
+        public DateHistogramGroupSource build() {
+            DateHistogramGroupSource groupSource = new DateHistogramGroupSource(field);
+            if (dateHistogramInterval != null) {
+                groupSource.setDateHistogramInterval(dateHistogramInterval);
+            }
+            if (interval >= 1.0) {
+                groupSource.setInterval(interval);
+            }
+            groupSource.setFormat(format);
+            groupSource.setTimeZone(timeZone);
+            return groupSource;
+        }
+    }
 }

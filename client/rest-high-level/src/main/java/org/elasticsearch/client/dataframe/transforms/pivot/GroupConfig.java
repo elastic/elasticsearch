@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -173,5 +174,26 @@ public class GroupConfig implements ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private final Map<String, SingleGroupSource> groups;
+
+        public Builder() {
+            this.groups = new HashMap<>();
+        }
+
+        public Builder groupBy(String name, SingleGroupSource group) {
+            groups.put(name, group);
+            return this;
+        }
+
+        public GroupConfig build() {
+            return new GroupConfig(groups);
+        }
     }
 }

@@ -60,4 +60,22 @@ public class TermsGroupSource extends SingleGroupSource implements ToXContentObj
         builder.endObject();
         return builder;
     }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private String field;
+
+        public Builder setField(String field) {
+            this.field = field;
+            return this;
+        }
+
+        public TermsGroupSource build() {
+            return new TermsGroupSource(field);
+        }
+    }
 }

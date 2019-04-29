@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -120,5 +121,33 @@ public class SourceConfig implements ToXContentObject {
         // Using Arrays.hashCode as Objects.hash does not deeply hash nested arrays. Since we are doing Array.equals, this is necessary
         int hash = Arrays.hashCode(index);
         return 31 * hash + (queryConfig == null ? 0 : queryConfig.hashCode());
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String[] index;
+        private QueryConfig queryConfig;
+
+        public Builder setIndex(String... index) {
+            this.index = index;
+            return this;
+        }
+
+        public Builder setQueryConfig(QueryConfig queryConfig) {
+            this.queryConfig = queryConfig;
+            return this;
+        }
+
+        public Builder setQuery(QueryBuilder query) {
+            this.queryConfig = new QueryConfig(query);
+            return this;
+        }
+
+        public SourceConfig build() {
+            return new SourceConfig(index, queryConfig);
+        }
     }
 }

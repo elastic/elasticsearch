@@ -57,9 +57,13 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
     }
 
     public void testScansPortsByDefault() {
-        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver("[::1]:9300", "[::1]:9301", "127.0.0.1:9300", "127.0.0.1:9301");
+        final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(
+            "[::1]:9300", "[::1]:9301", "127.0.0.1:9300", "127.0.0.1:9301"
+        );
         final TransportService transportService = mock(TransportService.class);
-        when(transportService.getDefaultSeedAddresses()).thenReturn(Arrays.asList("[::1]:9300", "[::1]:9301", "127.0.0.1:9300", "127.0.0.1:9301"));
+        when(transportService.getDefaultSeedAddresses()).thenReturn(
+            Arrays.asList("[::1]:9300", "[::1]:9301", "127.0.0.1:9300", "127.0.0.1:9301")
+        );
         new SettingsBasedSeedHostsProvider(Settings.EMPTY, transportService).getSeedAddresses(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
     }

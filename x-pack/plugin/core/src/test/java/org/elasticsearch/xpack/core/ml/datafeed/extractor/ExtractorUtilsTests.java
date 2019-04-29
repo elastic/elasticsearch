@@ -80,7 +80,8 @@ public class ExtractorUtilsTests extends ESTestCase {
                 () -> ExtractorUtils.getHistogramIntervalMillis(dateHistogram));
 
         assertThat(e.getMessage(), equalTo("ML requires date_histogram.time_zone to be UTC"));
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.");
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
+            "or [calendar_interval] in the future.");
     }
 
     public void testGetHistogramIntervalMillis_GivenUtcTimeZonesDeprecated() {
@@ -90,7 +91,8 @@ public class ExtractorUtilsTests extends ESTestCase {
             .interval(300000L).timeZone(zone).subAggregation(maxTime);
         assertThat(ExtractorUtils.getHistogramIntervalMillis(dateHistogram), is(300_000L));
 
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.");
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
+            "or [calendar_interval] in the future.");
     }
 
     public void testGetHistogramIntervalMillis_GivenUtcTimeZones() {

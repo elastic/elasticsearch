@@ -272,7 +272,8 @@ public class RollupRequestTranslationTests extends ESTestCase {
             }
         }
 
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.");
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] " +
+            "or [calendar_interval] in the future.");
     }
 
     public void testDateHistoWithTimezone() {

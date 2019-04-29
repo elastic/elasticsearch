@@ -1094,8 +1094,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         ));
         assertThat(e.getMessage(), equalTo("Cannot use [calendar_interval] with [interval] configuration option."));
 
-        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.",
-            "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     private void testSearchCase(Query query, List<String> dataset,

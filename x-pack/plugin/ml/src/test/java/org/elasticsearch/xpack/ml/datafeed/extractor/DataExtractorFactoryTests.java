@@ -216,8 +216,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> {
                 assertThat(dataExtractorFactory, instanceOf(RollupDataExtractorFactory.class));
-                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.",
-                    "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
             },
             e -> fail()
         );
@@ -240,8 +239,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         ActionListener<DataExtractorFactory> listener = ActionListener.wrap(
             dataExtractorFactory -> {
                 assertThat(dataExtractorFactory, instanceOf(ChunkedDataExtractorFactory.class));
-                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.",
-                    "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
             },
             e -> fail()
         );
@@ -288,8 +286,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
                     containsString("Rollup capabilities do not have a [date_histogram] aggregation with an interval " +
                         "that is a multiple of the datafeed's interval."));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
-                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.",
-                    "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
             }
         );
         DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
@@ -314,8 +311,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 assertThat(e.getMessage(),
                     containsString("Rollup capabilities do not support all the datafeed aggregations at the desired interval."));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
-                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.",
-                    "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
             }
         );
         DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);
@@ -340,8 +336,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
                 assertThat(e.getMessage(),
                     containsString("Rollup capabilities do not support all the datafeed aggregations at the desired interval."));
                 assertThat(e, instanceOf(IllegalArgumentException.class));
-                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.",
-                    "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+                assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
             }
         );
         DataExtractorFactory.create(client, datafeedConfig.build(), jobBuilder.build(new Date()), xContentRegistry(), listener);

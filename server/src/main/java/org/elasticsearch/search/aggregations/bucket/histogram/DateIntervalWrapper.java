@@ -155,7 +155,8 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[interval] must be 1 or greater for aggregation [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.LEGACY_INTERVAL);
-        DEPRECATION_LOGGER.deprecated("[interval] on [date_histogram] is deprecated, use [fixed_interval] in the future.");
+        DEPRECATION_LOGGER.deprecated("[interval] on [date_histogram] is deprecated, use [fixed_interval] or " +
+            "[calendar_interval] in the future.");
         this.dateHistogramInterval = new DateHistogramInterval(interval + "ms");
     }
 

@@ -56,8 +56,6 @@ public class RestValidateQueryAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_validate/query", this);
         controller.registerHandler(GET, "/{index}/_validate/query", this);
         controller.registerHandler(POST, "/{index}/_validate/query", this);
-        controller.registerHandler(GET, "/{index}/{type}/_validate/query", this);
-        controller.registerHandler(POST, "/{index}/{type}/_validate/query", this);
     }
 
     @Override

@@ -52,10 +52,6 @@ public class RestGetAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(GET, "/{index}/_doc/{id}", this);
         controller.registerHandler(HEAD, "/{index}/_doc/{id}", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/{id}", this);
-        controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
     }
 
     @Override

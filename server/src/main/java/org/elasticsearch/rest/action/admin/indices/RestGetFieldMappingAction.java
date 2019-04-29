@@ -54,10 +54,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     public RestGetFieldMappingAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/_mapping/{type}/field/{fields}", this);
         controller.registerHandler(GET, "/{index}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mapping/field/{fields}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/{type}/field/{fields}", this);
     }
 
     @Override

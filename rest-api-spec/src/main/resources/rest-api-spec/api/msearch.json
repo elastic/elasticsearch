@@ -5,13 +5,6 @@
     "url": {
       "path": "/_msearch",
       "paths": ["/_msearch", "/{index}/_msearch"],
-      "deprecated_paths" : [
-        {
-          "version" : "7.0.0",
-          "path" : "/{index}/{type}/_msearch",
-          "description" : "Specifying types in urls has been deprecated"
-        }
-      ],
       "parts": {
         "index": {
          "type" : "list",

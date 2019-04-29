@@ -5,18 +5,6 @@
     "url" : {
       "path" : "/{index}/_termvectors/{id}",
       "paths" : ["/{index}/_termvectors/{id}", "/{index}/_termvectors"],
-      "deprecated_paths" : [
-        {
-          "version" : "7.0.0",
-          "path" : "/{index}/{type}/{id}/_termvectors",
-          "description" : "Specifying types in urls has been deprecated"
-        },
-        {
-          "version" : "7.0.0",
-          "path" : "/{index}/{type}/_termvectors",
-          "description" : "Specifying types in urls has been deprecated"
-        }
-      ],
       "parts" : {
         "index" : {
          "type" : "string",

@@ -5,13 +5,6 @@
     "url": {
       "path": "/{index}/_explain/{id}",
       "paths": ["/{index}/_explain/{id}"],
-      "deprecated_paths" : [
-        {
-          "version" : "7.0.0",
-          "path" : "/{index}/{type}/{id}/_explain",
-          "description" : "Specifying types in urls has been deprecated"
-        }
-      ],
       "parts": {
         "id": {
           "type" : "string",

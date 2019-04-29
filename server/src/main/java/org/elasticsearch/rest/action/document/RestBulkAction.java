@@ -63,10 +63,6 @@ public class RestBulkAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_bulk", this);
         controller.registerHandler(PUT, "/{index}/_bulk", this);
 
-        // Deprecated typed endpoints.
-        controller.registerHandler(POST, "/{index}/{type}/_bulk", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_bulk", this);
-
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
@@ -66,13 +67,8 @@ public class RestGetMappingAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(GET, "/_mapping", this);
         controller.registerHandler(GET, "/_mappings", this);
-        controller.registerHandler(GET, "/{index}/{type}/_mapping", this);
         controller.registerHandler(GET, "/{index}/_mappings", this);
         controller.registerHandler(GET, "/{index}/_mapping", this);
-        controller.registerHandler(GET, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(GET, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(HEAD, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(GET, "/_mapping/{type}", this);
     }
 
     @Override

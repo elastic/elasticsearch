@@ -52,8 +52,6 @@ public class RestNoopBulkAction extends BaseRestHandler {
         controller.registerHandler(PUT, "/_noop_bulk", this);
         controller.registerHandler(POST, "/{index}/_noop_bulk", this);
         controller.registerHandler(PUT, "/{index}/_noop_bulk", this);
-        controller.registerHandler(POST, "/{index}/{type}/_noop_bulk", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_noop_bulk", this);
     }
 
     @Override

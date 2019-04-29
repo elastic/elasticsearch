@@ -45,9 +45,6 @@ public class RestDeleteAction extends BaseRestHandler {
     public RestDeleteAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(DELETE, "/{index}/_doc/{id}", this);
-
-        // Deprecated typed endpoint.
-        controller.registerHandler(DELETE, "/{index}/{type}/{id}", this);
     }
 
     @Override

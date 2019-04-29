@@ -50,25 +50,13 @@ public class RestPutMappingAction extends BaseRestHandler {
     public RestPutMappingAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(PUT, "/{index}/_mapping/", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(PUT, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(PUT, "/_mapping/{type}", this);
 
         controller.registerHandler(POST, "/{index}/_mapping/", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mapping", this);
-        controller.registerHandler(POST, "/{index}/_mapping/{type}", this);
-        controller.registerHandler(POST, "/_mapping/{type}", this);
 
         //register the same paths, but with plural form _mappings
         controller.registerHandler(PUT, "/{index}/_mappings/", this);
-        controller.registerHandler(PUT, "/{index}/{type}/_mappings", this);
-        controller.registerHandler(PUT, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(PUT, "/_mappings/{type}", this);
 
         controller.registerHandler(POST, "/{index}/_mappings/", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mappings", this);
-        controller.registerHandler(POST, "/{index}/_mappings/{type}", this);
-        controller.registerHandler(POST, "/_mappings/{type}", this);
     }
 
     @Override

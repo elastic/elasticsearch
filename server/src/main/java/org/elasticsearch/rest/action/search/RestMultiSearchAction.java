@@ -73,10 +73,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_msearch", this);
         controller.registerHandler(POST, "/{index}/_msearch", this);
 
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_msearch", this);
-        controller.registerHandler(POST, "/{index}/{type}/_msearch", this);
-
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
     }
 

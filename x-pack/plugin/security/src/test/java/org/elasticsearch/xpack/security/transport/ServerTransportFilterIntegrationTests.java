@@ -80,7 +80,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
             settingsBuilder.put("transport.profiles.default.xpack.security.type", "node"); // this is default lets set it randomly
         }
 
-        logger.error("node {} settings {}", nodeOrdinal, settingsBuilder.build());
         return settingsBuilder.build();
     }
 

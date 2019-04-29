@@ -69,6 +69,11 @@ public class TermsGroupSource extends SingleGroupSource implements ToXContentObj
 
         private String field;
 
+        /**
+         * The field with which to construct the date histogram grouping
+         * @param field The field name
+         * @return The {@link Builder} with the field set.
+         */
         public Builder setField(String field) {
             this.field = field;
             return this;

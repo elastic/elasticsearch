@@ -87,7 +87,7 @@ public class DataFrameTransformConfig implements ToXContentObject {
         return new DataFrameTransformConfig(null, source, null, pivotConfig, null);
     }
 
-    public DataFrameTransformConfig(final String id,
+    DataFrameTransformConfig(final String id,
                                     final SourceConfig source,
                                     final DestConfig dest,
                                     final PivotConfig pivotConfig,

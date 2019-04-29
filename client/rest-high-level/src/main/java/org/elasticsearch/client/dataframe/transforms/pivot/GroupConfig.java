@@ -33,6 +33,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
+/**
+ * Class describing how to group data
+ */
 public class GroupConfig implements ToXContentObject {
 
     private final Map<String, SingleGroupSource> groups;
@@ -127,7 +130,7 @@ public class GroupConfig implements ToXContentObject {
         } while (endObjectCount != 0);
     }
 
-    public GroupConfig(Map<String, SingleGroupSource> groups) {
+    GroupConfig(Map<String, SingleGroupSource> groups) {
         this.groups = groups;
     }
 
@@ -187,6 +190,12 @@ public class GroupConfig implements ToXContentObject {
             this.groups = new HashMap<>();
         }
 
+        /**
+         * Add a new grouping to the builder
+         * @param name The name of the resulting grouped field
+         * @param group The type of grouping referenced
+         * @return The {@link Builder} with a new grouping entry added
+         */
         public Builder groupBy(String name, SingleGroupSource group) {
             groups.put(name, group);
             return this;

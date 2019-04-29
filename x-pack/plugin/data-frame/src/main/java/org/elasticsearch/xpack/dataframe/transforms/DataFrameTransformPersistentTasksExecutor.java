@@ -11,7 +11,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -32,9 +36,12 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -65,6 +72,34 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         this.schedulerEngine = schedulerEngine;
         this.auditor = auditor;
         this.threadPool = threadPool;
+    }
+
+    @Override
+    public PersistentTasksCustomMetaData.Assignment getAssignment(DataFrameTransform params, ClusterState clusterState) {
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState);
+        if (unavailableIndices.size() != 0) {
+            String reason = "Not starting data frame transform [" + params.getId() + "], " +
+                "because not all primary shards are active for the following indices [" +
+                String.join(",", unavailableIndices) + "]";
+            logger.debug(reason);
+            return new PersistentTasksCustomMetaData.Assignment(null, reason);
+        }
+        return super.getAssignment(params, clusterState);
+    }
+
+    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        String[] indices = resolver.concreteIndexNames(clusterState,
+            IndicesOptions.lenientExpandOpen(),
+            DataFrameInternalIndex.INDEX_TEMPLATE_PATTERN + "*");
+        List<String> unavailableIndices = new ArrayList<>(indices.length);
+        for (String index : indices) {
+            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+                unavailableIndices.add(index);
+            }
+        }
+        return unavailableIndices;
     }
 
     @Override

@@ -61,7 +61,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
     public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures,
             List<? extends ElasticsearchException> nodeFailures) {
         super(taskFailures, nodeFailures);
-        this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+        this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
     }
 
     public ListTasksResponse(StreamInput in) throws IOException {

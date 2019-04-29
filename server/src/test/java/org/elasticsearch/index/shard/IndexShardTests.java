@@ -79,7 +79,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.DeleteResult;
 import org.elasticsearch.index.engine.EngineException;
@@ -3666,7 +3666,7 @@ public class IndexShardTests extends IndexShardTestCase {
             while (done.get() == false) {
                 try {
                     List<String> exposedDocIds = EngineTestCase.getDocIds(getEngine(shard), rarely())
-                        .stream().map(DocIdSeqNoAndTerm::getId).collect(Collectors.toList());
+                        .stream().map(DocIdSeqNoAndSource::getId).collect(Collectors.toList());
                     assertThat("every operations before the global checkpoint must be reserved",
                         docBelowGlobalCheckpoint, everyItem(isIn(exposedDocIds)));
                 } catch (AlreadyClosedException ignored) {

@@ -31,7 +31,6 @@ import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -52,9 +51,9 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
@@ -314,39 +313,31 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             return;
         }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
-        final List<Boolean> deletedStatuses = SocketAccess.doPrivilegedIOException(() -> {
+        final StorageException e = SocketAccess.doPrivilegedIOException(() -> {
+            final AtomicReference<StorageException> ioe = new AtomicReference<>();
             final StorageBatch batch = client().batch();
-            final List<Boolean> results = Lists.newArrayList();
             for (BlobId blob : blobIdsToDelete) {
                 batch.delete(blob).notify(
                     new BatchResult.Callback<>() {
                         @Override
                         public void success(Boolean result) {
-                            results.add(result);
                         }
 
                         @Override
                         public void error(StorageException exception) {
-                            if (exception.getCode() == HTTP_NOT_FOUND) {
-                                results.add(Boolean.TRUE);
-                            } else {
-                                results.add(Boolean.FALSE);
+                            if (exception.getCode() != HTTP_NOT_FOUND) {
+                                if (ioe.compareAndSet(null, exception) == false) {
+                                    ioe.get().addSuppressed(exception);
+                                }
                             }
                         }
                     });
             }
             batch.submit();
-            return Collections.unmodifiableList(results);
+            return ioe.get();
         });
-        assert blobIdsToDelete.size() == deletedStatuses.size();
-        boolean failed = false;
-        for (int i = 0; i < blobIdsToDelete.size(); i++) {
-            if (deletedStatuses.get(i) == false) {
-                failed = true;
-            }
-        }
-        if (failed) {
-            throw new IOException("Failed to delete blobs " + blobIdsToDelete);
+        if (e != null) {
+            throw e;
         }
     }
 

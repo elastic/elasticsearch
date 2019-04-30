@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.geo;
+package org.elasticsearch.geo.utils;
 
-import org.apache.lucene.geo.Rectangle;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 /**
- * Tests for {@link org.elasticsearch.common.geo.GeoHashUtils}
+ * Tests for {@link org.elasticsearch.geo.utils.Geohash}
  */
 public class GeoHashTests extends ESTestCase {
     public void testGeohashAsLongRoutines() {
@@ -37,13 +38,13 @@ public class GeoHashTests extends ESTestCase {
             {
                 for(int p=1;p<=12;p++)
                 {
-                    long geoAsLong = GeoHashUtils.longEncode(lng, lat, p);
+                    long geoAsLong = Geohash.longEncode(lng, lat, p);
 
                     // string encode from geohashlong encoded location
-                    String geohashFromLong = GeoHashUtils.stringEncode(geoAsLong);
+                    String geohashFromLong = Geohash.stringEncode(geoAsLong);
 
                     // string encode from full res lat lon
-                    String geohash = GeoHashUtils.stringEncode(lng, lat, p);
+                    String geohash = Geohash.stringEncode(lng, lat, p);
 
                     // ensure both strings are the same
                     assertEquals(geohash, geohashFromLong);
@@ -62,25 +63,25 @@ public class GeoHashTests extends ESTestCase {
     public void testBboxFromHash() {
         String hash = randomGeohash(1, 12);
         int level = hash.length();
-        Rectangle bbox = GeoHashUtils.bbox(hash);
+        Rectangle bbox = Geohash.toBoundingBox(hash);
         // check that the length is as expected
         double expectedLonDiff = 360.0 / (Math.pow(8.0, (level + 1) / 2) * Math.pow(4.0, level / 2));
         double expectedLatDiff = 180.0 / (Math.pow(4.0, (level + 1) / 2) * Math.pow(8.0, level / 2));
-        assertEquals(expectedLonDiff, bbox.maxLon - bbox.minLon, 0.00001);
-        assertEquals(expectedLatDiff, bbox.maxLat - bbox.minLat, 0.00001);
-        assertEquals(hash, GeoHashUtils.stringEncode(bbox.minLon, bbox.minLat, level));
+        assertEquals(expectedLonDiff, bbox.getMaxLon() - bbox.getMinLon(), 0.00001);
+        assertEquals(expectedLatDiff, bbox.getMaxLat() - bbox.getMinLat(), 0.00001);
+        assertEquals(hash, Geohash.stringEncode(bbox.getMinLon(), bbox.getMinLat(), level));
     }
 
     public void testGeohashExtremes() {
-        assertEquals("000000000000", GeoHashUtils.stringEncode(-180, -90));
-        assertEquals("800000000000", GeoHashUtils.stringEncode(-180, 0));
-        assertEquals("bpbpbpbpbpbp", GeoHashUtils.stringEncode(-180, 90));
-        assertEquals("h00000000000", GeoHashUtils.stringEncode(0, -90));
-        assertEquals("s00000000000", GeoHashUtils.stringEncode(0, 0));
-        assertEquals("upbpbpbpbpbp", GeoHashUtils.stringEncode(0, 90));
-        assertEquals("pbpbpbpbpbpb", GeoHashUtils.stringEncode(180, -90));
-        assertEquals("xbpbpbpbpbpb", GeoHashUtils.stringEncode(180, 0));
-        assertEquals("zzzzzzzzzzzz", GeoHashUtils.stringEncode(180, 90));
+        assertEquals("000000000000", Geohash.stringEncode(-180, -90));
+        assertEquals("800000000000", Geohash.stringEncode(-180, 0));
+        assertEquals("bpbpbpbpbpbp", Geohash.stringEncode(-180, 90));
+        assertEquals("h00000000000", Geohash.stringEncode(0, -90));
+        assertEquals("s00000000000", Geohash.stringEncode(0, 0));
+        assertEquals("upbpbpbpbpbp", Geohash.stringEncode(0, 90));
+        assertEquals("pbpbpbpbpbpb", Geohash.stringEncode(180, -90));
+        assertEquals("xbpbpbpbpbpb", Geohash.stringEncode(180, 0));
+        assertEquals("zzzzzzzzzzzz", Geohash.stringEncode(180, 90));
     }
 
     public void testLongGeohashes() {
@@ -92,24 +93,24 @@ public class GeoHashTests extends ESTestCase {
             GeoPoint actual = GeoPoint.fromGeohash(extendedGeohash);
             assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expected, actual);
 
-            Rectangle expectedBbox = GeoHashUtils.bbox(geohash);
-            Rectangle actualBbox = GeoHashUtils.bbox(extendedGeohash);
+            Rectangle expectedBbox = Geohash.toBoundingBox(geohash);
+            Rectangle actualBbox = Geohash.toBoundingBox(extendedGeohash);
             assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expectedBbox, actualBbox);
         }
     }
 
     public void testNorthPoleBoundingBox() {
-        Rectangle bbox = GeoHashUtils.bbox("zzbxfpgzupbx"); // Bounding box with maximum precision touching north pole
-        assertEquals(90.0, bbox.maxLat, 0.0000001); // Should be 90 degrees
+        Rectangle bbox = Geohash.toBoundingBox("zzbxfpgzupbx"); // Bounding box with maximum precision touching north pole
+        assertEquals(90.0, bbox.getMaxLat(), 0.0000001); // Should be 90 degrees
     }
 
     public void testInvalidGeohashes() {
         IllegalArgumentException ex;
 
-        ex = expectThrows(IllegalArgumentException.class, () -> GeoHashUtils.mortonEncode("55.5"));
+        ex = expectThrows(IllegalArgumentException.class, () -> Geohash.mortonEncode("55.5"));
         assertEquals("unsupported symbol [.] in geohash [55.5]", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> GeoHashUtils.mortonEncode(""));
+        ex = expectThrows(IllegalArgumentException.class, () -> Geohash.mortonEncode(""));
         assertEquals("empty geohash", ex.getMessage());
     }
 

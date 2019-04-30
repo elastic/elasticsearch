@@ -316,8 +316,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         if (indexShard.translogStats().getUncommittedOperations() == 0) {
             return false;
         }
-        // In peer recovery, we transfer history from primary to replica, thus we don't have to flush
-        // if all those uncommitted operations have baked into the existing Lucene index commit already.
+        // If a file-based occurs, the primary also sends its translog to the replica. If all of those
+        // translog operations are in the copying commit already, we should not flush (mainly to reserve syncId).
         final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
             indexShard.commitStats().getUserData().entrySet());
         return commitInfo.maxSeqNo != commitInfo.localCheckpoint

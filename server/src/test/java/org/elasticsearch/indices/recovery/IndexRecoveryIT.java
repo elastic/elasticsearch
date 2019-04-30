@@ -945,6 +945,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put("index.number_of_replicas", 2)));
         ensureGreen(indexName);
+        // Recovery should keep syncId if no indexing activity on the primary after synced-flush.
         Set<String> syncIds = Stream.of(client().admin().indices().prepareStats(indexName).get().getIndex(indexName).getShards())
             .map(shardStats -> shardStats.getCommitStats().syncId())
             .collect(Collectors.toSet());

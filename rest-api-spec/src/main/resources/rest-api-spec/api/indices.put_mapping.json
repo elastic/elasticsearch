@@ -8,48 +8,14 @@
       "deprecated_paths" : [
         {
           "version" : "7.0.0",
-          "path" : "/{index}/{type}/_mapping",
-          "description" : "Specifying types in urls has been deprecated"
-        },
-        {
-          "version" : "7.0.0",
-          "path" : "/{index}/_mapping/{type}",
-          "description" : "Specifying types in urls has been deprecated"
-        },
-        {
-          "version" : "7.0.0",
-          "path" : "/{index}/{type}/_mappings",
-          "description" : "Specifying types in urls has been deprecated"
-        },
-        {
-          "version" : "7.0.0",
-          "path" : "/{index}/_mappings/{type}",
-          "description" : "Specifying types in urls has been deprecated"
-        },
-        {
-          "version" : "7.0.0",
-          "path" : "/_mappings/{type}",
-          "description" : "Specifying types in urls has been deprecated"
-        },
-        {
-          "version" : "7.0.0",
           "path" : "{index}/_mappings",
           "description" : "The plural mappings is accepted but only /_mapping is documented"
-        },
-        {
-          "version" : "7.0.0",
-          "path" : "/_mapping/{type}",
-          "description" : "Specifying types in urls has been deprecated"
         }
       ],
       "parts": {
         "index": {
           "type" : "list",
           "description" : "A comma-separated list of index names the mapping should be added to (supports wildcards); use `_all` or omit to add the mapping on all indices."
-        },
-        "type": {
-          "type" : "string",
-          "description" : "The name of the document type"
         }
       },
       "params": {

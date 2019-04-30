@@ -73,22 +73,6 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         headTestCase("/test", singletonMap("pretty", "true"), greaterThan(0));
     }
 
-    public void testTypeExists() throws IOException {
-        createTestDoc();
-        headTestCase("/test/_mapping/_doc", emptyMap(), OK.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
-        headTestCase("/test/_mapping/_doc", singletonMap("pretty", "true"), OK.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
-    }
-
-    public void testTypeDoesNotExist() throws IOException {
-        createTestDoc();
-        headTestCase("/test/_mapping/does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
-        headTestCase("/text/_mapping/test,does-not-exist", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0),
-                "Type exists requests are deprecated, as types have been deprecated.");
-    }
-
     public void testAliasExists() throws IOException {
         createTestDoc();
         try (XContentBuilder builder = jsonBuilder()) {

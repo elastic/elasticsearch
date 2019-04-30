@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -303,9 +304,25 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // Persist the global checkpoint.
             indexShard.sync();
             indexShard.persistRetentionLeases();
+            if (hasUncommittedOperations()) {
+                indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            }
             indexShard.finalizeRecovery();
             return null;
         });
+    }
+
+    private boolean hasUncommittedOperations() {
+        if (indexShard.translogStats().getUncommittedOperations() == 0) {
+            return false;
+        }
+        // In peer recovery, we transfer history from primary to replica, thus we don't have to flush
+        // if all those uncommitted operations have baked into the existing Lucene index commit already.
+        final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
+            indexShard.commitStats().getUserData().entrySet());
+        return commitInfo.maxSeqNo != commitInfo.localCheckpoint
+            || commitInfo.maxSeqNo != indexShard.seqNoStats().getMaxSeqNo()
+            || commitInfo.maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint();
     }
 
     @Override

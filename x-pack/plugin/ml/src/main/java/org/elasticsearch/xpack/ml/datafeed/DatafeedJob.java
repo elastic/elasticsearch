@@ -50,7 +50,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 class DatafeedJob {
 
@@ -239,7 +238,7 @@ class DatafeedJob {
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME, ElasticsearchMappings.DOC_TYPE);
             request.source(xContentBuilder);
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 IndexResponse response = client.index(request).actionGet();
                 lastDataCheckAnnotation = annotation;
                 return response.getId();
@@ -263,7 +262,7 @@ class DatafeedJob {
             IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME, ElasticsearchMappings.DOC_TYPE);
             indexRequest.id(lastDataCheckAnnotationId);
             indexRequest.source(xContentBuilder);
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 client.index(indexRequest).actionGet();
                 lastDataCheckAnnotation = updatedAnnotation;
             }
@@ -413,7 +412,7 @@ class DatafeedJob {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         Streams.copy(inputStream, outputStream);
         request.setContent(new BytesArray(outputStream.toByteArray()), xContentType);
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).actionGet();
             return response.getDataCounts();
         }
@@ -442,7 +441,7 @@ class DatafeedJob {
     private FlushJobAction.Response flushJob(FlushJobAction.Request flushRequest) {
         try {
             LOGGER.trace("[" + jobId + "] Sending flush request");
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 return client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
             }
         } catch (Exception e) {
@@ -467,7 +466,7 @@ class DatafeedJob {
     private void sendPersistRequest() {
         try {
             LOGGER.trace("[" + jobId + "] Sending persist request");
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 client.execute(PersistJobAction.INSTANCE, new PersistJobAction.Request(jobId));
             }
         } catch (Exception e) {

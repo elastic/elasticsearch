@@ -225,6 +225,21 @@ public class EscapedFunctionsTests extends ESTestCase {
         assertEquals("line 1:8: Invalid GUID, too short", ex.getMessage());
     }
 
+    public void testCurrentTimestampAsEscapedExpression() {
+        Expression expr = parser.createExpression("{fn CURRENT_TIMESTAMP(2)}");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("{fn CURRENT_TIMESTAMP(2)}", ur.sourceText());
+        assertEquals(1, ur.children().size());
+    }
+
+    public void testCurrentDateAsEscapedExpression() {
+        Expression expr = parser.createExpression("{fn CURRENT_DATE()}");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("{fn CURRENT_DATE()}", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
 
     public void testLimit() {
         Limit limit = limit(10);

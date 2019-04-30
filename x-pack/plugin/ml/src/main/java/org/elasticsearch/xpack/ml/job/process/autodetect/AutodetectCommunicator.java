@@ -89,9 +89,8 @@ public class AutodetectCommunicator implements Closeable {
                 && job.getAnalysisConfig().getCategorizationFieldName() != null;
     }
 
-    public void init(ModelSnapshot modelSnapshot) throws IOException {
+    public void restoreState(ModelSnapshot modelSnapshot) {
         autodetectProcess.restoreState(stateStreamer, modelSnapshot);
-        createProcessWriter(Optional.empty()).writeHeader();
     }
 
     private DataToProcessWriter createProcessWriter(Optional<DataDescription> dataDescription) {
@@ -100,6 +99,17 @@ public class AutodetectCommunicator implements Closeable {
                 dataCountsReporter, xContentRegistry);
     }
 
+    /**
+     * This must be called once before {@link #writeToJob(InputStream, AnalysisRegistry, XContentType, DataLoadParams, BiConsumer)}
+     * can be used
+     */
+    public void writeHeader() throws IOException {
+        createProcessWriter(Optional.empty()).writeHeader();
+    }
+
+    /**
+     * Call {@link #writeHeader()} exactly once before using this method
+     */
     public void writeToJob(InputStream inputStream, AnalysisRegistry analysisRegistry, XContentType xContentType,
                            DataLoadParams params, BiConsumer<DataCounts, Exception> handler) {
         submitOperation(() -> {

@@ -21,8 +21,8 @@ ext.expansions = { oss ->
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz"
   return [
     'elasticsearch'       : elasticsearch,
-    'jdkUrl'              : 'https://download.java.net/java/GA/jdk12/GPL/openjdk-12_linux-x64_bin.tar.gz',
-    'jdkVersion'          : '12',
+    'jdkUrl'              : 'https://download.oracle.com/java/GA/jdk12.0.1/69cfe15208a647278a19ef0990eea691/12/GPL/openjdk-12.0.1_linux-x64_bin.tar.gz',
+    'jdkVersion'          : '12.0.1',
     'license'             : oss ? 'Apache-2.0' : 'Elastic License',
     'source_elasticsearch': local() ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch

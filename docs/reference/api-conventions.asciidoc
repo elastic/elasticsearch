@@ -126,7 +126,7 @@ The special characters used for date rounding must be URI encoded as follows:
 ======================================================
 
 The following example shows different forms of date math index names and the final index names
-they resolve to given the current time is 22rd March 2024 noon utc.
+they resolve to given the current time is 22nd March 2024 noon utc.
 
 [options="header"]
 |======

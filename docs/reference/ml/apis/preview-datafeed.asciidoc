@@ -2,6 +2,8 @@
 [testenv="platinum"]
 [[ml-preview-datafeed]]
 === Preview {dfeeds-cap} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Preview {dfeeds-cap}</titleabbrev>
 ++++

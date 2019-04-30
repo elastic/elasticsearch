@@ -71,6 +71,7 @@ final `_score` for each document.
 }
 --------------------------------------------------
 
+[[score-bool-filter]]
 ==== Scoring with `bool.filter` 
 
 Queries specified under the `filter` element have no effect on scoring --

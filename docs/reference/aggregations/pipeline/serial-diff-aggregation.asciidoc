@@ -49,7 +49,9 @@ A `serial_diff` aggregation looks like this in isolation:
 }
 --------------------------------------------------
 
+[[moving-avg-params]]
 .`moving_avg` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |

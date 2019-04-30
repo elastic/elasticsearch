@@ -158,6 +158,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 --------------------------------------------------
 
 [float]
+[[scripted_upsert]]
 ==== `scripted_upsert`
 
 If you would like your script to run regardless of whether the document exists
@@ -183,6 +184,7 @@ curl -XPOST 'localhost:9200/sessions/session/dh3sgudg8gsrgl/_update' -d '{
 --------------------------------------------------
 
 [float]
+[[doc_as_upsert]]
 ==== `doc_as_upsert`
 
 Instead of sending a partial `doc` plus an `upsert` doc, setting

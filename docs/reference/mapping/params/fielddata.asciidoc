@@ -27,19 +27,6 @@ remains in memory for the lifetime of the segment.
 
 [WARNING]
 .Fielddata can fill up your heap space
-==============================================================================
-Fielddata can consume a lot of heap space, especially when loading high
-cardinality `analyzed` string fields.  Most of the time, it doesn't make sense
-to sort or aggregate on `analyzed` string fields (with the notable exception
-of the
-<<search-aggregations-bucket-significantterms-aggregation,`significant_terms`>>
-aggregation).  Always think about whether a `not_analyzed` field (which can
-use `doc_values`) would be  a better fit for your use case.
-==============================================================================
-
-TIP: The `fielddata.*` settings must have the same settings for fields of the
-same name in the same index.  Its value can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>.
 
 
 [[fielddata-format]]
@@ -71,9 +58,14 @@ PUT my_index
 // AUTOSENSE
 <1> The `text` field cannot be used for sorting, aggregations, or in scripts.
 
+<<<<<<< HEAD
 .Fielddata and other datatypes
 [NOTE]
 ==================================================
+=======
+[[enable-fielddata-text-fields]]
+==== Enabling fielddata on `text` fields
+>>>>>>> b7f569ec801... [DOCS] Add anchors for Asciidoctor migration (#41648)
 
 Historically, other field datatypes also used fielddata, but this has been replaced
 by index-time, disk-based <<doc-values,`doc_values`>>.

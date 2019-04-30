@@ -368,7 +368,7 @@ public class RecoverySourceHandler {
                 }
             }
             final Version indexVersionCreated = shard.indexSettings().getIndexVersionCreated();
-            if (hasSameSyncId(indexVersionCreated, recoverySourceMetadata, request.metadataSnapshot()) == false) {
+            if (canSkipPhase1(indexVersionCreated, recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 // Generate a "diff" of all the identical, different, and missing
                 // segment files on the target node, using the existing files on
                 // the source node
@@ -452,6 +452,9 @@ public class RecoverySourceHandler {
                         throw targetException;
                     }
                 }
+            } else {
+                logger.trace("skipping [phase1]- identical sync id [{}] found on both source and target",
+                    recoverySourceMetadata.getSyncId());
             }
             final TimeValue took = stopWatch.totalTime();
             logger.trace("recovery [phase1]: took [{}]", took);
@@ -464,7 +467,7 @@ public class RecoverySourceHandler {
         }
     }
 
-    boolean hasSameSyncId(Version indexCreatedVersion, Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
+    boolean canSkipPhase1(Version indexCreatedVersion, Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
         if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
             return false;
         }
@@ -476,6 +479,10 @@ public class RecoverySourceHandler {
         SequenceNumbers.CommitInfo sourceSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(source.getCommitUserData().entrySet());
         SequenceNumbers.CommitInfo targetSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(target.getCommitUserData().entrySet());
         if (sourceSeqNos.localCheckpoint != targetSeqNos.localCheckpoint || targetSeqNos.maxSeqNo != sourceSeqNos.maxSeqNo) {
+            // If the primary is on 6.x while the replica was on 5.x, then we can get into this situation
+            // where the target still does not have sequence numbers in documents and its index commit.
+            // In this case, we don't want to fail the recovery but fallback to a file-based recovery.
+            // However, this should never happen for 6.0+ indices; thus we should fail (and assert) the recovery.
             if (indexCreatedVersion.before(Version.V_6_0_0) &&
                 target.getCommitUserData().containsKey(SequenceNumbers.LOCAL_CHECKPOINT_KEY) == false &&
                 target.getCommitUserData().containsKey(SequenceNumbers.MAX_SEQ_NO) == false) {
@@ -486,7 +493,6 @@ public class RecoverySourceHandler {
             assert false : message;
             throw new IllegalStateException(message);
         }
-        logger.trace("skipping [phase1]- identical sync id [{}] found on both source and target", source.getSyncId());
         return true;
     }
 

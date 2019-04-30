@@ -658,16 +658,16 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         int numDocs = between(0, 1000);
         long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
         long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-        assertTrue(handler.hasSameSyncId(VersionUtils.randomVersion(random()),
+        assertTrue(handler.canSkipPhase1(VersionUtils.randomVersion(random()),
             newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
             newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)));
 
         Version version5x = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, VersionUtils.getPreviousVersion(Version.V_5_6_17));
-        assertTrue(handler.hasSameSyncId(version5x,
+        assertTrue(handler.canSkipPhase1(version5x,
             newMetadataSnapshot(syncId, "-1", "-1", numDocs),
             newMetadataSnapshot(syncId, null, null, numDocs)));
 
-        assertFalse(handler.hasSameSyncId(version5x,
+        assertFalse(handler.canSkipPhase1(version5x,
             newMetadataSnapshot(syncId, Long.toString(randomNonNegativeLong()), Long.toString(randomNonNegativeLong()), numDocs),
             newMetadataSnapshot(syncId, null, null, numDocs)));
 
@@ -676,7 +676,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE));
             long maxSeqNoOnTarget = randomValueOtherThan(maxSeqNo,
                 () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE));
-            handler.hasSameSyncId(VersionUtils.randomVersion(random()),
+            handler.canSkipPhase1(VersionUtils.randomVersion(random()),
                 newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
                 newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs));
         });

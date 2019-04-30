@@ -416,8 +416,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
         final Path configDir = createTempDir();
         final Path keystore = configDir.resolve("elasticsearch.keystore");
         try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-        OutputStream os = new FileOutputStream(keystore.toFile())) {
-            byte[] buffer = new byte[4096];
+             OutputStream os = new FileOutputStream(keystore.toFile())) {
+            final byte[] buffer = new byte[4096];
             int readBytes;
             while ((readBytes = is.read(buffer)) > 0) {
                 os.write(buffer, 0, readBytes);

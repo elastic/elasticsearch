@@ -6,7 +6,6 @@
 package org.elasticsearch.smoketest;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;

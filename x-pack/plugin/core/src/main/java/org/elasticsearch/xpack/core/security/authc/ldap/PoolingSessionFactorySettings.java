@@ -52,7 +52,7 @@ public final class PoolingSessionFactorySettings {
     public static final Function<String, Setting.AffixSetting<String>> SASL_GSSAPI_KEYTAB_PATH = RealmSettings
             .affixSetting("sasl_gssapi.bind.keytab.path", key -> Setting.simpleString(key, Property.NodeScope, Property.Filtered));
     public static final Function<String, Setting.AffixSetting<Boolean>> SASL_GSSAPI_DEBUG = RealmSettings
-            .affixSetting("sasl_gssapi.bind.debug", key -> Setting.boolSetting(key, false, Property.NodeScope, Property.Dynamic));
+            .affixSetting("sasl_gssapi.bind.debug", key -> Setting.boolSetting(key, false, Property.NodeScope, Property.Filtered));
 
     public static final int DEFAULT_CONNECTION_POOL_INITIAL_SIZE = 0;
     public static final Function<String, Setting.AffixSetting<Integer>> POOL_INITIAL_SIZE = RealmSettings.affixSetting(

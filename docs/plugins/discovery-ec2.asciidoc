@@ -7,7 +7,7 @@ https://github.com/aws/aws-sdk-java[AWS API] for a list of EC2 instances
 matching certain criteria determined by the <<discovery-ec2-usage,plugin
 settings>>.
 
-*If you are looking for a hosted solution of Elasticsearch on AWS, please visit
+*If you are looking for a hosted solution of {es} on AWS, please visit
 http://www.elastic.co/cloud.*
 
 :plugin_name: discovery-ec2
@@ -61,19 +61,19 @@ The available settings for the EC2 discovery plugin are as follows.
     An EC2 access key. If set, you must also set `discovery.ec2.secret_key`.
     If unset, `discovery-ec2` will instead use the instance or container role
     as appropriate. This setting is sensitive and must be stored in the
-    {ref}/secure-settings.html[Elasticsearch keystore].
+    {ref}/secure-settings.html[{es} keystore].
 
 `discovery.ec2.secret_key`::
 
     An EC2 secret key. If set, you must also set `discovery.ec2.access_key`.
     This setting is sensitive and must be stored in the
-    {ref}/secure-settings.html[Elasticsearch keystore].
+    {ref}/secure-settings.html[{es} keystore].
 
 `discovery.ec2.session_token`::
 
     An EC2 session token. If set, you must also set `discovery.ec2.access_key`
     and `discovery.ec2.secret_key`. This setting is sensitive and must be
-    stored in the {ref}/secure-settings.html[Elasticsearch keystore].
+    stored in the {ref}/secure-settings.html[{es} keystore].
 
 `discovery.ec2.endpoint`::
 
@@ -104,14 +104,14 @@ The available settings for the EC2 discovery plugin are as follows.
     When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`,
     this setting determines the username to use to connect to the proxy. When
     not set, no username is used. This setting is sensitive and must be stored
-    in the {ref}/secure-settings.html[Elasticsearch keystore].
+    in the {ref}/secure-settings.html[{es} keystore].
 
 `discovery.ec2.proxy.password`::
 
     When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`,
     this setting determines the password to use to connect to the proxy. When
     not set, no password is used. This setting is sensitive and must be stored
-    in the {ref}/secure-settings.html[Elasticsearch keystore].
+    in the {ref}/secure-settings.html[{es} keystore].
 
 `discovery.ec2.read_timeout`::
 

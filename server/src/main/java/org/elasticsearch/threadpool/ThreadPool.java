@@ -227,7 +227,7 @@ public class ThreadPool implements Scheduler, Closeable {
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
     public long relativeTimeInMillis() {
-        return TimeValue.nsecToMSec(cachedTimeThread.relativeTimeInNanos());
+        return TimeValue.nsecToMSec(relativeTimeInNanos());
     }
 
     /**

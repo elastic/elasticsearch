@@ -632,9 +632,7 @@ final class MLRequestConverters {
 
     static Request startDataFrameAnalytics(StartDataFrameAnalyticsRequest startRequest) {
         String endpoint = new EndpointBuilder()
-            .addPathPartAsIs("_ml")
-            .addPathPartAsIs("data_frame")
-            .addPathPartAsIs("analytics")
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
             .addPathPart(startRequest.getId())
             .addPathPartAsIs("_start")
             .build();

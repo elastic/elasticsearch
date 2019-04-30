@@ -190,8 +190,7 @@ public class DependenciesInfoTask extends DefaultTask {
 
         if (license != null) {
             // replace * because they are sometimes used at the beginning lines as if the license was a multi-line comment
-            final String content = new String(Files.readAllBytes(outfile.toPath()), StandardCharsets.UTF_8);
-            content.replaceAll("\\s+", " ").replaceAll("\\*", " ");
+            final String content = new String(Files.readAllBytes(license.toPath()), StandardCharsets.UTF_8).replaceAll("\\s+", " ").replaceAll("\\*", " ");
             final String spdx = checkSPDXLicense(content);
             if (spdx ==  null) {
                 // License has not be identified as SPDX.

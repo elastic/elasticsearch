@@ -193,10 +193,12 @@ public class SSLDriver implements AutoCloseable {
                     encryptedBuffer.align(encryptedBuffer.getIndex());
                     return result;
                 case BUFFER_UNDERFLOW:
-                    // There is not enough space in the network buffer for an entire SSL packet. Resize the
-                    // underlying pages.
                     packetSize = engine.getSession().getPacketBufferSize();
-                    encryptedBuffer.changePageSize(packetSize, encryptedBuffer.getIndex());
+                    if (packetSize != encryptedBuffer.getPageSize()) {
+                        // There is not enough space in the network buffer for an entire SSL packet. Resize the
+                        // underlying pages.
+                        encryptedBuffer.changePageSize(packetSize, encryptedBuffer.getIndex());
+                    }
                     break;
                 case BUFFER_OVERFLOW:
                     // There is not enough space in the application buffer for the decrypted message. Expand

@@ -56,8 +56,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
     }
 
     public static InboundChannelBuffer allocatingInstance(int pageSize) {
-        return new InboundChannelBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {
-        }), pageSize);
+        return new InboundChannelBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}), pageSize);
     }
 
     @Override
@@ -243,43 +242,13 @@ public final class InboundChannelBuffer implements AutoCloseable {
             oldPage.close();
         } else {
             int newPageCount = numPages(length);
-            Page[] newPages = new Page[newPageCount];
 
-            Page newPage = pageAllocator.apply(pageSize);
-            ByteBuffer newByteBuffer = newPage.byteBuffer();
-            Page oldPage = pages.removeFirst();
-            ByteBuffer oldByteBuffer = oldPage.byteBuffer().duplicate();
-            oldByteBuffer.position(offset);
-            long totalBytesToCopy = length;
-            int newBufferIndex = 0;
-            while (totalBytesToCopy > 0) {
-                if (newByteBuffer.remaining() == 0) {
-                    newPages[newBufferIndex++] = newPage;
-                    newPage = pageAllocator.apply(pageSize);
-                    newByteBuffer = newPage.byteBuffer();
-                }
-                if (oldByteBuffer.remaining() == 0) {
-                    oldPage.close();
-                    oldPage = pages.removeFirst();
-                    oldByteBuffer = oldPage.byteBuffer().duplicate();
-                }
-
-                int bytesToCopy = Math.min(Math.min((int) totalBytesToCopy, oldByteBuffer.remaining()), newByteBuffer.remaining());
-                // TODO: This is to prevent accidentally setting the buffer's new limit to the capacity which might
-                //  be greater than the limit. Maybe the Page should have a length attribute?
-                int initialLimit = oldByteBuffer.limit();
-                oldByteBuffer.limit(oldByteBuffer.position() + bytesToCopy);
-                newByteBuffer.put(oldByteBuffer);
-                totalBytesToCopy -= bytesToCopy;
-                oldByteBuffer.limit(initialLimit);
-            }
-
-            newPages[newBufferIndex] = newPage;
+            Page[] newPages = copyOver(newPageCount, length);
 
             for (int i = newPageCount - 1; i >= 0; --i) {
                 Page page = newPages[i];
                 page.byteBuffer().clear();
-                pages.addFirst(newPages[i]);
+                this.pages.addFirst(newPages[i]);
             }
         }
 
@@ -297,22 +266,39 @@ public final class InboundChannelBuffer implements AutoCloseable {
             return;
         }
 
+        pageSize = newPageSize;
         int newPageCount = numPagesForPageSize(newPageSize, capacity);
+        Page[] newPages = copyOver(newPageCount, length);
+
+        for (int i = 0; i < this.pages.size(); i++) {
+            this.pages.removeFirst().close();
+        }
+
+        for (int i = newPageCount - 1; i >= 0; --i) {
+            Page page = newPages[i];
+            page.byteBuffer().clear();
+            this.pages.addFirst(newPages[i]);
+        }
+
+
+        offset = 0;
+        capacity = this.pages.size() * pageSize;
+    }
+
+    private Page[] copyOver(final int newPageCount, long totalBytesToCopy) {
         Page[] newPages = new Page[newPageCount];
 
-        Page newPage = pageAllocator.apply(newPageSize);
+        Page newPage = pageAllocator.apply(pageSize);
         ByteBuffer newByteBuffer = newPage.byteBuffer();
         Page oldPage = pages.removeFirst();
         ByteBuffer oldByteBuffer = oldPage.byteBuffer().duplicate();
         oldByteBuffer.position(offset);
-        long bytesToCopy = length;
         int newBufferIndex = 0;
-        while (bytesToCopy > 0) {
+        while (totalBytesToCopy > 0) {
             if (newByteBuffer.remaining() == 0) {
-                newPages[newBufferIndex] = newPage;
-                newPage = pageAllocator.apply(newPageSize);
+                newPages[newBufferIndex++] = newPage;
+                newPage = pageAllocator.apply(pageSize);
                 newByteBuffer = newPage.byteBuffer();
-                ++newBufferIndex;
             }
             if (oldByteBuffer.remaining() == 0) {
                 oldPage.close();
@@ -320,35 +306,20 @@ public final class InboundChannelBuffer implements AutoCloseable {
                 oldByteBuffer = oldPage.byteBuffer().duplicate();
             }
 
-            int limitDelta = Math.min(Math.min((int) bytesToCopy, oldByteBuffer.remaining()), newByteBuffer.remaining());
-            // TODO: This is to prevent accidentally setting the buffer's new limit to the capacity which might
-            //  be greater than the limit. Maybe the Page should have a length attribute?
+            int bytesToCopy = Math.min(Math.min((int) totalBytesToCopy, oldByteBuffer.remaining()), newByteBuffer.remaining());
             int initialLimit = oldByteBuffer.limit();
-            oldByteBuffer.limit(oldByteBuffer.position() + limitDelta);
+            oldByteBuffer.limit(oldByteBuffer.position() + bytesToCopy);
             newByteBuffer.put(oldByteBuffer);
-            bytesToCopy -= limitDelta;
+            totalBytesToCopy -= bytesToCopy;
             oldByteBuffer.limit(initialLimit);
-        }
-
-        for (int i = 0; i < pages.size(); i++) {
-            pages.removeFirst().close();
         }
 
         while (newBufferIndex < newPageCount) {
             newPages[newBufferIndex++] = newPage;
-            newPage = pageAllocator.apply(newPageSize);
+            newPage = pageAllocator.apply(pageSize);
         }
 
-        for (int i = newPageCount - 1; i >= 0; --i) {
-            Page page = newPages[i];
-            page.byteBuffer().clear();
-            pages.addFirst(newPages[i]);
-        }
-
-
-        pageSize = newPageSize;
-        offset = 0;
-        capacity = pages.size() * pageSize;
+        return newPages;
     }
 
     public void incrementIndex(long delta) {
@@ -376,6 +347,10 @@ public final class InboundChannelBuffer implements AutoCloseable {
         long remaining = capacity - internalIndex;
         assert remaining >= 0 : "The remaining [" + remaining + "] number of bytes should not be less than zero.";
         return remaining;
+    }
+
+    public int getPageSize() {
+        return pageSize;
     }
 
     private int numPages(long capacity) {

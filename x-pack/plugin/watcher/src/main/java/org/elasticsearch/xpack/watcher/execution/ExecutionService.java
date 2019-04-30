@@ -73,7 +73,10 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -441,7 +444,7 @@ public class ExecutionService extends AbstractComponent {
             try (XContentBuilder builder = XContentFactory.jsonBuilder();
                  ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
-                IndexRequest request = new IndexRequest(index)
+                IndexRequest request = new IndexRequest(index, "doc")
                     .id(watchRecord.id().value())
                     .source(builder)
                     .opType(IndexRequest.OpType.CREATE);
@@ -466,8 +469,7 @@ public class ExecutionService extends AbstractComponent {
     }
 
     private void deleteTrigger(Wid watcherId) {
-        DeleteRequest request = new DeleteRequest(TriggeredWatchStoreField.INDEX_NAME);
-        request.id(watcherId.value());
+        DeleteRequest request = new DeleteRequest(TriggeredWatchStoreField.INDEX_NAME, "doc", watcherId.value());
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
             client.delete(request).actionGet(30, TimeUnit.SECONDS);
         }

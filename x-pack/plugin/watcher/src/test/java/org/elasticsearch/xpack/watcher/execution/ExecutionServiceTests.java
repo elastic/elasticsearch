@@ -871,7 +871,7 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testForcePutHistoryOnExecutionRejection() throws Exception {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("foo");
-        WatchStatus status = new WatchStatus(ZonedDateTime.now(ZoneOffset.UTC), Collections.emptyMap());
+        WatchStatus status = new WatchStatus(DateTime.now(UTC), Collections.emptyMap());
         when(watch.status()).thenReturn(status);
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
@@ -881,7 +881,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(actionFuture.get()).thenReturn("");
         when(client.index(any()))
             .thenThrow(new VersionConflictEngineException(
-                new ShardId(new Index("mockindex", "mockuuid"), 0), "id", "explaination"))
+                new ShardId(new Index("mockindex", "mockuuid"), 0), "doc", "id", "explaination"))
             .thenReturn(actionFuture);
         when(client.delete(any())).thenReturn(actionFuture);
 
@@ -890,10 +890,11 @@ public class ExecutionServiceTests extends ESTestCase {
         // execute needs to fail
         doThrow(new EsRejectedExecutionException()).when(executor).execute(any());
 
-        Wid wid = new Wid(watch.id(), ZonedDateTime.now(ZoneOffset.UTC));
+        Wid wid = new Wid(watch.id(), DateTime.now(UTC));
 
-        TriggeredWatch triggeredWatch = new TriggeredWatch(wid,
-            new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC)));
+        DateTime now = new DateTime(clock.millis());
+
+        TriggeredWatch triggeredWatch = new TriggeredWatch(wid, new ScheduleTriggerEvent("_id", now, now));
         executionService.executeTriggeredWatches(Collections.singleton(triggeredWatch));
 
         ArgumentCaptor<DeleteRequest> deleteCaptor = ArgumentCaptor.forClass(DeleteRequest.class);

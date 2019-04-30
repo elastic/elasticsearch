@@ -1988,7 +1988,7 @@ public final class MachineLearningClient {
             Collections.emptySet());
     }
 
-     /**
+    /**
      * Gets the running statistics of a Data Frame Analytics asynchronously and notifies listener upon completion
      * <p>
      * For additional info

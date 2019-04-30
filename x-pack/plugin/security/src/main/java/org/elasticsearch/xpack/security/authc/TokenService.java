@@ -180,7 +180,7 @@ public final class TokenService {
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
-    static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_8_0_0; // TODO change upon backport
+    static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_1_0;
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_1_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_1_0;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars

@@ -1,6 +1,8 @@
 [role="xpack"]
 [[notification-settings]]
 === {watcher} settings in Elasticsearch
+
+[subs="attributes"]
 ++++
 <titleabbrev>{watcher} settings</titleabbrev>
 ++++

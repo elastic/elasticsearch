@@ -75,7 +75,7 @@
                 },
                 "metadata" : {
                   "type" : "object",
-                  "dynamic" : true
+                  "dynamic" : false
                 },
                 "authentication" : {
                   "type" : "binary"

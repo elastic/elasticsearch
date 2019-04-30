@@ -844,12 +844,12 @@ public final class TokenService {
             updateMap.put("refreshed", true);
             updateMap.put("refresh_time", clock.instant().toEpochMilli());
             if (newTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
-                // the superseding token document reference is formated as: "<alias>|<document_id>" ; the alias points to a single index
-                // containing the document with the said id
-                updateMap.put("superseded_by",
-                        getTokensIndexForVersion(newTokenVersion).aliasName() + "|" + getTokenDocumentId(newUserTokenId));
+                // the superseding token document reference is formated as "<alias>|<document_id>";
+                // for now, only the ".security-tokens|<document_id>" is a valid reference format
+                updateMap.put("superseded_by", securityTokensIndex.aliasName() + "|" + getTokenDocumentId(newUserTokenId));
             } else {
-                // preservers the format of the reference so that old nodes in a mixed cluster can still understand it
+                // preservers the format of the reference (without the alias prefix)
+                // so that old nodes in a mixed cluster can still understand it
                 updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
             }
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";

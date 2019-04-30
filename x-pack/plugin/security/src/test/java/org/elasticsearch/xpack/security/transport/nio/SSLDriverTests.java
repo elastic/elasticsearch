@@ -375,6 +375,7 @@ public class SSLDriverTests extends ESTestCase {
         ByteBuffer readBuffer = receiveDriver.getNetworkReadBuffer();
         ByteBuffer[] writeBuffers = flushOperation.getBuffersToWrite();
         int bytesToEncrypt = Arrays.stream(writeBuffers).mapToInt(Buffer::remaining).sum();
+        InboundChannelBuffer networkBuffer = InboundChannelBuffer.allocatingInstance(bytesToEncrypt);
         assert bytesToEncrypt < readBuffer.capacity() : "Flush operation must be less that read buffer";
         assert  writeBuffers.length > 0 : "No write buffers";
 

@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[stop-data-frame-transform]]
 === Stop {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop {dataframe-transforms}</titleabbrev>
 ++++

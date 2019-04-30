@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[get-data-frame-transform-stats]]
 === Get {dataframe-transform} statistics API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Get {dataframe-transform} statistics</titleabbrev>
 ++++

@@ -78,6 +78,7 @@ NOTE: you can update thread pool settings dynamically using <<cluster-update-set
 The following are the types of thread pools and their respective parameters:
 
 [float]
+[[cached]]
 ==== `cached`
 
 The `cached` thread pool is an unbounded thread pool that will spawn a
@@ -98,6 +99,7 @@ threadpool:
 --------------------------------------------------
 
 [float]
+[[fixed]]
 ==== `fixed`
 
 The `fixed` thread pool holds a fixed size of threads to handle the
@@ -121,6 +123,7 @@ threadpool:
 --------------------------------------------------
 
 [float]
+[[scaling]]
 ==== `scaling`
 
 The `scaling` thread pool holds a dynamic number of threads. This number is

@@ -304,7 +304,7 @@ for smaller clusters (1-2 nodes). Be sure to use provisioned IOPS to ensure
 your cluster has satisfactory performance.
 
 * https://aws.amazon.com/efs/[EFS-based storage] is not
-recomended or supported as it does not offer satisfactory performance.
+recommended or supported as it does not offer satisfactory performance.
 Historically, shared network filesystems such as EFS have not always offered
 precisely the behaviour that {es} requires of its filesystem, and this has been
 known to lead to index corruption. Although EFS offers durability, shared

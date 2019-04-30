@@ -24,6 +24,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -416,7 +417,7 @@ public class KeyStoreWrapperTests extends ESTestCase {
         final Path configDir = createTempDir();
         final Path keystore = configDir.resolve("elasticsearch.keystore");
         try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
-             OutputStream os = new FileOutputStream(keystore.toFile())) {
+             OutputStream os = Files.newOutputStream(keystore)) {
             final byte[] buffer = new byte[4096];
             int readBytes;
             while ((readBytes = is.read(buffer)) > 0) {

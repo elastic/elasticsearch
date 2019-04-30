@@ -49,6 +49,8 @@
 "Get the indexed refresh token and use if to get another access token and authenticate":
   - skip:
       features: headers
+      version: "all"
+      reason: https://github.com/elastic/elasticsearch/pull/41697
 
   - do:
       get:

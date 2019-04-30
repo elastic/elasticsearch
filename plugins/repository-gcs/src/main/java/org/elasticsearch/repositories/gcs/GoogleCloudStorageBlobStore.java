@@ -50,7 +50,9 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -313,6 +315,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             return;
         }
         final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
+        final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
         final StorageException e = SocketAccess.doPrivilegedIOException(() -> {
             final AtomicReference<StorageException> ioe = new AtomicReference<>();
             final StorageBatch batch = client().batch();
@@ -326,6 +329,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                         @Override
                         public void error(StorageException exception) {
                             if (exception.getCode() != HTTP_NOT_FOUND) {
+                                failedBlobs.add(blob);
                                 if (ioe.compareAndSet(null, exception) == false) {
                                     ioe.get().addSuppressed(exception);
                                 }
@@ -337,7 +341,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             return ioe.get();
         });
         if (e != null) {
-            throw new IOException(e);
+            throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
         }
     }
 

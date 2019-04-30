@@ -258,6 +258,7 @@ POST /example/doc
 // CONSOLE
 
 [float]
+[[linestring]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
 A `linestring` defined by an array of two or more positions. By
@@ -280,6 +281,7 @@ The above `linestring` would draw a straight line starting at the White
 House to the US Capitol Building.
 
 [float]
+[[polygon]]
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
@@ -374,6 +376,7 @@ POST /example/doc
 // TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
+[[multipoint]]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
 
 A list of geojson points.
@@ -393,6 +396,7 @@ POST /example/doc
 // CONSOLE
 
 [float]
+[[multilinestring]]
 ===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
 
 A list of geojson linestrings.
@@ -415,6 +419,7 @@ POST /example/doc
 // TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
+[[multipolygon]]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 A list of geojson polygons.
@@ -437,6 +442,7 @@ POST /example/doc
 // TEST[skip:https://github.com/elastic/elasticsearch/issues/23836]
 
 [float]
+[[geometry_collection]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
 A collection of geojson geometry objects.

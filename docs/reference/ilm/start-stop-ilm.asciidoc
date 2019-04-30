@@ -68,8 +68,9 @@ If the request does not encounter errors, you receive the following result:
 
 The operating modes of ILM:
 
-
+[[ilm-operating-modes]]
 .ILM Operating Modes
+[options="header"]
 |===
 |Name |Description
 |RUNNING |Normal operation where all policies are executed as normal

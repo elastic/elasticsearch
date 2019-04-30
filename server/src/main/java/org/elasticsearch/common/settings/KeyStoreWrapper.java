@@ -19,6 +19,18 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
+import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.SimpleFSDirectory;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.Randomness;
+
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -27,6 +39,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -55,18 +68,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
-
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ChecksumIndexInput;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
-import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.Randomness;
 
 /**
  * A disk based container for sensitive settings in Elasticsearch.

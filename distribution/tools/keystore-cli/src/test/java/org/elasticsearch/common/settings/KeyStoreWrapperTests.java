@@ -19,6 +19,18 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
+import org.junit.After;
+import org.junit.Before;
+
 import javax.crypto.Cipher;
 import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
@@ -26,6 +38,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.EOFException;
@@ -45,23 +58,10 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.common.Randomness;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.contains;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class KeyStoreWrapperTests extends ESTestCase {
 

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -60,13 +61,13 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
 /**
  * This store reads + writes {@link ExpressionRoleMapping role mappings} in an Elasticsearch
- * {@link SecurityIndexManager#SECURITY_INDEX_NAME index}.
+ * {@link RestrictedIndicesNames#SECURITY_MAIN_ALIAS index}.
  * <br>
  * The store is responsible for all read and write operations as well as
  * {@link #resolveRoles(UserData, ActionListener) resolving roles}.
@@ -131,7 +132,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         final QueryBuilder query = QueryBuilders.termQuery(DOC_TYPE_FIELD, DOC_TYPE_ROLE_MAPPING);
         final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
-            SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
+            SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
                     .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                     .setQuery(query)
                     .setSize(1000)
@@ -143,7 +144,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                             listener.onResponse(mappings.stream().filter(Objects::nonNull).collect(Collectors.toList())),
                     ex -> {
                         logger.error(new ParameterizedMessage("failed to load role mappings from index [{}] skipping all mappings.",
-                                SECURITY_INDEX_NAME), ex);
+                                SECURITY_MAIN_ALIAS), ex);
                         listener.onResponse(Collections.emptyList());
                     })),
                     doc -> buildMapping(getNameFromId(doc.getId()), doc.getSourceRef()));
@@ -202,7 +203,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                 return;
             }
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForName(mapping.getName()))
+                    client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForName(mapping.getName()))
                             .setSource(xContentBuilder)
                             .setRefreshPolicy(request.getRefreshPolicy())
                             .request(),
@@ -231,7 +232,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                        client.prepareDelete(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForName(request.getName()))
+                        client.prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForName(request.getName()))
                         .setRefreshPolicy(request.getRefreshPolicy())
                         .request(),
                     new ActionListener<DeleteResponse>() {
@@ -286,7 +287,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
             logger.info("The security index is not yet available - no role mappings can be loaded");
             if (logger.isDebugEnabled()) {
                 logger.debug("Security Index [{}] [exists: {}] [available: {}] [mapping up to date: {}]",
-                        SECURITY_INDEX_NAME,
+                        SECURITY_MAIN_ALIAS,
                         securityIndex.indexExists(),
                         securityIndex.isAvailable(),
                         securityIndex.isMappingUpToDate()

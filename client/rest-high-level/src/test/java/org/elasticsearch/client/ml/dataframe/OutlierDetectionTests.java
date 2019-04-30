@@ -31,9 +31,10 @@ import static org.hamcrest.Matchers.is;
 public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetection> {
 
     public static OutlierDetection randomOutlierDetection() {
-        return new OutlierDetection(
-            randomBoolean() ? null : randomIntBetween(1, 20),
-            randomBoolean() ? null : randomFrom(OutlierDetection.Method.values()));
+        return OutlierDetection.builder()
+            .setNNeighbors(randomBoolean() ? null : randomIntBetween(1, 20))
+            .setMethod(randomBoolean() ? null : randomFrom(OutlierDetection.Method.values()))
+            .build();
     }
 
     @Override
@@ -52,12 +53,16 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
     }
 
     public void testGetParams_GivenDefaults() {
-        OutlierDetection outlierDetection = new OutlierDetection();
+        OutlierDetection outlierDetection = OutlierDetection.builder().build();
         assertThat(outlierDetection.getParams().isEmpty(), is(true));
     }
 
     public void testGetParams_GivenExplicitValues() {
-        OutlierDetection outlierDetection = new OutlierDetection(42, OutlierDetection.Method.LDOF);
+        OutlierDetection outlierDetection =
+            OutlierDetection.builder()
+                .setNNeighbors(42)
+                .setMethod(OutlierDetection.Method.LDOF)
+                .build();
 
         Map<String, Object> params = outlierDetection.getParams();
 

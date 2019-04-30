@@ -21,8 +21,7 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,27 +35,26 @@ import java.util.Objects;
 public class OutlierDetection implements DataFrameAnalysis {
 
     public static OutlierDetection fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return PARSER.apply(parser, null).build();
+    }
+
+    public static OutlierDetection getDefaultInstance() {
+        return builder().build();
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static final ParseField NAME = new ParseField("outlier_detection");
     static final ParseField N_NEIGHBORS = new ParseField("n_neighbors");
     static final ParseField METHOD = new ParseField("method");
 
-    private static ConstructingObjectParser<OutlierDetection, Void> PARSER =
-        new ConstructingObjectParser<>(NAME.getPreferredName(), true,
-            (args) -> {
-                Integer nNeighbors = (Integer) args[0];
-                Method method = (Method) args[1];
-                return new OutlierDetection(nNeighbors, method);
-            });
-
-    private final Integer nNeighbors;
-    private final Method method;
+    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Builder::new);
 
     static {
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), N_NEIGHBORS);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+        PARSER.declareInt(Builder::setNNeighbors, N_NEIGHBORS);
+        PARSER.declareField(Builder::setMethod, p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return Method.fromString(p.text());
             }
@@ -64,12 +62,15 @@ public class OutlierDetection implements DataFrameAnalysis {
         }, METHOD, ObjectParser.ValueType.STRING);
     }
 
+    private final Integer nNeighbors;
+    private final Method method;
+
     /**
      * Constructs the outlier detection configuration
      * @param nNeighbors The number of neighbors. Leave unspecified for dynamic detection.
      * @param method The method. Leave unspecified for a dynamic mixture of methods.
      */
-    public OutlierDetection(@Nullable Integer nNeighbors, @Nullable Method method) {
+    private OutlierDetection(@Nullable Integer nNeighbors, @Nullable Method method) {
         if (nNeighbors != null && nNeighbors <= 0) {
             throw new IllegalArgumentException("[" + N_NEIGHBORS.getPreferredName() + "] must be a positive integer");
         }
@@ -78,11 +79,21 @@ public class OutlierDetection implements DataFrameAnalysis {
         this.method = method;
     }
 
-    /**
-     * Constructs the default outlier detection configuration
-     */
-    public OutlierDetection() {
-        this(null, null);
+    @Override
+    public String getName() {
+        return NAME.getPreferredName();
+    }
+
+    @Override
+    public Map<String, Object> getParams() {
+        Map<String, Object> params = new HashMap<>();
+        if (nNeighbors != null) {
+            params.put(N_NEIGHBORS.getPreferredName(), nNeighbors);
+        }
+        if (method != null) {
+            params.put(METHOD.getPreferredName(), method);
+        }
+        return params;
     }
 
     @Override
@@ -115,27 +126,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(getClass())
-            .add("nNeighbors", nNeighbors)
-            .add("method", method)
-            .toString();
-    }
-
-    @Override
-    public String getName() {
-        return NAME.getPreferredName();
-    }
-
-    @Override
-    public Map<String, Object> getParams() {
-        Map<String, Object> params = new HashMap<>();
-        if (nNeighbors != null) {
-            params.put(N_NEIGHBORS.getPreferredName(), nNeighbors);
-        }
-        if (method != null) {
-            params.put(METHOD.getPreferredName(), method);
-        }
-        return params;
+        return Strings.toString(this);
     }
 
     public enum Method {
@@ -148,6 +139,26 @@ public class OutlierDetection implements DataFrameAnalysis {
         @Override
         public String toString() {
             return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public static class Builder {
+
+        private Integer nNeighbors;
+        private Method method;
+
+        public Builder setNNeighbors(Integer nNeighbors) {
+            this.nNeighbors = nNeighbors;
+            return this;
+        }
+
+        public Builder setMethod(Method method) {
+            this.method = method;
+            return this;
+        }
+
+        public OutlierDetection build() {
+            return new OutlierDetection(nNeighbors, method);
         }
     }
 }

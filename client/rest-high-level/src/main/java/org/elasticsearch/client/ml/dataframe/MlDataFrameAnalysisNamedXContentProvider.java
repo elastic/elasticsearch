@@ -21,19 +21,17 @@ package org.elasticsearch.client.ml.dataframe;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class MlDataFrameAnalysisNamedXContentProvider implements NamedXContentProvider {
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
-        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-
-        namedXContent.add(new NamedXContentRegistry.Entry(DataFrameAnalysis.class, OutlierDetection.NAME, (p, c) -> {
-            return OutlierDetection.fromXContent(p);
-        }));
-
-        return namedXContent;
+        return Arrays.asList(
+            new NamedXContentRegistry.Entry(
+                DataFrameAnalysis.class,
+                OutlierDetection.NAME,
+                (p, c) -> OutlierDetection.fromXContent(p)));
     }
 }

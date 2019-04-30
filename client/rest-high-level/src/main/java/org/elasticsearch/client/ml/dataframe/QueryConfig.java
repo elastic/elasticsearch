@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -77,12 +77,6 @@ public class QueryConfig implements ToXContentObject {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(getClass())
-            .add("query", query)
-            .toString();
-    }
-
-    public boolean isValid() {
-        return query != null;
+        return Strings.toString(this);
     }
 }

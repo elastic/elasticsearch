@@ -1194,11 +1194,15 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testPutDataFrameAnalyticsConfig() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String configId = "test-config";
+        String configId = "put-test-config";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
-            .setSource(new DataFrameAnalyticsSource("test-source-index"))
-            .setDest(new DataFrameAnalyticsDest("test-dest-index"))
-            .setAnalysis(new OutlierDetection())
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.getDefaultInstance())
             .build();
 
         PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
@@ -1217,11 +1221,15 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testGetDataFrameAnalyticsConfig_SingleConfig() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String configId = "test-config";
+        String configId = "get-test-config";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
-            .setSource(new DataFrameAnalyticsSource("test-source-index"))
-            .setDest(new DataFrameAnalyticsDest("test-dest-index"))
-            .setAnalysis(new OutlierDetection())
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("get-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("get-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.getDefaultInstance())
             .build();
 
         PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
@@ -1238,17 +1246,20 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testGetDataFrameAnalyticsConfig_MultipleConfigs() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String configIdPrefix = "test-config-";
+        String configIdPrefix = "get-test-config-";
         int numberOfConfigs = 10;
         List<DataFrameAnalyticsConfig> createdConfigs = new ArrayList<>();
         for (int i = 0; i < numberOfConfigs; ++i) {
             String configId = configIdPrefix + i;
-            DataFrameAnalyticsConfig config =
-                DataFrameAnalyticsConfig.builder(configId)
-                    .setSource(new DataFrameAnalyticsSource("index-source-test"))
-                    .setDest(new DataFrameAnalyticsDest("index-dest-test"))
-                    .setAnalysis(new OutlierDetection())
-                    .build();
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+                .setSource(DataFrameAnalyticsSource.builder()
+                    .setIndex("get-test-source-index")
+                    .build())
+                .setDest(DataFrameAnalyticsDest.builder()
+                    .setIndex("get-test-dest-index")
+                    .build())
+                .setAnalysis(OutlierDetection.getDefaultInstance())
+                .build();
 
             PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
                 new PutDataFrameAnalyticsRequest(config),
@@ -1310,9 +1321,13 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "get-stats-test-config";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
-            .setSource(new DataFrameAnalyticsSource(sourceIndex))
-            .setDest(new DataFrameAnalyticsDest(destIndex))
-            .setAnalysis(new OutlierDetection())
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex(sourceIndex)
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex(destIndex)
+                .build())
+            .setAnalysis(OutlierDetection.getDefaultInstance())
             .build();
 
         execute(
@@ -1346,9 +1361,13 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         String configId = "start-test-config";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
-            .setSource(new DataFrameAnalyticsSource(sourceIndex))
-            .setDest(new DataFrameAnalyticsDest(destIndex))
-            .setAnalysis(new OutlierDetection())
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex(sourceIndex)
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex(destIndex)
+                .build())
+            .setAnalysis(OutlierDetection.getDefaultInstance())
             .build();
 
         execute(
@@ -1380,11 +1399,15 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
     public void testDeleteDataFrameAnalyticsConfig() throws Exception {
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String configId = "test-config";
+        String configId = "delete-test-config";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
-            .setSource(new DataFrameAnalyticsSource("test-source-index"))
-            .setDest(new DataFrameAnalyticsDest("test-dest-index"))
-            .setAnalysis(new OutlierDetection())
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("delete-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("delete-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.getDefaultInstance())
             .build();
 
         GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(

@@ -14,19 +14,18 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 class EnrichPolicyExecutor {
 
-    private final EnrichStore enrichStore;
     private final ClusterService clusterService;
     private final Client client;
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LongSupplier nowSupplier;
 
-    EnrichPolicyExecutor(EnrichStore enrichStore, ClusterService clusterService, Client client, ThreadPool threadPool,
+    EnrichPolicyExecutor(ClusterService clusterService, Client client, ThreadPool threadPool,
                                 IndexNameExpressionResolver indexNameExpressionResolver, LongSupplier nowSupplier) {
-        this.enrichStore = enrichStore;
         this.clusterService = clusterService;
         this.client = client;
         this.threadPool = threadPool;
@@ -36,7 +35,7 @@ class EnrichPolicyExecutor {
 
     public void runPolicy(String policyId, ActionListener<PolicyExecutionResult> listener) {
         // Look up policy in policy store and execute it
-        EnrichPolicy policy = enrichStore.getPolicy(policyId);
+        EnrichPolicy policy = EnrichStore.getPolicy(policyId, clusterService.state());
         if (policy == null) {
             throw new ElasticsearchException("Policy execution failed. Could not locate policy with id [{}]", policyId);
         } else {

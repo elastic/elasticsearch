@@ -22,7 +22,6 @@ package org.elasticsearch.repositories.azure;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
+
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
@@ -234,13 +234,13 @@ final class AzureStorageSettings {
 
     static Map<String, AzureStorageSettings> overrideLocationMode(Map<String, AzureStorageSettings> clientsSettings,
                                                                   LocationMode locationMode) {
-        final MapBuilder<String, AzureStorageSettings> mapBuilder = new MapBuilder<>();
+        final var map = new HashMap<String, AzureStorageSettings>();
         for (final Map.Entry<String, AzureStorageSettings> entry : clientsSettings.entrySet()) {
             final AzureStorageSettings azureSettings = new AzureStorageSettings(entry.getValue().account, entry.getValue().key,
                     entry.getValue().endpointSuffix, entry.getValue().timeout, entry.getValue().maxRetries, entry.getValue().proxy,
                     locationMode);
-            mapBuilder.put(entry.getKey(), azureSettings);
+            map.put(entry.getKey(), azureSettings);
         }
-        return mapBuilder.immutableMap();
+        return Map.copyOf(map);
     }
 }

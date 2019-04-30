@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,7 +48,7 @@ public final class EnrichMetadata extends AbstractNamedDiffable<MetaData.Custom>
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = p.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    patterns.put(fieldName, EnrichPolicy.PARSER.parse(p, c));
+                    patterns.put(fieldName, EnrichPolicy.fromXContent(p));
                 } else {
                     throw new ElasticsearchParseException("unexpected token [" + token + "]");
                 }

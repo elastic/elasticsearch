@@ -526,6 +526,10 @@ public final class InternalSqlScriptUtils {
         return (Double) GeoProcessor.GeoOperation.Y.apply(g);
     }
 
+    public static Double stZ(Object g) {
+        return (Double) GeoProcessor.GeoOperation.Z.apply(g);
+    }
+
     // processes doc value as a geometry
     public static <T> GeoShape geoDocValue(Map<String, ScriptDocValues<T>> doc, String fieldName) {
         Object obj = docValue(doc, fieldName);

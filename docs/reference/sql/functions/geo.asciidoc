@@ -134,6 +134,31 @@ The return type is double.
 include-tagged::{sql-specs}/docs/geo.csv-spec[y]
 --------------------------------------------------
 
+[[sql-functions-geo-st-z]]
+===== `ST_Z`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_Z(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the the altitude of the first point in the geometry.
+The return type is double.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/geo.csv-spec[z]
+--------------------------------------------------
+
 [[sql-functions-geo-st-distance]]
 ===== `ST_Distance`
 

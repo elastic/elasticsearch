@@ -22,26 +22,31 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
@@ -55,6 +60,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class CloseIndexIT extends ESIntegTestCase {
@@ -341,7 +347,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     public void testNoopPeerRecoveriesWhenIndexClosed() throws Exception {
-        final String indexName = "peer-recovery-test";
+        final String indexName = "noop-peer-recovery-test";
         int numberOfReplicas = between(1, 2);
         internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + between(1, 2));
         createIndex(indexName, Settings.builder()
@@ -368,6 +374,47 @@ public class CloseIndexIT extends ESIntegTestCase {
             ensureGreen(indexName);
             assertNoFileBasedRecovery(indexName);
             internalCluster().assertSameDocIdsOnShards();
+        }
+    }
+
+    public void testRecoverExistingReplica() throws Exception {
+        final String indexName = "test-recover-existing-replica";
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        List<String> dataNodes = randomSubsetOf(2, Sets.newHashSet(
+            clusterService().state().nodes().getDataNodes().valuesIt()).stream().map(DiscoveryNode::getName).collect(Collectors.toSet()));
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush(indexName).get();
+        } else {
+            client().admin().indices().prepareSyncedFlush(indexName).get();
+        }
+        // index more documents while one shard copy is offline
+        internalCluster().restartNode(dataNodes.get(1), new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                Client client = client(dataNodes.get(0));
+                int moreDocs = randomIntBetween(1, 50);
+                for (int i = 0; i < moreDocs; i++) {
+                    client.prepareIndex(indexName, "_doc").setSource("num", i).get();
+                }
+                assertAcked(client.admin().indices().prepareClose(indexName));
+                return super.onNodeStopped(nodeName);
+            }
+        });
+        assertIndexIsClosed(indexName);
+        ensureGreen(indexName);
+        internalCluster().assertSameDocIdsOnShards();
+        for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
+            if (recovery.getPrimary() == false) {
+                assertThat(recovery.getIndex().fileDetails(), not(empty()));
+            }
         }
     }
 

@@ -181,7 +181,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this.documentSupplier = null;
     }
 
-    private PercolateQueryBuilder(String field, String documentType, Supplier<BytesReference> documentSupplier) {
+    protected PercolateQueryBuilder(String field, String documentType, Supplier<BytesReference> documentSupplier) {
         if (field == null) {
             throw new IllegalArgumentException("[field] is a required argument");
         }
@@ -560,7 +560,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             }, listener::onFailure));
         });
 
-
         PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, documentType, documentSupplier::get);
         if (name != null) {
             rewritten.setName(name);
@@ -662,6 +661,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     //pkg-private for testing
     XContentType getXContentType() {
         return documentXContentType;
+    }
+
+    public String getQueryName() {
+        return name;
     }
 
     static IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, Collection<ParsedDocument> docs) {

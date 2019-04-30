@@ -34,9 +34,11 @@ include::install/zip-windows-start.asciidoc[]
 include::install/init-systemd.asciidoc[]
 
 [float]
+[[start-es-deb-init]]
 include::install/deb-init.asciidoc[]
 
 [float]
+[[start-es-deb-systemd]]
 include::install/systemd.asciidoc[]
 
 [float]
@@ -66,7 +68,9 @@ include::install/msi-windows-start.asciidoc[]
 include::install/init-systemd.asciidoc[]
 
 [float]
+[[start-es-rpm-init]]
 include::install/rpm-init.asciidoc[]
 
 [float]
+[[start-es-rpm-systemd]]
 include::install/systemd.asciidoc[]

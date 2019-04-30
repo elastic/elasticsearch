@@ -202,9 +202,11 @@ STDDEV_POP       |AGGREGATE
 SUM_OF_SQUARES   |AGGREGATE      
 VAR_POP          |AGGREGATE      
 HISTOGRAM        |GROUPING
+CASE             |CONDITIONAL
 COALESCE         |CONDITIONAL
 GREATEST         |CONDITIONAL
 IFNULL           |CONDITIONAL
+IIF              |CONDITIONAL
 ISNULL           |CONDITIONAL
 LEAST            |CONDITIONAL
 NULLIF           |CONDITIONAL
@@ -605,7 +607,7 @@ M              |57
 groupByAndAggExpression
 // tag::groupByAndAggExpression
 schema::g:s|salary:i
-SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
+SELECT gender AS g, ROUND( (MIN(salary) / 100) ) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     
 ---------------+---------------
@@ -1987,9 +1989,80 @@ SELECT TRUNCATE(-345.153, 1) AS trimmed;
 
 ///////////////////////////////
 //
-// Null handling
+// Conditional
 //
 ///////////////////////////////
+
+case
+schema::case:s
+// tag::case
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 <= 3 THEN 'search'
+       END AS "case";
+
+    case
+---------------
+search
+// end::case
+;
+
+caseReturnNull
+schema::case:s
+// tag::caseReturnNull
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 > 10 THEN 'search'
+       END AS "case";
+
+    case
+---------------
+null
+// end::caseReturnNull
+;
+
+caseWithElse
+schema::case:s
+// tag::caseWithElse
+SELECT CASE WHEN 1 > 2 THEN 'elastic'
+            WHEN 2 > 10 THEN 'search'
+            ELSE 'default'
+       END AS "case";
+
+    case
+---------------
+default
+// end::caseWithElse
+;
+
+caseWithOperand
+schema::case:s
+// tag::caseWithOperand
+SELECT CASE 5
+            WHEN 1 THEN 'elastic'
+            WHEN 2 THEN 'search'
+            WHEN 5 THEN 'elasticsearch'
+       END AS "case";
+
+    case
+---------------
+elasticsearch
+// end::caseWithOperand
+;
+
+caseWithOperandAndElse
+schema::case:s
+// tag::caseWithOperandAndElse
+SELECT CASE 5
+            WHEN 1 THEN 'elastic'
+            WHEN 2 THEN 'search'
+            WHEN 3 THEN 'elasticsearch'
+            ELSE 'default'
+       END AS "case";
+
+    case
+---------------
+default
+// end::caseWithOperandAndElse
+;
 
 coalesceReturnNonNull
 // tag::coalesceReturnNonNull
@@ -2020,6 +2093,29 @@ SELECT IFNULL('elastic', null) AS "ifnull";
 ---------------
 elastic
 // end::ifNullReturnFirst
+;
+
+
+iifWithDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithDefaultValue
+SELECT IIF(1 < 2, 'TRUE', 'FALSE') AS result1, IIF(1 > 2, 'TRUE', 'FALSE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |FALSE
+// end::iifWithDefaultValue
+;
+
+iifWithoutDefaultValue
+schema::result1:s|result2:s
+// tag::iifWithoutDefaultValue
+SELECT IIF(1 < 2, 'TRUE') AS result1, IIF(1 > 2 , 'TRUE') AS result2;
+
+    result1    |    result2
+---------------+---------------
+TRUE           |null
+// end::iifWithoutDefaultValue
 ;
 
 

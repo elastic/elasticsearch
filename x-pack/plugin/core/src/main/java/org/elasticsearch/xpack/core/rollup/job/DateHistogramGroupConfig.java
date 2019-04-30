@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,7 +53,8 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
     private static final String FIELD = "field";
     public static final String TIME_ZONE = "time_zone";
     public static final String DELAY = "delay";
-    private static final String DEFAULT_TIMEZONE = "UTC";
+    public static final String DEFAULT_TIMEZONE = "UTC";
+    public static final ZoneId DEFAULT_ZONEID_TIMEZONE = ZoneOffset.UTC;
     private static final ConstructingObjectParser<DateHistogramGroupConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, a ->
@@ -210,12 +212,12 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         return Objects.equals(interval, that.interval)
             && Objects.equals(field, that.field)
             && Objects.equals(delay, that.delay)
-            && Objects.equals(timeZone, that.timeZone);
+            && ZoneId.of(timeZone, ZoneId.SHORT_IDS).getRules().equals(ZoneId.of(that.timeZone, ZoneId.SHORT_IDS).getRules());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(interval, field, delay, timeZone);
+        return Objects.hash(interval, field, delay, ZoneId.of(timeZone));
     }
 
     @Override
@@ -235,7 +237,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
         } else {
             rounding = new Rounding.Builder(TimeValue.parseTimeValue(expr, "createRounding"));
         }
-        rounding.timeZone(ZoneId.of(timeZone));
+        rounding.timeZone(ZoneId.of(timeZone, ZoneId.SHORT_IDS));
         return rounding.build();
     }
 }

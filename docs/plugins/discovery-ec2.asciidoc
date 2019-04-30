@@ -17,13 +17,19 @@ include::install_remove.asciidoc[]
 [[discovery-ec2-settings]]
 ==== Using the EC2 discovery plugin
 
-The `discovery-ec2` plugin adds a seed hosts provider named `ec2` which
-provides a list of seed addresses to the
-{ref}/modules-discovery-hosts-providers.html[discovery process] by querying the
-https://github.com/aws/aws-sdk-java[AWS API] for a list of EC2 instances
-matching certain criteria including their tags, membership of certain security
-groups, and placement in certain availability zones. The interaction with the
-AWS API can be authenticated using an
+The `discovery-ec2` plugin allows {es} to find the master-eligible nodes in a
+cluster running on AWS EC2 by querying the
+https://github.com/aws/aws-sdk-java[AWS API] for the addresses of the EC2
+instances running these nodes.
+
+It is normally a good idea to restrict the discovery process just to the
+master-eligible nodes in the cluster. This plugin allows you to identify these
+nodes by certain criteria including their tags, their membership of security
+groups, and their placement within availability zones. The discovery process
+will work correctly even if it finds master-ineligible nodes, but master
+elections will be more efficient if this can be avoided.
+
+The interaction with the AWS API can be authenticated using an
 http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[instance
 or container role], or else custom credentials can be supplied.
 
@@ -177,11 +183,6 @@ discovery. For instance, the following settings will only use nodes with a
 discovery.ec2.tags.role: master
 discovery.ec2.tags.environment: dev,staging
 ----
-
-One practical use for tag filtering is when an EC2 cluster contains many nodes
-that are not master-eligible {es} nodes. In this case, tagging the EC2 instances
-that _are_ running the master-eligible {es} nodes, and then filtering by that
-tag, will help discovery to run more efficiently.
 
 NOTE: The names of tags used for discovery may only contain ASCII letters,
 numbers, hyphens and underscores. In particular you cannot use tags whose name

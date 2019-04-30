@@ -403,7 +403,9 @@ public class KeyStoreWrapperTests extends ESTestCase {
         wrapper.close();
 
         final KeyStoreWrapper afterSave = KeyStoreWrapper.load(env.configFile());
+        assertNotNull(afterSave);
         afterSave.decrypt(new char[0]);
+        assertThat(afterSave.getSettingNames(), equalTo(Set.of("keystore.seed", "string_setting", "file_setting")));
         assertThat(afterSave.getString("string_setting"), equalTo("string_value"));
         assertThat(toByteArray(afterSave.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
         assertThat(afterSave.getString("file_setting"), equalTo("file_value"));
@@ -422,8 +424,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
             }
         }
         final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
-        wrapper.decrypt(new char[0]);
         assertNotNull(wrapper);
+        wrapper.decrypt(new char[0]);
         assertThat(wrapper.getFormatVersion(), equalTo(3));
         assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed", "string_setting", "file_setting")));
         assertThat(wrapper.getString("string_setting"), equalTo("string_value"));

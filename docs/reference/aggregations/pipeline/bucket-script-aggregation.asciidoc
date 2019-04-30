@@ -4,6 +4,7 @@
 A parent pipeline aggregation which executes a script which can perform per bucket computations on specified metrics
 in the parent multi-bucket aggregation. The specified metric must be numeric and the script must return a numeric value.
 
+[[bucket-script-agg-syntax]]
 ==== Syntax
 
 A `bucket_script` aggregation looks like this in isolation:
@@ -24,8 +25,9 @@ A `bucket_script` aggregation looks like this in isolation:
 <1> Here, `my_var1` is the name of the variable for this buckets path to use in the script, `the_sum` is the path to
 the metrics to use for that variable.
 
-
+[[bucket-script-params]]
 .`bucket_script` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`script` |The script to run for this aggregation. The script can be inline, file or indexed. (see <<modules-scripting>>

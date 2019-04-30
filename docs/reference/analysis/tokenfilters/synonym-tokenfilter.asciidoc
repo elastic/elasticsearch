@@ -40,6 +40,7 @@ This filter tokenize synonyms with whatever tokenizer and token filters
 appear before it in the chain.
 
 [float]
+[[synonym-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to

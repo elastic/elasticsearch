@@ -16,12 +16,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
@@ -121,13 +125,30 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(enrichIndex.getIndices().length, equalTo(1));
         assertThat(enrichIndex.getIndices()[0], equalTo(".enrich-test1-" + createTime));
 
+        GetMappingsResponse getMappingsResponse = client().admin().indices().getMappings(new GetMappingsRequest().indices(".enrich-test1"))
+            .actionGet();
+        Map<String, Object> mapping = getMappingsResponse.getMappings().iterator().next().value.get("_doc").sourceAsMap();
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> field1 = (Map<?, ?>) properties.get("field1");
+        assertNotNull(field1);
+        assertThat(field1.get("type"), is(equalTo("keyword")));
+        assertThat(field1.get("doc_values"), is(false));
+
         SearchResponse enrichSearchResponse = client().search(
             new SearchRequest(".enrich-test1")
                 .source(SearchSourceBuilder.searchSource()
                     .query(QueryBuilders.matchAllQuery()))).get();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
-        // TODO: Add value checking once enrich doc_values are added
+        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        assertNotNull(enrichDocument);
+        assertThat(enrichDocument.size(), is(equalTo(3)));
+        assertThat(enrichDocument.get("field1"), is(equalTo("value1")));
+        assertThat(enrichDocument.get("field2"), is(equalTo(2)));
+        assertThat(enrichDocument.get("field5"), is(equalTo("value5")));
     }
 
     public void testRunnerMultiSource() throws Exception {
@@ -217,16 +238,29 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(enrichIndex.getIndices().length, equalTo(1));
         assertThat(enrichIndex.getIndices()[0], equalTo(".enrich-test1-" + createTime));
 
-        SearchResponse enrichSearchResponse = client()
-            .search(
-                new SearchRequest(".enrich-test1")
-                    .source(
-                        SearchSourceBuilder.searchSource()
-                            .query(QueryBuilders.matchAllQuery())
-                    )
-            ).actionGet();
+        GetMappingsResponse getMappingsResponse = client().admin().indices().getMappings(new GetMappingsRequest().indices(".enrich-test1"))
+            .actionGet();
+        Map<String, Object> mapping = getMappingsResponse.getMappings().iterator().next().value.get("_doc").sourceAsMap();
+        assertThat(mapping.get("dynamic"), is("false"));
+        Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
+        assertNotNull(properties);
+        assertThat(properties.size(), is(equalTo(1)));
+        Map<?, ?> field1 = (Map<?, ?>) properties.get("field1");
+        assertNotNull(field1);
+        assertThat(field1.get("type"), is(equalTo("keyword")));
+        assertThat(field1.get("doc_values"), is(false));
+
+        SearchResponse enrichSearchResponse = client().search(
+            new SearchRequest(".enrich-test1")
+                .source(SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.matchAllQuery()))).get();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
-        // TODO: Add value checking once enrich doc_values are added
+        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        assertNotNull(enrichDocument);
+        assertThat(enrichDocument.size(), is(equalTo(4)));
+        assertThat(enrichDocument.get("field1"), is(equalTo("value1")));
+        assertThat(enrichDocument.get("field2"), is(equalTo(2)));
+        assertThat(enrichDocument.get("field5"), is(equalTo("value5")));
     }
 }

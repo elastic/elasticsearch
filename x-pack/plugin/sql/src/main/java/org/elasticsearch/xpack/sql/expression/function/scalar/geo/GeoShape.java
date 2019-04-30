@@ -75,7 +75,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
     }
 
     public Point firstPoint() {
-        return shapeBuilder.buildGeometry().visit(new GeometryVisitor<Point>() {
+        return shapeBuilder.buildGeometry().visit(new GeometryVisitor<Point, RuntimeException>() {
             @Override
             public Point visit(Circle circle) {
                 return new Point(circle.getLat(), circle.getLon(), circle.hasAlt() ? circle.getAlt() : Double.NaN);

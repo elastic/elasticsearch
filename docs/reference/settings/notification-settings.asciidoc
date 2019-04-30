@@ -90,8 +90,10 @@ via email, see {xpack-ref}/actions-email.html#configuring-email-actions[Configur
 `xpack.notification.email.account`::
 Specifies account information for sending notifications via email. You
 can specify the following email account attributes:
-
++
+--
 [[email-account-attributes]]
+
   `profile` (<<cluster-update-settings,Dynamic>>);;
   The {xpack-ref}/actions-email.html#configuring-email[email profile] to use to build the MIME
   messages that are sent from the account. Valid values: `standard`, `gmail` and
@@ -157,14 +159,17 @@ can specify the following email account attributes:
   `smtp.wait_on_quit` (<<cluster-update-settings,Dynamic>>);;
   If set to false the QUIT command is sent and the connection closed. If set to
   true, the QUIT command is sent and a reply is waited for. True by default.
+--
 
 `xpack.notification.email.html.sanitization.allow`::
 Specifies the HTML elements that are allowed in email notifications. For
 more information, see {xpack-ref}/actions-email.html#email-html-sanitization[Configuring HTML
 Sanitization Options]. You can specify individual HTML elements
 and the following HTML feature groups:
-
++
+--
 [[html-feature-groups]]
+
   `_tables`;;
   All table related elements: `<table>`, `<th>`, `<tr>`
                       and `<td>`.
@@ -196,6 +201,7 @@ and the following HTML feature groups:
   `img:embedded`;;
   Only embedded images. Embedded images can only use the
                     `cid:` URL protocol in their `src` attribute.
+--
 
 `xpack.notification.email.html.sanitization.disallow`::
 Specifies the HTML elements that are NOT allowed in email notifications.
@@ -216,7 +222,8 @@ via Slack, see  {xpack-ref}/actions-slack.html#configuring-slack-actions[Configu
 `xpack.notification.slack` ::
 Specifies account information for sending notifications
 via Slack. You can specify the following Slack account attributes:
-
++
+--
 [[slack-account-attributes]]
 
   `secure_url` (<<secure-settings,Secure>>);;
@@ -244,7 +251,7 @@ via Slack. You can specify the following Slack account attributes:
                                     Specified as an array as defined in the
                                     https://api.slack.com/docs/attachments[
                                    Slack attachments documentation].
-
+--
 
 [float]
 [[jira-notification-settings]]
@@ -256,7 +263,8 @@ to create issues in Jira, see  {xpack-ref}/actions-jira.html#configuring-jira-ac
 `xpack.notification.jira` ::
 Specifies account information for using notifications to create
 issues in Jira. You can specify the following Jira account attributes:
-
++
+--
 [[jira-account-attributes]]
 
   `secure_url` (<<secure-settings,Secure>>);;
@@ -272,7 +280,7 @@ issues in Jira. You can specify the following Jira account attributes:
   Default fields values for the issue created in Jira. See
   {xpack-ref}/actions-jira.html#jira-action-attributes[Jira Action Attributes] for more information.
   Optional.
-
+--
 
 [float]
 [[pagerduty-notification-settings]]
@@ -286,7 +294,8 @@ via PagerDuty, see  {xpack-ref}/actions-pagerduty.html#configuring-pagerduty-act
 `xpack.notification.pagerduty`::
 Specifies account information for sending notifications
 via PagerDuty. You can specify the following PagerDuty account attributes:
-
++
+--
   `name`;;
   A name for the PagerDuty account associated with the API key you
   are using to access PagerDuty. Required.
@@ -299,25 +308,26 @@ via PagerDuty. You can specify the following PagerDuty account attributes:
   `event_defaults`;;
   Default values for  {xpack-ref}/actions-pagerduty.html#pagerduty-event-trigger-incident-attributes[
   PagerDuty event attributes]. Optional.
-
+        +
         `description`::
         A string that contains the default description for PagerDuty events.
         If no default is configured, each PagerDuty action must specify a
         `description`.
-
+        +
         `incident_key`::
         A string that contains the default incident key to use when sending
         PagerDuty events.
-
+        +
         `client`::
         A string that specifies the default monitoring client.
-
+        +
         `client_url`::
         The URL of the default monitoring client.
-
+        +
         `event_type`::
         The default event type. Valid values: `trigger`,`resolve`, `acknowledge`.
-
+        +
         `attach_payload`::
         Whether or not to provide the watch payload as context for
         the event by default. Valid values: `true`, `false`.
+--

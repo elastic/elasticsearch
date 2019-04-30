@@ -25,9 +25,9 @@ import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.FSTLoadMode;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
 import org.apache.lucene.codecs.lucene80.Lucene80Codec;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -46,7 +46,7 @@ public class CodecService {
     public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
     public CodecService(@Nullable MapperService mapperService, Logger logger) {
-        final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
+        final var codecs = new HashMap<String, Codec>();
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene80Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene80Codec(Mode.BEST_COMPRESSION, FSTLoadMode.AUTO));
@@ -60,7 +60,7 @@ public class CodecService {
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
-        this.codecs = codecs.immutableMap();
+        this.codecs = Map.copyOf(codecs);
     }
 
     public Codec codec(String name) {

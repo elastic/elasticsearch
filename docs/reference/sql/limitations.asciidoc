@@ -4,6 +4,7 @@
 == SQL Limitations
 
 [float]
+[[sys-columns-describe-table-nested-fields]]
 === Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
 
 {es} has a special type of relationship fields called `nested` fields. In {es-sql} they can be used by referencing their inner
@@ -51,6 +52,7 @@ This is because of the way nested queries work in {es}: the root nested field wi
 pagination taking place on the **root nested document and not on its inner hits**.
 
 [float]
+[[normalized-keyword-fields]]
 === Normalized `keyword` fields
 
 `keyword` fields in {es} can be normalized by defining a `normalizer`. Such fields are not supported in {es-sql}.
@@ -108,6 +110,7 @@ But, if the sub-select would include a `GROUP BY` or `HAVING` or the enclosing `
 FROM (SELECT ...) WHERE [simple_condition]`, this is currently **un-supported**.
 
 [float]
+[[first-last-agg-functions-having-clause]]
 === Using <<sql-functions-aggs-first, `FIRST`>>/<<sql-functions-aggs-last,`LAST`>> aggregation functions in `HAVING` clause
 
 Using `FIRST` and `LAST` in the `HAVING` clause is not supported. The same applies to
@@ -115,6 +118,7 @@ Using `FIRST` and `LAST` in the `HAVING` clause is not supported. The same appli
 is of type <<keyword, `keyword`>> as they are internally translated to `FIRST` and `LAST`.
 
 [float]
+[[group-by-time]]
 === Using TIME data type in GROUP BY or <<sql-functions-grouping-histogram>>
 
 Using `TIME` data type as a grouping key is currently not supported. For example:

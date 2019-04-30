@@ -120,24 +120,12 @@ threadpool:
 --------------------------------------------------
 
 [float]
-<<<<<<< HEAD
 [[processors]]
 === Processors setting
 The number of processors is automatically detected, and the thread pool
 settings are automatically set based on it. In some cases it can be
 useful to override the number of detected processors. This can be done
 by explicitly setting the `processors` setting.
-=======
-[[scaling]]
-==== `scaling`
-
-The `scaling` thread pool holds a dynamic number of threads. This number is
-proportional to the workload and varies between 1 and the value of the
-`size` parameter.
-
-The `keep_alive` parameter determines how long a thread should be kept
-around in the thread pool without it doing any work.
->>>>>>> 045a4029b80... [DOCS] Add anchors for Asciidoctor migration (#41648)
 
 [source,js]
 --------------------------------------------------

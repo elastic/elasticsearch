@@ -1011,7 +1011,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "5m"
+                fixed_interval: "5m"
                 time_zone: "America/Edmonton"
               aggs:
                 the_max:
@@ -1038,7 +1038,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "5m"
+                fixed_interval: "5m"
                 time_zone: "Canada/Mountain"
               aggs:
                 the_max:
@@ -1164,7 +1164,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "5m"
+                fixed_interval: "5m"
                 time_zone: "America/Edmonton"
               aggs:
                 the_max:
@@ -1192,7 +1192,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "5m"
+                fixed_interval: "5m"
                 time_zone: "Canada/Mountain"
               aggs:
                 the_max:

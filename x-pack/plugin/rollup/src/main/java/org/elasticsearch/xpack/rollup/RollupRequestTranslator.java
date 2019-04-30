@@ -201,12 +201,14 @@ public class RollupRequestTranslator {
                     = new DateHistogramAggregationBuilder(source.getName());
 
             if (source.dateHistogramInterval() != null) {
-                rolledDateHisto.calendarInterval(source.dateHistogramInterval());
+                // We have to fall back to deprecated interval because we're not sure if this is fixed or cal
+                rolledDateHisto.dateHistogramInterval(source.dateHistogramInterval());
             } else if (source.getCalendarInterval() != null) {
                 rolledDateHisto.calendarInterval(source.getCalendarInterval());
             } else if (source.getFixedInterval() != null) {
                 rolledDateHisto.fixedInterval(source.getFixedInterval());
             } else {
+                // if interval() was used we know it is fixed and can upgrade
                 rolledDateHisto.fixedInterval(new DateHistogramInterval(source.interval() + "ms"));
             }
 

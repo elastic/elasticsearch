@@ -1,5 +1,5 @@
 [[discovery-ec2]]
-=== EC2 discovery plugin
+=== EC2 Discovery Plugin
 
 The EC2 discovery plugin provides a list of seed addresses to the
 {ref}/modules-discovery-hosts-providers.html[discovery process] by querying the

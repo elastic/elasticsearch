@@ -149,6 +149,7 @@ experimental[]
 
 One can use JDBC through the official `java.sql` and `javax.sql` packages:
 
+[[java-sql]]
 ==== `java.sql`
 The former through `java.sql.Driver` and `DriverManager`:
 
@@ -161,6 +162,7 @@ HTTP traffic. The port is by default 9200.
 <2> Properties for connecting to Elasticsearch. An empty `Properties`
 instance is fine for unsecured Elasticsearch.
 
+[[javax-sql]]
 ==== `javax.sql`
 
 Accessible through the `javax.sql.DataSource` API:

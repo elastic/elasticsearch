@@ -71,6 +71,7 @@ thread_pool:
 The following are the types of thread pools and their respective parameters:
 
 [float]
+[[fixed]]
 ==== `fixed`
 
 The `fixed` thread pool holds a fixed size of threads to handle the
@@ -94,6 +95,7 @@ thread_pool:
 --------------------------------------------------
 
 [float]
+[[fixed-auto-queue-size]]
 ==== `fixed_auto_queue_size`
 
 experimental[]
@@ -140,6 +142,7 @@ thread_pool:
 --------------------------------------------------
 
 [float]
+[[scaling]]
 ==== `scaling`
 
 The `scaling` thread pool holds a dynamic number of threads. This

@@ -46,6 +46,7 @@ inside the `has_child` query:
 --------------------------------------------------
 
 [float]
+[[min-max-children]]
 ==== Min/Max Children
 
 The `has_child` query allows you to specify that a minimum and/or maximum

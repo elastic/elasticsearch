@@ -141,6 +141,7 @@ Please note that Elasticsearch will ignore the choice of execution hint if it is
 
 ==== Limitations
 
+[[sampler-breadth-first-nested-agg]]
 ===== Cannot be nested under `breadth_first` aggregations
 Being a quality-based filter the sampler aggregation needs access to the relevance score produced for each document.
 It therefore cannot be nested under a `terms` aggregation which has the `collect_mode` switched from the default `depth_first` mode to `breadth_first` as this discards scores.

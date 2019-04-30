@@ -12,4 +12,4 @@ Instead, please specify the index-name without any encoding.
 [float]
 ==== Removal of types
 
-The `/{index}/{type}/_delete_by_query` and `/{index}/{type}/_update_by_query` REST endpoints have been removed in favour of `/{index}/_delete_by_query` and `/{index}/_update_by_query`. Since indexes can now only contain a single unnamed type these typed endpoints are obselete.
+The `/{index}/{type}/_delete_by_query` and `/{index}/{type}/_update_by_query` REST endpoints have been removed in favour of `/{index}/_delete_by_query` and `/{index}/_update_by_query`, since indexes no longer contain types, these typed endpoints are obsolete.

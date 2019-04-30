@@ -5,4 +5,6 @@
 [float]
 ==== Removal of types
 
-The `/{index}/{type}/_search` and `/{index}/{type}/_search/template` REST endpoints have been removed in favour of `/{index}/_search` and `/{index}/_search/template`. Since indexes can now only contain a single unnamed type these typed endpoints are obselete.
+The `/{index}/{type}/_search`, `/{index}/{type}/_msearch`, `/{index}/{type}/_search/template` and `/{index}/{type}/_msearch/template` REST endpoints have been removed in favour of `/{index}/_search`, `/{index}/_msearch`, `/{index}/_search/template` and `/{index}/_msearch/template`, since indexes no longer contain types, these typed endpoints are obsolete..
+
+The `/{index}/{type}/_termvectors`, `/{index}/{type}/{id}/_termvectors` and `/{index}/{type}/_mtermvectors` REST endpoints have been removed in favour of `/{index}/_termvectors`, `/{index}/{id}/_termvectors` and `/{index}/_mtermvectors`, since indexes no longer contain types, these typed endpoints are obsolete..

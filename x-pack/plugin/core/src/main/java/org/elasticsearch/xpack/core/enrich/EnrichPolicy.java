@@ -28,7 +28,7 @@ import java.util.Objects;
  */
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
-    static final String EXACT_MATCH_TYPE = "exact_match";
+    public static final String EXACT_MATCH_TYPE = "exact_match";
     public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
 
     static final ParseField TYPE = new ParseField("type");
@@ -123,6 +123,11 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public String getSchedule() {
         return schedule;
+    }
+
+    public String getAliasName(String policyName) {
+        // #41553 (list policy api) will add name to policy, so that we don't have to provide the name via a parameter.
+        return ".enrich-" + policyName;
     }
 
     @Override

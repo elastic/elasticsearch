@@ -138,7 +138,7 @@ public class EnrichPolicyRunner implements Runnable {
             builder.startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
                     .startObject("_source")
-                        .field("enabled", false)
+                        .field("enabled", true)
                     .endObject()
                     .startObject("properties")
                         .startObject(policy.getEnrichKey())

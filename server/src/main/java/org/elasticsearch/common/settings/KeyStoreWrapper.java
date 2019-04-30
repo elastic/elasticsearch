@@ -343,7 +343,7 @@ public class KeyStoreWrapper implements SecureSettings {
             int numEntries = input.readInt();
             while (numEntries-- > 0) {
                 String setting = input.readUTF();
-                if (formatVersion <= 3) {
+                if (formatVersion == 3) {
                     // legacy, the keystore format would previously store the entry type
                     input.readUTF();
                 }

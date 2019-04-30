@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Get data frame transforms</titleabbrev>
+<titleabbrev>Get {dataframe-transforms}</titleabbrev>
 ++++
 
 Retrieves configuration information for {dataframe-transforms}.

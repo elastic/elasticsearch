@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Delete datafeeds</titleabbrev>
+<titleabbrev>Delete {dfeeds}</titleabbrev>
 ++++
 
 Deletes an existing {dfeed}.

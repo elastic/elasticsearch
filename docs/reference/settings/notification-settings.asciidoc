@@ -4,7 +4,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Watcher settings</titleabbrev>
+<titleabbrev>{watcher} settings</titleabbrev>
 ++++
 
 You configure {watcher} settings to set up {watcher} and send notifications via

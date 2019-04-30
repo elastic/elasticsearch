@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Stop datafeeds</titleabbrev>
+<titleabbrev>Stop {dfeeds}</titleabbrev>
 ++++
 
 Stops one or more {dfeeds}.

@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Create data frame transforms</titleabbrev>
+<titleabbrev>Create {dataframe-transforms}</titleabbrev>
 ++++
 
 Instantiates a {dataframe-transform}.

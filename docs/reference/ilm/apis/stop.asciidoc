@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Stop index lifecycle management</titleabbrev>
+<titleabbrev>Stop {ilm}</titleabbrev>
 ++++
 
 Stop the {ilm} ({ilm-init}) plugin.

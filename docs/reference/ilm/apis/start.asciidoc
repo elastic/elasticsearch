@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Start index lifecycle management</titleabbrev>
+<titleabbrev>Start {ilm}</titleabbrev>
 ++++
 
 Start the {ilm} ({ilm-init}) plugin.

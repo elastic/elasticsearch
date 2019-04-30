@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Get datafeed statistics</titleabbrev>
+<titleabbrev>Get {dfeed} statistics</titleabbrev>
 ++++
 
 Retrieves usage information for {dfeeds}.

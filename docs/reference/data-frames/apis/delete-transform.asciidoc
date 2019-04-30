@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Delete data frame transforms</titleabbrev>
+<titleabbrev>Delete {dataframe-transforms}</titleabbrev>
 ++++
 
 Deletes an existing {dataframe-transform}.

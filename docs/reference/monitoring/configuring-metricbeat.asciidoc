@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Collecting monitoring data with Metricbeat</titleabbrev>
+<titleabbrev>Collecting monitoring data with {metricbeat}</titleabbrev>
 ++++
 
 In 6.5 and later, you can use {metricbeat} to collect data about {es} 

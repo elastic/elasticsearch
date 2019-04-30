@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Update datafeeds</titleabbrev>
+<titleabbrev>Update {dfeeds}</titleabbrev>
 ++++
 
 Updates certain properties of a {dfeed}.

@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Start datafeeds</titleabbrev>
+<titleabbrev>Start {dfeeds}</titleabbrev>
 ++++
 
 Starts one or more {dfeeds}.

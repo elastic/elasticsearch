@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Stop data frame transforms</titleabbrev>
+<titleabbrev>Stop {dataframe-transforms}</titleabbrev>
 ++++
 
 Stops one or more {dataframe-transforms}.

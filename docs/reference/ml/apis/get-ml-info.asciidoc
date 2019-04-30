@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Get machine learning info</titleabbrev>
+<titleabbrev>Get {ml} info</titleabbrev>
 ++++
 
 Returns defaults and limits used by machine learning.

@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Start data frame transforms</titleabbrev>
+<titleabbrev>Start {dataframe-transforms}</titleabbrev>
 ++++
 
 Starts one or more {dataframe-transforms}.

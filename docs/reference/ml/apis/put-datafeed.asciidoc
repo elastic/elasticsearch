@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Create datafeeds</titleabbrev>
+<titleabbrev>Create {dfeeds}</titleabbrev>
 ++++
 
 Instantiates a {dfeed}.

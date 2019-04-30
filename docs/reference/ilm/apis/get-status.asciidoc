@@ -5,7 +5,7 @@
 
 [subs="attributes"]
 ++++
-<titleabbrev>Get index lifecycle management status</titleabbrev>
+<titleabbrev>Get {ilm} status</titleabbrev>
 ++++
 
 Retrieves the current {ilm} ({ilm-init}) status.

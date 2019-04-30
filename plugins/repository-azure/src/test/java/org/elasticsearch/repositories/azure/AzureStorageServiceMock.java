@@ -24,7 +24,6 @@ import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.Streams;
@@ -38,6 +37,7 @@ import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -91,7 +91,7 @@ public class AzureStorageServiceMock extends AzureStorageService {
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(String account, String container, String keyPath, String prefix) {
-        MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
+        final var blobsBuilder = new HashMap<String, BlobMetaData>();
         blobs.forEach((String blobName, ByteArrayOutputStream bos) -> {
             final String checkBlob;
             if (keyPath != null && !keyPath.isEmpty()) {
@@ -104,7 +104,7 @@ public class AzureStorageServiceMock extends AzureStorageService {
                 blobsBuilder.put(blobName, new PlainBlobMetaData(checkBlob, bos.size()));
             }
         });
-        return blobsBuilder.immutableMap();
+        return Map.copyOf(blobsBuilder);
     }
 
     @Override

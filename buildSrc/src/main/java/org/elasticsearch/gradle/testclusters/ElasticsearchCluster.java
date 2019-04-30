@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -140,6 +141,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     @Override
     public void keystore(String key, Supplier<CharSequence> valueSupplier) {
+        nodes.all(each -> each.keystore(key, valueSupplier));
+    }
+
+    @Override
+    public void keystore(String key, File value) {
+        nodes.all(each -> each.keystore(key, value));
+    }
+
+    @Override
+    public void keystore(String key, FileSupplier valueSupplier) {
         nodes.all(each -> each.keystore(key, valueSupplier));
     }
 

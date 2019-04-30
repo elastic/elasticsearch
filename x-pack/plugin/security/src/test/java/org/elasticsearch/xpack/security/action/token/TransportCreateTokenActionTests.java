@@ -147,7 +147,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     }
 
     public void testClientCredentialsCreatesWithoutRefreshToken() throws Exception {
-        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, securityIndex, clusterService);
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, securityIndex, securityIndex,
+                clusterService);
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
@@ -171,7 +172,8 @@ public class TransportCreateTokenActionTests extends ESTestCase {
     }
 
     public void testPasswordGrantTypeCreatesWithRefreshToken() throws Exception {
-        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, securityIndex, clusterService);
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, securityIndex, securityIndex,
+                clusterService);
         Authentication authentication = new Authentication(new User("joe"), new Authentication.RealmRef("realm", "type", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 

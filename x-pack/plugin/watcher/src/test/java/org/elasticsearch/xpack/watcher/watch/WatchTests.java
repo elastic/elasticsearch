@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
-import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform;
 import org.elasticsearch.xpack.core.watcher.transform.chain.ExecutableChainTransform;
@@ -572,10 +571,11 @@ public class WatchTests extends ESTestCase {
     }
 
     private TransformRegistry transformRegistry() {
-        Map<String, TransformFactory> factories = new HashMap<>();
-        factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(scriptService));
-        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry(), scriptService));
-        return new TransformRegistry(unmodifiableMap(factories));
+        return new TransformRegistry(Map.of(
+                ScriptTransform.TYPE,
+                new ScriptTransformFactory(scriptService),
+                SearchTransform.TYPE,
+                new SearchTransformFactory(settings, client, xContentRegistry(), scriptService)));
     }
 
     private List<ActionWrapper> randomActions() {

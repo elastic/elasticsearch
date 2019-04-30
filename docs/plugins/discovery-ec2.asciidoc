@@ -4,7 +4,7 @@
 The EC2 discovery plugin provides a list of seed addresses to the
 {ref}/modules-discovery-hosts-providers.html[discovery process] by querying the
 https://github.com/aws/aws-sdk-java[AWS API] for a list of EC2 instances
-matching certain criteria determined by the <<discovery-ec2-settings,plugin
+matching certain criteria determined by the <<discovery-ec2-usage,plugin
 settings>>.
 
 *If you are looking for a hosted solution of Elasticsearch on AWS, please visit
@@ -14,7 +14,6 @@ http://www.elastic.co/cloud.*
 include::install_remove.asciidoc[]
 
 [[discovery-ec2-usage]]
-[[discovery-ec2-settings]]
 ==== Using the EC2 discovery plugin
 
 The `discovery-ec2` plugin allows {es} to find the master-eligible nodes in a

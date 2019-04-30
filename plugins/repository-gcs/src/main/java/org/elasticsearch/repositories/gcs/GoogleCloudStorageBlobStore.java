@@ -321,7 +321,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             final StorageBatch batch = client().batch();
             for (BlobId blob : blobIdsToDelete) {
                 batch.delete(blob).notify(
-                    new BatchResult.Callback<>() {
+                    new BatchResult.Callback<Boolean, StorageException>() {
                         @Override
                         public void success(Boolean result) {
                         }

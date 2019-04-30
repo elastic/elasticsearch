@@ -2,6 +2,8 @@
 [testenv="platinum"]
 [[ml-stop-datafeed]]
 === Stop {dfeeds} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop {dfeeds}</titleabbrev>
 ++++

@@ -192,10 +192,9 @@ includes a colon.
 `discovery.ec2.node_cache_time`::
 
     Sets the length of time for which the collection of discovered instances is
-    cached. Defaults to `10s`. This setting limits how frequently {es} requests
-    discovery information from the EC2 API. It is important to limit this
-    request frequency because AWS may reject discovery requests if they are
-    made too often, and this would cause discovery to fail.
+    cached. {es} waits at least this long between requests for discovery
+    information from the EC2 API. AWS may reject discovery requests if they are
+    made too often, and this would cause discovery to fail. Defaults to `10s`.
 
 All **secure** settings of this plugin are
 {ref}/secure-settings.html#reloadable-secure-settings[reloadable], allowing you

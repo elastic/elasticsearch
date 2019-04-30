@@ -6,6 +6,7 @@ JSON that was used as the indexed document. It is not indexed (searchable),
 just stored. When executing "fetch" requests, like <<docs-get,get>> or
 <<search-search,search>>, the `_source` field is returned by default.
 
+[[disable-source-field]]
 ==== Disabling source
 
 Though very handy to have around, the source field does incur storage overhead

@@ -23,7 +23,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.sort.SortOrder;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;

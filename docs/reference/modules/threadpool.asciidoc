@@ -68,6 +68,7 @@ The following are the types of thread pools that can be used and their
 respective parameters:
 
 [float]
+[[cache]]
 ==== `cache`
 
 The `cache` thread pool is an unbounded thread pool that will spawn a
@@ -82,6 +83,7 @@ threadpool:
 --------------------------------------------------
 
 [float]
+[[fixed]]
 ==== `fixed`
 
 The `fixed` thread pool holds a fixed size of threads to handle the

@@ -36,6 +36,8 @@ public final class SSLChannelContext extends SocketChannelContext {
     private static final Runnable DEFAULT_TIMEOUT_CANCELLER = () -> {};
 
     private final SSLDriver sslDriver;
+    // TODO: When the bytes are actually recycled, we need to test that they are released on driver close
+    private final InboundChannelBuffer networkReadBuffer = InboundChannelBuffer.allocatingInstance(SSLDriver.DEFAULT_PACKET_SIZE);
     private final LinkedList<FlushOperation> encryptedFlushes = new LinkedList<>();
     private Runnable closeTimeoutCanceller = DEFAULT_TIMEOUT_CANCELLER;
 
@@ -157,12 +159,12 @@ public final class SSLChannelContext extends SocketChannelContext {
         if (closeNow()) {
             return bytesRead;
         }
-        bytesRead = readFromChannel(sslDriver.getNetworkReadBuffer());
+        bytesRead = readFromChannel(networkReadBuffer);
         if (bytesRead == 0) {
             return bytesRead;
         }
 
-        sslDriver.read(channelBuffer);
+        sslDriver.read(networkReadBuffer, channelBuffer);
 
         handleReadBytes();
         // It is possible that a read call produced non-application bytes to flush

@@ -267,7 +267,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     public void testAlignAlreadyAligned() {
         InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(3 * pageSize);
-        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(0);
         byteBuffers[1].put((byte) 1);
         channelBuffer.incrementIndex(pageSize + 1);
         channelBuffer.release(pageSize);
@@ -286,7 +286,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     public void testAlignFitsInSingleOldBuffer() {
         InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(2 * pageSize);
-        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(0);
         byteBuffers[0].put(byteBuffers[0].limit() - 2, (byte) 1);
         channelBuffer.incrementIndex(pageSize - 1);
         channelBuffer.release(1);
@@ -305,7 +305,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     public void testAlignSingleNewBuffer() {
         InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(3 * pageSize);
-        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(0);
         byteBuffers[1].put((byte) 1);
         channelBuffer.incrementIndex(pageSize + 1);
         channelBuffer.release(3);
@@ -325,7 +325,7 @@ public class InboundChannelBufferTests extends ESTestCase {
     public void testAlignMultipleNewBuffers() {
         InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
         channelBuffer.ensureCapacity(3 * pageSize);
-        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(channelBuffer.getIndex());
+        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(0);
         byteBuffers[1].put(1, (byte) 1);
         channelBuffer.incrementIndex(pageSize + 2);
         channelBuffer.release(1);
@@ -341,5 +341,44 @@ public class InboundChannelBufferTests extends ESTestCase {
         assertEquals(1, buffersAligned[1].remaining());
         assertEquals((byte) 1, buffersAligned[1].get(0));
         assertEquals(pageSize * 3, channelBuffer.getCapacity());
+    }
+
+    public void testNewPageSize() {
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
+        channelBuffer.ensureCapacity(3 * pageSize);
+        ByteBuffer[] byteBuffers = channelBuffer.sliceBuffersFrom(0);
+        byteBuffers[1].put(1, (byte) 1);
+        int bytesToRelease = randomIntBetween(0, 2);
+        channelBuffer.release(bytesToRelease);
+        assertEquals(3 * pageSize - bytesToRelease, channelBuffer.getCapacity());
+
+        int newPageSize = pageSize + 2;
+        channelBuffer.changePageSize(newPageSize, newPageSize - bytesToRelease);
+        assertEquals(3 * newPageSize, channelBuffer.getCapacity());
+        ByteBuffer byteBuffer = channelBuffer.sliceBuffersFrom(0)[0];
+        assertEquals((byte) 1, byteBuffer.get(byteBuffer.limit() - 1 - bytesToRelease));
+    }
+
+    public void testNewPageSizeResultsInDifferentPageCount() {
+        int pageSize = 10;
+        InboundChannelBuffer channelBuffer = new InboundChannelBuffer(defaultPageAllocator, pageSize);
+        channelBuffer.ensureCapacity(3 * pageSize);
+        int bytesToRelease;
+        boolean releaseOverAPage = randomBoolean();
+        if (releaseOverAPage) {
+            bytesToRelease = 10;
+        } else {
+            bytesToRelease = 9;
+        }
+        channelBuffer.release(bytesToRelease);
+        assertEquals(3 * pageSize - bytesToRelease, channelBuffer.getCapacity());
+
+        int newPageSize = 20;
+        channelBuffer.changePageSize(newPageSize, 0);
+        if (releaseOverAPage) {
+            assertEquals(newPageSize, channelBuffer.getCapacity());
+        } else {
+            assertEquals(2 * newPageSize, channelBuffer.getCapacity());
+        }
     }
 }

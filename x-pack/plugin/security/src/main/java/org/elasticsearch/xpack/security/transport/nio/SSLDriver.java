@@ -27,9 +27,9 @@ import java.util.ArrayList;
  * application to be written to the wire.
  *
  * Handling reads from a channel with this class is very simple. When data has been read, call
- * {@link #read(InboundChannelBuffer)}. If the data is application data, it will be decrypted and placed into
- * the buffer passed as an argument. Otherwise, it will be consumed internally and advance the SSL/TLS close
- * or handshake process.
+ * {@link #read(InboundChannelBuffer, InboundChannelBuffer)}. If the data is application data, it will be
+ * decrypted and placed into the application buffer passed as an argument. Otherwise, it will be consumed
+ * internally and advance the SSL/TLS close or handshake process.
  *
  * Producing writes for a channel is more complicated. The method {@link #needsNonApplicationWrite()} can be
  * called to determine if this driver needs to produce more data to advance the handshake or close process.
@@ -50,6 +50,7 @@ import java.util.ArrayList;
  */
 public class SSLDriver implements AutoCloseable {
 
+    public static final int DEFAULT_PACKET_SIZE = 16709;
     private static final ByteBuffer[] EMPTY_BUFFERS = {ByteBuffer.allocate(0)};
     private static final FlushOperation EMPTY_FLUSH_OPERATION = new FlushOperation(EMPTY_BUFFERS, (r, t) -> {});
 
@@ -104,23 +105,8 @@ public class SSLDriver implements AutoCloseable {
         return currentMode.isHandshake();
     }
 
-    // TODO: Remove
-    public ByteBuffer getNetworkReadBuffer() {
-        return ByteBuffer.allocate(packetSize);
-    }
-
     public SSLOutboundBuffer getOutboundBuffer() {
         return outboundBuffer;
-    }
-
-    public void read(InboundChannelBuffer buffer) throws SSLException {
-        Mode modePriorToRead;
-        do {
-            modePriorToRead = currentMode;
-            currentMode.read(buffer);
-            // If we switched modes we want to read again as there might be unhandled bytes that need to be
-            // handled by the new mode.
-        } while (modePriorToRead != currentMode);
     }
 
     public void read(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer applicationBuffer) throws SSLException {
@@ -285,9 +271,7 @@ public class SSLDriver implements AutoCloseable {
 
     private interface Mode {
 
-        default void read(InboundChannelBuffer buffer) throws SSLException {}
-
-        default void read(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer applicationBuffer) throws SSLException {}
+        void read(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer applicationBuffer) throws SSLException;
 
         int write(FlushOperation applicationBytes) throws SSLException;
 

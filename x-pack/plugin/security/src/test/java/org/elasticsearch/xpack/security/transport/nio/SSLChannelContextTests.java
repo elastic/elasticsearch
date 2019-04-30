@@ -52,7 +52,6 @@ public class SSLChannelContextTests extends ESTestCase {
     private BiConsumer<Void, Exception> listener;
     private Consumer exceptionHandler;
     private SSLDriver sslDriver;
-    private ByteBuffer readBuffer = ByteBuffer.allocate(1 << 14);
     private int messageLength;
 
     @Before
@@ -76,7 +75,6 @@ public class SSLChannelContextTests extends ESTestCase {
 
         when(selector.isOnCurrentThread()).thenReturn(true);
         when(selector.getTaskScheduler()).thenReturn(nioTimer);
-        when(sslDriver.getNetworkReadBuffer()).thenReturn(readBuffer);
         when(sslDriver.getOutboundBuffer()).thenReturn(outboundBuffer);
         ByteBuffer buffer = ByteBuffer.allocate(1 << 14);
         when(selector.getIoBuffer()).thenAnswer(invocationOnMock -> {
@@ -88,8 +86,12 @@ public class SSLChannelContextTests extends ESTestCase {
     public void testSuccessfulRead() throws IOException {
         byte[] bytes = createMessage(messageLength);
 
-        when(rawChannel.read(any(ByteBuffer.class))).thenReturn(bytes.length);
-        doAnswer(getReadAnswerForBytes(bytes)).when(sslDriver).read(channelBuffer);
+        when(rawChannel.read(any(ByteBuffer.class))).thenAnswer(invocationOnMock -> {
+            ByteBuffer buffer = (ByteBuffer) invocationOnMock.getArguments()[0];
+            buffer.put(bytes);
+            return bytes.length;
+        });
+        doAnswer(getReadAnswerForBytes(bytes)).when(sslDriver).read(any(InboundChannelBuffer.class), eq(channelBuffer));
 
         when(readConsumer.apply(channelBuffer)).thenReturn(messageLength, 0);
 
@@ -103,8 +105,12 @@ public class SSLChannelContextTests extends ESTestCase {
     public void testMultipleReadsConsumed() throws IOException {
         byte[] bytes = createMessage(messageLength * 2);
 
-        when(rawChannel.read(any(ByteBuffer.class))).thenReturn(bytes.length);
-        doAnswer(getReadAnswerForBytes(bytes)).when(sslDriver).read(channelBuffer);
+        when(rawChannel.read(any(ByteBuffer.class))).thenAnswer(invocationOnMock -> {
+            ByteBuffer buffer = (ByteBuffer) invocationOnMock.getArguments()[0];
+            buffer.put(bytes);
+            return bytes.length;
+        });
+        doAnswer(getReadAnswerForBytes(bytes)).when(sslDriver).read(any(InboundChannelBuffer.class), eq(channelBuffer));
 
         when(readConsumer.apply(channelBuffer)).thenReturn(messageLength, messageLength, 0);
 
@@ -118,8 +124,12 @@ public class SSLChannelContextTests extends ESTestCase {
     public void testPartialRead() throws IOException {
         byte[] bytes = createMessage(messageLength);
 
-        when(rawChannel.read(any(ByteBuffer.class))).thenReturn(bytes.length);
-        doAnswer(getReadAnswerForBytes(bytes)).when(sslDriver).read(channelBuffer);
+        when(rawChannel.read(any(ByteBuffer.class))).thenAnswer(invocationOnMock -> {
+            ByteBuffer buffer = (ByteBuffer) invocationOnMock.getArguments()[0];
+            buffer.put(bytes);
+            return bytes.length;
+        });
+        doAnswer(getReadAnswerForBytes(bytes)).when(sslDriver).read(any(InboundChannelBuffer.class), eq(channelBuffer));
 
 
         when(readConsumer.apply(channelBuffer)).thenReturn(0);
@@ -424,12 +434,12 @@ public class SSLChannelContextTests extends ESTestCase {
 
     private Answer getReadAnswerForBytes(byte[] bytes) {
         return invocationOnMock -> {
-            InboundChannelBuffer buffer = (InboundChannelBuffer) invocationOnMock.getArguments()[0];
-            buffer.ensureCapacity(buffer.getIndex() + bytes.length);
-            ByteBuffer[] buffers = buffer.sliceBuffersFrom(buffer.getIndex());
+            InboundChannelBuffer appBuffer = (InboundChannelBuffer) invocationOnMock.getArguments()[1];
+            appBuffer.ensureCapacity(appBuffer.getIndex() + bytes.length);
+            ByteBuffer[] buffers = appBuffer.sliceBuffersFrom(appBuffer.getIndex());
             assert buffers[0].remaining() > bytes.length;
             buffers[0].put(bytes);
-            buffer.incrementIndex(bytes.length);
+            appBuffer.incrementIndex(bytes.length);
             return bytes.length;
         };
     }

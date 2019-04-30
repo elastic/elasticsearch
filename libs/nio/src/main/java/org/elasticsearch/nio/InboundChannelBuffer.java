@@ -102,9 +102,8 @@ public final class InboundChannelBuffer implements AutoCloseable {
         }
 
         int pagesToRelease = pageIndex(offset + bytesToRelease);
-        for (int i = 0; i < pagesToRelease; i++) {
-            pages.removeFirst().close();
-        }
+        closePages(pagesToRelease);
+
         capacity -= bytesToRelease;
         internalIndex = Math.max(internalIndex - bytesToRelease, 0);
         offset = indexInPage(bytesToRelease + offset);
@@ -243,7 +242,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
         } else {
             int newPageCount = numPages(length);
 
-            Page[] newPages = copyOver(newPageCount, length);
+            Page[] newPages = copyBytesIntoNewPages(newPageCount, length);
 
             for (int i = newPageCount - 1; i >= 0; --i) {
                 Page page = newPages[i];
@@ -256,6 +255,14 @@ public final class InboundChannelBuffer implements AutoCloseable {
         capacity = pages.size() * pageSize;
     }
 
+    /**
+     * Mutates the underlying page sizes. All of the existing pages will be released and replace with new
+     * pages of the new page size. The number of bytes copied into the new pages is configured by the length
+     * parameter.
+     *
+     * @param newPageSize the new page size
+     * @param length of the data to copy to new pages
+     */
     public void changePageSize(int newPageSize, long length) {
         if (newPageSize == pageSize) {
             return;
@@ -268,24 +275,22 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
         pageSize = newPageSize;
         int newPageCount = numPagesForPageSize(newPageSize, capacity);
-        Page[] newPages = copyOver(newPageCount, length);
+        Page[] newPages = copyBytesIntoNewPages(newPageCount, length);
 
-        for (int i = 0; i < this.pages.size(); i++) {
-            this.pages.removeFirst().close();
-        }
+        closePages(pages.size());
 
         for (int i = newPageCount - 1; i >= 0; --i) {
             Page page = newPages[i];
             page.byteBuffer().clear();
-            this.pages.addFirst(newPages[i]);
+            pages.addFirst(newPages[i]);
         }
 
 
         offset = 0;
-        capacity = this.pages.size() * pageSize;
+        capacity = pages.size() * pageSize;
     }
 
-    private Page[] copyOver(final int newPageCount, long totalBytesToCopy) {
+    private Page[] copyBytesIntoNewPages(final int newPageCount, long totalBytesToCopy) {
         Page[] newPages = new Page[newPageCount];
 
         Page newPage = pageAllocator.apply(pageSize);
@@ -373,5 +378,11 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
     private int indexInPage(long index) {
         return (int) index % pageSize;
+    }
+
+    private void closePages(int numberOfPagesToClose) {
+        for (int i = 0; i < numberOfPagesToClose; i++) {
+            this.pages.removeFirst().close();
+        }
     }
 }

@@ -82,12 +82,13 @@ user API.
 ** <<configuring-kerberos-realm,Configure a Kerberos realm>>.
 
 . Set up roles and users to control access to {es}.
++
+--
 For example, to grant _John Doe_ full access to all indices that match
 the pattern `events*` and enable him to create visualizations and dashboards
 for those indices in {kib}, you could create an `events_admin` role
 and assign the role to a new `johndoe` user.
-+
---
+
 [source,shell]
 ----------------------------------------------------------
 curl -XPOST -u elastic 'localhost:9200/_security/role/events_admin' -H "Content-Type: application/json" -d '{
@@ -113,8 +114,7 @@ curl -XPOST -u elastic 'localhost:9200/_security/user/johndoe' -H "Content-Type:
 // NOTCONSOLE
 --
 
-[[enable-auditing]]
-. Enable auditing to keep track of attempted and successful interactions with
+. [[enable-auditing]]Enable auditing to keep track of attempted and successful interactions with
   your {es} cluster:
 +
 --

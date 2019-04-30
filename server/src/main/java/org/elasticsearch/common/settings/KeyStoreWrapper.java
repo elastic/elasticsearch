@@ -136,7 +136,7 @@ public class KeyStoreWrapper implements SecureSettings {
     // 1: initial version, ES 5.3
     // 2: file setting, ES 5.4
     // 3: FIPS compliant algos, ES 6.3
-    // 4: remove distinction between string/files, ES 6.8
+    // 4: remove distinction between string/files, ES 6.8/7.1
 
     /** The metadata format version used to read the current keystore wrapper. */
     private final int formatVersion;

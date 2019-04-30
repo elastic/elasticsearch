@@ -312,17 +312,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         });
     }
 
-    private boolean hasUncommittedOperations() {
-        if (indexShard.translogStats().getUncommittedOperations() == 0) {
-            return false;
-        }
-        // If a file-based occurs, the primary also sends its translog to the replica. If all of those
-        // translog operations are in the copying commit already, we should not flush (mainly to reserve syncId).
-        final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
-            indexShard.commitStats().getUserData().entrySet());
-        return commitInfo.maxSeqNo != commitInfo.localCheckpoint
-            || commitInfo.maxSeqNo != indexShard.seqNoStats().getMaxSeqNo()
-            || commitInfo.maxSeqNo != indexShard.getLastSyncedGlobalCheckpoint();
+    private boolean hasUncommittedOperations() throws IOException {
+        long localCheckpointOfCommit = Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        return indexShard.estimateNumberOfHistoryOperations("peer-recovery", localCheckpointOfCommit + 1) > 0;
     }
 
     @Override

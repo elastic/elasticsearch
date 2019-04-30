@@ -338,8 +338,8 @@ public final class TokenService {
     }
 
     /**
-     * Gets the {@link UserToken} with the given {@code userTokenId} and {@code version} by fetching and parsing the corresponding token
-     * document.
+     * Gets the {@link UserToken} with the given {@code userTokenId} and {@code tokenVersion} by fetching and parsing the corresponding
+     * token document.
      */
     private void getUserTokenFromId(String userTokenId, Version tokenVersion, ActionListener<UserToken> listener) {
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);

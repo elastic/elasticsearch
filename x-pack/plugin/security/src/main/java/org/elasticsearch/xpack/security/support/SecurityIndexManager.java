@@ -74,8 +74,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Manages the lifecycle, mapping and data upgrades/migrations of {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS} and
- * {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS} alias-index pairs. 
+ * Manages the lifecycle, mapping and data upgrades/migrations of the {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS}
+ * and {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS} alias-index pair.
  */
 public class SecurityIndexManager implements ClusterStateListener {
 

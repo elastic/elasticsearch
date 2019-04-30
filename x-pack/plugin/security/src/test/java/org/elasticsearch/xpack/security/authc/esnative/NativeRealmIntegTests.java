@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -70,8 +69,8 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -846,10 +845,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .TEST_ROLE).get();
         securityClient().preparePutUser("executor", "s3krit".toCharArray(), hasher, "superuser").get();
         final String token = basicAuthHeaderValue("executor", new SecureString("s3krit".toCharArray()));
-        final Client client = client().filterWithHeader(MapBuilder.<String, String>newMapBuilder()
-                .put("Authorization", token)
-                .put("es-security-runas-user", "joe")
-                .immutableMap());
+        final Client client = client().filterWithHeader(Map.of(
+                "Authorization", token,
+                "es-security-runas-user", "joe"));
         final CountDownLatch latch = new CountDownLatch(1);
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
         final int numberOfThreads = scaledRandomIntBetween(numberOfProcessors, numberOfProcessors * 3);

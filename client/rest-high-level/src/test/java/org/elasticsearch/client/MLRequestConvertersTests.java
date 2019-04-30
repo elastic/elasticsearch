@@ -726,6 +726,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.startDataFrameAnalytics(startRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + startRequest.getId() + "/_start", request.getEndpoint());
+        assertNull(request.getEntity());
     }
 
     public void testStartDataFrameAnalytics_WithTimeout() {
@@ -735,6 +736,8 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + startRequest.getId() + "/_start", request.getEndpoint());
         assertThat(request.getParameters(), hasEntry("timeout", "1m"));
+        assertNull(request.getEntity());
+    }
 
     public void testDeleteDataFrameAnalytics() {
         DeleteDataFrameAnalyticsRequest deleteRequest = new DeleteDataFrameAnalyticsRequest(randomAlphaOfLength(10));

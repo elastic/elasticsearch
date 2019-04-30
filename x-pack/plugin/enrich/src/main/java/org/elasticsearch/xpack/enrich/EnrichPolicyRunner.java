@@ -159,8 +159,9 @@ public class EnrichPolicyRunner implements Runnable {
     private void prepareAndCreateEnrichIndex() {
         long nowTimestamp = nowSupplier.getAsLong();
         String enrichIndexName = getEnrichIndexBase(policyName) + "-" + nowTimestamp;
-        // TODO: Settings for localizing enrich indices to nodes that are ingest+data only
-        Settings enrichIndexSettings = Settings.EMPTY;
+        Settings enrichIndexSettings = Settings.builder()
+            .put("index.auto_expand_replicas", "0-all")
+            .build();
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
         createEnrichIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, resolveEnrichMapping(policy));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);

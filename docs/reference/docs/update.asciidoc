@@ -218,6 +218,7 @@ POST test/type1/1/_update
 // TEST[continued]
 
 [float]
+[[scripted_upsert]]
 ==== `scripted_upsert`
 
 If you would like your script to run regardless of whether the document exists
@@ -244,6 +245,7 @@ POST sessions/session/dh3sgudg8gsrgl/_update
 --------------------------------------------------
 
 [float]
+[[doc_as_upsert]]
 ==== `doc_as_upsert`
 
 Instead of sending a partial `doc` plus an `upsert` doc, setting

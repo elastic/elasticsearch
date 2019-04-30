@@ -214,9 +214,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
-            + "     \"by_day\": {"
+            + "     \"by_hr\": {"
             + "       \"date_histogram\": {"
-            + "         \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\""
+            + "         \"interval\": \"1h\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD_HH\""
             + " } } },"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
@@ -234,8 +234,8 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
         // we expect 21 documents as there shall be 21 days worth of docs
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
-        assertEquals(21, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
-        assertOnePivotValue(dataFrameIndex + "/_search?q=by_day:2017-01-15", 3.82);
+        assertEquals(104, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+        assertOnePivotValue(dataFrameIndex + "/_search?q=by_hr:1484499600000", 4.0833333333);
     }
 
     @SuppressWarnings("unchecked")

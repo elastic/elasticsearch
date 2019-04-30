@@ -25,22 +25,29 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
 
 public class ClusterBlockException extends ElasticsearchException {
     private final Set<ClusterBlock> blocks;
 
-    public ClusterBlockException(Set<ClusterBlock> blocks) {
-        super(buildMessage(blocks));
-        this.blocks = blocks;
+    public ClusterBlockException(Set<ClusterBlock> globalLevelBlocks) {
+        super(buildMessage(globalLevelBlocks, Collections.emptyMap()));
+        this.blocks = globalLevelBlocks;
     }
 
-    public ClusterBlockException(Set<ClusterBlock> blocks, String indexName) {
-        super(buildMessage(blocks, indexName));
-        this.blocks = blocks;
+    public ClusterBlockException(Set<ClusterBlock> clusterLevelBlocks, Map<String, Set<ClusterBlock>> indexLevelBlocks) {
+        super(buildMessage(clusterLevelBlocks, indexLevelBlocks));
+        this.blocks = Stream.concat(clusterLevelBlocks.stream(), indexLevelBlocks.values().stream().flatMap(Collection::stream))
+            .collect(Collectors.toSet());
     }
 
     public ClusterBlockException(StreamInput in) throws IOException {
@@ -79,18 +86,18 @@ public class ClusterBlockException extends ElasticsearchException {
         return blocks;
     }
 
-    private static String buildMessage(Set<ClusterBlock> blocks) {
-        StringBuilder sb = new StringBuilder("blocked by: ");
-        for (ClusterBlock block : blocks) {
-            sb.append("[").append(block.status()).append("/").append(block.id()).append("/").append(block.description()).append("];");
+    private static String buildMessage(Set<ClusterBlock> clusterLevelBlocks, Map<String, Set<ClusterBlock>> indexLevelBlocks) {
+        Function<ClusterBlock, String> blockDescription = block -> block.status() + "/" + block.id() + "/" + block.description();
+        StringBuilder sb = new StringBuilder();
+        if (clusterLevelBlocks.isEmpty() == false) {
+            sb.append("blocked by: [");
+            sb.append(clusterLevelBlocks.stream().map(blockDescription).collect(Collectors.joining(", ")));
+            sb.append("];");
         }
-        return sb.toString();
-    }
-
-    private static String buildMessage(Set<ClusterBlock> blocks, String indexName) {
-        StringBuilder sb = new StringBuilder("blocked by: ");
-        for (ClusterBlock block : blocks) {
-            sb.append("[").append(indexName).append("/").append(block.status()).append("/").append(block.id()).append("/").append(block.description()).append("];");
+        for (Map.Entry<String, Set<ClusterBlock>> entry : indexLevelBlocks.entrySet()) {
+            sb.append("index [" + entry.getKey() + "] blocked by: [");
+            sb.append(entry.getValue().stream().map(blockDescription).collect(Collectors.joining(", ")));
+            sb.append("];");
         }
         return sb.toString();
     }

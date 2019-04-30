@@ -66,6 +66,7 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -717,6 +718,24 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + configId1 + "," + configId2 + "," + configId3 + "/_stats", request.getEndpoint());
         assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300")));
+        assertNull(request.getEntity());
+    }
+
+    public void testStartDataFrameAnalytics() {
+        StartDataFrameAnalyticsRequest startRequest = new StartDataFrameAnalyticsRequest(randomAlphaOfLength(10));
+        Request request = MLRequestConverters.startDataFrameAnalytics(startRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + startRequest.getId() + "/_start", request.getEndpoint());
+        assertNull(request.getEntity());
+    }
+
+    public void testStartDataFrameAnalytics_WithTimeout() {
+        StartDataFrameAnalyticsRequest startRequest = new StartDataFrameAnalyticsRequest(randomAlphaOfLength(10))
+            .setTimeout(TimeValue.timeValueMinutes(1));
+        Request request = MLRequestConverters.startDataFrameAnalytics(startRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + startRequest.getId() + "/_start", request.getEndpoint());
+        assertThat(request.getParameters(), hasEntry("timeout", "1m"));
         assertNull(request.getEntity());
     }
 

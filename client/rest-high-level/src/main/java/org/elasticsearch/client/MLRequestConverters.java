@@ -69,6 +69,7 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -625,6 +626,20 @@ final class MLRequestConverters {
             if (pageParams.getSize() != null) {
                 params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
             }
+        }
+        return request;
+    }
+
+    static Request startDataFrameAnalytics(StartDataFrameAnalyticsRequest startRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(startRequest.getId())
+            .addPathPartAsIs("_start")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        if (startRequest.getTimeout() != null) {
+            params.withTimeout(startRequest.getTimeout());
         }
         return request;
     }

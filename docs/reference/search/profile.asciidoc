@@ -372,11 +372,7 @@ The meaning of the stats are as follows:
     means the `nextDoc()` method was called on two different documents.  This can be used to help judge
     how selective queries are, by comparing counts between different query components.
 
-<<<<<<< HEAD
 [[profile-collectors-section]]
-=======
-[[collectors-section]]
->>>>>>> 0b12221c8a1... [DOCS] Add anchors for Asciidoctor migration (#41648)
 ==== `collectors` Section
 
 The Collectors portion of the response shows high-level execution details. Lucene works by defining a "Collector"

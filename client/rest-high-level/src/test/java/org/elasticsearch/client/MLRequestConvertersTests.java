@@ -43,6 +43,7 @@ import org.elasticsearch.client.ml.GetCalendarEventsRequest;
 import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsRequest;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
 import org.elasticsearch.client.ml.GetDatafeedStatsRequest;
 import org.elasticsearch.client.ml.GetFiltersRequest;
@@ -695,12 +696,26 @@ public class MLRequestConvertersTests extends ESTestCase {
         String configId1 = randomAlphaOfLength(10);
         String configId2 = randomAlphaOfLength(10);
         String configId3 = randomAlphaOfLength(10);
-        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(configId1, configId2, configId3);
-        getRequest.setPageParams(new PageParams(100, 300));
+        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(configId1, configId2, configId3)
+            .setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getDataFrameAnalytics(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + configId1 + "," + configId2 + "," + configId3, request.getEndpoint());
+        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300")));
+        assertNull(request.getEntity());
+    }
+
+    public void testGetDataFrameAnalyticsStats() {
+        String configId1 = randomAlphaOfLength(10);
+        String configId2 = randomAlphaOfLength(10);
+        String configId3 = randomAlphaOfLength(10);
+        GetDataFrameAnalyticsStatsRequest getStatsRequest = new GetDataFrameAnalyticsStatsRequest(configId1, configId2, configId3)
+            .setPageParams(new PageParams(100, 300));
+
+        Request request = MLRequestConverters.getDataFrameAnalyticsStats(getStatsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + configId1 + "," + configId2 + "," + configId3 + "/_stats", request.getEndpoint());
         assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300")));
         assertNull(request.getEntity());
     }
@@ -710,6 +725,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         Request request = MLRequestConverters.deleteDataFrameAnalytics(deleteRequest);
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + deleteRequest.getId(), request.getEndpoint());
+        assertNull(request.getEntity());
     }
 
     public void testPutFilter() throws IOException {

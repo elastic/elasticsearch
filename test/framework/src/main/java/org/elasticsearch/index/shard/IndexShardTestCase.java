@@ -795,7 +795,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /** Recover a shard from a snapshot using a given repository **/
-    protected void recoverShardFromSnapshot(final IndexShard shard, final Snapshot snapshot, final Repository repository) {
+    protected void recoverShardFromSnapshot(final IndexShard shard,
+                                            final Snapshot snapshot,
+                                            final Repository repository) {
         final Version version = Version.CURRENT;
         final ShardId shardId = shard.shardId();
         final String index = shardId.getIndexName();

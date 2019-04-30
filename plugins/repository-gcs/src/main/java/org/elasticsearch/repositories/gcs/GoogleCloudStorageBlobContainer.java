@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
@@ -81,8 +82,11 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        blobStore.deleteBlobsIgnoringIfNotExists(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames, ActionListener<Void> listener) {
+        ActionListener.completeWith(listener, () -> {
+            blobStore.deleteBlobsIgnoringIfNotExists(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
+            return null;
+        });
     }
 
     private String buildKey(String blobName) {

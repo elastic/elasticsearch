@@ -506,7 +506,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         final int numberOfShards = indexMetaData.getNumberOfShards();
                         final ActionListener<Void> shardsListener =
                             new GroupedActionListener<>(ActionListener.map(groupedListener, v -> null), numberOfShards);
-                        for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                        for (int shardId = 0; shardId < numberOfShards; shardId++) {
                             final ShardId sid = new ShardId(indexMetaData.getIndex(), shardId);
                             final int finalShardId = shardId;
                             new Context(snapshotId, indexId, sid, sid).delete(
@@ -1007,9 +1007,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          * @param reason             a reason explaining why the shard index file is written
          */
         protected void finalize(final List<SnapshotFiles> snapshots,
-            final int fileListGeneration,
-            final Map<String, BlobMetaData> blobs,
-            final String reason, ActionListener<Void> listener) {
+                                final int fileListGeneration,
+                                final Map<String, BlobMetaData> blobs,
+                                final String reason,
+                                final ActionListener<Void> listener) {
             final String indexGeneration = Integer.toString(fileListGeneration);
             final String currentIndexGen = indexShardSnapshotsFormat.blobName(indexGeneration);
 

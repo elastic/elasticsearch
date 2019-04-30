@@ -52,7 +52,7 @@ public class HistogramGroupSource extends SingleGroupSource implements ToXConten
 
     private final double interval;
 
-    public HistogramGroupSource(String field, double interval) {
+    HistogramGroupSource(String field, double interval) {
         super(field);
         if (interval <= 0) {
             throw new IllegalArgumentException("[interval] must be greater than 0.");

@@ -42,7 +42,7 @@ public class TermsGroupSource extends SingleGroupSource implements ToXContentObj
         return PARSER.apply(parser, null);
     }
 
-    public TermsGroupSource(final String field) {
+    TermsGroupSource(final String field) {
         super(field);
     }
 

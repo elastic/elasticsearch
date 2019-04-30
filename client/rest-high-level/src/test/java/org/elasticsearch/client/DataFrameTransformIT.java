@@ -297,7 +297,8 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
     }
 
     private DataFrameTransformConfig validDataFrameTransformConfig(String id, String source, String destination) {
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", new TermsGroupSource("user_id")).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();
@@ -318,7 +319,8 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex);
         indexData(sourceIndex);
 
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", new TermsGroupSource("user_id")).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();

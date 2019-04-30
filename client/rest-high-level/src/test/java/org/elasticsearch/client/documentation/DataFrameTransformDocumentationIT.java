@@ -208,7 +208,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", new TermsGroupSource("user_id")).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
@@ -326,7 +327,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         RestHighLevelClient client = highLevelClient();
 
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", new TermsGroupSource("user_id")).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
@@ -405,7 +407,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", new TermsGroupSource("user_id")).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
@@ -467,7 +470,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", new TermsGroupSource("user_id")).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
@@ -552,7 +556,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         createIndex("source-data");
         
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer", new TermsGroupSource("user_id")).build();
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);

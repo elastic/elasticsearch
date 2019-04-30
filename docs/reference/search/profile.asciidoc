@@ -372,7 +372,6 @@ The meaning of the stats are as follows:
     means the `nextDoc()` method was called on two different documents.  This can be used to help judge
     how selective queries are, by comparing counts between different query components.
 
-
 [[profile-collectors-section]]
 ==== `collectors` Section
 

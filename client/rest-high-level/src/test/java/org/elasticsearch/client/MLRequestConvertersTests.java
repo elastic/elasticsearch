@@ -35,6 +35,7 @@ import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureRequestTests;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -82,6 +83,10 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.client.ml.dataframe.MlDataFrameAnalysisNamedXContentProvider;
+import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.Detector;
@@ -747,6 +752,23 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testEvaluateDataFrame() throws IOException {
+        EvaluateDataFrameRequest evaluateRequest =
+            new EvaluateDataFrameRequest(
+                Arrays.asList(generateRandomStringArray(1, 10, false, false)),
+                new BinarySoftClassification(
+                    randomAlphaOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10),
+                    PrecisionMetric.at(0.5), RecallMetric.at(0.6, 0.7)));
+        Request request = MLRequestConverters.evaluateDataFrame(evaluateRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/_evaluate", request.getEndpoint());
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, request.getEntity().getContent())) {
+            EvaluateDataFrameRequest parsedRequest = EvaluateDataFrameRequest.fromXContent(parser);
+            assertThat(parsedRequest, equalTo(evaluateRequest));
+        }
+    }
+
     public void testPutFilter() throws IOException {
         MlFilter filter = MlFilterTests.createRandomBuilder("foo").build();
         PutFilterRequest putFilterRequest = new PutFilterRequest(filter);
@@ -918,6 +940,7 @@ public class MLRequestConvertersTests extends ESTestCase {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedXContents());
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlEvaluationNamedXContentProvider().getNamedXContentParsers());
         return new NamedXContentRegistry(namedXContent);
     }
 

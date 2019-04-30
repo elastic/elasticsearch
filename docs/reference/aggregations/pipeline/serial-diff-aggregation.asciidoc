@@ -46,7 +46,9 @@ A `serial_diff` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[serial-diff-params]]
 .`serial_diff` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |

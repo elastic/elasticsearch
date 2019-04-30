@@ -44,6 +44,7 @@ These documents would *not* match the above query:
 <3> The `user` field is missing completely.
 
 [float]
+[[null-value-mapping]]
 ==== `null_value` mapping
 
 If the field mapping includes the <<null-value,`null_value`>> setting
@@ -86,6 +87,7 @@ no values in the `user` field and thus would not match the `exists` filter:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[missing-query]]
 ==== `missing` query
 
 There isn't a `missing` query. Instead use the `exists` query inside a

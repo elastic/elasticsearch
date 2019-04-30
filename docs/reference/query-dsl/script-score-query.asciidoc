@@ -233,7 +233,7 @@ field, whose only drawback is that scores will change if the document is
 updated since update operations also update the value of the `_seq_no` field.
 
 
-[[decay-functions]]
+[[decay-functions-numeric-fields]]
 ===== Decay functions for numeric fields
 You can read more about decay functions 
 {ref}/query-dsl-function-score-query.html#function-decay[here].
@@ -323,10 +323,12 @@ Script Score Query will be a substitute for it.
 Here we describe how Function Score Query's functions can be
 equivalently implemented in Script Score Query:
 
+[[script-score]]
 ===== `script_score`
 What you used in `script_score` of the Function Score query, you
 can copy into the Script Score query. No changes here.
 
+[[weight]]
 ===== `weight`
 `weight` function can be implemented in the Script Score query through
 the following script:
@@ -342,12 +344,13 @@ the following script:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[random-score]]
 ===== `random_score`
 
 Use `randomScore` function
 as described in <<random-score-function, random score function>>.
 
-
+[[field-value-factor]]
 ===== `field_value_factor`
 `field_value_factor` function can be easily implemented through script:
 
@@ -397,7 +400,7 @@ through a script:
 | `reciprocal` | `1.0 / doc['f'].value`
 |=======================================================================
 
-
+[[decay-functions]]
 ===== `decay functions`
 Script Score query has equivalent <<decay-functions, decay functions>>
 that can be used in script.

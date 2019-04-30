@@ -19,7 +19,9 @@ A `cumulative_sum` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[cumulative-sum-params]]
 .`cumulative_sum` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the cumulative sum for (see <<buckets-path-syntax>> for more

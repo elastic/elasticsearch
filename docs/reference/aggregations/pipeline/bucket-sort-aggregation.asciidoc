@@ -33,7 +33,9 @@ A `bucket_sort` aggregation looks like this in isolation:
 <1> Here, `sort_field_1` is the bucket path to the variable to be used as the primary sort and its order
 is ascending.
 
+[[bucket-sort-params]]
 .`bucket_sort` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`sort` |The list of fields to sort on. See <<search-request-sort,`sort`>> for more details. |Optional |

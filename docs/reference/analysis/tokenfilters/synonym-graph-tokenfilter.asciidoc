@@ -93,6 +93,7 @@ set to `false` no mapping would get added as when `expand=false` the target mapp
 stop word.
 
 [float]
+[[synonym-graph-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to

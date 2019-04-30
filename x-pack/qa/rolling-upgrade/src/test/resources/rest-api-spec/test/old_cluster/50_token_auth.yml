@@ -2,6 +2,8 @@
 "Create a token and reuse it across the upgrade":
   - skip:
       features: headers
+      version: "all"
+      reason: "Backport https://github.com/elastic/elasticsearch/pull/41673"
 
   - do:
       cluster.health:

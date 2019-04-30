@@ -380,7 +380,11 @@ The meaning of the stats are as follows:
     means the `nextDoc()` method was called on two different documents.  This can be used to help judge
     how selective queries are, by comparing counts between different query components.
 
+<<<<<<< HEAD
 [[profile-collectors-section]]
+=======
+[[collectors-section]]
+>>>>>>> 0b12221c8a1... [DOCS] Add anchors for Asciidoctor migration (#41648)
 ==== `collectors` Section
 
 The Collectors portion of the response shows high-level execution details. Lucene works by defining a "Collector"
@@ -469,7 +473,7 @@ For reference, the various collector reason's are:
     match_all query (which you will see added to the Query section) to collect your entire dataset
 
 
-
+[[rewrite-section]]
 ==== `rewrite` Section
 
 All queries in Lucene undergo a "rewriting" process.  A query (and its sub-queries) may be rewritten one or
@@ -703,6 +707,7 @@ Hopefully this will be fixed in future iterations, but it is a tricky problem to
 
 === Profiling Aggregations
 
+[[agg-section]]
 ==== `aggregations` Section
 
 The `aggregations` section contains detailed timing of the aggregation tree executed by a particular shard.

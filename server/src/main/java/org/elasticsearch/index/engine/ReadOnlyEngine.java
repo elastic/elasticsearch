@@ -456,11 +456,6 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    @Override
-    public void reinitializeMaxSeqNoOfUpdatesOrDeletes() {
-        advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
-    }
-
     protected void processReaders(IndexReader reader, IndexReader previousReader) {
         searcherFactory.processReaders(reader, previousReader);
     }
@@ -486,5 +481,16 @@ public class ReadOnlyEngine extends Engine {
                 return null;
             }
         };
+    }
+
+    @Override
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return seqNoStats.getMaxSeqNo();
+    }
+
+    @Override
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+        assert maxSeqNoOfUpdatesOnPrimary <= getMaxSeqNoOfUpdatesOrDeletes() :
+            maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 }

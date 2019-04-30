@@ -388,6 +388,29 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
+    public void testRollingUpgradeWithSyncedFlush() throws Exception {
+        final String index = "rolling_upgrade_with_synced_flush";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(index, Settings.builder()
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "30s")
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(1, 2)).build());
+            ensureGreen(index);
+            indexDocs(index, 0, 40);
+            syncedFlush(index);
+        } else if (CLUSTER_TYPE == ClusterType.MIXED) {
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index);
+            indexDocs(index, 40, 50);
+            syncedFlush(index);
+        } else {
+            ensureGreen(index);
+            assertNoFileBasedRecovery(index);
+            indexDocs(index, 90, 60);
+            syncedFlush(index);
+        }
+    }
+
     private void syncedFlush(String index) throws Exception {
         // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
@@ -400,5 +423,19 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 throw new AssertionError(ex); // cause assert busy to retry
             }
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertNoFileBasedRecovery(String index) throws Exception {
+        Map<?, ?> recoveryStats = entityAsMap(client().performRequest(new Request("GET", index + "/_recovery?human")));
+        List<Map<?, ?>> shards = (List<Map<?, ?>>) XContentMapValues.extractValue(index + "." + "shards", recoveryStats);
+        for (Map<?, ?> shard : shards) {
+            if ((Boolean) XContentMapValues.extractValue("primary", shard) == false &&
+                ((String) XContentMapValues.extractValue("target.name", shard)).startsWith("upgrade-")) {
+                assertThat(recoveryStats.toString(), XContentMapValues.extractValue("index.files.total", shard), equalTo(0));
+                assertThat(recoveryStats.toString(), XContentMapValues.extractValue("index.files.recovered", shard), equalTo(0));
+                assertThat(recoveryStats.toString(), XContentMapValues.extractValue("index.files.reused", shard), equalTo(0));
+            }
+        }
     }
 }

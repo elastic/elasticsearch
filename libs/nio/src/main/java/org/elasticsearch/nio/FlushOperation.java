@@ -25,6 +25,8 @@ import java.util.function.BiConsumer;
 
 public class FlushOperation {
 
+    private static final ByteBuffer[] EMPTY_ARRAY = new ByteBuffer[0];
+
     private final BiConsumer<Void, Exception> listener;
     private final ByteBuffer[] buffers;
     private final int[] offsets;
@@ -61,19 +63,38 @@ public class FlushOperation {
     }
 
     public ByteBuffer[] getBuffersToWrite() {
+        return getBuffersToWrite(length);
+    }
+
+    public ByteBuffer[] getBuffersToWrite(int maxBytes) {
         final int index = Arrays.binarySearch(offsets, internalIndex);
-        int offsetIndex = index < 0 ? (-(index + 1)) - 1 : index;
+        final int offsetIndex = index < 0 ? (-(index + 1)) - 1 : index;
+        final int finalIndex = Arrays.binarySearch(offsets, Math.min(internalIndex + maxBytes, length));
+        final int finalOffsetIndex = finalIndex < 0 ? (-(finalIndex + 1)) - 1 : finalIndex;
 
-        ByteBuffer[] postIndexBuffers = new ByteBuffer[buffers.length - offsetIndex];
+        int nBuffers = (finalOffsetIndex - offsetIndex) + 1;
 
+        int firstBufferPosition = internalIndex - offsets[offsetIndex];
         ByteBuffer firstBuffer = buffers[offsetIndex].duplicate();
-        firstBuffer.position(internalIndex - offsets[offsetIndex]);
-        postIndexBuffers[0] = firstBuffer;
-        int j = 1;
-        for (int i = (offsetIndex + 1); i < buffers.length; ++i) {
-            postIndexBuffers[j++] = buffers[i].duplicate();
+        firstBuffer.position(firstBufferPosition);
+        if (nBuffers == 1 && firstBuffer.remaining() == 0) {
+            return EMPTY_ARRAY;
         }
 
+        ByteBuffer[] postIndexBuffers = new ByteBuffer[nBuffers];
+        postIndexBuffers[0] = firstBuffer;
+        int finalOffset = offsetIndex + nBuffers;
+        int nBytes = firstBuffer.remaining();
+        int j = 1;
+        for (int i = (offsetIndex + 1); i < finalOffset; ++i) {
+            ByteBuffer buffer = buffers[i].duplicate();
+            nBytes += buffer.remaining();
+            postIndexBuffers[j++] = buffer;
+        }
+
+        int excessBytes = Math.max(0, nBytes - maxBytes);
+        ByteBuffer lastBuffer = postIndexBuffers[postIndexBuffers.length - 1];
+        lastBuffer.limit(lastBuffer.limit() - excessBytes);
         return postIndexBuffers;
     }
 }

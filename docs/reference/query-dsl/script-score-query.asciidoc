@@ -1,8 +1,6 @@
 [[query-dsl-script-score-query]]
 === Script Score Query
 
-experimental[]
-
 The `script_score` allows you to modify the score of documents that are
 retrieved by a query. This can be useful if, for example, a score
 function is computationally expensive and it is sufficient to compute

@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[preview-data-frame-transform]]
 === Preview {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Preview {dataframe-transforms}</titleabbrev>
 ++++

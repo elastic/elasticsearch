@@ -353,6 +353,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
         ensureGreen(index);
     }
 
+    /**
+     * This test ensures peer recovery won't get stuck in a situation where the recovery target and recovery source
+     * have an identical sync id but different local checkpoint in the commit (in particular the target does not have
+     * sequence number yet). This is possible if the primary is on 6.x while the replica was on 5.x and some write
+     * operations with sequence numbers have taken place.
+     */
     public void testRecoveryWithSyncIdVerifySeqNoStats() throws Exception {
         final String index = "recovery_sync_id_seq_no";
         boolean firstMixedRound = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));

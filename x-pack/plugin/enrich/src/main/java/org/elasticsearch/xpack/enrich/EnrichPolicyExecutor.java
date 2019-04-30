@@ -46,6 +46,6 @@ class EnrichPolicyExecutor {
     public void runPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
         EnrichPolicyRunner runnable =
             new EnrichPolicyRunner(policyName, policy, listener, clusterService, client, indexNameExpressionResolver, nowSupplier);
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(runnable);
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
     }
 }

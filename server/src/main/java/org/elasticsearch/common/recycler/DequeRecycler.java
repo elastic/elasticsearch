@@ -21,12 +21,14 @@ package org.elasticsearch.common.recycler;
 
 
 import java.util.Deque;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link Recycler} implementation based on a {@link Deque}. This implementation is NOT thread-safe.
  */
 public class DequeRecycler<T> extends AbstractRecycler<T> {
 
+    final AtomicBoolean closed = new AtomicBoolean(false);
     final Deque<T> deque;
     final int maxSize;
 
@@ -38,12 +40,13 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
 
     @Override
     public void close() {
-        // call destroy() for every cached object
-        for (T t : deque) {
-            c.destroy(t);
+        if (closed.compareAndSet(false, true)) {
+            T t;
+            while ((t = deque.pollFirst()) != null) {
+                c.destroy(t);
+            }
+            assert deque.size() == 0;
         }
-        // finally get rid of all references
-        deque.clear();
     }
 
     @Override
@@ -90,7 +93,7 @@ public class DequeRecycler<T> extends AbstractRecycler<T> {
             if (value == null) {
                 throw new IllegalStateException("recycler entry already released...");
             }
-            final boolean recycle = beforeRelease();
+            final boolean recycle = beforeRelease() && closed.get() == false;
             if (recycle) {
                 c.recycle(value);
                 deque.addFirst(value);

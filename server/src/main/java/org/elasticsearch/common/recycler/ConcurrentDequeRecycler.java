@@ -29,7 +29,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class ConcurrentDequeRecycler<T> extends DequeRecycler<T> {
 
-    // we maintain size separately because concurrent deque implementations typically have linear-time size() impls
+    // we maintain size separately because concurrent deque implementations typically have linear-time size() impls.
+    // due to the concurrent nature of this class, size may differ from the actual size of the deque depending on
+    // other concurrent requests and their current state
     final AtomicInteger size;
 
     public ConcurrentDequeRecycler(C<T> c, int maxSize) {
@@ -39,7 +41,6 @@ public class ConcurrentDequeRecycler<T> extends DequeRecycler<T> {
 
     @Override
     public void close() {
-        assert deque.size() == size.get();
         super.close();
         size.set(0);
     }

@@ -55,8 +55,8 @@ public enum Recyclers {
     }
 
     /**
-     * Wrap the provided recycler so that calls to {@link Recycler#obtain()} and {@link Recycler.V#close()} are protected by
-     * a lock.
+     * Wrap the provided recycler so that calls to {@link Recycler#obtain()}, {@link Recycler#close()} and {@link Recycler.V#close()}
+     * are protected by a lock.
      */
     public static <T> Recycler<T> locked(final Recycler<T> recycler) {
         return new FilterRecycler<T>() {
@@ -76,6 +76,13 @@ public enum Recyclers {
             public Recycler.V<T> obtain() {
                 synchronized (lock) {
                     return super.obtain();
+                }
+            }
+
+            @Override
+            public void close() {
+                synchronized (lock) {
+                    super.close();
                 }
             }
 

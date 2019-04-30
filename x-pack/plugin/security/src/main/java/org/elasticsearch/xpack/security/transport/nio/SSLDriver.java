@@ -182,8 +182,7 @@ public class SSLDriver implements AutoCloseable {
 
     private SSLEngineResult unwrap(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer buffer) throws SSLException {
         while (true) {
-            ByteBuffer[] buffers = encryptedBuffer.sliceBuffersTo(packetSize);
-            assert buffers.length == 1 : "Should always be a single buffer";
+            ByteBuffer[] buffers = encryptedBuffer.sliceBuffersTo(Math.min(packetSize, encryptedBuffer.getIndex()));
             SSLEngineResult result = engine.unwrap(buffers[0], buffer.sliceBuffersFrom(buffer.getIndex()));
             // TODO: Maybe move outside driver and have the handler release bytes. We can't loop then.
             encryptedBuffer.release(result.bytesConsumed());

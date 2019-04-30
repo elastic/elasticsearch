@@ -45,13 +45,13 @@ public class SSLDriverTests extends ESTestCase {
         handshake(clientDriver, serverDriver);
 
         ByteBuffer[] buffers = {ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8))};
-        sendAppData(clientDriver, serverDriver, buffers);
-        serverDriver.read(serverBuffer);
+        sendAppData(clientDriver, genericBuffer, buffers);
+        serverDriver.read(genericBuffer, serverBuffer);
         assertEquals(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)), serverBuffer.sliceBuffersTo(4)[0]);
 
         ByteBuffer[] buffers2 = {ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8))};
-        sendAppData(serverDriver, clientDriver, buffers2);
-        clientDriver.read(clientBuffer);
+        sendAppData(serverDriver, genericBuffer, buffers2);
+        clientDriver.read(genericBuffer, clientBuffer);
         assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), clientBuffer.sliceBuffersTo(4)[0]);
 
         assertFalse(clientDriver.needsNonApplicationWrite());
@@ -346,8 +346,9 @@ public class SSLDriverTests extends ESTestCase {
 
         while (sendDriver.needsNonApplicationWrite() || outboundBuffer.hasEncryptedBytesToFlush()) {
             if (outboundBuffer.hasEncryptedBytesToFlush()) {
-                sendData(outboundBuffer.buildNetworkFlushOperation(), receiveDriver);
-                receiveDriver.read(genericBuffer);
+                InboundChannelBuffer networkBuffer = InboundChannelBuffer.allocatingInstance(1);
+                sendData(outboundBuffer.buildNetworkFlushOperation(), networkBuffer);
+                receiveDriver.read(networkBuffer, genericBuffer);
             } else {
                 sendDriver.nonApplicationWrite();
             }
@@ -371,11 +372,27 @@ public class SSLDriverTests extends ESTestCase {
         }
     }
 
+    private void sendAppData(SSLDriver sendDriver, InboundChannelBuffer receiveBuffer, ByteBuffer[] message) throws IOException {
+        assertFalse(sendDriver.needsNonApplicationWrite());
+
+        int bytesToEncrypt = Arrays.stream(message).mapToInt(Buffer::remaining).sum();
+        SSLOutboundBuffer outboundBuffer = sendDriver.getOutboundBuffer();
+        FlushOperation flushOperation = new FlushOperation(message, (r, l) -> {});
+
+        int bytesEncrypted = 0;
+        while (bytesToEncrypt > bytesEncrypted) {
+            bytesEncrypted += sendDriver.write(flushOperation);
+            sendData(outboundBuffer.buildNetworkFlushOperation(), receiveBuffer);
+        }
+    }
+
     private void sendData(FlushOperation flushOperation, SSLDriver receiveDriver) {
-        ByteBuffer readBuffer = receiveDriver.getNetworkReadBuffer();
         ByteBuffer[] writeBuffers = flushOperation.getBuffersToWrite();
         int bytesToEncrypt = Arrays.stream(writeBuffers).mapToInt(Buffer::remaining).sum();
         InboundChannelBuffer networkBuffer = InboundChannelBuffer.allocatingInstance(bytesToEncrypt);
+        networkBuffer.ensureCapacity(bytesToEncrypt);
+        ByteBuffer[] byteBuffers = networkBuffer.sliceBuffersFrom(0);
+        ByteBuffer readBuffer = byteBuffers[0];
         assert bytesToEncrypt < readBuffer.capacity() : "Flush operation must be less that read buffer";
         assert  writeBuffers.length > 0 : "No write buffers";
 
@@ -383,6 +400,26 @@ public class SSLDriverTests extends ESTestCase {
             int written = writeBuffer.remaining();
             readBuffer.put(writeBuffer);
             flushOperation.incrementIndex(written);
+        }
+
+        assertTrue(flushOperation.isFullyFlushed());
+    }
+
+    private void sendData(FlushOperation flushOperation, InboundChannelBuffer receiveBuffer) {
+        ByteBuffer[] writeBuffers = flushOperation.getBuffersToWrite();
+        int bytesToEncrypt = Arrays.stream(writeBuffers).mapToInt(Buffer::remaining).sum();
+        receiveBuffer.changePageSize(bytesToEncrypt, receiveBuffer.getIndex());
+        receiveBuffer.ensureCapacity(bytesToEncrypt);
+        ByteBuffer[] byteBuffers = receiveBuffer.sliceBuffersFrom(0);
+        ByteBuffer readBuffer = byteBuffers[0];
+        assert bytesToEncrypt <= readBuffer.capacity() : "Flush operation must be less that read buffer";
+        assert  writeBuffers.length > 0 : "No write buffers";
+
+        for (ByteBuffer writeBuffer : writeBuffers) {
+            int written = writeBuffer.remaining();
+            readBuffer.put(writeBuffer);
+            flushOperation.incrementIndex(written);
+            receiveBuffer.incrementIndex(written);
         }
 
         assertTrue(flushOperation.isFullyFlushed());

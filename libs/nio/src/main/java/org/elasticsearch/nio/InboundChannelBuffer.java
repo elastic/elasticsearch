@@ -279,7 +279,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
             for (int i = newPageCount - 1; i >= 0; --i) {
                 Page page = newPages[i];
                 page.byteBuffer().clear();
-                pages.addFirst(newPage);
+                pages.addFirst(newPages[i]);
             }
         }
 
@@ -289,6 +289,11 @@ public final class InboundChannelBuffer implements AutoCloseable {
 
     public void changePageSize(int newPageSize, long length) {
         if (newPageSize == pageSize) {
+            return;
+        } else if (pages.isEmpty()) {
+            pageSize = newPageSize;
+            offset = 0;
+            capacity = 0;
             return;
         }
 
@@ -337,7 +342,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
         for (int i = newPageCount - 1; i >= 0; --i) {
             Page page = newPages[i];
             page.byteBuffer().clear();
-            pages.addFirst(newPage);
+            pages.addFirst(newPages[i]);
         }
 
 

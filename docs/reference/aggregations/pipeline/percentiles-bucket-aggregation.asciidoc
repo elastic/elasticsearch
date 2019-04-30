@@ -22,7 +22,7 @@ A `percentiles_bucket` aggregation looks like this in isolation:
 --------------------------------------------------
 
 
-[[sum-bucket-params]]
+[[percentiles-bucket-params]]
 .`percentiles_bucket` Parameters
 [options="header"]
 |===

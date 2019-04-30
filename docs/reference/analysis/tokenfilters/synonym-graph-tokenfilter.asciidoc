@@ -53,6 +53,7 @@ The above configures a `search_synonyms` filter, with a path of
 Additional settings are: `expand` (defaults to `true`).
 
 [float]
+[[synonym-graph-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to

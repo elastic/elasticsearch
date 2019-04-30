@@ -601,14 +601,14 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     private void assertMonitoringOnRestrictedIndices(Role role) {
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
-        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6,
-            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
+        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
         final MetaData metaData = new MetaData.Builder()
                 .put(new IndexMetaData.Builder(internalSecurityIndex)
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
-                        .putAlias(new AliasMetaData.Builder(RestrictedIndicesNames.SECURITY_INDEX_NAME).build())
+                        .putAlias(new AliasMetaData.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
                         .build(), true)
                 .build();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
@@ -616,10 +616,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 GetSettingsAction.NAME, IndicesShardStoresAction.NAME, UpgradeStatusAction.NAME, RecoveryAction.NAME);
         for (final String indexMonitoringActionName : indexMonitoringActionNamesList) {
             final Map<String, IndexAccessControl> authzMap = role.indices().authorize(indexMonitoringActionName,
-                Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_INDEX_NAME),
+                Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS),
                 metaData.getAliasAndIndexLookup(), fieldPermissionsCache);
             assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
-            assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
+            assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
         }
     }
 
@@ -713,8 +713,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(superuserRole.cluster().check("internal:admin/foo", request), is(false));
 
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
-        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_6,
-            RestrictedIndicesNames.INTERNAL_SECURITY_INDEX_7);
+        final String internalSecurityIndex = randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
+            RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
         final MetaData metaData = new MetaData.Builder()
                 .put(new IndexMetaData.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
                 .put(new IndexMetaData.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -731,7 +731,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                         .settings(indexSettings)
                         .numberOfShards(1)
                         .numberOfReplicas(0)
-                        .putAlias(new AliasMetaData.Builder(RestrictedIndicesNames.SECURITY_INDEX_NAME).build())
+                        .putAlias(new AliasMetaData.Builder(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).build())
                         .build(), true)
                 .build();
 
@@ -753,8 +753,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(authzMap.get("aaaaaa").isGranted(), is(true));
         assertThat(authzMap.get("b").isGranted(), is(true));
         authzMap = superuserRole.indices().authorize(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME),
-                Sets.newHashSet(RestrictedIndicesNames.SECURITY_INDEX_NAME), lookup, fieldPermissionsCache);
-        assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_INDEX_NAME).isGranted(), is(true));
+                Sets.newHashSet(RestrictedIndicesNames.SECURITY_MAIN_ALIAS), lookup, fieldPermissionsCache);
+        assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(true));
         assertThat(authzMap.get(internalSecurityIndex).isGranted(), is(true));
         assertTrue(superuserRole.indices().check(SearchAction.NAME));
         assertFalse(superuserRole.indices().check("unknown"));
@@ -762,7 +762,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(superuserRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(true));
 
         assertThat(superuserRole.indices().allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
-                .test(RestrictedIndicesNames.SECURITY_INDEX_NAME), is(true));
+                .test(RestrictedIndicesNames.SECURITY_MAIN_ALIAS), is(true));
         assertThat(superuserRole.indices().allowedIndicesMatcher(randomFrom(IndexAction.NAME, DeleteIndexAction.NAME, SearchAction.NAME))
                 .test(internalSecurityIndex), is(true));
     }

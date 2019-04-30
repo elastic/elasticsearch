@@ -199,7 +199,7 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     @Override
     public Set<String> excludeTemplates() {
         Set<String> templates = Sets.newHashSet(super.excludeTemplates());
-        templates.add(SecurityIndexManager.SECURITY_TEMPLATE_NAME); // don't remove the security index template
+        templates.add(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7); // don't remove the security index template
         return templates;
     }
 

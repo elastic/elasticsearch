@@ -39,6 +39,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -125,7 +126,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(GetRequest.class));
         GetRequest request = (GetRequest) requests.get(0);
-        assertThat(request.index(), equalTo(SecurityIndexManager.SECURITY_INDEX_NAME));
+        assertThat(request.index(), equalTo(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
         assertThat(request.type(), equalTo(MapperService.SINGLE_MAPPING_NAME));
         assertThat(request.id(), equalTo("application-privilege_myapp:admin"));
 
@@ -143,7 +144,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(GetRequest.class));
         GetRequest request = (GetRequest) requests.get(0);
-        assertThat(request.index(), equalTo(SecurityIndexManager.SECURITY_INDEX_NAME));
+        assertThat(request.index(), equalTo(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
         assertThat(request.type(), equalTo(MapperService.SINGLE_MAPPING_NAME));
         assertThat(request.id(), equalTo("application-privilege_myapp:admin"));
 
@@ -166,7 +167,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
+        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"terms\":{\"application\":[\"myapp\",\"yourapp\"]"));
@@ -187,7 +188,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
+        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"bool\":{\"filter\":[{\"terms\":{\"application\":[\"yourapp\"]"));
@@ -207,7 +208,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
+        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"exists\":{\"field\":\"application\""));
@@ -232,7 +233,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
-        assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
+        assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
 
         final String query = Strings.toString(request.source().query());
         assertThat(query, containsString("{\"term\":{\"type\":{\"value\":\"application-privilege\""));
@@ -268,7 +269,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         for (int i = 0; i < putPrivileges.size(); i++) {
             ApplicationPrivilegeDescriptor privilege = putPrivileges.get(i);
             IndexRequest request = indexRequests.get(i);
-            assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
+            assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
             assertThat(request.type(), equalTo(MapperService.SINGLE_MAPPING_NAME));
             assertThat(request.id(), equalTo(
                 "application-privilege_" + privilege.getApplication() + ":" + privilege.getName()
@@ -277,7 +278,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             assertThat(request.source(), equalTo(BytesReference.bytes(builder)));
             final boolean created = privilege.getName().equals("user") == false;
             indexListener.onResponse(new IndexResponse(
-                new ShardId(SecurityIndexManager.SECURITY_INDEX_NAME, uuid, i),
+                new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i),
                 request.type(), request.id(), 1, 1, 1, created
             ));
         }
@@ -313,12 +314,12 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         for (int i = 0; i < privilegeNames.size(); i++) {
             String name = privilegeNames.get(i);
             DeleteRequest request = deletes.get(i);
-            assertThat(request.indices(), arrayContaining(SecurityIndexManager.SECURITY_INDEX_NAME));
+            assertThat(request.indices(), arrayContaining(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
             assertThat(request.type(), equalTo(MapperService.SINGLE_MAPPING_NAME));
             assertThat(request.id(), equalTo("application-privilege_app1:" + name));
             final boolean found = name.equals("p2") == false;
             deleteListener.onResponse(new DeleteResponse(
-                new ShardId(SecurityIndexManager.SECURITY_INDEX_NAME, uuid, i),
+                new ShardId(RestrictedIndicesNames.SECURITY_MAIN_ALIAS, uuid, i),
                 request.type(), request.id(), 1, 1, 1, found
             ));
         }

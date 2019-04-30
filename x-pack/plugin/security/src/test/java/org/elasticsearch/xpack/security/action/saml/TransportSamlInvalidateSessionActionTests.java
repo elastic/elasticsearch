@@ -195,10 +195,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
+        when(securityIndex.isIndexUpToDate()).thenReturn(true);
+        when(securityIndex.getCreationTime()).thenReturn(Clock.systemUTC().instant());
+        when(securityIndex.aliasName()).thenReturn(".security");
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, securityIndex, clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
@@ -308,7 +311,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
         assertThat(filter1.get(1), instanceOf(TermQueryBuilder.class));
         assertThat(((TermQueryBuilder) filter1.get(1)).fieldName(), equalTo("refresh_token.token"));
-        assertThat(((TermQueryBuilder) filter1.get(1)).value(), equalTo(tokenToInvalidate1.v2()));
+        assertThat(((TermQueryBuilder) filter1.get(1)).value(),
+                equalTo(TokenService.unpackVersionAndPayload(tokenToInvalidate1.v2()).v2()));
 
         assertThat(bulkRequests.size(), equalTo(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1

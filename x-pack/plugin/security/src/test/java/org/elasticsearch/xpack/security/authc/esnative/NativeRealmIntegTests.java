@@ -44,13 +44,13 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -66,8 +66,8 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_SECURITY_INDEX;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -145,7 +145,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3kirt".toCharArray(), hasher, "role1", "user").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
@@ -200,7 +200,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .metadata(metadata)
                 .get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving role");
         GetRolesResponse resp = c.prepareGetRoles().names("test_role").get();
         assertTrue("role should exist", resp.hasRoles());
@@ -251,7 +251,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
@@ -272,7 +272,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), hasher, SecuritySettingsSource.TEST_ROLE).get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
@@ -308,7 +308,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         c.preparePutUser("joe", "s3krit".toCharArray(), hasher,
             SecuritySettingsSource.TEST_ROLE).get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
@@ -346,7 +346,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         c.preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
 
         if (authenticate) {
             final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
@@ -395,7 +395,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         logger.error("--> creating user");
         securityClient().preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role", "snapshot_user").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster()
                 .preparePutRepository("test-repo")
@@ -409,10 +409,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .prepareCreateSnapshot("test-repo", "test-snap-1")
                 .setWaitForCompletion(true)
                 .setIncludeGlobalState(false)
-                .setIndices(SECURITY_INDEX_NAME)
+                .setIndices(SECURITY_MAIN_ALIAS)
                 .get().getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.indices(), contains(SecurityIndexManager.INTERNAL_SECURITY_INDEX));
+        assertThat(snapshotInfo.indices(), contains(INTERNAL_SECURITY_MAIN_INDEX_7));
         deleteSecurityIndex();
         // the realm cache should clear itself but we don't wish to race it
         securityClient().prepareClearRealmCache().get();
@@ -429,7 +429,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         RestoreSnapshotResponse response = client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1")
                 .setWaitForCompletion(true).setIncludeAliases(true).get();
         assertThat(response.status(), equalTo(RestStatus.OK));
-        assertThat(response.getRestoreInfo().indices(), contains(SecurityIndexManager.INTERNAL_SECURITY_INDEX));
+        assertThat(response.getRestoreInfo().indices(), contains(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
         // the realm cache should clear itself but we don't wish to race it
         securityClient().prepareClearRealmCache().get();
         // users and roles are retrievable
@@ -459,7 +459,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .get();
         c.preparePutUser("joe", "s3krit".toCharArray(), hasher, "test_role").get();
         logger.error("--> waiting for .security index");
-        ensureGreen(SECURITY_INDEX_NAME);
+        ensureGreen(SECURITY_MAIN_ALIAS);
 
         final String token = basicAuthHeaderValue("joe", new SecureString("s3krit".toCharArray()));
         ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster()
@@ -590,12 +590,12 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                     .get();
         }
 
-        IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SECURITY_INDEX_NAME).get();
+        IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SECURITY_MAIN_ALIAS).get();
         assertThat(response.getFailedShards(), is(0));
         assertThat(response.getIndices().size(), is(2));
-        assertThat(response.getIndices().get(INTERNAL_SECURITY_INDEX), notNullValue());
-        assertThat(response.getIndices().get(INTERNAL_SECURITY_INDEX).getIndex(),
-                is(INTERNAL_SECURITY_INDEX));
+        assertThat(response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7), notNullValue());
+        assertThat(response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex(),
+                is(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
     }
 
     public void testOperationsOnReservedUsers() throws Exception {

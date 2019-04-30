@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.After;
 import org.junit.Before;
@@ -53,7 +52,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -336,7 +335,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
         UpdateResponse expirationDateUpdatedResponse = client
-                .prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, createdApiKeys.get(0).getId())
+                .prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(0).getId())
                 .setDoc("expiration_time", dayBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -346,7 +345,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the expiration time to the week before
         Instant weekBefore = created.minus(8L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(weekBefore));
-        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, createdApiKeys.get(1).getId())
+        expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, createdApiKeys.get(1).getId())
                 .setDoc("expiration_time", weekBefore.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get();
@@ -390,8 +389,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private void refreshSecurityIndex() throws Exception {
         assertBusy(() -> {
-            final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME)
-                    .get();
+            final RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(SECURITY_MAIN_ALIAS).get();
             assertThat(refreshResponse.getFailedShards(), is(0));
         });
     }

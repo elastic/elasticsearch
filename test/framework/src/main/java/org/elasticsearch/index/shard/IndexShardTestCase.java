@@ -721,6 +721,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static void assertConsistentHistoryBetweenTranslogAndLucene(IndexShard shard) throws IOException {
+        if (shard.state() != IndexShardState.POST_RECOVERY && shard.state() != IndexShardState.STARTED) {
+            return;
+        }
         final Engine engine = shard.getEngineOrNull();
         if (engine != null) {
             EngineTestCase.assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, shard.mapperService());

@@ -134,7 +134,7 @@ public class GeoShapeFieldMapper extends BaseGeoShapeFieldMapper {
         }
     }
 
-    private class LuceneGeometryIndexer implements GeometryVisitor<Void> {
+    private class LuceneGeometryIndexer implements GeometryVisitor<Void, RuntimeException> {
         private ParseContext context;
 
         private LuceneGeometryIndexer(ParseContext context) {

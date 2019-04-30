@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,6 +32,9 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * Class describing how to pivot data via {@link GroupConfig} and {@link AggregationConfig} objects
+ */
 public class PivotConfig implements ToXContentObject {
 
     private static final ParseField GROUP_BY = new ParseField("group_by");
@@ -51,7 +55,7 @@ public class PivotConfig implements ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    public PivotConfig(GroupConfig groups, final AggregationConfig aggregationConfig) {
+    PivotConfig(GroupConfig groups, final AggregationConfig aggregationConfig) {
         this.groups = groups;
         this.aggregationConfig = aggregationConfig;
     }
@@ -95,5 +99,48 @@ public class PivotConfig implements ToXContentObject {
 
     public boolean isValid() {
         return groups.isValid() && aggregationConfig.isValid();
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private GroupConfig groups;
+        private AggregationConfig aggregationConfig;
+
+        /**
+         * Set how to group the source data
+         * @param groups The configuration describing how to group and pivot the source data
+         * @return the {@link Builder} with the interval set.
+         */
+        public Builder setGroups(GroupConfig groups) {
+            this.groups = groups;
+            return this;
+        }
+
+        /**
+         * Set the aggregated fields to include in the pivot config
+         * @param aggregationConfig The configuration describing the aggregated fields
+         * @return the {@link Builder} with the aggregations set.
+         */
+        public Builder setAggregationConfig(AggregationConfig aggregationConfig) {
+            this.aggregationConfig = aggregationConfig;
+            return this;
+        }
+
+        /**
+         * Set the aggregated fields to include in the pivot config
+         * @param aggregations The aggregated field builders
+         * @return the {@link Builder} with the aggregations set.
+         */
+        public Builder setAggregations(AggregatorFactories.Builder aggregations) {
+            this.aggregationConfig = new AggregationConfig(aggregations);
+            return this;
+        }
+
+        public PivotConfig build() {
+            return new PivotConfig(groups, aggregationConfig);
+        }
     }
 }

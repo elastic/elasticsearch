@@ -29,20 +29,13 @@ public class DateHistogramGroupSourceTests extends AbstractXContentTestCase<Date
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
         String field = randomAlphaOfLengthBetween(1, 20);
-        DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(field);
-        if (randomBoolean()) {
-            dateHistogramGroupSource.setInterval(randomLongBetween(1, 10_000));
-        } else {
-            dateHistogramGroupSource.setDateHistogramInterval(randomFrom(DateHistogramInterval.days(10),
-                    DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)));
-        }
-        if (randomBoolean()) {
-            dateHistogramGroupSource.setTimeZone(randomZone());
-        }
-        if (randomBoolean()) {
-            dateHistogramGroupSource.setFormat(randomAlphaOfLength(10));
-        }
-        return dateHistogramGroupSource;
+        boolean setInterval = randomBoolean();
+        return new DateHistogramGroupSource(field,
+            setInterval ? randomLongBetween(1, 10_000) : 0,
+            setInterval ? null : randomFrom(DateHistogramInterval.days(10),
+                DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)),
+            randomBoolean() ? randomAlphaOfLength(10) : null,
+            randomBoolean() ? randomZone() : null);
     }
 
     @Override

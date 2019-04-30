@@ -336,10 +336,9 @@ and low latency, and these properties do not hold for connections between
 regions. Although an {es} cluster will behave correctly when node-to-node
 connections are unreliable or slow, it is not optimised for this case and its
 performance may suffer. If you wish to geographically distribute your data, you
-should provision multiple clusters and use
+should provision multiple clusters and use features such as
 {ref}/modules-cross-cluster-search.html[cross-cluster search] and
-https://www.elastic.co/guide/en/elastic-stack-overview/current/xpack-ccr.html[cross-cluster
-replication].
+{stack-ov}/xpack-ccr.html[cross-cluster replication].
 
 ===== Other recommendations
 

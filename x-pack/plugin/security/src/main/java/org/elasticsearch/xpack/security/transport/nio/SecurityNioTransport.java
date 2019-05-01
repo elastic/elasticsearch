@@ -158,7 +158,7 @@ public class SecurityNioTransport extends NioTransport {
 
             SocketChannelContext context;
             if (sslEnabled) {
-                SSLDriver sslDriver = new SSLDriver(createSSLEngine(channel), isClient);
+                SSLDriver sslDriver = new SSLDriver(createSSLEngine(channel), pageAllocator, isClient);
                 InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
                 context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, readWriteHandler, networkBuffer,
                     applicationBuffer, ipFilter);

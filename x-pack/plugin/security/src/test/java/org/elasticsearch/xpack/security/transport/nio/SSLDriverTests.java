@@ -26,6 +26,7 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 
 public class SSLDriverTests extends ESTestCase {
@@ -34,6 +35,7 @@ public class SSLDriverTests extends ESTestCase {
 
     private final InboundChannelBuffer networkReadBuffer = new InboundChannelBuffer(pageAllocator);
     private final InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
+    private final AtomicInteger openPages = new AtomicInteger(0);
 
     public void testPingPongAndClose() throws Exception {
         SSLContext sslContext = getSSLContext();
@@ -57,6 +59,21 @@ public class SSLDriverTests extends ESTestCase {
 
         assertFalse(clientDriver.needsNonApplicationWrite());
         normalClose(clientDriver, serverDriver);
+    }
+
+    public void testDataStoredInOutboundBufferIsClosed() throws Exception {
+        SSLContext sslContext = getSSLContext();
+
+        SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);
+        SSLDriver serverDriver = getDriver(sslContext.createSSLEngine(), false);
+
+        handshake(clientDriver, serverDriver);
+
+        ByteBuffer[] buffers = {ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8))};
+        serverDriver.write(new FlushOperation(buffers, (v, e) -> {}));
+
+        expectThrows(SSLException.class, serverDriver::close);
+        assertEquals(0, openPages.get());
     }
 
     public void testRenegotiate() throws Exception {
@@ -303,6 +320,7 @@ public class SSLDriverTests extends ESTestCase {
 
         sendDriver.close();
         receiveDriver.close();
+        assertEquals(0, openPages.get());
     }
 
     private void sendNonApplicationWrites(SSLDriver sendDriver) throws SSLException {
@@ -369,13 +387,12 @@ public class SSLDriverTests extends ESTestCase {
     private void sendAppData(SSLDriver sendDriver, ByteBuffer[] message) throws IOException {
         assertFalse(sendDriver.needsNonApplicationWrite());
 
-        SSLOutboundBuffer outboundBuffer = sendDriver.getOutboundBuffer();
         FlushOperation flushOperation = new FlushOperation(message, (r, l) -> {});
 
         while (flushOperation.isFullyFlushed() == false) {
             sendDriver.write(flushOperation);
         }
-        sendData(outboundBuffer.buildNetworkFlushOperation());
+        sendData(sendDriver.getOutboundBuffer().buildNetworkFlushOperation());
     }
 
     private void sendData(FlushOperation flushOperation) {
@@ -400,9 +417,13 @@ public class SSLDriverTests extends ESTestCase {
         networkReadBuffer.incrementIndex(bytesToCopy);
 
         assertTrue(flushOperation.isFullyFlushed());
+        flushOperation.getListener().accept(null, null);
     }
 
     private SSLDriver getDriver(SSLEngine engine, boolean isClient) {
-        return new SSLDriver(engine, isClient);
+        return new SSLDriver(engine, (n) -> {
+            openPages.incrementAndGet();
+            return new Page(ByteBuffer.allocate(n), openPages::decrementAndGet);
+        }, isClient);
     }
 }

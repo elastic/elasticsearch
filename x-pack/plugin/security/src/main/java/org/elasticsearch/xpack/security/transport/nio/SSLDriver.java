@@ -56,9 +56,8 @@ public class SSLDriver implements AutoCloseable {
     private static final FlushOperation EMPTY_FLUSH_OPERATION = new FlushOperation(EMPTY_BUFFERS, (r, t) -> {});
 
     private final SSLEngine engine;
-    // TODO: When the page bytes are actually recycled, we need to test that they are released on driver close
-    private final IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n));
-    private final SSLOutboundBuffer outboundBuffer = new SSLOutboundBuffer(pageAllocator);
+    private final IntFunction<Page> pageAllocator;
+    private final SSLOutboundBuffer outboundBuffer;
     private Page networkReadPage;
     private final boolean isClientMode;
     // This should only be accessed by the network thread associated with this channel, so nothing needs to
@@ -66,8 +65,10 @@ public class SSLDriver implements AutoCloseable {
     private Mode currentMode = new HandshakeMode();
     private int packetSize;
 
-    public SSLDriver(SSLEngine engine, boolean isClientMode) {
+    public SSLDriver(SSLEngine engine, IntFunction<Page> pageAllocator, boolean isClientMode) {
         this.engine = engine;
+        this.pageAllocator = pageAllocator;
+        this.outboundBuffer = new SSLOutboundBuffer(pageAllocator);
         this.isClientMode = isClientMode;
         SSLSession session = engine.getSession();
         packetSize = session.getPacketBufferSize();

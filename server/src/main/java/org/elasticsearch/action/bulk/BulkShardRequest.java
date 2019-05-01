@@ -117,11 +117,8 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder().append("requests[").append(items.length).append("], index").append(shardId);
         final RefreshPolicy refreshPolicy = getRefreshPolicy();
-        switch (refreshPolicy) {
-            case IMMEDIATE:
-            case WAIT_UNTIL:
-                stringBuilder.append(", refresh[").append(refreshPolicy).append(']');
-                break;
+        if (refreshPolicy == RefreshPolicy.IMMEDIATE || refreshPolicy == RefreshPolicy.WAIT_UNTIL) {
+            stringBuilder.append(", refresh[").append(refreshPolicy).append(']');
         }
         return stringBuilder.toString();
     }

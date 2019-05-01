@@ -84,41 +84,34 @@ public class TransportStopDataFrameTransformAction extends
                         RestStatus.CONFLICT));
                 return;
             }
-            if (request.waitForCompletion() == false) {
-                transformTask.stop(listener);
-            } else {
-                ActionListener<StopDataFrameTransformAction.Response> blockingListener = ActionListener.wrap(response -> {
-                    if (response.isStopped()) {
-                        // The Task acknowledged that it is stopped/stopping... wait until the status actually
-                        // changes over before returning. Switch over to Generic threadpool so
-                        // we don't block the network thread
-                        threadPool.generic().execute(() -> {
-                            try {
-                                long untilInNanos = System.nanoTime() + request.getTimeout().getNanos();
 
-                                while (System.nanoTime() - untilInNanos < 0) {
-                                    if (transformTask.isStopped()) {
-                                        listener.onResponse(response);
-                                        return;
-                                    }
-                                    Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
-                                }
-                                // ran out of time
-                                listener.onFailure(new ElasticsearchTimeoutException(
-                                        DataFrameMessages.getMessage(DataFrameMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT,
-                                                request.getTimeout().getStringRep(), request.getId())));
-                            } catch (InterruptedException e) {
-                                listener.onFailure(new ElasticsearchException(DataFrameMessages.getMessage(
-                                        DataFrameMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_INTERRUPT, request.getId()), e));
+            transformTask.stop();
+
+            if (request.waitForCompletion()) {
+                // Wait until the task status changes before returning.
+                // Switch over to Generic threadpool so we don't block the network thread
+                threadPool.generic().execute(() -> {
+                    try {
+                        long untilInNanos = System.nanoTime() + request.getTimeout().getNanos();
+
+                        while (System.nanoTime() - untilInNanos < 0) {
+                            if (transformTask.isStopped()) {
+                                listener.onResponse(new StopDataFrameTransformAction.Response(true));
+                                return;
                             }
-                        });
-                    } else {
-                        // Did not acknowledge stop, just return the response
-                        listener.onResponse(response);
+                            Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
+                        }
+                        // ran out of time
+                        listener.onFailure(new ElasticsearchTimeoutException(
+                                DataFrameMessages.getMessage(DataFrameMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT,
+                                        request.getTimeout().getStringRep(), request.getId())));
+                    } catch (InterruptedException e) {
+                        listener.onFailure(new ElasticsearchException(DataFrameMessages.getMessage(
+                                DataFrameMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_INTERRUPT, request.getId()), e));
                     }
-                }, listener::onFailure);
-
-                transformTask.stop(blockingListener);
+                });
+            } else {
+                listener.onResponse(new StopDataFrameTransformAction.Response(true));
             }
         } else {
             listener.onFailure(new RuntimeException("ID of data frame indexer task [" + transformTask.getTransformId()

@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction.Response;
-import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
@@ -218,51 +217,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         ));
     }
 
-    public synchronized void stop(ActionListener<StopDataFrameTransformAction.Response> listener) {
+    public synchronized void stop() {
         if (getIndexer() == null) {
-            listener.onFailure(new ElasticsearchException("Task for transform [{}] not fully initialized. Try again later",
-                getTransformId()));
             return;
         }
         // taskState is initialized as STOPPED and is updated in tandem with the indexerState
         // Consequently, if it is STOPPED, we consider the whole task STOPPED.
         if (taskState.get() == DataFrameTransformTaskState.STOPPED) {
-            listener.onResponse(new StopDataFrameTransformAction.Response(true));
             return;
         }
-        final IndexerState newState = getIndexer().stop();
-        switch (newState) {
-        case STOPPED:
-            // Fall through to `STOPPING` as the behavior is the same for both, we should persist for both
-        case STOPPING:
-            // update the persistent state to STOPPED. There are two scenarios and both are safe:
-            // 1. we persist STOPPED now, indexer continues a bit then sees the flag and checkpoints another STOPPED with the more recent
-            // position.
-            // 2. we persist STOPPED now, indexer continues a bit but then dies. When/if we resume we'll pick up at last checkpoint,
-            // overwrite some docs and eventually checkpoint.
-            taskState.set(DataFrameTransformTaskState.STOPPED);
-            DataFrameTransformState state = new DataFrameTransformState(
-                DataFrameTransformTaskState.STOPPED,
-                IndexerState.STOPPED,
-                getIndexer().getPosition(),
-                currentCheckpoint.get(),
-                stateReason.get(),
-                getIndexer().getProgress());
-            persistStateToClusterState(state, ActionListener.wrap(
-                task -> {
-                    auditor.info(transform.getId(), "Updated state to [" + state.getTaskState() + "]");
-                    listener.onResponse(new StopDataFrameTransformAction.Response(true));
-                },
-                exc -> listener.onFailure(new ElasticsearchException(
-                    "Error while updating state for data frame transform [{}] to [{}]", exc,
-                    transform.getId(),
-                    state.getIndexerState()))));
-            break;
-        default:
-            listener.onFailure(new ElasticsearchException("Cannot stop task for data frame transform [{}], because state was [{}]",
-                    transform.getId(), newState));
-            break;
-        }
+        getIndexer().stop();
     }
 
     @Override
@@ -280,12 +244,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     /**
      * Attempt to gracefully cleanup the data frame transform so it can be terminated.
-     * This tries to remove the job from the scheduler, and potentially any other
-     * cleanup operations in the future
+     * This tries to remove the job from the scheduler and completes the persistent task
      */
     synchronized void shutdown() {
         try {
-            logger.info("Data frame indexer [" + transform.getId() + "] received abort request, stopping indexer.");
             schedulerEngine.remove(SCHEDULE_NAME + "_" + transform.getId());
             schedulerEngine.unregister(this);
         } catch (Exception e) {
@@ -610,6 +572,13 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             } catch (Exception e) {
                 listener.onFailure(e);
             }
+        }
+
+        @Override
+        protected void onStop() {
+            auditor.info(transformConfig.getId(), "Received stop request, stopping indexer");
+            logger.info("Data frame transform [{}] received stop request, stopping indexer", transformConfig.getId());
+            transformTask.shutdown();
         }
 
         @Override

@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
+import org.junit.After;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -270,6 +271,11 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         Request request = new Request("DELETE", DATAFRAME_ENDPOINT + transformId);
         request.addParameter("ignore", "404"); // Ignore 404s because they imply someone was racing us to delete this
         adminClient().performRequest(request);
+    }
+
+    @After
+    public static void waitForDataFrame() throws Exception {
+        waitForPendingDataFrameTasks();
     }
 
     @AfterClass

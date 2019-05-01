@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.dataframe.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -16,50 +14,58 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
-import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.DataFrameTransformTask;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class TransportStopDataFrameTransformAction extends
         TransportTasksAction<DataFrameTransformTask, StopDataFrameTransformAction.Request,
         StopDataFrameTransformAction.Response, StopDataFrameTransformAction.Response> {
 
-    private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
     private final ThreadPool threadPool;
     private final DataFrameTransformsConfigManager dataFrameTransformsConfigManager;
+    private final PersistentTasksService persistentTasksService;
 
     @Inject
     public TransportStopDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
                                                  ClusterService clusterService, ThreadPool threadPool,
+                                                 PersistentTasksService persistentTasksService,
                                                  DataFrameTransformsConfigManager dataFrameTransformsConfigManager) {
         super(StopDataFrameTransformAction.NAME, clusterService, transportService, actionFilters, StopDataFrameTransformAction.Request::new,
                 StopDataFrameTransformAction.Response::new, StopDataFrameTransformAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
+        this.persistentTasksService = persistentTasksService;
     }
 
     @Override
     protected void doExecute(Task task, StopDataFrameTransformAction.Request request,
             ActionListener<StopDataFrameTransformAction.Response> listener) {
 
+        final ActionListener<StopDataFrameTransformAction.Response> finalListener;
+        if (request.waitForCompletion()) {
+            finalListener = waitForStopListener(request, listener);
+        } else {
+            finalListener = listener;
+        }
+
         dataFrameTransformsConfigManager.expandTransformIds(request.getId(), new PageParams(0, 10_000), ActionListener.wrap(
                 expandedIds -> {
                     request.setExpandedIds(new HashSet<>(expandedIds));
                     request.setNodes(DataFrameNodes.dataFrameTaskNodes(expandedIds, clusterService.state()));
-                    super.doExecute(task, request, listener);
+                    super.doExecute(task, request, finalListener);
                 },
                 listener::onFailure
         ));
@@ -86,33 +92,6 @@ public class TransportStopDataFrameTransformAction extends
             }
 
             transformTask.stop();
-
-            if (request.waitForCompletion()) {
-                // Wait until the task status changes before returning.
-                // Switch over to Generic threadpool so we don't block the network thread
-                threadPool.generic().execute(() -> {
-                    try {
-                        long untilInNanos = System.nanoTime() + request.getTimeout().getNanos();
-
-                        while (System.nanoTime() - untilInNanos < 0) {
-                            if (transformTask.isStopped()) {
-                                listener.onResponse(new StopDataFrameTransformAction.Response(true));
-                                return;
-                            }
-                            Thread.sleep(WAIT_FOR_COMPLETION_POLL.millis());
-                        }
-                        // ran out of time
-                        listener.onFailure(new ElasticsearchTimeoutException(
-                                DataFrameMessages.getMessage(DataFrameMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_TIMEOUT,
-                                        request.getTimeout().getStringRep(), request.getId())));
-                    } catch (InterruptedException e) {
-                        listener.onFailure(new ElasticsearchException(DataFrameMessages.getMessage(
-                                DataFrameMessages.REST_STOP_TRANSFORM_WAIT_FOR_COMPLETION_INTERRUPT, request.getId()), e));
-                    }
-                });
-            } else {
-                listener.onResponse(new StopDataFrameTransformAction.Response(true));
-            }
         } else {
             listener.onFailure(new RuntimeException("ID of data frame indexer task [" + transformTask.getTransformId()
                     + "] does not match request's ID [" + request.getId() + "]"));
@@ -131,5 +110,46 @@ public class TransportStopDataFrameTransformAction extends
         // if tasks is empty allMatch is 'vacuously satisfied'
         boolean allStopped = tasks.stream().allMatch(StopDataFrameTransformAction.Response::isStopped);
         return new StopDataFrameTransformAction.Response(allStopped);
+    }
+
+    private ActionListener<StopDataFrameTransformAction.Response>
+    waitForStopListener(StopDataFrameTransformAction.Request request,
+                        ActionListener<StopDataFrameTransformAction.Response> listener) {
+
+        return ActionListener.wrap(
+                response -> {
+                    // Wait until the persistent task is stopped
+                    // Switch over to Generic threadpool so we don't block the network thread
+                    threadPool.generic().execute(() ->
+                        waitForDataFrameStopped(request.getExpandedIds(), request.getTimeout(), listener));
+                },
+                listener::onFailure
+        );
+    }
+
+    private void waitForDataFrameStopped(Collection<String> persistentTaskIds, TimeValue timeout,
+                                         ActionListener<StopDataFrameTransformAction.Response> listener) {
+        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetaData -> {
+
+            logger.error("PTasks: " + persistentTasksCustomMetaData.toString());
+
+            for (String persistentTaskId: persistentTaskIds) {
+                if (persistentTasksCustomMetaData.getTask(persistentTaskId) != null) {
+                    return false;
+                }
+            }
+                logger.error("task gone");
+                return true;
+        }, timeout, new ActionListener<>() {
+            @Override
+            public void onResponse(Boolean result) {
+                listener.onResponse(new StopDataFrameTransformAction.Response(Boolean.TRUE));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 }

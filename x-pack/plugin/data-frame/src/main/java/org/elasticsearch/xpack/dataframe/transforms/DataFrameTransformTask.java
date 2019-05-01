@@ -84,7 +84,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         String initialReason = null;
         long initialGeneration = 0;
         Map<String, Object> initialPosition = null;
-        logger.info("[{}] init, got state: [{}]", transform.getId(), state != null);
+        logger.trace("[{}] init, got state: [{}]", transform.getId(), state != null);
         if (state != null) {
             initialTaskState = state.getTaskState();
             initialReason = state.getReason();
@@ -218,6 +218,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
     }
 
     public synchronized void stop() {
+        logger.info("stop task");
         if (getIndexer() == null) {
             return;
         }
@@ -226,6 +227,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         if (taskState.get() == DataFrameTransformTaskState.STOPPED) {
             return;
         }
+
         getIndexer().stop();
     }
 
@@ -247,6 +249,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
      * This tries to remove the job from the scheduler and completes the persistent task
      */
     synchronized void shutdown() {
+        logger.info("Shutting down");
         try {
             schedulerEngine.remove(SCHEDULE_NAME + "_" + transform.getId());
             schedulerEngine.unregister(this);
@@ -255,6 +258,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
         markAsCompleted();
+        logger.info("task marked as completed");
     }
 
     public DataFrameTransformProgress getProgress() {

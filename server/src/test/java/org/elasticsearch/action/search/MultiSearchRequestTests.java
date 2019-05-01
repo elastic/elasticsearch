@@ -48,6 +48,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -178,6 +179,15 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(2).types()[0], equalTo("type2"));
         assertThat(request.requests().get(2).types()[1], equalTo("type1"));
         assertThat(request.requests().get(2).routing(), equalTo("123"));
+    }
+
+    public void testNoMetadata() throws Exception {
+        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-no-metadata.json");
+        assertThat(request.requests().size(), equalTo(4));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertThat(searchRequest.indices().length, equalTo(0));
+            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
+        }
     }
 
     public void testResponseErrorToXContent() {

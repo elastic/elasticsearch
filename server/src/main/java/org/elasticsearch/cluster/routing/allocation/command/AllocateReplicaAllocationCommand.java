@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -101,20 +102,36 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }
 
-        final ShardRouting primaryShardRouting;
+        // Validate input shard and index values
         try {
-            primaryShardRouting = allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
+            allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
-        if (primaryShardRouting.unassigned()) {
+
+        ShardRouting primaryShardRouting = null;
+        for (RoutingNode node: allocation.routingNodes()) {
+            for (ShardRouting shard: node) {
+                if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary()) {
+                    primaryShardRouting = shard;
+                    break;
+                }
+            }
+        }
+        if (primaryShardRouting == null) {
             return explainOrThrowRejectedCommand(explain, allocation,
                 "trying to allocate a replica shard [" + index + "][" + shardId +
                     "], while corresponding primary shard is still unassigned");
         }
 
-        List<ShardRouting> replicaShardRoutings =
-            allocation.routingTable().shardRoutingTable(index, shardId).replicaShardsWithState(ShardRoutingState.UNASSIGNED);
+        List<ShardRouting> replicaShardRoutings = new ArrayList<>();
+        RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
+        for (ShardRouting shard: unassigned) {
+            if (shard.getIndexName().equals(index) && shard.getId() == shardId && !shard.primary()) {
+                replicaShardRoutings.add(shard);
+            }
+        }
+
         ShardRouting shardRouting;
         if (replicaShardRoutings.isEmpty()) {
             return explainOrThrowRejectedCommand(explain, allocation,

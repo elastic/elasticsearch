@@ -108,13 +108,22 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }
 
-        final ShardRouting shardRouting;
+        // Validate input shard and index values
         try {
-            shardRouting = allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
+            allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
             return explainOrThrowRejectedCommand(explain, allocation, e);
         }
-        if (shardRouting.unassigned() == false) {
+
+        ShardRouting shardRouting = null;
+        RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
+        for (ShardRouting shard: unassigned) {
+            if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary()) {
+                shardRouting = shard;
+                break;
+            }
+        }
+        if (shardRouting == null) {
             return explainOrThrowRejectedCommand(explain, allocation, "primary [" + index + "][" + shardId + "] is already assigned");
         }
 

@@ -18,7 +18,6 @@
  */
 
 package org.elasticsearch.cluster.block;
-import static java.util.stream.Stream.concat;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -36,10 +36,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
@@ -206,28 +203,20 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return globalBlocked(level) || blocksForIndex(level, index).isEmpty() == false;
     }
 
-    private ClusterBlockException getClusterAndIndexBlocks(ClusterBlockLevel level, String[] indices,
-                                                           boolean filterIsAllowReleaseResources){
-        Set<ClusterBlock> clusterLevelBlocks = global(level);
-        if(filterIsAllowReleaseResources){
-             clusterLevelBlocks = clusterLevelBlocks.stream()
-                .filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false).collect(toSet());
-        }
-
+    public ClusterBlockException indicesBlockedException(ClusterBlockLevel level, String[] indices) {
+        Set<ClusterBlock> globalLevelBlocks = global(level);
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
         for (String index : indices) {
             Set<ClusterBlock> indexBlocks = blocksForIndex(level, index);
-            if (indexBlocks.isEmpty() == false) {
-                indexLevelBlocks.put(index, indexBlocks);
+            if (indexBlocks.isEmpty() == false || globalLevelBlocks.isEmpty() == false) {
+                indexLevelBlocks.put(index, Sets.union(indexBlocks, globalLevelBlocks));
             }
         }
-        if (clusterLevelBlocks.isEmpty() && indexLevelBlocks.isEmpty()) {
+        if (indexLevelBlocks.isEmpty()) {
+            assert globalLevelBlocks.isEmpty();
             return null;
         }
-        return new ClusterBlockException(clusterLevelBlocks, indexLevelBlocks);
-    }
-    public ClusterBlockException indicesBlockedException(ClusterBlockLevel level, String[] indices) {
-        return getClusterAndIndexBlocks(level, indices, false);
+        return new ClusterBlockException(indexLevelBlocks);
     }
 
     /**
@@ -238,9 +227,20 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
      */
 
     public ClusterBlockException indicesAllowReleaseResources(String[] indices) {
-        return getClusterAndIndexBlocks(ClusterBlockLevel.METADATA_WRITE, indices, true);
+        Set<ClusterBlock> globalBlocks = global(ClusterBlockLevel.METADATA_WRITE);
+        Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
+        for (String index : indices) {
+            Set<ClusterBlock> blocks = Sets.union(globalBlocks, blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index))
+                .stream().filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false).collect(toSet());
+            if (blocks.isEmpty() == false) {
+                indexLevelBlocks.put(index, Sets.union(globalBlocks, blocks));
+            }
+        }
+        if (indexLevelBlocks.isEmpty()) {
+            return null;
+        }
+        return new ClusterBlockException(indexLevelBlocks);
     }
-
 
     @Override
     public String toString() {
@@ -438,9 +438,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             // We copy the block sets here in case of the builder is modified after build is called
             ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder(indices.size());
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
-                indicesBuilder.put(entry.getKey(), Set.copyOf(entry.getValue()));
+                indicesBuilder.put(entry.getKey(), unmodifiableSet(new HashSet<>(entry.getValue())));
             }
-            return new ClusterBlocks(Set.copyOf(global), indicesBuilder.build());
+            return new ClusterBlocks(unmodifiableSet(new HashSet<>(global)), indicesBuilder.build());
         }
     }
 }

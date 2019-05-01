@@ -109,7 +109,7 @@ public class ClusterBlockTests extends ESTestCase {
     public void testGlobalBlocksCheckedIfNoIndicesSpecified() {
         ClusterBlock globalBlock = randomClusterBlock();
         ClusterBlocks clusterBlocks = new ClusterBlocks(Collections.singleton(globalBlock), ImmutableOpenMap.of());
-        ClusterBlockException exception = clusterBlocks.indicesBlockedException(randomFrom(globalBlock.levels()), new String[0]);
+        ClusterBlockException exception = clusterBlocks.indicesBlockedException(randomFrom(globalBlock.levels()), new String[]{"test"});
         assertNotNull(exception);
         assertEquals(exception.blocks(), Collections.singleton(globalBlock));
     }

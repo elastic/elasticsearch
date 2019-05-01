@@ -80,8 +80,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return indices(level).getOrDefault(index, emptySet());
     }
 
-    private static EnumMap<ClusterBlockLevel, ImmutableLevelHolder> generateLevelHolders(Set<ClusterBlock> global,
-                                                                                         ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
+    private static EnumMap<ClusterBlockLevel, ImmutableLevelHolder> generateLevelHolders(
+        Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
+
         EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders = new EnumMap<>(ClusterBlockLevel.class);
         for (final ClusterBlockLevel level : ClusterBlockLevel.values()) {
             Predicate<ClusterBlock> containsLevel = block -> block.contains(level);

@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
@@ -205,8 +206,14 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return globalBlocked(level) || blocksForIndex(level, index).isEmpty() == false;
     }
 
-    public ClusterBlockException indicesBlockedException(ClusterBlockLevel level, String[] indices) {
+    private ClusterBlockException getClusterAndIndexBlocks(ClusterBlockLevel level, String[] indices,
+                                                           boolean filterIsAllowReleaseResources){
         Set<ClusterBlock> clusterLevelBlocks = global(level);
+        if(filterIsAllowReleaseResources){
+             clusterLevelBlocks = clusterLevelBlocks.stream()
+                .filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false).collect(toSet());
+        }
+
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
         for (String index : indices) {
             Set<ClusterBlock> indexBlocks = blocksForIndex(level, index);
@@ -219,6 +226,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
         return new ClusterBlockException(clusterLevelBlocks, indexLevelBlocks);
     }
+    public ClusterBlockException indicesBlockedException(ClusterBlockLevel level, String[] indices) {
+        return getClusterAndIndexBlocks(level, indices, false);
+    }
 
     /**
      * Returns <code>true</code> iff non of the given have a {@link ClusterBlockLevel#METADATA_WRITE} in place where the
@@ -228,16 +238,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
      */
 
     public ClusterBlockException indicesAllowReleaseResources(String[] indices) {
-        final Function<String, Stream<ClusterBlock>> blocksForIndexAtLevel = index ->
-            blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index).stream();
-        Stream<ClusterBlock> blocks = concat(
-            global(ClusterBlockLevel.METADATA_WRITE).stream(),
-            Stream.of(indices).flatMap(blocksForIndexAtLevel)).filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false);
-        Set<ClusterBlock> clusterBlocks = unmodifiableSet(blocks.collect(toSet()));
-        if (clusterBlocks.isEmpty()) {
-            return null;
-        }
-        return new ClusterBlockException(clusterBlocks);
+        return getClusterAndIndexBlocks(ClusterBlockLevel.METADATA_WRITE, indices, true);
     }
 
 

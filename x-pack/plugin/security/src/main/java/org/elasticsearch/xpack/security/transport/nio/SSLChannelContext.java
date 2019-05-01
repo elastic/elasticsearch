@@ -36,21 +36,22 @@ public final class SSLChannelContext extends SocketChannelContext {
     private static final Runnable DEFAULT_TIMEOUT_CANCELLER = () -> {};
 
     private final SSLDriver sslDriver;
-    // TODO: When the bytes are actually recycled, we need to test that they are released on driver close
-    private final InboundChannelBuffer networkReadBuffer = InboundChannelBuffer.allocatingInstance(SSLDriver.DEFAULT_PACKET_SIZE);
+    private final InboundChannelBuffer networkReadBuffer;
     private final LinkedList<FlushOperation> encryptedFlushes = new LinkedList<>();
     private Runnable closeTimeoutCanceller = DEFAULT_TIMEOUT_CANCELLER;
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer, ALWAYS_ALLOW_CHANNEL);
+                      ReadWriteHandler readWriteHandler, InboundChannelBuffer applicationBuffer) {
+        this(channel, selector, exceptionHandler, sslDriver, readWriteHandler, InboundChannelBuffer.allocatingInstance(),
+            applicationBuffer, ALWAYS_ALLOW_CHANNEL);
     }
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
+                      ReadWriteHandler readWriteHandler, InboundChannelBuffer networkReadBuffer, InboundChannelBuffer channelBuffer,
                       Predicate<NioSocketChannel> allowChannelPredicate) {
         super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, allowChannelPredicate);
         this.sslDriver = sslDriver;
+        this.networkReadBuffer = networkReadBuffer;
     }
 
     @Override
@@ -203,7 +204,7 @@ public final class SSLChannelContext extends SocketChannelContext {
                 getSelector().executeFailedListener(encryptedFlush.getListener(), new ClosedChannelException());
             }
             encryptedFlushes.clear();
-            IOUtils.close(super::closeFromSelector, sslDriver::close);
+            IOUtils.close(super::closeFromSelector, networkReadBuffer::close, sslDriver::close);
         }
     }
 

@@ -208,7 +208,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
                 handlingSettings, corsConfig);
             Consumer<Exception> exceptionHandler = (e) -> onException(httpChannel, e);
             SocketChannelContext context = new BytesChannelContext(httpChannel, selector, exceptionHandler, httpReadWritePipeline,
-                new InboundChannelBuffer(pageAllocator, PageCacheRecycler.BYTE_PAGE_SIZE));
+                new InboundChannelBuffer(pageAllocator));
             httpChannel.setContext(context);
             return httpChannel;
         }

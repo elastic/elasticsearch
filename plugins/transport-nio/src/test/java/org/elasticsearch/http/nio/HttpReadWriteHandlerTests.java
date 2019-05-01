@@ -389,7 +389,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     }
 
     private InboundChannelBuffer toChannelBuffer(ByteBuf buf) {
-        InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance(1 << 14);
+        InboundChannelBuffer buffer = InboundChannelBuffer.allocatingInstance();
         int readableBytes = buf.readableBytes();
         buffer.ensureCapacity(readableBytes);
         int bytesWritten = 0;

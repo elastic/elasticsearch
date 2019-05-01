@@ -159,7 +159,7 @@ public class NioTransport extends TcpTransport {
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, NioTransport.this);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler,
-                new InboundChannelBuffer(pageAllocator, PageCacheRecycler.BYTE_PAGE_SIZE));
+                new InboundChannelBuffer(pageAllocator));
             nioChannel.setContext(context);
             return nioChannel;
         }

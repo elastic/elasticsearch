@@ -67,7 +67,7 @@ public class SSLChannelContextTests extends ESTestCase {
         channel = mock(NioSocketChannel.class);
         rawChannel = mock(SocketChannel.class);
         sslDriver = mock(SSLDriver.class);
-        channelBuffer = InboundChannelBuffer.allocatingInstance(1 << 14);
+        channelBuffer = InboundChannelBuffer.allocatingInstance();
         outboundBuffer = new SSLOutboundBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}));
         when(channel.getRawChannel()).thenReturn(rawChannel);
         exceptionHandler = mock(Consumer.class);

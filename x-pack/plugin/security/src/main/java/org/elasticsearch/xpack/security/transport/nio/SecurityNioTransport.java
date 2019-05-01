@@ -153,15 +153,17 @@ public class SecurityNioTransport extends NioTransport {
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
             TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, SecurityNioTransport.this);
-            InboundChannelBuffer buffer = new InboundChannelBuffer(pageAllocator, PageCacheRecycler.BYTE_PAGE_SIZE);
+            InboundChannelBuffer networkBuffer = new InboundChannelBuffer(pageAllocator);
             Consumer<Exception> exceptionHandler = (e) -> onException(nioChannel, e);
 
             SocketChannelContext context;
             if (sslEnabled) {
                 SSLDriver sslDriver = new SSLDriver(createSSLEngine(channel), isClient);
-                context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, readWriteHandler, buffer, ipFilter);
+                InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
+                context = new SSLChannelContext(nioChannel, selector, exceptionHandler, sslDriver, readWriteHandler, networkBuffer,
+                    applicationBuffer, ipFilter);
             } else {
-                context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler, buffer, ipFilter);
+                context = new BytesChannelContext(nioChannel, selector, exceptionHandler, readWriteHandler, networkBuffer, ipFilter);
             }
             nioChannel.setContext(context);
 

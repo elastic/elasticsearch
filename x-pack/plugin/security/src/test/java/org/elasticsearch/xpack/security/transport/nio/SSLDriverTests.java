@@ -32,8 +32,8 @@ public class SSLDriverTests extends ESTestCase {
 
     private final IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), () -> {});
 
-    private final InboundChannelBuffer networkReadBuffer = new InboundChannelBuffer(pageAllocator, 16709);
-    private final InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator, 16384);
+    private final InboundChannelBuffer networkReadBuffer = new InboundChannelBuffer(pageAllocator);
+    private final InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
 
     public void testPingPongAndClose() throws Exception {
         SSLContext sslContext = getSSLContext();
@@ -57,11 +57,6 @@ public class SSLDriverTests extends ESTestCase {
 
         assertFalse(clientDriver.needsNonApplicationWrite());
         normalClose(clientDriver, serverDriver);
-    }
-
-    public void testDefaultPacketSize() throws Exception {
-        SSLContext sslContext = getSSLContext();
-        assertEquals(SSLDriver.DEFAULT_PACKET_SIZE, sslContext.createSSLEngine().getSession().getPacketBufferSize());
     }
 
     public void testRenegotiate() throws Exception {

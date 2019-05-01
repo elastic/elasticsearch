@@ -37,6 +37,9 @@ import java.util.function.IntFunction;
  */
 public final class InboundChannelBuffer implements AutoCloseable {
 
+    public static final int PAGE_SIZE = 1 << 14;
+    private static final int PAGE_MASK = PAGE_SIZE - 1;
+    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
     private static final Page[] EMPTY_BYTE_PAGE_ARRAY = new Page[0];
 
@@ -44,19 +47,17 @@ public final class InboundChannelBuffer implements AutoCloseable {
     private final ArrayDeque<Page> pages = new ArrayDeque<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
-    private int pageSize;
     private long capacity = 0;
     private long internalIndex = 0;
     // The offset is an int as it is the offset of where the bytes begin in the first buffer
     private int offset = 0;
 
-    public InboundChannelBuffer(IntFunction<Page> pageAllocator, int pageSize) {
-        this.pageSize = pageSize;
+    public InboundChannelBuffer(IntFunction<Page> pageAllocator) {
         this.pageAllocator = pageAllocator;
     }
 
-    public static InboundChannelBuffer allocatingInstance(int pageSize) {
-        return new InboundChannelBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}), pageSize);
+    public static InboundChannelBuffer allocatingInstance() {
+        return new InboundChannelBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}));
     }
 
     @Override
@@ -83,10 +84,10 @@ public final class InboundChannelBuffer implements AutoCloseable {
             int numPages = numPages(requiredCapacity + offset);
             int pagesToAdd = numPages - pages.size();
             for (int i = 0; i < pagesToAdd; i++) {
-                Page page = pageAllocator.apply(pageSize);
+                Page page = pageAllocator.apply(PAGE_SIZE);
                 pages.addLast(page);
             }
-            capacity += pagesToAdd * pageSize;
+            capacity += pagesToAdd * PAGE_SIZE;
         }
     }
 
@@ -102,8 +103,9 @@ public final class InboundChannelBuffer implements AutoCloseable {
         }
 
         int pagesToRelease = pageIndex(offset + bytesToRelease);
-        closePages(pagesToRelease);
-
+        for (int i = 0; i < pagesToRelease; i++) {
+            pages.removeFirst().close();
+        }
         capacity -= bytesToRelease;
         internalIndex = Math.max(internalIndex - bytesToRelease, 0);
         offset = indexInPage(bytesToRelease + offset);
@@ -125,10 +127,12 @@ public final class InboundChannelBuffer implements AutoCloseable {
         } else if (to == 0) {
             return EMPTY_BYTE_BUFFER_ARRAY;
         }
-        final long indexWithOffset = to + offset;
-        final int pageIndex = pageIndex(indexWithOffset);
-        final int finalLimit = indexInPage(indexWithOffset);
-        final int pageCount = finalLimit != 0 ? pageIndex + 1 : pageIndex;
+        long indexWithOffset = to + offset;
+        int pageCount = pageIndex(indexWithOffset);
+        int finalLimit = indexInPage(indexWithOffset);
+        if (finalLimit != 0) {
+            pageCount += 1;
+        }
 
         ByteBuffer[] buffers = new ByteBuffer[pageCount];
         Iterator<Page> pageIterator = pages.iterator();
@@ -162,10 +166,12 @@ public final class InboundChannelBuffer implements AutoCloseable {
         } else if (to == 0) {
             return EMPTY_BYTE_PAGE_ARRAY;
         }
-        final long indexWithOffset = to + offset;
-        final int pageIndex = pageIndex(indexWithOffset);
-        final int finalLimit = indexInPage(indexWithOffset);
-        final int pageCount = finalLimit != 0 ? pageIndex + 1 : pageIndex;
+        long indexWithOffset = to + offset;
+        int pageCount = pageIndex(indexWithOffset);
+        int finalLimit = indexInPage(indexWithOffset);
+        if (finalLimit != 0) {
+            pageCount += 1;
+        }
 
         Page[] pages = new Page[pageCount];
         Iterator<Page> pageIterator = this.pages.iterator();
@@ -216,117 +222,6 @@ public final class InboundChannelBuffer implements AutoCloseable {
         return buffers;
     }
 
-    /**
-     * Aligns the data in this buffer along the underlying pages. If the beginning of this buffer is in the
-     * middle of a page, it will be copied to the beginning of a new page. The number of bytes copied into
-     * alignment with the underlying pages is configured by the length parameter. As this operation might add
-     * or remove pages, it can modify the buffers capacity.
-     *
-     * @param length of the data to align
-     */
-    public void align(long length) {
-        if (offset == 0 || pages.size() == 0) {
-            return;
-        }
-
-        if (length + offset <= pageSize) {
-            Page oldPage = pages.removeFirst();
-            ByteBuffer oldByteBuffer = oldPage.byteBuffer().duplicate();
-            oldByteBuffer.position(offset);
-            oldByteBuffer.limit(oldByteBuffer.position() + Math.toIntExact(length));
-            Page newPage = pageAllocator.apply(pageSize);
-            newPage.byteBuffer().put(oldByteBuffer);
-            newPage.byteBuffer().clear();
-            pages.addFirst(newPage);
-            oldPage.close();
-        } else {
-            int newPageCount = numPages(length);
-
-            Page[] newPages = copyBytesIntoNewPages(newPageCount, length);
-
-            for (int i = newPageCount - 1; i >= 0; --i) {
-                Page page = newPages[i];
-                page.byteBuffer().clear();
-                this.pages.addFirst(newPages[i]);
-            }
-        }
-
-        offset = 0;
-        capacity = pages.size() * pageSize;
-    }
-
-    /**
-     * Mutates the underlying page sizes. All of the existing pages will be released and replace with new
-     * pages of the new page size. The number of bytes copied into the new pages is configured by the length
-     * parameter.
-     *
-     * @param newPageSize the new page size
-     * @param length of the data to copy to new pages
-     */
-    public void changePageSize(int newPageSize, long length) {
-        if (newPageSize == pageSize) {
-            return;
-        } else if (pages.isEmpty()) {
-            pageSize = newPageSize;
-            offset = 0;
-            capacity = 0;
-            return;
-        }
-
-        pageSize = newPageSize;
-        int newPageCount = numPagesForPageSize(newPageSize, capacity);
-        Page[] newPages = copyBytesIntoNewPages(newPageCount, length);
-
-        closePages(pages.size());
-
-        for (int i = newPageCount - 1; i >= 0; --i) {
-            Page page = newPages[i];
-            page.byteBuffer().clear();
-            pages.addFirst(newPages[i]);
-        }
-
-
-        offset = 0;
-        capacity = pages.size() * pageSize;
-    }
-
-    private Page[] copyBytesIntoNewPages(final int newPageCount, long totalBytesToCopy) {
-        Page[] newPages = new Page[newPageCount];
-
-        Page newPage = pageAllocator.apply(pageSize);
-        ByteBuffer newByteBuffer = newPage.byteBuffer();
-        Page oldPage = pages.removeFirst();
-        ByteBuffer oldByteBuffer = oldPage.byteBuffer().duplicate();
-        oldByteBuffer.position(offset);
-        int newBufferIndex = 0;
-        while (totalBytesToCopy > 0) {
-            if (newByteBuffer.remaining() == 0) {
-                newPages[newBufferIndex++] = newPage;
-                newPage = pageAllocator.apply(pageSize);
-                newByteBuffer = newPage.byteBuffer();
-            }
-            if (oldByteBuffer.remaining() == 0) {
-                oldPage.close();
-                oldPage = pages.removeFirst();
-                oldByteBuffer = oldPage.byteBuffer().duplicate();
-            }
-
-            int bytesToCopy = Math.min(Math.min((int) totalBytesToCopy, oldByteBuffer.remaining()), newByteBuffer.remaining());
-            int initialLimit = oldByteBuffer.limit();
-            oldByteBuffer.limit(oldByteBuffer.position() + bytesToCopy);
-            newByteBuffer.put(oldByteBuffer);
-            totalBytesToCopy -= bytesToCopy;
-            oldByteBuffer.limit(initialLimit);
-        }
-
-        while (newBufferIndex < newPageCount) {
-            newPages[newBufferIndex++] = newPage;
-            newPage = pageAllocator.apply(pageSize);
-        }
-
-        return newPages;
-    }
-
     public void incrementIndex(long delta) {
         if (delta < 0) {
             throw new IllegalArgumentException("Cannot increment an index with a negative delta [" + delta + "]");
@@ -354,35 +249,19 @@ public final class InboundChannelBuffer implements AutoCloseable {
         return remaining;
     }
 
-    public int getPageSize() {
-        return pageSize;
-    }
-
     private int numPages(long capacity) {
-        return numPagesForPageSize(pageSize, capacity);
-    }
-
-    private static int numPagesForPageSize(int pageSize, long capacity) {
-        long minPages = capacity / pageSize;
-        long remainder = capacity % pageSize;
-        final long numPages = remainder != 0 ? minPages + 1 : minPages;
+        final long numPages = (capacity + PAGE_MASK) >>> PAGE_SHIFT;
         if (numPages > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("pageSize=" + pageSize + " is too small for such as capacity: " + capacity);
+            throw new IllegalArgumentException("pageSize=" + (PAGE_MASK + 1) + " is too small for such as capacity: " + capacity);
         }
         return (int) numPages;
     }
 
     private int pageIndex(long index) {
-        return (int) index / pageSize;
+        return (int) (index >>> PAGE_SHIFT);
     }
 
     private int indexInPage(long index) {
-        return (int) index % pageSize;
-    }
-
-    private void closePages(int numberOfPagesToClose) {
-        for (int i = 0; i < numberOfPagesToClose; i++) {
-            this.pages.removeFirst().close();
-        }
+        return (int) (index & PAGE_MASK);
     }
 }

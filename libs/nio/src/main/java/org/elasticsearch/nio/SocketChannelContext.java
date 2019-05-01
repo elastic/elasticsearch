@@ -20,6 +20,7 @@
 package org.elasticsearch.nio;
 
 import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.nio.utils.ByteBufferUtils;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -287,7 +288,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             int j = 0;
             while (j < buffers.length && ioBuffer.remaining() > 0) {
                 ByteBuffer buffer = buffers[j++];
-                copyBytes(ioBuffer, buffer);
+                ByteBufferUtils.copyBytes(ioBuffer, buffer);
             }
             channelBuffer.incrementIndex(bytesRead);
             return bytesRead;
@@ -302,7 +303,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         int initialPosition = buffer.position();
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
         ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
-        copyBytes(buffer, ioBuffer);
+        ByteBufferUtils.copyBytes(buffer, ioBuffer);
         ioBuffer.flip();
         int bytesWritten;
         try {
@@ -326,10 +327,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
             int j = 0;
             ByteBuffer[] buffers = flushOperation.getBuffersToWrite(WRITE_LIMIT);
-            while (j < buffers.length && ioBuffer.remaining() > 0) {
-                ByteBuffer buffer = buffers[j++];
-                copyBytes(buffer, ioBuffer);
-            }
+            ByteBufferUtils.copyBytes(buffers, ioBuffer);
             ioBuffer.flip();
             int bytesFlushed;
             try {
@@ -343,13 +341,5 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             continueFlush = ioBuffer.hasRemaining() == false && flushOperation.isFullyFlushed() == false;
         }
         return totalBytesFlushed;
-    }
-
-    private void copyBytes(ByteBuffer from, ByteBuffer to) {
-        int nBytesToCopy = Math.min(to.remaining(), from.remaining());
-        int initialLimit = from.limit();
-        from.limit(from.position() + nBytesToCopy);
-        to.put(from);
-        from.limit(initialLimit);
     }
 }

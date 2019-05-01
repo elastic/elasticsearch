@@ -91,7 +91,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
             NioHttpChannel httpChannel = new NioHttpChannel(channel);
             HttpReadWriteHandler httpHandler = new HttpReadWriteHandler(httpChannel,SecurityNioHttpServerTransport.this,
                 handlingSettings, corsConfig);
-            InboundChannelBuffer buffer = new InboundChannelBuffer(pageAllocator, PageCacheRecycler.BYTE_PAGE_SIZE);
+            InboundChannelBuffer networkBuffer = new InboundChannelBuffer(pageAllocator);
             Consumer<Exception> exceptionHandler = (e) -> securityExceptionHandler.accept(httpChannel, e);
 
             SocketChannelContext context;
@@ -106,9 +106,11 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
                     sslEngine = sslService.createSSLEngine(sslConfiguration, null, -1);
                 }
                 SSLDriver sslDriver = new SSLDriver(sslEngine, false);
-                context = new SSLChannelContext(httpChannel, selector, exceptionHandler, sslDriver, httpHandler, buffer, nioIpFilter);
+                InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
+                context = new SSLChannelContext(httpChannel, selector, exceptionHandler, sslDriver, httpHandler, networkBuffer,
+                    applicationBuffer, nioIpFilter);
             } else {
-                context = new BytesChannelContext(httpChannel, selector, exceptionHandler, httpHandler, buffer, nioIpFilter);
+                context = new BytesChannelContext(httpChannel, selector, exceptionHandler, httpHandler, networkBuffer, nioIpFilter);
             }
             httpChannel.setContext(context);
 

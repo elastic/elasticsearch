@@ -182,7 +182,7 @@ class NioHttpClient implements Closeable {
                 nioSocketChannel.close();
             };
             SocketChannelContext context = new BytesChannelContext(nioSocketChannel, selector, exceptionHandler, handler,
-                InboundChannelBuffer.allocatingInstance(1 << 14));
+                InboundChannelBuffer.allocatingInstance());
             nioSocketChannel.setContext(context);
             return nioSocketChannel;
         }

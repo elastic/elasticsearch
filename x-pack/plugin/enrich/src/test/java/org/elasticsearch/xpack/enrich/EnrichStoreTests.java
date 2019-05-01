@@ -11,6 +11,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -30,6 +31,10 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
 
         EnrichPolicy result = EnrichStore.getPolicy(name, clusterService.state());
         assertThat(result, equalTo(policy));
+
+        Map<String, EnrichPolicy> listPolicies = EnrichStore.getPolicies(clusterService.state());
+        assertThat(listPolicies.size(), equalTo(1));
+        assertThat(listPolicies.get(name), equalTo(policy));
 
         error = deleteEnrichPolicy(name, clusterService);
         assertThat(error.get(), nullValue());
@@ -85,6 +90,12 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
 
         EnrichPolicy policy = EnrichStore.getPolicy("null-policy", clusterService.state());
         assertNull(policy);
+    }
+
+    public void testListValidation()  {
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterService.state());
+        assertTrue(policies.isEmpty());
     }
 
     private AtomicReference<Exception> saveEnrichPolicy(String name, EnrichPolicy policy,

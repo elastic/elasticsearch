@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -53,16 +54,20 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+        declareParserOptions(PARSER);
+    }
+
+    private static void declareParserOptions(ConstructingObjectParser parser) {
+        parser.declareString(ConstructingObjectParser.constructorArg(), TYPE);
+        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(p.contentType().xContent());
             contentBuilder.generator().copyCurrentStructure(p);
             return new QuerySource(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, QUERY);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ENRICH_KEY);
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
+        parser.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN);
+        parser.declareString(ConstructingObjectParser.constructorArg(), ENRICH_KEY);
+        parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
+        parser.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
     }
 
     public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
@@ -226,6 +231,86 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         @Override
         public int hashCode() {
             return Objects.hash(query, contentType);
+        }
+    }
+
+    public static class NamedPolicy implements Writeable, ToXContent {
+
+        static final ParseField NAME = new ParseField("name");
+        @SuppressWarnings("unchecked")
+        static final ConstructingObjectParser<NamedPolicy, Void> PARSER = new ConstructingObjectParser<>("named_policy",
+            args -> {
+                return new NamedPolicy(
+                    (String) args[0],
+                    new EnrichPolicy((String) args[1],
+                        (QuerySource) args[2],
+                        (String) args[3],
+                        (String) args[4],
+                        (List<String>) args[5],
+                        (String) args[6])
+                );
+            }
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
+            declareParserOptions(PARSER);
+        }
+
+        private final String name;
+        private final EnrichPolicy policy;
+
+        public NamedPolicy(String name, EnrichPolicy policy) {
+            this.name = name;
+            this.policy = policy;
+        }
+
+        public NamedPolicy(StreamInput in) throws IOException {
+            name = in.readString();
+            policy = new EnrichPolicy(in);
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public EnrichPolicy getPolicy() {
+            return policy;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            policy.writeTo(out);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            {
+                builder.field(NAME.getPreferredName(), name);
+                policy.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static NamedPolicy fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            NamedPolicy that = (NamedPolicy) o;
+            return name.equals(that.name) &&
+                policy.equals(that.policy);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, policy);
         }
     }
 }

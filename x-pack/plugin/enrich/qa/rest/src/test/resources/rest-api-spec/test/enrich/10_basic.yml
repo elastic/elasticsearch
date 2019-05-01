@@ -10,5 +10,14 @@
           enrich_key: baz
           enrich_values: ["a", "b"]
           schedule: "*/120"
-
   - is_true: acknowledged
+
+  - do:
+      enrich.list_policy: {}
+  - length: { policies: 1 }
+  - match: { policies.0.name: policy-crud }
+  - match: { policies.0.type: exact_match }
+  - match: { policies.0.index_pattern: "bar*" }
+  - match: { policies.0.enrich_key: baz }
+  - match: { policies.0.enrich_values: ["a", "b"] }
+  - match: { policies.0.schedule: "*/120" }

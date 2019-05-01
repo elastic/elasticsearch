@@ -180,7 +180,7 @@ public final class TokenService {
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
-    static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_8_0_0; // TODO change upon backport
+    static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_1_0;
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_1_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_1_0;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
@@ -347,13 +347,12 @@ public final class TokenService {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
         } else {
+            final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME,
+                    getTokenDocumentId(userTokenId)).request();
+            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),
-                () -> {
-                    final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME,
-                        getTokenDocumentId(userTokenId)).request();
-                    Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
-                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                         ActionListener.<GetResponse>wrap(response -> {
                             if (response.isExists()) {
                                 Map<String, Object> accessTokenSource =
@@ -384,8 +383,8 @@ public final class TokenService {
                                 logger.error(new ParameterizedMessage("failed to get access token [{}]", userTokenId), e);
                                 listener.onFailure(e);
                             }
-                        }), client::get);
-                });
+                        }), client::get)
+                );
         }
     }
 
@@ -862,7 +861,9 @@ public final class TokenService {
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                     .setIfSeqNo(seqNo)
                     .setIfPrimaryTerm(primaryTerm);
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
+            refreshedTokenIndex.prepareIndexIfNeededThenExecute(
+                    ex -> listener.onFailure(traceLog("prepare index [" + refreshedTokenIndex.aliasName() + "]", ex)),
+                    () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
                         if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                             logger.debug(() -> new ParameterizedMessage("updated the original token document to {}",
@@ -931,7 +932,7 @@ public final class TokenService {
                         } else {
                             onFailure.accept(e);
                         }
-                    }), client::update);
+                    }), client::update));
         }
     }
 
@@ -1005,7 +1006,9 @@ public final class TokenService {
 
     private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
         final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId).request();
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
+        tokensIndex.checkIndexVersionThenExecute(
+                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get));
     }
 
     private Version getTokenVersionCompatibility() {
@@ -1392,10 +1395,10 @@ public final class TokenService {
             logger.warn("failed to validate access token because the index [" + tokensIndex.aliasName() + "] doesn't exist");
             listener.onResponse(null);
         } else {
+            final GetRequest getRequest = client
+                    .prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(userToken)).request();
+            Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
             tokensIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final GetRequest getRequest = client
-                        .prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(userToken)).request();
-                Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(response -> {
                         if (response.isExists()) {

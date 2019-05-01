@@ -139,7 +139,7 @@ public class TokenServiceTests extends ESTestCase {
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isTokenServiceAllowed()).thenReturn(true);
 
-        // version 7.1 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent refreshes,
+        // version 7.2 was an "inflection" point in the Token Service development (access_tokens as UUIDS, multiple concurrent refreshes,
         // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
         // developments
         if (randomBoolean()) {

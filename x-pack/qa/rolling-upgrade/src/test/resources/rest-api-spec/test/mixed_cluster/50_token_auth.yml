@@ -2,8 +2,6 @@
 "Get the indexed token and use if to authenticate":
   - skip:
       features: headers
-      version: "all"
-      reason: "Backport https://github.com/elastic/elasticsearch/pull/41673"
 
   - do:
       cluster.health:
@@ -61,8 +59,6 @@
 "Get the indexed refreshed access token and use if to authenticate":
   - skip:
       features: headers
-      version: "all"
-      reason: "Backport https://github.com/elastic/elasticsearch/pull/41673"
 
   - do:
       get:
@@ -115,8 +111,6 @@
 "Get the indexed refresh token and use it to get another access token and authenticate":
   - skip:
       features: headers
-      version: "all"
-      reason: "Backport https://github.com/elastic/elasticsearch/pull/41673"
 
   - do:
       get:

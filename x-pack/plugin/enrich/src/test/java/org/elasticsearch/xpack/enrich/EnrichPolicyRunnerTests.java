@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -120,14 +121,15 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             throw exception.get();
         }
 
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
         GetIndexResponse enrichIndex = client().admin().indices()
             .getIndex(new GetIndexRequest().indices(".enrich-test1")).get();
         assertThat(enrichIndex.getIndices().length, equalTo(1));
-        assertThat(enrichIndex.getIndices()[0], equalTo(".enrich-test1-" + createTime));
-
-        GetMappingsResponse getMappingsResponse = client().admin().indices().getMappings(new GetMappingsRequest().indices(".enrich-test1"))
-            .actionGet();
-        Map<String, Object> mapping = getMappingsResponse.getMappings().iterator().next().value.get("_doc").sourceAsMap();
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -234,13 +236,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             throw exception.get();
         }
 
+        String createdEnrichIndex = ".enrich-test1-" + createTime;
         GetIndexResponse enrichIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(".enrich-test1")).actionGet();
         assertThat(enrichIndex.getIndices().length, equalTo(1));
-        assertThat(enrichIndex.getIndices()[0], equalTo(".enrich-test1-" + createTime));
-
-        GetMappingsResponse getMappingsResponse = client().admin().indices().getMappings(new GetMappingsRequest().indices(".enrich-test1"))
-            .actionGet();
-        Map<String, Object> mapping = getMappingsResponse.getMappings().iterator().next().value.get("_doc").sourceAsMap();
+        assertThat(enrichIndex.getIndices()[0], equalTo(createdEnrichIndex));
+        Settings settings = enrichIndex.getSettings().get(createdEnrichIndex);
+        assertNotNull(settings);
+        assertThat(settings.get("index.auto_expand_replicas"), is(equalTo("0-all")));
+        Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);

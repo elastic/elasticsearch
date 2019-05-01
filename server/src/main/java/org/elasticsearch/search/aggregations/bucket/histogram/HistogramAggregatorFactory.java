@@ -68,11 +68,12 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         if (valuesSource instanceof ValuesSource.Numeric) {
             return createAggregator((ValuesSource.Numeric) valuesSource, parent, pipelineAggregators, metaData);
         }
-        else if (valuesSource instanceof ValuesSource.Bytes) {
+        else if (valuesSource instanceof ValuesSource.Bytes.FieldData.RangeFieldData) {
             return createAggregator((ValuesSource.Bytes) valuesSource, parent, pipelineAggregators, metaData);
         }
         else {
-            throw new IllegalArgumentException("Expected one of [Numeric, Bytes] values source, found [" + valuesSource.toString() + "]");
+            throw new IllegalArgumentException("Expected one of [Numeric, RangeFieldData] values source, found ["
+                + valuesSource.toString() + "]");
         }
     }
 

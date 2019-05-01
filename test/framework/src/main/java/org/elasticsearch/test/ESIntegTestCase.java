@@ -1175,12 +1175,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private static final Set<String> SAFE_METADATA_CUSTOMS =
-            Collections.unmodifiableSet(
-                    new HashSet<>(Arrays.asList(IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetaData.TYPE, ScriptMetaData.TYPE)));
+            Set.of(IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetaData.TYPE, ScriptMetaData.TYPE);
 
     private static final Set<String> SAFE_CUSTOMS =
-            Collections.unmodifiableSet(
-                    new HashSet<>(Arrays.asList(RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE)));
+            Set.of(RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE);
 
     /**
      * Remove any customs except for customs that we know all clients understand.

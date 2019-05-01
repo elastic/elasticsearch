@@ -584,9 +584,30 @@ allprojects {
         configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
       }
   }
-}
 
-allprojects {
+  // helper task to print direct dependencies of a single task
+  project.tasks.addRule("Pattern: <taskName>Dependencies") { String taskName ->
+    if (taskName.endsWith("Dependencies") == false) {
+      return
+    }
+    if (project.tasks.findByName(taskName) != null) {
+      return
+    }
+    String realTaskName = taskName.substring(0, taskName.length() - "Dependencies".length())
+    Task realTask = project.tasks.findByName(realTaskName)
+    if (realTask == null) {
+      return
+    }
+    project.tasks.create(taskName) {
+      doLast {
+        println("${realTask.path} dependencies:")
+        for (Task dep : realTask.getTaskDependencies().getDependencies(realTask)) {
+          println("  - ${dep.path}")
+        }
+      }
+    }
+  }
+
   task checkPart1
   task checkPart2 
   tasks.matching { it.name == "check" }.all { check ->
@@ -598,6 +619,21 @@ allprojects {
   } 
 }
 
+subprojects {
+    // Common config when running with a FIPS-140 runtime JVM
+    if (project.ext.has("inFipsJvm") && project.ext.inFipsJvm) {
+        tasks.withType(Test) {
+          systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+          systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+        }
+        project.pluginManager.withPlugin("elasticsearch.testclusters") {
+          project.testClusters.all {
+            systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+            systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+          }
+        }
+    }
+}
 
 
 

@@ -124,6 +124,12 @@ Vagrant.configure(2) do |config|
       sles_common config, box
     end
   end
+  'rhel-8'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/rhel-8-x86_64'
+      rpm_common config, box
+    end
+  end
 
   windows_2012r2_box = ENV['VAGRANT_WINDOWS_2012R2_BOX']
   if windows_2012r2_box && windows_2012r2_box.empty? == false

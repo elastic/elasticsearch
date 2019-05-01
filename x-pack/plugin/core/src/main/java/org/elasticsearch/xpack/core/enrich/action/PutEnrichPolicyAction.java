@@ -22,7 +22,7 @@ public class PutEnrichPolicyAction extends Action<AcknowledgedResponse> {
     public static final PutEnrichPolicyAction INSTANCE = new PutEnrichPolicyAction();
     public static final String NAME = "cluster:admin/xpack/enrich/put";
 
-    protected PutEnrichPolicyAction() {
+    private PutEnrichPolicyAction() {
         super(NAME);
     }
 

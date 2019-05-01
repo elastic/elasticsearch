@@ -23,10 +23,6 @@ import org.elasticsearch.gradle.test.AntFixture
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
-integTestCluster {
-    plugin ':plugins:repository-azure'
-}
-
 boolean useFixture = false
 
 String azureAccount = System.getenv("azure_storage_account")
@@ -60,16 +56,21 @@ processTestResources {
     MavenFilteringHack.filter(it, expansions)
 }
 
-integTestCluster {
-    keystoreSetting 'azure.client.integration_test.account', azureAccount
-    keystoreSetting 'azure.client.integration_test.key', azureKey
+integTest {
+    dependsOn project(':plugins:repository-azure').bundlePlugin
+} 
+
+testClusters.integTest {
+    plugin file(project(':plugins:repository-azure').bundlePlugin.archiveFile)
+    keystore 'azure.client.integration_test.account', azureAccount
+    keystore 'azure.client.integration_test.key', azureKey
 
     if (useFixture) {
-        dependsOn azureStorageFixture
+        tasks.integTest.dependsOn azureStorageFixture
         // Use a closure on the string to delay evaluation until tests are executed. The endpoint_suffix is used
         // in a hacky way to change the protocol and endpoint. We must fix that.
         setting 'azure.client.integration_test.endpoint_suffix',
-                "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${ -> azureStorageFixture.addressAndPort }"
+                { "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=http://${azureStorageFixture.addressAndPort }" }
     } else {
         println "Using an external service to test the repository-azure plugin"
     }

@@ -48,9 +48,7 @@ public class RestGetWatchAction extends WatcherRestHandler {
         return channel -> client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetWatchResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
                 response.toXContent(builder, request);
-                builder.endObject();
                 RestStatus status = response.isFound() ? OK : NOT_FOUND;
                 return new BytesRestResponse(status, builder);
             }

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -85,6 +86,12 @@ public final class SchemaUtil {
             }
         }
 
+        // For pipeline aggs, since they are referencing other aggregations in the payload, they do not have any
+        // sourcefieldnames to put into the payload. Though, certain ones, i.e. avg_bucket, do have determinant value types
+        for (PipelineAggregationBuilder agg : config.getAggregationConfig().getPipelineAggregatorFactories()) {
+            aggregationTypes.put(agg.getName(), agg.getType());
+        }
+
         Map<String, String> allFieldNames = new HashMap<>();
         allFieldNames.putAll(aggregationSourceFieldNames);
         allFieldNames.putAll(fieldNamesForGrouping);
@@ -133,10 +140,11 @@ public final class SchemaUtil {
             String sourceMapping = sourceFieldName == null ? null : sourceMappings.get(sourceFieldName);
             String destinationMapping = Aggregations.resolveTargetMapping(aggregationName, sourceMapping);
 
-            logger.debug(
-                    "Deduced mapping for: [" + targetFieldName + "], agg type [" + aggregationName + "] to [" + destinationMapping + "]");
+            logger.debug("Deduced mapping for: [{}], agg type [{}] to [{}]",
+                    targetFieldName, aggregationName, destinationMapping);
+
             if (Aggregations.isDynamicMapping(destinationMapping)) {
-                logger.info("Dynamic target mapping set for field ["+ targetFieldName +"] and aggregation [" + aggregationName +"]");
+                logger.debug("Dynamic target mapping set for field [{}] and aggregation [{}]", targetFieldName, aggregationName);
             } else if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
@@ -146,8 +154,7 @@ public final class SchemaUtil {
 
         fieldNamesForGrouping.forEach((targetFieldName, sourceFieldName) -> {
             String destinationMapping = sourceMappings.get(sourceFieldName);
-            logger.debug(
-                    "Deduced mapping for: [" + targetFieldName + "] to [" + destinationMapping + "]");
+            logger.debug("Deduced mapping for: [{}] to [{}]", targetFieldName, destinationMapping);
             if (destinationMapping != null) {
                 targetMapping.put(targetFieldName, destinationMapping);
             } else {
@@ -187,7 +194,9 @@ public final class SchemaUtil {
                             final Map<?, ?> map = (Map<?, ?>) typeMap;
                             if (map.containsKey("type")) {
                                 String type = map.get("type").toString();
-                                logger.debug("Extracted type for [" + fieldName + "] : [" + type + "] from index [" + indexName +"]");
+                                if (logger.isTraceEnabled()) {
+                                    logger.trace("Extracted type for [" + fieldName + "] : [" + type + "] from index [" + indexName + "]");
+                                }
                                 // TODO: overwrites types, requires resolve if
                                 // types are mixed
                                 extractedTypes.put(fieldName, type);

@@ -82,7 +82,7 @@ The `vm.max_map_count` setting should be set permanently in `/etc/sysctl.conf`:
 --------------------------------------------
 $ grep vm.max_map_count /etc/sysctl.conf
 vm.max_map_count=262144
-----------------------------------
+--------------------------------------------
 
 To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
 --
@@ -169,6 +169,7 @@ services:
     container_name: es01
     environment:
       - node.name=es01
+      - discovery.seed_hosts=es02
       - cluster.initial_master_nodes=es01,es02
       - cluster.name=docker-cluster
       - bootstrap.memory_lock=true
@@ -286,6 +287,7 @@ comfortable with them adding the `--batch` flag to the plugin install command.
 See {plugins}/_other_command_line_parameters.html[Plugin Management documentation]
 for more details.
 
+[[override-image-default]]
 ===== D. Override the image's default https://docs.docker.com/engine/reference/run/#cmd-default-command-or-options[CMD]
 
 Options can be passed as command-line options to the {es} process by

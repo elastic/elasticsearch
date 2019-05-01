@@ -43,9 +43,7 @@ import org.elasticsearch.client.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.client.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.client.dataframe.transforms.DestConfig;
-import org.elasticsearch.client.dataframe.transforms.QueryConfig;
 import org.elasticsearch.client.dataframe.transforms.SourceConfig;
-import org.elasticsearch.client.dataframe.transforms.pivot.AggregationConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.client.dataframe.transforms.pivot.TermsGroupSource;
@@ -61,7 +59,6 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +68,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -299,19 +297,21 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
     }
 
     private DataFrameTransformConfig validDataFrameTransformConfig(String id, String source, String destination) {
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
-        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();
 
         DestConfig destConfig = (destination != null) ? new DestConfig(destination) : null;
 
-        return new DataFrameTransformConfig(id,
-                new SourceConfig(new String[]{source}, queryConfig),
-                destConfig,
-                pivotConfig);
+        return DataFrameTransformConfig.builder()
+            .setId(id)
+            .setSource(SourceConfig.builder().setIndex(source).setQuery(new MatchAllQueryBuilder()).build())
+            .setDest(destConfig)
+            .setPivotConfig(pivotConfig)
+            .setDescription("this is a test transform")
+            .build();
     }
 
     public void testGetStats() throws Exception {
@@ -319,16 +319,20 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         createIndex(sourceIndex);
         indexData(sourceIndex);
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
-        AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregations(aggBuilder).build();
 
         String id = "test-get-stats";
-        DataFrameTransformConfig transform = new DataFrameTransformConfig(id,
-                new SourceConfig(new String[]{sourceIndex}, queryConfig), new DestConfig("pivot-dest"), pivotConfig);
+        DataFrameTransformConfig transform = DataFrameTransformConfig.builder()
+            .setId(id)
+            .setSource(SourceConfig.builder().setIndex(sourceIndex).setQuery(new MatchAllQueryBuilder()).build())
+            .setDest(new DestConfig("pivot-dest"))
+            .setPivotConfig(pivotConfig)
+            .setDescription("transform for testing stats")
+            .build();
 
         DataFrameClient client = highLevelClient().dataFrame();
         AcknowledgedResponse ack = execute(new PutDataFrameTransformRequest(transform), client::putDataFrameTransform,
@@ -360,6 +364,10 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
             assertEquals(DataFrameTransformTaskState.STARTED, stateAndStats.getTransformState().getTaskState());
             assertEquals(null, stateAndStats.getTransformState().getReason());
             assertNotEquals(zeroIndexerStats, stateAndStats.getTransformStats());
+            assertNotNull(stateAndStats.getTransformState().getProgress());
+            assertThat(stateAndStats.getTransformState().getProgress().getPercentComplete(), equalTo(100.0));
+            assertThat(stateAndStats.getTransformState().getProgress().getTotalDocs(), greaterThan(0L));
+            assertThat(stateAndStats.getTransformState().getProgress().getRemainingDocs(), equalTo(0L));
         });
     }
 }

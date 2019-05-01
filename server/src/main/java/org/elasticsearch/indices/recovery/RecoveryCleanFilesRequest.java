@@ -52,7 +52,7 @@ public class RecoveryCleanFilesRequest extends TransportRequest {
         shardId = ShardId.readShardId(in);
         snapshotFiles = new Store.MetadataSnapshot(in);
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
             globalCheckpoint = in.readZLong();
         } else {
             globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -66,7 +66,7 @@ public class RecoveryCleanFilesRequest extends TransportRequest {
         shardId.writeTo(out);
         snapshotFiles.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
             out.writeZLong(globalCheckpoint);
         }
     }

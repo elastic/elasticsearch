@@ -50,6 +50,7 @@ Splitting works as follows:
   had just been re-opened.
 
 [float]
+[[incremental-resharding]]
 === Why doesn't Elasticsearch support incremental resharding?
 
 Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a
@@ -92,7 +93,7 @@ PUT my_source_index
     "index.number_of_shards" : 1
   }
 }
--------------------------------------------------
+--------------------------------------------------
 // CONSOLE
 
 In order to split an index, the index must be marked as read-only,

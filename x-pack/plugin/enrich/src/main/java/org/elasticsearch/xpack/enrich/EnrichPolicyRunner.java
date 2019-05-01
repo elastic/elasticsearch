@@ -188,8 +188,6 @@ public class EnrichPolicyRunner implements Runnable {
         searchSourceBuilder.fetchSource(retainFields.toArray(new String[0]), new String[0]);
         if (policy.getQuery() != null) {
             searchSourceBuilder.query(QueryBuilders.wrapperQuery(policy.getQuery().getQuery()));
-        } else {
-            searchSourceBuilder.query(QueryBuilders.matchAllQuery());
         }
         ReindexRequest reindexRequest = new ReindexRequest()
             .setDestIndex(destinationIndexName)

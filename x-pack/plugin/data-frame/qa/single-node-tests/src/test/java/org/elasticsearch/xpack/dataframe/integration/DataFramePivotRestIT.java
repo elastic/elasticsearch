@@ -232,7 +232,6 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
         assertTrue(indexExists(dataFrameIndex));
 
-        // we expect 21 documents as there shall be 21 days worth of docs
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
         assertEquals(104, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
         assertOnePivotValue(dataFrameIndex + "/_search?q=by_hr:1484499600000", 4.0833333333);

@@ -3737,7 +3737,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllReplicaOperationsPermits(shard.getOperationPrimaryTerm(), shard.getGlobalCheckpoint(), 0L,
             ActionListener.wrap(r -> {
-                try (r) {
+                try (Releasable dummy = r) {
                     shard.resetEngineToGlobalCheckpoint();
                 } finally {
                     engineResetLatch.countDown();
@@ -3800,7 +3800,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final CountDownLatch engineResetLatch = new CountDownLatch(1);
         shard.acquireAllReplicaOperationsPermits(shard.getOperationPrimaryTerm(), shard.getGlobalCheckpoint(), 0L,
             ActionListener.wrap(r -> {
-                try (r) {
+                try (Releasable dummy = r) {
                     shard.resetEngineToGlobalCheckpoint();
                 } finally {
                     engineResetLatch.countDown();

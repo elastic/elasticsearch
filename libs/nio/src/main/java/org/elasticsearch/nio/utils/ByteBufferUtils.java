@@ -25,19 +25,33 @@ public final class ByteBufferUtils {
 
     private ByteBufferUtils() {}
 
-    public static void copyBytes(ByteBuffer[] from, ByteBuffer to) {
-        int j = 0;
-        while (j < from.length && to.remaining() > 0) {
-            ByteBuffer buffer = from[j++];
-            copyBytes(buffer, to);
+    /**
+     * Copies bytes from the array of byte buffers into the destination buffer. The number of bytes copied is
+     * limited by space remaining in the destination byte buffer.
+     *
+     * @param source byte buffers to copy from
+     * @param destination byte buffer to copy to
+     */
+    public static void copyBytes(ByteBuffer[] source, ByteBuffer destination) {
+        int i = 0;
+        while (i < source.length && destination.remaining() > 0) {
+            ByteBuffer buffer = source[i++];
+            copyBytes(buffer, destination);
         }
     }
 
-    public static void copyBytes(ByteBuffer from, ByteBuffer to) {
-        int nBytesToCopy = Math.min(to.remaining(), from.remaining());
-        int initialLimit = from.limit();
-        from.limit(from.position() + nBytesToCopy);
-        to.put(from);
-        from.limit(initialLimit);
+    /**
+     * Copies bytes from source byte buffer into the destination buffer. The number of bytes copied is
+     * limited by space remaining in the destination byte buffer.
+     *
+     * @param source byte buffer to copy from
+     * @param destination byte buffer to copy to
+     */
+    public static void copyBytes(ByteBuffer source, ByteBuffer destination) {
+        int nBytesToCopy = Math.min(destination.remaining(), source.remaining());
+        int initialLimit = source.limit();
+        source.limit(source.position() + nBytesToCopy);
+        destination.put(source);
+        source.limit(initialLimit);
     }
 }

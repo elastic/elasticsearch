@@ -21,6 +21,7 @@ import java.util.TreeMap;
  */
 public final class IDGenerator {
     private static final byte[] NULL_VALUE = "__NULL_VALUE__".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] EMPTY_VALUE = "__EMPTY_VALUE__".getBytes(StandardCharsets.UTF_8);
     private static final byte DELIM = '$';
     private static final long SEED = 19;
     private static final int MAX_FIRST_BYTES = 5;
@@ -57,7 +58,9 @@ public final class IDGenerator {
 
         for (Object value : objectsForIDGeneration.values()) {
             byte[] v = getBytes(value);
-
+            if (v.length == 0) {
+                v = EMPTY_VALUE;
+            }
             buffer.append(v, 0, v.length);
             buffer.append(DELIM);
 

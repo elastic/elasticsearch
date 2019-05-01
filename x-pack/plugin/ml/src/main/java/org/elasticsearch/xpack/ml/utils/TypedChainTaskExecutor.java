@@ -43,7 +43,7 @@ public class TypedChainTaskExecutor<T> {
      *                              {@code true} means continue on to the next task.
      *                              Must be able to handle null values.
      * @param failureShortCircuitPredicate The predicate on whether to short circuit execution on a give exception.
-     *                                     {@code true} means that no more tasks should execute and the the listener::onFailure should be
+     *                                     {@code true} means that no more tasks should execute and the listener::onFailure should be
      *                                     called.
      */
     public TypedChainTaskExecutor(ExecutorService executorService,
@@ -63,7 +63,8 @@ public class TypedChainTaskExecutor<T> {
         collectedResponses.add(previousValue);
         if (continuationPredicate.test(previousValue)) {
             if (tasks.isEmpty()) {
-               listener.onResponse(Collections.unmodifiableList(new ArrayList<>(collectedResponses)));
+                // noinspection Java9CollectionFactory (because the list can contain null entries)
+                listener.onResponse(Collections.unmodifiableList(new ArrayList<>(collectedResponses)));
                return;
             }
             ChainTask<T> task = tasks.pop();
@@ -83,6 +84,7 @@ public class TypedChainTaskExecutor<T> {
                 }
             });
         } else {
+            // noinspection Java9CollectionFactory (because the list can contain null entries)
             listener.onResponse(Collections.unmodifiableList(new ArrayList<>(collectedResponses)));
         }
     }
@@ -120,6 +122,6 @@ public class TypedChainTaskExecutor<T> {
     }
 
     public synchronized List<T> getCollectedResponses() {
-        return Collections.unmodifiableList(new ArrayList<>(collectedResponses));
+        return List.copyOf(collectedResponses);
     }
 }

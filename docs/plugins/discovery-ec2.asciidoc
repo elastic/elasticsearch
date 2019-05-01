@@ -28,9 +28,9 @@ groups, and their placement within availability zones. The discovery process
 will work correctly even if it finds master-ineligible nodes, but master
 elections will be more efficient if this can be avoided.
 
-The interaction with the AWS API can be authenticated using an
+The interaction with the AWS API can be authenticated using the
 http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[instance
-or container role], or else custom credentials can be supplied.
+role], or else custom credentials can be supplied.
 
 ===== Enabling EC2 discovery
 
@@ -59,8 +59,8 @@ The available settings for the EC2 discovery plugin are as follows.
 `discovery.ec2.access_key`::
 
     An EC2 access key. If set, you must also set `discovery.ec2.secret_key`.
-    If unset, `discovery-ec2` will instead use the instance or container role
-    as appropriate. This setting is sensitive and must be stored in the
+    If unset, `discovery-ec2` will instead use the instance role as
+    appropriate. This setting is sensitive and must be stored in the
     {ref}/secure-settings.html[{es} keystore].
 
 `discovery.ec2.secret_key`::

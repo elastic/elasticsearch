@@ -42,7 +42,7 @@ public class TermsGroupSource extends SingleGroupSource implements ToXContentObj
         return PARSER.apply(parser, null);
     }
 
-    public TermsGroupSource(final String field) {
+    TermsGroupSource(final String field) {
         super(field);
     }
 
@@ -59,5 +59,28 @@ public class TermsGroupSource extends SingleGroupSource implements ToXContentObj
         }
         builder.endObject();
         return builder;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private String field;
+
+        /**
+         * The field with which to construct the date histogram grouping
+         * @param field The field name
+         * @return The {@link Builder} with the field set.
+         */
+        public Builder setField(String field) {
+            this.field = field;
+            return this;
+        }
+
+        public TermsGroupSource build() {
+            return new TermsGroupSource(field);
+        }
     }
 }

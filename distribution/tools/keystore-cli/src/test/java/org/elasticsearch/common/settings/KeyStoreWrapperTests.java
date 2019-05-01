@@ -19,27 +19,6 @@
 
 package org.elasticsearch.common.settings;
 
-import javax.crypto.Cipher;
-import javax.crypto.CipherOutputStream;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystem;
-import java.nio.file.Path;
-import java.security.KeyStore;
-import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -52,10 +31,36 @@ import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
+import javax.crypto.Cipher;
+import javax.crypto.CipherOutputStream;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Set;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class KeyStoreWrapperTests extends ESTestCase {
 
@@ -386,4 +391,56 @@ public class KeyStoreWrapperTests extends ESTestCase {
             assertEquals(-1, fileInput.read());
         }
     }
+
+    public void testStringAndFileDistinction() throws Exception {
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
+        wrapper.setString("string_setting", "string_value".toCharArray());
+        final Path temp = createTempDir();
+        Files.writeString(temp.resolve("file_setting"), "file_value", StandardCharsets.UTF_8);
+        wrapper.setFile("file_setting", Files.readAllBytes(temp.resolve("file_setting")));
+        wrapper.save(env.configFile(), new char[0]);
+        wrapper.close();
+
+        final KeyStoreWrapper afterSave = KeyStoreWrapper.load(env.configFile());
+        assertNotNull(afterSave);
+        afterSave.decrypt(new char[0]);
+        assertThat(afterSave.getSettingNames(), equalTo(Set.of("keystore.seed", "string_setting", "file_setting")));
+        assertThat(afterSave.getString("string_setting"), equalTo("string_value"));
+        assertThat(toByteArray(afterSave.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
+        assertThat(afterSave.getString("file_setting"), equalTo("file_value"));
+        assertThat(toByteArray(afterSave.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public void testLegacyV3() throws GeneralSecurityException, IOException {
+        final Path configDir = createTempDir();
+        final Path keystore = configDir.resolve("elasticsearch.keystore");
+        try (InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v3-elasticsearch.keystore");
+             OutputStream os = Files.newOutputStream(keystore)) {
+            final byte[] buffer = new byte[4096];
+            int readBytes;
+            while ((readBytes = is.read(buffer)) > 0) {
+                os.write(buffer, 0, readBytes);
+            }
+        }
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt(new char[0]);
+        assertThat(wrapper.getFormatVersion(), equalTo(3));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed", "string_setting", "file_setting")));
+        assertThat(wrapper.getString("string_setting"), equalTo("string_value"));
+        assertThat(toByteArray(wrapper.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
+        assertThat(wrapper.getString("file_setting"), equalTo("file_value"));
+        assertThat(toByteArray(wrapper.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private byte[] toByteArray(final InputStream is) throws IOException {
+        final ByteArrayOutputStream os = new ByteArrayOutputStream();
+        final byte[] buffer = new byte[1024];
+        int readBytes;
+        while ((readBytes = is.read(buffer)) > 0) {
+            os.write(buffer, 0, readBytes);
+        }
+        return os.toByteArray();
+    }
+
 }

@@ -152,7 +152,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                 for (DeleteObjectsRequest deleteRequest : deleteRequests) {
                     try {
                         clientReference.client().deleteObjects(deleteRequest);
-                        outstanding.removeAll(partition);
+                        outstanding.removeAll(
+                            deleteRequest.getKeys().stream().map(DeleteObjectsRequest.KeyVersion::getKey).collect(Collectors.toList()));
                     } catch (MultiObjectDeleteException e) {
                         outstanding.removeAll(
                             e.getDeletedObjects().stream().map(DeleteObjectsResult.DeletedObject::getKey).collect(Collectors.toList()));

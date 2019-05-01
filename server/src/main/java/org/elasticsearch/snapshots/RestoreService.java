@@ -379,6 +379,7 @@ public class RestoreService implements ClusterStateApplier {
                     if (request.includeGlobalState()) {
                         if (metaData.persistentSettings() != null) {
                             Settings settings = metaData.persistentSettings();
+                            clusterSettings.validate(settings, true);
                             clusterSettings.validateUpdate(settings);
                             mdBuilder.persistentSettings(settings);
                         }

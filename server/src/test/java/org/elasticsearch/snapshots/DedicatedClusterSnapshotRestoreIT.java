@@ -185,7 +185,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37485")
     public void testExceptionWhenRestoringPersistentSettings() {
         logger.info("--> start 2 nodes");
         internalCluster().startNodes(2);

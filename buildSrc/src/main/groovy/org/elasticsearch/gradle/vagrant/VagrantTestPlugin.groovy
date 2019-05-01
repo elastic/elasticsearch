@@ -30,6 +30,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             'oel-6',
             'oel-7',
             'opensuse-42',
+            'rhel-8',
             'sles-12',
             'ubuntu-1404',
             'ubuntu-1604',

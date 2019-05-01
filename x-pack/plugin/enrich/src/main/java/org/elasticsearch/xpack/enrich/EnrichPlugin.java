@@ -31,8 +31,11 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.action.TransportListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportPutEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.rest.RestListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
 import java.util.Arrays;
@@ -74,6 +77,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         }
 
         return Arrays.asList(
+            new ActionHandler<>(ListEnrichPolicyAction.INSTANCE, TransportListEnrichPolicyAction.class),
             new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class)
         );
     }
@@ -87,6 +91,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
         }
 
         return Arrays.asList(
+            new RestListEnrichPolicyAction(settings, restController),
             new RestPutEnrichPolicyAction(settings, restController)
         );
     }

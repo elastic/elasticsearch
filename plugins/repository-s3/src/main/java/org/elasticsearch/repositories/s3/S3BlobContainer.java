@@ -151,15 +151,15 @@ class S3BlobContainer extends AbstractBlobContainer {
                 for (DeleteObjectsRequest deleteRequest : deleteRequests) {
                     List<String> keysInRequest =
                         deleteRequest.getKeys().stream().map(DeleteObjectsRequest.KeyVersion::getKey).collect(Collectors.toList());
-                    outstanding.removeAll(keysInRequest);
                     try {
                         clientReference.client().deleteObjects(deleteRequest);
+                        outstanding.removeAll(keysInRequest);
                     } catch (MultiObjectDeleteException e) {
+                        outstanding.removeAll(keysInRequest);
                         outstanding.addAll(
                             e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getKey).collect(Collectors.toSet()));
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
                     } catch (AmazonClientException e) {
-                        outstanding.addAll(keysInRequest);
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
                     }
                 }

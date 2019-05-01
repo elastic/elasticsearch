@@ -44,7 +44,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * The dangling indices state is responsible for finding new dangling indices (indices that have
@@ -88,7 +87,7 @@ public class DanglingIndicesState implements ClusterStateListener {
      */
     Map<Index, IndexMetaData> getDanglingIndices() {
         // This might be a good use case for CopyOnWriteHashMap
-        return unmodifiableMap(new HashMap<>(danglingIndices));
+        return Map.copyOf(danglingIndices);
     }
 
     /**

@@ -24,7 +24,6 @@ import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
-import com.amazonaws.services.s3.model.DeleteObjectsResult;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.ObjectListing;
@@ -150,13 +149,15 @@ class S3BlobContainer extends AbstractBlobContainer {
             SocketAccess.doPrivilegedVoid(() -> {
                 AmazonClientException aex = null;
                 for (DeleteObjectsRequest deleteRequest : deleteRequests) {
+                    List<String> keysInRequest =
+                        deleteRequest.getKeys().stream().map(DeleteObjectsRequest.KeyVersion::getKey).collect(Collectors.toList());
                     try {
                         clientReference.client().deleteObjects(deleteRequest);
-                        outstanding.removeAll(
-                            deleteRequest.getKeys().stream().map(DeleteObjectsRequest.KeyVersion::getKey).collect(Collectors.toList()));
+                        outstanding.removeAll(keysInRequest);
                     } catch (MultiObjectDeleteException e) {
-                        outstanding.removeAll(
-                            e.getDeletedObjects().stream().map(DeleteObjectsResult.DeletedObject::getKey).collect(Collectors.toList()));
+                        Set<String> failedKeys =
+                            e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getKey).collect(Collectors.toSet());
+                        outstanding.removeIf(key -> keysInRequest.contains(key) && failedKeys.contains(key) == false);
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
                     } catch (AmazonClientException e) {
                         aex = ExceptionsHelper.useOrSuppress(aex, e);

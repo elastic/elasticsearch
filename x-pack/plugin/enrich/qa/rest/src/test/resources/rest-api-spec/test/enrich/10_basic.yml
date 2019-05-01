@@ -1,5 +1,6 @@
 ---
 "Test enrich crud apis":
+
   - do:
       enrich.put_policy:
         name: policy-crud
@@ -19,3 +20,13 @@
   - match: { enrich_key: baz }
   - match: { enrich_values: ["a", "b"] }
   - match: { schedule: "*/120" }
+
+  - do:
+      enrich.list_policy: {}
+  - length: { policies: 1 }
+  - match: { policies.0.name: policy-crud }
+  - match: { policies.0.type: exact_match }
+  - match: { policies.0.index_pattern: "bar*" }
+  - match: { policies.0.enrich_key: baz }
+  - match: { policies.0.enrich_values: ["a", "b"] }
+  - match: { policies.0.schedule: "*/120" }

@@ -229,7 +229,10 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[ifNullReturnSecond]
 .Synopsis:
 [source, sql]
 ----
-IIF(expression<1>, expression<2>, [expression<3>])
+IIF(
+    expression,   <1>
+    expression,   <2>
+    [expression]) <3>
 ----
 
 *Input*:

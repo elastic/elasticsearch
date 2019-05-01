@@ -1137,7 +1137,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             ImmutableOpenIntMap.Builder<Set<String>> filledInSyncAllocationIds = ImmutableOpenIntMap.builder();
             for (int i = 0; i < numberOfShards; i++) {
                 if (inSyncAllocationIds.containsKey(i)) {
-                    filledInSyncAllocationIds.put(i, Collections.unmodifiableSet(new HashSet<>(inSyncAllocationIds.get(i))));
+                    filledInSyncAllocationIds.put(i, Set.copyOf(inSyncAllocationIds.get(i)));
                 } else {
                     filledInSyncAllocationIds.put(i, Collections.emptySet());
                 }

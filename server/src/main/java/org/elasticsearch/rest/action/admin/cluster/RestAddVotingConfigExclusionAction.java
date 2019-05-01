@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -47,15 +48,19 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String nodeName = request.param("node_name");
-        AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = new AddVotingConfigExclusionsRequest(
-            new String[]{nodeName},
-            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
-        );
+        AddVotingConfigExclusionsRequest votingConfigExclusionsRequest = resolveVotingConfigExclusionsRequest(request);
         return channel -> client.execute(
             AddVotingConfigExclusionsAction.INSTANCE,
             votingConfigExclusionsRequest,
             new RestToXContentListener<>(channel)
+        );
+    }
+
+    AddVotingConfigExclusionsRequest resolveVotingConfigExclusionsRequest(final RestRequest request) {
+        String nodeName = request.param("node_name");
+        return new AddVotingConfigExclusionsRequest(
+            Strings.splitStringByCommaToArray(nodeName),
+            TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
         );
     }
 }

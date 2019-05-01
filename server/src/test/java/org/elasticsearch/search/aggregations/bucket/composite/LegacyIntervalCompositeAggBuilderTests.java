@@ -90,6 +90,8 @@ public class LegacyIntervalCompositeAggBuilderTests extends BaseAggregationTestC
     protected CompositeAggregationBuilder createTestAggregatorBuilder() {
         int numSources = randomIntBetween(1, 10);
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
+        // ensure we add at least one date histo
+        sources.add(randomDateHistogramSourceBuilder());
         for (int i = 0; i < numSources; i++) {
             int type = randomIntBetween(0, 2);
             switch (type) {

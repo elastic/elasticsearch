@@ -221,13 +221,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-<<<<<<< HEAD
-        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex, clusterService, threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, securityIndex, clusterService);
-=======
         apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService, threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService);
->>>>>>> Security on Basic License (#107)
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, securityIndex, clusterService);
         service = new AuthenticationService(settings, realms, auditTrail, new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
             threadPool, new AnonymousUser(settings), tokenService, apiKeyService);
     }

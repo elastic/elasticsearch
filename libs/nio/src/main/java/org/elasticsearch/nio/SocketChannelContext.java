@@ -325,7 +325,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             ioBuffer.clear();
             ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
             int j = 0;
-            ByteBuffer[] buffers = flushOperation.getBuffersToWrite();
+            ByteBuffer[] buffers = flushOperation.getBuffersToWrite(WRITE_LIMIT);
             while (j < buffers.length && ioBuffer.remaining() > 0) {
                 ByteBuffer buffer = buffers[j++];
                 copyBytes(buffer, ioBuffer);

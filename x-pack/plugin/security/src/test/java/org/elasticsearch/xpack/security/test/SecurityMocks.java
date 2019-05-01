@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -65,23 +65,23 @@ public final class SecurityMocks {
     }
 
     public static void mockGetRequest(Client client, String documentId, BytesReference source) {
-        GetResult result = new GetResult(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, documentId, 0, 1, 1, true, source, emptyMap());
+        GetResult result = new GetResult(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, documentId, 0, 1, 1, true, source, emptyMap());
         mockGetRequest(client, documentId, result);
     }
 
     public static void mockGetRequest(Client client, String documentId, GetResult result) {
         final GetRequestBuilder requestBuilder = new GetRequestBuilder(client, GetAction.INSTANCE);
-        requestBuilder.setIndex(SECURITY_INDEX_NAME);
+        requestBuilder.setIndex(SECURITY_MAIN_ALIAS);
         requestBuilder.setType(SINGLE_MAPPING_NAME);
         requestBuilder.setId(documentId);
-        when(client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, documentId)).thenReturn(requestBuilder);
+        when(client.prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, documentId)).thenReturn(requestBuilder);
 
         doAnswer(inv -> {
             Assert.assertThat(inv.getArguments(), arrayWithSize(2));
             Assert.assertThat(inv.getArguments()[0], instanceOf(GetRequest.class));
             final GetRequest request = (GetRequest) inv.getArguments()[0];
             Assert.assertThat(request.id(), equalTo(documentId));
-            Assert.assertThat(request.index(), equalTo(SECURITY_INDEX_NAME));
+            Assert.assertThat(request.index(), equalTo(SECURITY_MAIN_ALIAS));
             Assert.assertThat(request.type(), equalTo(SINGLE_MAPPING_NAME));
 
             Assert.assertThat(inv.getArguments()[1], instanceOf(ActionListener.class));

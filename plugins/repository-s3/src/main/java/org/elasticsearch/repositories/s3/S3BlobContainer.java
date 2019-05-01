@@ -155,11 +155,15 @@ class S3BlobContainer extends AbstractBlobContainer {
                         clientReference.client().deleteObjects(deleteRequest);
                         outstanding.removeAll(keysInRequest);
                     } catch (MultiObjectDeleteException e) {
+                        // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
+                        // first remove all keys that were sent in the request and then add back those that ran into an exception.
                         outstanding.removeAll(keysInRequest);
                         outstanding.addAll(
                             e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getKey).collect(Collectors.toSet()));
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
                     } catch (AmazonClientException e) {
+                        // The AWS client threw any unexpected exception and did not execute the request at all so we do not
+                        // remove any keys from the outstanding deletes set.
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
                     }
                 }

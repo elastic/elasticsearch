@@ -98,7 +98,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
                 return new Page(ByteBuffer.wrap(bytes.v()), bytes::close);
             };
             HttpReadWriteHandler httpHandler = new HttpReadWriteHandler(httpChannel,SecurityNioHttpServerTransport.this,
-                handlingSettings, corsConfig);
+                handlingSettings, corsConfig, selector.getTaskScheduler(), threadPool::relativeTimeInNanos);
             InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
             Consumer<Exception> exceptionHandler = (e) -> securityExceptionHandler.accept(httpChannel, e);
 

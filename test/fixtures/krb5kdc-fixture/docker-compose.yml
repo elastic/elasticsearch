@@ -8,6 +8,7 @@ services:
     command: "bash /fixture/src/main/resources/provision/peppa.sh"
     volumes:
       - ./build/shared/peppa:/fixture/build
+      - /dev/urandom:/dev/random
     ports:
       - "4444"
       - "88/udp"
@@ -19,6 +20,7 @@ services:
     command: "bash /fixture/src/main/resources/provision/hdfs.sh"
     volumes:
       - ./build/shared/hdfs:/fixture/build
+      - /dev/urandom:/dev/random
     ports:
       - "4444"
       - "88/udp"

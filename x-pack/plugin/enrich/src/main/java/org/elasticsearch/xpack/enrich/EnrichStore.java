@@ -85,7 +85,13 @@ public final class EnrichStore {
         return getPolicies(state).get(name);
     }
 
-    private static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
+    /**
+     * Gets all policies in the cluster.
+     *
+     * @param state the cluster state
+     * @return a Map of <code>policyName, EnrichPolicy</code> of the policies
+     */
+    public static Map<String, EnrichPolicy> getPolicies(ClusterState state) {
         final Map<String, EnrichPolicy> policies;
         final EnrichMetadata enrichMetadata = state.metaData().custom(EnrichMetadata.TYPE);
         if (enrichMetadata != null) {

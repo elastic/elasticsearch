@@ -174,6 +174,7 @@ public class NodeTests extends ESTestCase {
         shouldRun.set(false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41448")
     public void testCloseOnInterruptibleTask() throws Exception {
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();

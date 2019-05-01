@@ -50,6 +50,7 @@ Splitting works as follows:
   had just been re-opened.
 
 [float]
+[[incremental-resharding]]
 === Why doesn't Elasticsearch support incremental resharding?
 
 Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a

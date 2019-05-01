@@ -82,7 +82,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
         }
 
         // create index
-        BulkRequestBuilder bulk = client().prepareBulk(REVIEWS_INDEX_NAME, "_doc");
+        BulkRequestBuilder bulk = client().prepareBulk(REVIEWS_INDEX_NAME);
         int day = 10;
         for (int i = 0; i < numDocs; i++) {
             long user = i % 28;
@@ -113,7 +113,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
             if (i % 50 == 0) {
                 BulkResponse response = client().bulk(bulk.request()).get();
                 assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
-                bulk = client().prepareBulk(REVIEWS_INDEX_NAME, "_doc");
+                bulk = client().prepareBulk(REVIEWS_INDEX_NAME);
                 day += 1;
             }
         }

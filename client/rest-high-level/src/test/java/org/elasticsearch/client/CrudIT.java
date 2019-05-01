@@ -54,11 +54,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
 import org.elasticsearch.rest.action.document.RestIndexAction;
-import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -424,36 +422,6 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("index", response.getResponses()[1].getIndex());
             assertEquals(Collections.singletonMap("field", "value2"), response.getResponses()[1].getResponse().getSource());
         }
-    }
-
-    public void testMultiGetWithTypes() throws IOException {
-        BulkRequest bulk = new BulkRequest();
-        bulk.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
-        bulk.add(new IndexRequest("index", "type", "id1")
-            .source("{\"field\":\"value1\"}", XContentType.JSON));
-        bulk.add(new IndexRequest("index", "type", "id2")
-            .source("{\"field\":\"value2\"}", XContentType.JSON));
-
-        highLevelClient().bulk(bulk, expectWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE));
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        multiGetRequest.add("index", "id1");
-        multiGetRequest.add("index", "type", "id2");
-
-        MultiGetResponse response = execute(multiGetRequest,
-            highLevelClient()::mget,
-            highLevelClient()::mgetAsync,
-            expectWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE));
-        assertEquals(2, response.getResponses().length);
-
-        GetResponse firstResponse = response.getResponses()[0].getResponse();
-        assertEquals("index", firstResponse.getIndex());
-        assertEquals("type", firstResponse.getType());
-        assertEquals("id1", firstResponse.getId());
-
-        GetResponse secondResponse = response.getResponses()[1].getResponse();
-        assertEquals("index", secondResponse.getIndex());
-        assertEquals("type", secondResponse.getType());
-        assertEquals("id2", secondResponse.getId());
     }
 
     public void testIndex() throws IOException {

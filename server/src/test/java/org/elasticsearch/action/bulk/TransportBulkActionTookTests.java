@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -201,8 +200,6 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
             }
         });
-        //This test's JSON contains outdated references to types
-        assertWarnings(RestBulkAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     static class Resolver extends IndexNameExpressionResolver {

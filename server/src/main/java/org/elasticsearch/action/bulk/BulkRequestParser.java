@@ -19,14 +19,12 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -35,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -49,10 +46,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  */
 public final class BulkRequestParser {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(BulkRequestParser.class));
-
     private static final ParseField INDEX = new ParseField("_index");
-    private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
     private static final ParseField OP_TYPE = new ParseField("op_type");
@@ -64,14 +58,10 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
 
-    private final boolean warnOnTypeUsage;
-
     /**
      * Create a new parser.
-     * @param warnOnTypeUsage whether it warns upon types being explicitly specified
      */
-    public BulkRequestParser(boolean warnOnTypeUsage) {
-        this.warnOnTypeUsage = warnOnTypeUsage;
+    public BulkRequestParser() {
     }
 
     private static int findNextMarker(byte marker, int from, BytesReference data) {
@@ -114,31 +104,10 @@ public final class BulkRequestParser {
             Consumer<IndexRequest> indexRequestConsumer,
             Consumer<UpdateRequest> updateRequestConsumer,
             Consumer<DeleteRequest> deleteRequestConsumer) throws IOException {
-        parse(data, defaultIndex, null, defaultRouting, defaultFetchSourceContext, defaultPipeline, allowExplicitIndex, xContentType,
-                indexRequestConsumer, updateRequestConsumer, deleteRequestConsumer);
-    }
-
-    /**
-     * Parse the provided {@code data} assuming the provided default values. Index requests
-     * will be passed to the {@code indexRequestConsumer}, update requests to the
-     * {@code updateRequestConsumer} and delete requests to the {@code deleteRequestConsumer}.
-     * @deprecated Use {@link #parse(BytesReference, String, String, FetchSourceContext, String, boolean, XContentType,
-     * Consumer, Consumer, Consumer)} instead.
-     */
-    @Deprecated
-    public void parse(
-            BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType,
-            @Nullable String defaultRouting, @Nullable FetchSourceContext defaultFetchSourceContext,
-            @Nullable String defaultPipeline, boolean allowExplicitIndex,
-            XContentType xContentType,
-            Consumer<IndexRequest> indexRequestConsumer,
-            Consumer<UpdateRequest> updateRequestConsumer,
-            Consumer<DeleteRequest> deleteRequestConsumer) throws IOException {
         XContent xContent = xContentType.xContent();
         int line = 0;
         int from = 0;
         byte marker = xContent.streamSeparator();
-        boolean typesDeprecationLogged = false;
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
@@ -172,7 +141,6 @@ public final class BulkRequestParser {
                 String action = parser.currentName();
 
                 String index = defaultIndex;
-                String type = defaultType;
                 String id = null;
                 String routing = defaultRouting;
                 FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
@@ -199,12 +167,6 @@ public final class BulkRequestParser {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = parser.text();
-                            } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {   
-                                if (warnOnTypeUsage && typesDeprecationLogged == false) {
-                                    deprecationLogger.deprecatedAndMaybeLog("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
-                                    typesDeprecationLogged = true;
-                                }
-                                type = parser.text();
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -246,7 +208,7 @@ public final class BulkRequestParser {
                 }
 
                 if ("delete".equals(action)) {
-                    deleteRequestConsumer.accept(new DeleteRequest(index, type, id).routing(routing)
+                    deleteRequestConsumer.accept(new DeleteRequest(index, id).routing(routing)
                             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
                 } else {
                     nextMarker = findNextMarker(marker, from, data);
@@ -259,19 +221,19 @@ public final class BulkRequestParser {
                     // of index request.
                     if ("index".equals(action)) {
                         if (opType == null) {
-                            indexRequestConsumer.accept(new IndexRequest(index, type, id).routing(routing)
+                            indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
                                     .version(version).versionType(versionType)
                                     .setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType));
                         } else {
-                            indexRequestConsumer.accept(new IndexRequest(index, type, id).routing(routing)
+                            indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
                                     .version(version).versionType(versionType)
                                     .create("create".equals(opType)).setPipeline(pipeline)
                                     .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType));
                         }
                     } else if ("create".equals(action)) {
-                        indexRequestConsumer.accept(new IndexRequest(index, type, id).routing(routing)
+                        indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
                                 .version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType));
@@ -280,7 +242,7 @@ public final class BulkRequestParser {
                             throw new IllegalArgumentException("Update requests do not support versioning. " +
                                     "Please use `if_seq_no` and `if_primary_term` instead");
                         }
-                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
+                        UpdateRequest updateRequest = new UpdateRequest(index, id).routing(routing).retryOnConflict(retryOnConflict)
                                 .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .routing(routing);
                         // EMPTY is safe here because we never call namedObject

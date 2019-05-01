@@ -116,7 +116,7 @@ public class BulkIntegrationIT extends ESIntegTestCase {
 
         {
             createSamplePipeline("pipeline");
-            BulkRequestBuilder bulkBuilder = client().prepareBulk("test","type1")
+            BulkRequestBuilder bulkBuilder = client().prepareBulk("test")
                 .routing("routing")
                 .pipeline("pipeline");
 

@@ -497,7 +497,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 datafeedManager,
                 auditor,
                 new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
-                memoryTracker
+                memoryTracker,
+                nativeStorageProvider
         );
     }
 

@@ -15,6 +15,7 @@ Infra/Packaging::
 
 Machine Learning::
 * Allow xpack.ml.max_machine_memory_percent higher than 100% {pull}41193[#41193]
+* Add the "time" system call to the syscall filter {ml-pull}459[#459] (issue: {issue}41101[#41101])
 
 
 

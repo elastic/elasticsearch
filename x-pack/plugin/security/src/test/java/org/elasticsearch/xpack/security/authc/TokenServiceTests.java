@@ -394,7 +394,6 @@ public class TokenServiceTests extends ESTestCase {
 
         requestContext = new ThreadContext(Settings.EMPTY);
         storeTokenHeader(requestContext, tokenService.getUserTokenString(newToken));
-        requestContext.putHeader("Authorization", "Bearer " + tokenService.getUserTokenString(newToken));
         mockGetTokenFromId(newToken);
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();

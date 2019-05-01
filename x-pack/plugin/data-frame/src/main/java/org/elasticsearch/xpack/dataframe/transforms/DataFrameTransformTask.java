@@ -576,8 +576,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         @Override
         protected void onStop() {
-            auditor.info(transformConfig.getId(), "Received stop request, stopping indexer");
-            logger.info("Data frame transform [{}] received stop request, stopping indexer", transformConfig.getId());
+            auditor.info(transformConfig.getId(), "Indexer has stopped");
+            logger.info("Data frame transform [{}] indexer has stopped", transformConfig.getId());
             transformTask.shutdown();
         }
 

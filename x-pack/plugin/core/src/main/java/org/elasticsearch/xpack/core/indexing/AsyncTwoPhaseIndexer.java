@@ -86,8 +86,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     /**
      * Sets the internal state to {@link IndexerState#STOPPING} if an async job is
-     * running in the background. If there is no job running when this function is
-     * called, the state is directly set to {@link IndexerState#STOPPED}.
+     * running in the background, {@link #onStop()} will be called when the background job
+     * detects that the indexer is stopped.
+     * If there is no job running when this function is called
+     * the state is set to {@link IndexerState#STOPPED} and {@link #onStop()} called directly.
      *
      * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the job was already aborted).
      */
@@ -96,6 +98,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (previousState == IndexerState.INDEXING) {
                 return IndexerState.STOPPING;
             } else if (previousState == IndexerState.STARTED) {
+                onStop();
                 return IndexerState.STOPPED;
             } else {
                 return previousState;

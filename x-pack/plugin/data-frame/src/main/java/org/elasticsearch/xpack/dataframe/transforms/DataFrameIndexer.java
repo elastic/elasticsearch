@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
@@ -64,6 +66,9 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     protected abstract Map<String, String> getFieldMappings();
 
+    @Nullable
+    protected abstract DataFrameTransformProgress getProgress();
+
     protected abstract void failIndexer(String message);
 
     public int getPageSize() {
@@ -87,7 +92,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             }
 
             // if run for the 1st time, create checkpoint
-            if (getPosition() == null) {
+            if (initialRun()) {
                 createCheckpoint(listener);
             } else {
                 listener.onResponse(null);
@@ -95,6 +100,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    protected boolean initialRun() {
+        return getPosition() == null;
     }
 
     @Override
@@ -106,8 +115,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-        return new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()), agg.afterKey(),
-                agg.getBuckets().isEmpty());
+        long docsBeforeProcess = getStats().getNumDocuments();
+        IterationResult<Map<String, Object>> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
+            agg.afterKey(),
+            agg.getBuckets().isEmpty());
+        if (getProgress() != null) {
+            getProgress().docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+        }
+        return result;
     }
 
     /*

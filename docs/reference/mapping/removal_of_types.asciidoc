@@ -216,6 +216,7 @@ GET twitter/_search
 <1> The explicit `type` field takes the place of the implicit `_type` field.
 
 [float]
+[[parent-child-mapping-types]]
 ==== Parent/Child without mapping types
 
 Previously, a parent-child relationship was represented by making one mapping
@@ -431,7 +432,7 @@ In Elasticsearch 7.0, each API will support typeless requests,
 and specifying a type will produce a deprecation warning.
 
 NOTE: Typeless APIs work even if the target index contains a custom type.
-For example, if an index has the the custom type name `my_type`, we can add
+For example, if an index has the custom type name `my_type`, we can add
 documents to it using typeless `index` calls, and load documents with typeless
 `get` calls.
 

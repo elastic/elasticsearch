@@ -102,7 +102,7 @@ import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 public class ApiKeyService {
 
@@ -211,7 +211,7 @@ public class ApiKeyService {
                 .should(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("expiration_time")));
         boolQuery.filter(expiredQuery);
 
-        final SearchRequest searchRequest = client.prepareSearch(SECURITY_INDEX_NAME)
+        final SearchRequest searchRequest = client.prepareSearch(SECURITY_MAIN_ALIAS)
             .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
             .setQuery(boolQuery)
             .setVersion(false)
@@ -237,12 +237,6 @@ public class ApiKeyService {
         final Instant expiration = getApiKeyExpiration(created, request);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         final Version version = clusterService.state().nodes().getMinNodeVersion();
-        if (version.before(Version.V_6_7_0)) {
-            logger.warn(
-                    "nodes prior to the minimum supported version for api keys {} exist in the cluster;"
-                            + " these nodes will not be able to use api keys",
-                    Version.V_6_7_0);
-        }
 
         final char[] keyHash = hasher.hash(apiKey);
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -290,7 +284,7 @@ public class ApiKeyService {
                 .endObject()
                 .endObject();
             final IndexRequest indexRequest =
-                client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME)
+                client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME)
                     .setSource(builder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
@@ -323,7 +317,7 @@ public class ApiKeyService {
 
             if (credentials != null) {
                 final GetRequest getRequest = client
-                        .prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, credentials.getId())
+                        .prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, credentials.getId())
                         .setFetchSource(true)
                         .request();
                 executeAsyncWithOrigin(ctx, SECURITY_ORIGIN, getRequest, ActionListener.<GetResponse>wrap(response -> {
@@ -711,7 +705,7 @@ public class ApiKeyService {
             boolQuery.filter(expiredQuery);
         }
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
-            final SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
+            final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
                 .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                 .setQuery(boolQuery)
                 .setVersion(false)
@@ -780,7 +774,7 @@ public class ApiKeyService {
             BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (String apiKeyId : apiKeyIds) {
                 UpdateRequest request = client
-                        .prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, apiKeyId)
+                        .prepareUpdate(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, apiKeyId)
                         .setDoc(Collections.singletonMap("api_key_invalidated", true))
                         .request();
                 bulkRequestBuilder.add(request);

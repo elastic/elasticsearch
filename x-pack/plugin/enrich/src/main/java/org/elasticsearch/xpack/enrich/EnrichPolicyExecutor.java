@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
-class EnrichPolicyExecutor {
+public class EnrichPolicyExecutor {
 
     private final ClusterService clusterService;
     private final Client client;

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsRes
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -53,7 +52,7 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
         buildGroupQuery(connection, userDn, timeout,
                 ignoreReferralErrors, ActionListener.wrap((filter) -> {
                     if (filter == null) {
-                        listener.onResponse(Collections.emptyList());
+                        listener.onResponse(List.of());
                     } else {
                         logger.debug("group SID to DN [{}] search filter: [{}]", userDn, filter);
                         search(connection, baseDn, scope.scope(), filter,
@@ -61,8 +60,8 @@ class ActiveDirectoryGroupsResolver implements GroupsResolver {
                                 ActionListener.wrap((results) -> {
                                             List<String> groups = results.stream()
                                                     .map(SearchResultEntry::getDN)
-                                                    .collect(Collectors.toList());
-                                            listener.onResponse(Collections.unmodifiableList(groups));
+                                                    .collect(Collectors.toUnmodifiableList());
+                                            listener.onResponse(groups);
                                         },
                                         listener::onFailure),
                                 SearchRequest.NO_ATTRIBUTES);

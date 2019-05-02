@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -414,17 +414,21 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                             Object claimValueObject = claims.getClaim(claimName);
                             List<String> values;
                             if (claimValueObject == null) {
-                                values = Collections.emptyList();
+                                values = List.of();
                             } else if (claimValueObject instanceof String) {
-                                values = Collections.singletonList((String) claimValueObject);
+                                values = List.of((String) claimValueObject);
                             } else if (claimValueObject instanceof List) {
                                 values = (List<String>) claimValueObject;
                             } else {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String Array value but found a "
+                                    + " expects a claim with String or a String List value but found a "
                                     + claimValueObject.getClass().getName());
                             }
                             return values.stream().map(s -> {
+                                if (s == null) {
+                                    logger.debug("OpenID Connect Claim [{}] is null", claimName);
+                                    return null;
+                                }
                                 final Matcher matcher = regex.matcher(s);
                                 if (matcher.find() == false) {
                                     logger.debug("OpenID Connect Claim [{}] is [{}], which does not match [{}]",
@@ -438,7 +442,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                     return null;
                                 }
                                 return value;
-                            }).filter(Objects::nonNull).collect(Collectors.toList());
+                            }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList());
                         });
                 } else {
                     return new ClaimParser(
@@ -446,15 +450,17 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                         claims -> {
                             Object claimValueObject = claims.getClaim(claimName);
                             if (claimValueObject == null) {
-                                return Collections.emptyList();
+                                return List.of();
                             } else if (claimValueObject instanceof String) {
-                                return Collections.singletonList((String) claimValueObject);
+                                return List.of((String) claimValueObject);
                             } else if (claimValueObject instanceof List == false) {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String Array value but found a "
+                                    + " expects a claim with String or a String List value but found a "
                                     + claimValueObject.getClass().getName());
                             }
-                            return (List<String>) claimValueObject;
+                            return ((List<String>) claimValueObject).stream()
+                                        .filter(Objects::nonNull)
+                                        .collect(Collectors.toUnmodifiableList());
                         });
                 }
             } else if (required) {
@@ -465,8 +471,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                     + "] cannot be set unless [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
                     + "] is also set");
             } else {
-                return new ClaimParser("No OpenID Connect Claim for [" + setting.name(realmConfig) + "]",
-                    attributes -> Collections.emptyList());
+                return new ClaimParser("No OpenID Connect Claim for [" + setting.name(realmConfig) + "]", attributes -> List.of());
             }
         }
     }

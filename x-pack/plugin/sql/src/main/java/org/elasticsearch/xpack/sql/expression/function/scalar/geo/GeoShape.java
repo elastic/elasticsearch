@@ -62,10 +62,11 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
     }
 
     public GeoShape(StreamInput in) throws IOException {
+        String value = in.readString();
         try {
-            shape = parse(in.readString());
+            shape = parse(value);
         } catch (ParseException ex) {
-            throw new SqlIllegalArgumentException("cannot load geo_shape", ex);
+            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape value", ex);
         }
     }
 

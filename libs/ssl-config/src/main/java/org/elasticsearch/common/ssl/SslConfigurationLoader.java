@@ -19,15 +19,21 @@
 
 package org.elasticsearch.common.ssl;
 
+import javax.crypto.Cipher;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.nio.file.Path;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.ssl.KeyStoreUtil.inferKeyStoreType;
+import static org.elasticsearch.common.ssl.SslConfiguration.ORDERED_PROTOCOL_ALGORITHM_MAP;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.CERTIFICATE;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.CERTIFICATE_AUTHORITIES;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.CIPHERS;
@@ -64,22 +70,10 @@ import static org.elasticsearch.common.ssl.SslConfigurationKeys.VERIFICATION_MOD
  */
 public abstract class SslConfigurationLoader {
 
-    static final List<String> DEFAULT_PROTOCOLS = List.of("TLSv1.3", "TLSv1.2", "TLSv1.1");
-
-    /**
-     * This list has been created with ordering
-     */
-    static final List<String> DEFAULT_CIPHERS = List.of(
-        "TLS_AES_256_GCM_SHA384", "TLS_AES_128_GCM_SHA256", // TLSv1.3 cipher has PFS, AEAD, hardware support
-        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
-        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", // PFS, AEAD, hardware support
-        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",  "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
-        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", // PFS, hardware support
-        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", // PFS, hardware support
-        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", // PFS, hardware support
-        "TLS_RSA_WITH_AES_256_GCM_SHA384", "TLS_RSA_WITH_AES_128_GCM_SHA256", // AEAD, hardware support
-        "TLS_RSA_WITH_AES_256_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA256", // hardware support
-        "TLS_RSA_WITH_AES_256_CBC_SHA", "TLS_RSA_WITH_AES_128_CBC_SHA"); // hardware support
+    static final List<String> DEFAULT_PROTOCOLS = Collections.unmodifiableList(
+        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3") ?
+            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1"));
+    static final List<String> DEFAULT_CIPHERS = loadDefaultCiphers();
     private static final char[] EMPTY_PASSWORD = new char[0];
 
     private final String settingPrefix;
@@ -147,6 +141,9 @@ public abstract class SslConfigurationLoader {
 
     /**
      * Change the default supported ciphers.
+     * The initial cipher list depends on the availability of {@link #has256BitAES() 256 bit AES}.
+     *
+     * @see #loadDefaultCiphers()
      */
     public void setDefaultCiphers(List<String> defaultCiphers) {
         this.defaultCiphers = defaultCiphers;
@@ -337,6 +334,42 @@ public abstract class SslConfigurationLoader {
             throw e;
         } catch (Exception e) {
             throw new SslConfigException("cannot retrieve setting [" + settingPrefix + key + "]", e);
+        }
+    }
+
+    private static List<String> loadDefaultCiphers() {
+        final List<String> ciphers128 = Arrays.asList(
+            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+            "TLS_RSA_WITH_AES_128_CBC_SHA256",
+            "TLS_RSA_WITH_AES_128_CBC_SHA"
+        );
+        final List<String> ciphers256 = Arrays.asList(
+            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+            "TLS_RSA_WITH_AES_256_CBC_SHA256",
+            "TLS_RSA_WITH_AES_256_CBC_SHA"
+        );
+        if (has256BitAES()) {
+            List<String> ciphers = new ArrayList<>(ciphers256.size() + ciphers128.size());
+            ciphers.addAll(ciphers256);
+            ciphers.addAll(ciphers128);
+            return ciphers;
+        } else {
+            return ciphers128;
+        }
+    }
+
+    private static boolean has256BitAES() {
+        try {
+            return Cipher.getMaxAllowedKeyLength("AES") > 128;
+        } catch (NoSuchAlgorithmException e) {
+            // No AES? Things are going to be very weird, but technically that means we don't have 256 bit AES, so ...
+            return false;
         }
     }
 }

@@ -8,13 +8,11 @@ package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,6 +23,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
@@ -50,29 +49,44 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     protected final DataFrameAuditor auditor;
 
+    protected final DataFrameTransformConfig transformConfig;
+    protected volatile DataFrameTransformProgress progress;
+    private final Map<String, String> fieldMappings;
+
     private Pivot pivot;
     private int pageSize = 0;
 
     public DataFrameIndexer(Executor executor,
                             DataFrameAuditor auditor,
+                            DataFrameTransformConfig transformConfig,
+                            Map<String, String> fieldMappings,
                             AtomicReference<IndexerState> initialState,
                             Map<String, Object> initialPosition,
-                            DataFrameIndexerTransformStats jobStats) {
+                            DataFrameIndexerTransformStats jobStats,
+                            DataFrameTransformProgress transformProgress) {
         super(executor, initialState, initialPosition, jobStats);
         this.auditor = Objects.requireNonNull(auditor);
+        this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
+        this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
+        this.progress = transformProgress;
     }
-
-    protected abstract DataFrameTransformConfig getConfig();
-
-    protected abstract Map<String, String> getFieldMappings();
-
-    @Nullable
-    protected abstract DataFrameTransformProgress getProgress();
 
     protected abstract void failIndexer(String message);
 
     public int getPageSize() {
         return pageSize;
+    }
+
+    public DataFrameTransformConfig getConfig() {
+        return transformConfig;
+    }
+
+    public Map<String, String> getFieldMappings() {
+        return fieldMappings;
+    }
+
+    public DataFrameTransformProgress getProgress() {
+        return progress;
     }
 
     /**
@@ -119,8 +133,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         IterationResult<Map<String, Object>> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
             agg.afterKey(),
             agg.getBuckets().isEmpty());
-        if (getProgress() != null) {
-            getProgress().docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+        if (progress != null) {
+            progress.docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
         }
         return result;
     }
@@ -215,14 +229,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
      */
     private static CircuitBreakingException getCircuitBreakingException(Exception e) {
         // circuit breaking exceptions are at the bottom
-        Throwable unwrappedThrowable = ExceptionsHelper.unwrapCause(e);
+        Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(e);
 
         if (unwrappedThrowable instanceof CircuitBreakingException) {
             return (CircuitBreakingException) unwrappedThrowable;
         } else if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
             SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) e;
             for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
-                Throwable unwrappedShardFailure = ExceptionsHelper.unwrapCause(shardFailure.getCause());
+                Throwable unwrappedShardFailure = org.elasticsearch.ExceptionsHelper.unwrapCause(shardFailure.getCause());
 
                 if (unwrappedShardFailure instanceof CircuitBreakingException) {
                     return (CircuitBreakingException) unwrappedShardFailure;

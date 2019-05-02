@@ -429,7 +429,7 @@ public class SSLDriver implements AutoCloseable {
 
     private class ApplicationMode implements Mode {
 
-        private static final int MAX_ENCRYPT_LIMIT = 1 << 17
+        private static final int MAX_ENCRYPT_LIMIT = 1 << 17;
 
         @Override
         public void read(InboundChannelBuffer buffer) throws SSLException {

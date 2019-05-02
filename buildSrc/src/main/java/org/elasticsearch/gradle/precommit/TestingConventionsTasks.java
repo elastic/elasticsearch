@@ -31,12 +31,10 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.testing.Test;
-import org.gradle.api.tasks.util.PatternFilterable;
 
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
@@ -67,24 +65,13 @@ public class TestingConventionsTasks extends DefaultTask {
     public TestingConventionsTasks() {
         setDescription("Tests various testing conventions");
         // Run only after everything is compiled
-        Boilerplate.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getClassesTaskName()));
+        Boilerplate.getJavaSourceSets(getProject()).all(sourceSet -> dependsOn(sourceSet.getOutput().getClassesDirs()));
         naming = getProject().container(TestingConventionRule.class);
     }
 
     @Input
     public Map<String, Set<File>> classFilesPerEnabledTask(FileTree testClassFiles) {
         Map<String, Set<File>> collector = new HashMap<>();
-
-        // RandomizedTestingTask
-        collector.putAll(
-            getProject().getTasks().withType(getRandomizedTestingTask()).stream()
-                .filter(Task::getEnabled)
-                .collect(Collectors.toMap(
-                    Task::getPath,
-                    task -> testClassFiles.matching(getRandomizedTestingPatternSet(task)).getFiles()
-                    )
-                )
-        );
 
         // Gradle Test
         collector.putAll(
@@ -277,32 +264,6 @@ public class TestingConventionsTasks extends DefaultTask {
             .map(String::trim)
             .filter(s -> s.isEmpty() == false)
             .collect(Collectors.joining("\n"));
-    }
-
-    @SuppressWarnings("unchecked")
-    private PatternFilterable getRandomizedTestingPatternSet(Task task) {
-        try {
-            if (
-                getRandomizedTestingTask().isAssignableFrom(task.getClass()) == false
-            ) {
-                throw new IllegalStateException("Expected " + task + " to be RandomizedTestingTask or Test but it was " + task.getClass());
-            }
-            Method getPatternSet = task.getClass().getMethod("getPatternSet");
-            return (PatternFilterable) getPatternSet.invoke(task);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalStateException("Expecte task to have a `patternSet` " + task, e);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new IllegalStateException("Failed to get pattern set from task" + task, e);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Class<? extends Task> getRandomizedTestingTask() {
-        try {
-            return (Class<? extends Task>) Class.forName("com.carrotsearch.gradle.junit4.RandomizedTestingTask");
-        } catch (ClassNotFoundException | ClassCastException e) {
-            throw new IllegalStateException("Failed to load randomized testing class", e);
-        }
     }
 
     private String checkNoneExists(String message, Stream<? extends Class<?>> stream) {

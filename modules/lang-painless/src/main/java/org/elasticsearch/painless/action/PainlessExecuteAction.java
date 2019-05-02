@@ -55,7 +55,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -84,8 +83,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -107,7 +104,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         return new Response();
     }
 
-    public static class Request extends SingleShardRequest<Request> implements ToXContent {
+    public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
@@ -121,15 +118,10 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ContextSetup::parse, CONTEXT_SETUP_FIELD);
         }
 
-        static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS;
-
-        static {
-            Map<String, ScriptContext<?>> supportedContexts = new HashMap<>();
-            supportedContexts.put("painless_test", PainlessTestScript.CONTEXT);
-            supportedContexts.put("filter", FilterScript.CONTEXT);
-            supportedContexts.put("score", ScoreScript.CONTEXT);
-            SUPPORTED_CONTEXTS = Collections.unmodifiableMap(supportedContexts);
-        }
+        static final Map<String, ScriptContext<?>> SUPPORTED_CONTEXTS = Map.of(
+                "painless_test", PainlessTestScript.CONTEXT,
+                "filter", FilterScript.CONTEXT,
+                "score", ScoreScript.CONTEXT);
 
         static ScriptContext<?> fromScriptContextName(String name) {
             ScriptContext<?> scriptContext = SUPPORTED_CONTEXTS.get(name);

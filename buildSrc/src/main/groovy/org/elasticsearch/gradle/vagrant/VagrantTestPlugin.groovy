@@ -30,6 +30,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             'oel-6',
             'oel-7',
             'opensuse-42',
+            'rhel-8',
             'sles-12',
             'ubuntu-1604',
             'ubuntu-1804'
@@ -214,9 +215,15 @@ class VagrantTestPlugin implements Plugin<Project> {
             } else {
                 UPGRADE_FROM_ARCHIVES.each {
                     // The version of elasticsearch that we upgrade *from*
-                    dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
-                    if (upgradeFromVersion.onOrAfter('6.3.0')) {
-                        dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+                    if (upgradeFromVersion.onOrAfter('7.0.0')) {
+                        String arch = it == "rpm" ? "x86_64" : "amd64"
+                        dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}-${arch}@${it}")
+                        dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}-${arch}@${it}")
+                    } else {
+                        dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
+                        if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                            dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+                        }
                     }
                 }
             }
@@ -294,7 +301,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                      } else {
                        \$testArgs = \$args
                      }
-                     "\$Env:SYSTEM_JAVA_HOME"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
+                     & "\$Env:SYSTEM_JAVA_HOME"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
                      exit \$LASTEXITCODE
                      """
         }

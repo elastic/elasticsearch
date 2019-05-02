@@ -407,6 +407,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
      * if it is sane and if we can successfully create an IndexService.
      * This also includes plugins etc.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/40867")
     public void testRecoverMissingAnalyzer() throws Exception {
         logger.info("--> starting one node");
         internalCluster().startNode();

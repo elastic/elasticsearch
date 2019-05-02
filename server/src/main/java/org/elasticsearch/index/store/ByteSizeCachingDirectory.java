@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
-import java.util.Set;
 
 final class ByteSizeCachingDirectory extends FilterDirectory {
 
@@ -179,11 +178,5 @@ final class ByteSizeCachingDirectory extends FilterDirectory {
                 modCount++;
             }
         }
-    }
-
-    // temporary override until LUCENE-8735 is integrated
-    @Override
-    public Set<String> getPendingDeletions() throws IOException {
-        return in.getPendingDeletions();
     }
 }

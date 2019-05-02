@@ -39,7 +39,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         private final CountDownLatch latch;
         // test the execution order
-        private int step;
+        private volatile int step;
 
         protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition,
                               CountDownLatch latch) {
@@ -72,7 +72,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected SearchRequest buildSearchRequest() {
             assertThat(step, equalTo(1));
             ++step;
-            return null;
+            return new SearchRequest();
         }
 
         @Override
@@ -113,8 +113,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected void onFinish(ActionListener<Void> listener) {
             assertThat(step, equalTo(4));
             ++step;
-            isFinished.set(true);
             listener.onResponse(null);
+            isFinished.set(true);
         }
 
         @Override
@@ -151,7 +151,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected SearchRequest buildSearchRequest() {
             assertThat(step, equalTo(1));
             ++step;
-            return null;
+            return new SearchRequest();
         }
 
         @Override
@@ -206,7 +206,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
     }
 
-    public void testStateMachine() throws InterruptedException {
+    public void testStateMachine() throws Exception {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         isFinished.set(false);

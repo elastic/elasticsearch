@@ -65,9 +65,8 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TYPE;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -115,8 +114,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
-                try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN)) {
-                    SearchRequest request = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                    SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
                         .setScroll(DEFAULT_KEEPALIVE_SETTING.get(settings))
                         .setQuery(query)
                         .setSize(1000)
@@ -134,7 +133,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
-                MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, roleIds).request();
+                MultiGetRequest multiGetRequest = client.prepareMultiGet().add(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, roleIds).request();
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, multiGetRequest,
                     ActionListener.<MultiGetResponse>wrap(mGetResponse -> {
                             final MultiGetItemResponse[] responses = mGetResponse.getResponses();
@@ -171,7 +170,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 DeleteRequest request = client
-                        .prepareDelete(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForRole(deleteRoleRequest.name())).request();
+                        .prepareDelete(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForRole(deleteRoleRequest.name())).request();
                 request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
                     new ActionListener<DeleteResponse>() {
@@ -211,7 +210,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 listener.onFailure(e);
                 return;
             }
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForRole(role.getName()))
+            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForRole(role.getName()))
                     .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
@@ -245,11 +244,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                     client.prepareMultiSearch()
-                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                        .add(client.prepareSearch(SECURITY_MAIN_ALIAS)
                             .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                             .setTrackTotalHits(true)
                             .setSize(0))
-                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                        .add(client.prepareSearch(SECURITY_MAIN_ALIAS)
                             .setQuery(QueryBuilders.boolQuery()
                                 .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                                 .must(QueryBuilders.boolQuery()
@@ -260,7 +259,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             .setTrackTotalHits(true)
                             .setSize(0)
                             .setTerminateAfter(1))
-                        .add(client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+                        .add(client.prepareSearch(SECURITY_MAIN_ALIAS)
                             .setQuery(QueryBuilders.boolQuery()
                                 .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                                 .filter(existsQuery("indices.query")))
@@ -332,7 +331,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
         securityIndex.checkIndexVersionThenExecute(listener::onFailure, () ->
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
-                    client.prepareGet(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, getIdForRole(role)).request(),
+                    client.prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, getIdForRole(role)).request(),
                     listener,
                     client::get));
     }

@@ -30,7 +30,6 @@ import org.ietf.jgss.GSSException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -196,7 +195,6 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     }
 
     private void resolveUser(final String userPrincipalName, final String outToken, final ActionListener<AuthenticationResult> listener) {
-        assert userPrincipalName != null;
         // if outToken is present then it needs to be communicated with peer, add it to
         // response header in thread context.
         if (Strings.hasText(outToken)) {

@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.rest.action;
+package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
@@ -24,7 +24,7 @@ import java.io.IOException;
 /**
  * Rest action to create an API key
  */
-public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
+public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
     /**
      * @param settings the node's settings

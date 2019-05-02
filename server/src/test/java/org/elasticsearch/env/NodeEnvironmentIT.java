@@ -19,12 +19,23 @@
 
 package org.elasticsearch.env;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -85,5 +96,45 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             startsWith("Node is started with "
                 + Node.NODE_DATA_SETTING.getKey()
                 + "=false, but has shard data"));
+    }
+
+    private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path[], Exception> onNodeStopped) {
+        internalCluster().startNode();
+        final Path[] dataPaths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
+        return expectThrows(IllegalStateException.class,
+            () -> internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+                @Override
+                public Settings onNodeStopped(String nodeName) {
+                    try {
+                        for (Path dataPath : dataPaths) {
+                            try (Stream<Path> stateFiles = Files.list(dataPath.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
+                                for (Path path : stateFiles.collect(Collectors.toList())) {
+                                    if (path.getFileName().toString().startsWith(NodeMetaData.FORMAT.getPrefix())) {
+                                        IOUtils.rm(path);
+                                    }
+                                }
+                            }
+                        }
+                        onNodeStopped.accept(dataPaths);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                    return Settings.EMPTY;
+                }
+            }));
+    }
+
+    public void testFailsToStartIfDowngraded() {
+        final IllegalStateException illegalStateException = expectThrowsOnRestart(dataPaths ->
+            NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(randomAlphaOfLength(10), NodeMetaDataTests.tooNewVersion()), dataPaths));
+        assertThat(illegalStateException.getMessage(),
+            allOf(startsWith("cannot downgrade a node from version ["), endsWith("] to version [" + Version.CURRENT + "]")));
+    }
+
+    public void testFailsToStartIfUpgradedTooFar() {
+        final IllegalStateException illegalStateException = expectThrowsOnRestart(dataPaths ->
+            NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(randomAlphaOfLength(10), NodeMetaDataTests.tooOldVersion()), dataPaths));
+        assertThat(illegalStateException.getMessage(),
+            allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]")));
     }
 }

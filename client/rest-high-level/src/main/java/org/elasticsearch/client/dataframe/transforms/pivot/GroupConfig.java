@@ -138,10 +138,6 @@ public class GroupConfig implements ToXContentObject {
         return groups;
     }
 
-    public boolean isValid() {
-        return this.groups != null;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

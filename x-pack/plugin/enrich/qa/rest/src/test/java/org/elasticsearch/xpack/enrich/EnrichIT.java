@@ -85,6 +85,10 @@ public class EnrichIT extends ESRestTestCase {
         assertThat(_source.get("host"), equalTo("elastic.co"));
         assertThat(_source.get("global_rank"), equalTo(25));
         assertThat(_source.get("tld_rank"), equalTo(7));
+
+        // Delete policy:
+        Request deletePolicyRequest = new Request("DELETE", "/_enrich/policy/my_policy");
+        assertOK(client().performRequest(deletePolicyRequest));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

@@ -128,7 +128,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             numericType = in.readOptionalString();
         }
     }
@@ -143,7 +143,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
         out.writeOptionalWriteable(nestedSort);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeOptionalString(numericType);
         }
     }

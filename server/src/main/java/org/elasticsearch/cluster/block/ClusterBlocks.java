@@ -214,8 +214,12 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             }
         }
         if (indexLevelBlocks.isEmpty()) {
-            assert globalLevelBlocks.isEmpty();
-            return null;
+            if(!globalLevelBlocks.isEmpty()){
+                indexLevelBlocks.put("", globalLevelBlocks);
+            }
+            else {
+                return null;
+            }
         }
         return new ClusterBlockException(indexLevelBlocks);
     }

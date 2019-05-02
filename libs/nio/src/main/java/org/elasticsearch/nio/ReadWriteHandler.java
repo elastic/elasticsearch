@@ -29,6 +29,11 @@ import java.util.function.BiConsumer;
 public interface ReadWriteHandler {
 
     /**
+     * This method is called when the channel is registered with its selector.
+     */
+    void channelRegistered();
+
+    /**
      * This method is called when a message is queued with a channel. It can be called from any thread.
      * This method should validate that the message is a valid type and return a write operation object
      * to be queued with the channel

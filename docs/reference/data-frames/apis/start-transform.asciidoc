@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[start-data-frame-transform]]
 === Start {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Start {dataframe-transforms}</titleabbrev>
 ++++

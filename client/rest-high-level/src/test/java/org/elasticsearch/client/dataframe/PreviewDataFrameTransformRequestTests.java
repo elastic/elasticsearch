@@ -70,7 +70,7 @@ public class PreviewDataFrameTransformRequestTests extends AbstractXContentTestC
         assertFalse(new PreviewDataFrameTransformRequest(config).validate().isPresent());
 
         // null source is not valid
-        config = new DataFrameTransformConfig(null, null, null, PivotConfigTests.randomPivotConfig(), null);
+        config = DataFrameTransformConfig.builder().setPivotConfig(PivotConfigTests.randomPivotConfig()).build();
 
         Optional<ValidationException> error = new PreviewDataFrameTransformRequest(config).validate();
         assertTrue(error.isPresent());

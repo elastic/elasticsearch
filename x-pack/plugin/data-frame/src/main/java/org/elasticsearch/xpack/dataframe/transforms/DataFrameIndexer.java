@@ -14,8 +14,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -115,6 +116,12 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
+
+        // we reached the end
+        if (agg.getBuckets().isEmpty()) {
+            return new IterationResult<>(Collections.emptyList(), null, true);
+        }
+
         long docsBeforeProcess = getStats().getNumDocuments();
         IterationResult<Map<String, Object>> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
             agg.afterKey(),

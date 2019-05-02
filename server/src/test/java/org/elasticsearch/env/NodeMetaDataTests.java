@@ -61,12 +61,12 @@ public class NodeMetaDataTests extends ESTestCase {
 
     public void testReadsFormatWithoutVersion() throws IOException {
         // the behaviour tested here is only for compatibility with versions 7 and earlier
-        // so it (and testReadsFormatWithoutVersion.dat) can be removed once this compatibility is no longer required
+        // so it (and testReadsFormatWithoutVersion.binary) can be removed once this compatibility is no longer required
         assertTrue(Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(Version.V_7_0_0));
 
         final Path tempDir = createTempDir();
         final Path stateDir = Files.createDirectory(tempDir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
-        final InputStream resource = this.getClass().getResourceAsStream("testReadsFormatWithoutVersion.dat");
+        final InputStream resource = this.getClass().getResourceAsStream("testReadsFormatWithoutVersion.binary");
         assertThat(resource, notNullValue());
         Files.copy(resource, stateDir.resolve(NodeMetaData.FORMAT.getStateFileName(between(0, Integer.MAX_VALUE))));
         final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), tempDir);

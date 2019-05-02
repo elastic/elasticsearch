@@ -67,7 +67,8 @@ public class OverwriteNodeVersionCommand extends ElasticsearchNodeCommand {
     static final String SUCCESS_MESSAGE = "Successfully overwrote this node's metadata to bypass its version compatibility checks.";
 
     public OverwriteNodeVersionCommand() {
-        super("Overwrite the version stored in this node's data path with [" + Version.CURRENT + "] to bypass the version compatibility checks");
+        super("Overwrite the version stored in this node's data path with [" + Version.CURRENT +
+            "] to bypass the version compatibility checks");
     }
 
     @Override

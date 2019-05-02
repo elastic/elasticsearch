@@ -236,12 +236,12 @@ public class VersionCollection {
     }
 
     /**
-     * There is no way to infer that 6.7 is the final minor release in the 6.x series until we add a 7.0.1 or 7.1.0 version.
-     * Based on the available versions (7.0.0, 6.7.0, 6.6.1, 6.6.0) the logical conclusion is that 7.0.0 is "master" and 6.7.0 is "6.x"
-     * This method force 6.7.0 to be recognised as being on the "6.7" branch
+     * There is no way to infer that 6.8 is the final minor release in the 6.x series until we add a 7.0.1 or 7.1.0 version.
+     * Based on the available versions (7.0.0, 6.7.0, 6.6.1, 6.6.0) the logical conclusion is that 7.0.0 is "master" and 6.8.0 is "6.x"
+     * This method force 6.8.0 to be recognised as being on the "6.8" branch
      */
     private boolean isFinalMinor(Version version) {
-        return (version.getMajor() == 6 && version.getMinor() == 7);
+        return (version.getMajor() == 6 && version.getMinor() == 8);
     }
 
     public List<Version> getUnreleased() {

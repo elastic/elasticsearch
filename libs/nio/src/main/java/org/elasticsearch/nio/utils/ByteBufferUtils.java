@@ -37,7 +37,7 @@ public final class ByteBufferUtils {
     public static long copyBytes(ByteBuffer[] source, ByteBuffer destination) {
         long bytesCopied = 0;
         for (int i = 0; i < source.length && destination.hasRemaining(); i++) {
-            ByteBuffer buffer = source[i++];
+            ByteBuffer buffer = source[i];
             bytesCopied += copyBytes(buffer, destination);
         }
         return bytesCopied;

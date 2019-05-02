@@ -91,7 +91,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         this.name = in.readString();
         this.enabled = in.readBoolean();
         this.roles = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             this.roleTemplates = in.readList(TemplateRoleName::new);
         } else {
             this.roleTemplates = Collections.emptyList();
@@ -105,7 +105,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeList(roleTemplates);
         }
         ExpressionParser.writeExpression(expression, out);

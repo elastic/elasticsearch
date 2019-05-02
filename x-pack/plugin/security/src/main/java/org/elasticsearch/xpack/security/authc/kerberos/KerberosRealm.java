@@ -196,6 +196,7 @@ public final class KerberosRealm extends Realm implements CachingRealm {
     }
 
     private void resolveUser(final String userPrincipalName, final String outToken, final ActionListener<AuthenticationResult> listener) {
+        assert userPrincipalName != null;
         // if outToken is present then it needs to be communicated with peer, add it to
         // response header in thread context.
         if (Strings.hasText(outToken)) {
@@ -216,12 +217,11 @@ public final class KerberosRealm extends Realm implements CachingRealm {
             final User user = (userPrincipalNameToUserCache != null) ? userPrincipalNameToUserCache.get(username) : null;
             if (user != null) {
                 listener.onResponse(AuthenticationResult.success(user));
+            } else if (userAndRealmName.length > 1) {
+                final String realmName = userAndRealmName[1];
+                buildUser(username, Map.of(KRB_METADATA_REALM_NAME_KEY, realmName, KRB_METADATA_UPN_KEY, userPrincipalName), listener);
             } else {
-                final String realmName = (userAndRealmName.length > 1) ? userAndRealmName[1] : null;
-                final Map<String, Object> metadata = new HashMap<>();
-                metadata.put(KRB_METADATA_REALM_NAME_KEY, realmName);
-                metadata.put(KRB_METADATA_UPN_KEY, userPrincipalName);
-                buildUser(username, metadata, listener);
+                buildUser(username, Map.of(KRB_METADATA_UPN_KEY, userPrincipalName), listener);
             }
         }
     }

@@ -6,12 +6,14 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -202,6 +204,11 @@ public class ClusterPrivilegeTests extends AbstractPrivilegeTestCase {
         assertBusy(() -> {
             SnapshotsStatusResponse response = client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
+            // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
+            // it to disappear from the cluster state as well
+            SnapshotsInProgress snapshotsInProgress =
+                client().admin().cluster().state(new ClusterStateRequest()).get().getState().custom(SnapshotsInProgress.TYPE);
+            assertThat(snapshotsInProgress.entries(), Matchers.empty());
         });
     }
 }

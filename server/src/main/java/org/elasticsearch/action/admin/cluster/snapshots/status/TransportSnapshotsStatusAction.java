@@ -198,9 +198,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.key, stage);
                     shardStatusBuilder.add(shardStatus);
                 }
-                final SnapshotsInProgress.State state = entry.state();
-                builder.add(new SnapshotStatus(entry.snapshot(),
-                    state == SnapshotsInProgress.State.SUCCESS ? SnapshotsInProgress.State.STARTED : state,
+                builder.add(new SnapshotStatus(entry.snapshot(), entry.state(),
                     Collections.unmodifiableList(shardStatusBuilder), entry.includeGlobalState()));
             }
         }

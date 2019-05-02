@@ -63,6 +63,7 @@ general, if you have a running system you don't wish to disturb then
 `refresh=wait_for` is a smaller modification.
 
 [float]
+[[refresh_wait_for-force-refresh]]
 === `refresh=wait_for` Can Force a Refresh
 
 If a `refresh=wait_for` request comes in when there are already

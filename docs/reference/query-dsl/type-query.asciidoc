@@ -1,7 +1,7 @@
 [[query-dsl-type-query]]
 === Type Query
 
-deprecated[7.0.0, Types are being removed, prefer filtering on a field instead. For more information, please see <<removal-of-types>>.]
+deprecated[7.0.0,Types and the `type` query are deprecated and in the process of being removed. See <<removal-of-types>>.]
 
 Filters documents matching the provided document / mapping type.
 

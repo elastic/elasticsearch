@@ -93,7 +93,6 @@ class RestIntegTestTask extends DefaultTask {
             if (usesTestclusters == true) {
                 ElasticsearchCluster cluster = project.testClusters."${name}"
                 runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",") }")
-                runner.nonInputProperties.systemProperty('tests.config.dir', "${-> cluster.singleNode().getConfigDir() }")
                 runner.nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI }")
             } else {
                 // we pass all nodes to the rest cluster to allow the clients to round-robin between them

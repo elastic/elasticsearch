@@ -50,7 +50,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -409,8 +408,11 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
     }
 
     private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
-            Collections.unmodifiableSet(new HashSet<>(Arrays.asList(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA))), Version.CURRENT);
+        return new DiscoveryNode(
+                nodeId,
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                Set.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA), Version.CURRENT);
     }
 
     public void testValidateIndexName() throws Exception {

@@ -936,8 +936,6 @@ class ClusterFormationTasks {
             }
             doLast {
                 project.delete(node.pidFile)
-                // Large tests can exhaust disk space, clean up on stop, but leave the data dir as some tests reuse it
-                project.delete(project.fileTree(node.baseDir).minus(project.fileTree(node.dataDir)))
             }
         }
     }

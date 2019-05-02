@@ -39,6 +39,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
@@ -55,25 +56,20 @@ public class RestNodesStatsAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_nodes/{nodeId}/stats/{metric}/{index_metric}", this);
     }
 
-    static final Map<String, Consumer<NodesStatsRequest>> METRICS;
-
-    static {
-        final Map<String, Consumer<NodesStatsRequest>> metrics = new HashMap<>();
-        metrics.put("os", r -> r.os(true));
-        metrics.put("jvm", r -> r.jvm(true));
-        metrics.put("thread_pool", r -> r.threadPool(true));
-        metrics.put("fs", r -> r.fs(true));
-        metrics.put("transport", r -> r.transport(true));
-        metrics.put("http", r -> r.http(true));
-        metrics.put("indices", r -> r.indices(true));
-        metrics.put("process", r -> r.process(true));
-        metrics.put("breaker", r -> r.breaker(true));
-        metrics.put("script", r -> r.script(true));
-        metrics.put("discovery", r -> r.discovery(true));
-        metrics.put("ingest", r -> r.ingest(true));
-        metrics.put("adaptive_selection", r -> r.adaptiveSelection(true));
-        METRICS = Collections.unmodifiableMap(metrics);
-    }
+    static final Map<String, Consumer<NodesStatsRequest>> METRICS = Map.ofEntries(
+            entry("os", r -> r.os(true)),
+            entry("jvm", r -> r.jvm(true)),
+            entry("thread_pool", r -> r.threadPool(true)),
+            entry("fs", r -> r.fs(true)),
+            entry("transport", r -> r.transport(true)),
+            entry("http", r -> r.http(true)),
+            entry("indices", r -> r.indices(true)),
+            entry("process", r -> r.process(true)),
+            entry("breaker", r -> r.breaker(true)),
+            entry("script", r -> r.script(true)),
+            entry("discovery", r -> r.discovery(true)),
+            entry("ingest", r -> r.ingest(true)),
+            entry("adaptive_selection", r -> r.adaptiveSelection(true)));
 
     static final Map<String, Consumer<CommonStatsFlags>> FLAGS;
 

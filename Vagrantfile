@@ -124,6 +124,12 @@ Vagrant.configure(2) do |config|
       sles_common config, box
     end
   end
+  'rhel-8'.tap do |box|
+    config.vm.define box, define_opts do |config|
+      config.vm.box = 'elastic/rhel-8-x86_64'
+      rpm_common config, box
+    end
+  end
 
   windows_2012r2_box = ENV['VAGRANT_WINDOWS_2012R2_BOX']
   if windows_2012r2_box && windows_2012r2_box.empty? == false
@@ -244,7 +250,7 @@ def linux_common(config,
   SHELL
 
   config.vm.provision 'jdk-11', type: 'shell', inline: <<-SHELL
-    curl -sSL https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz | tar xz -C /opt/
+    curl -sSL https://download.oracle.com/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz | tar xz -C /opt/
   SHELL
 
   # This prevents leftovers from previous tests using the
@@ -405,7 +411,7 @@ def windows_common(config, name)
 
   config.vm.provision 'windows-jdk-11', type: 'shell', inline: <<-SHELL
     New-Item -ItemType Directory -Force -Path "C:/java"
-    Invoke-WebRequest "https://download.java.net/java/GA/jdk11/9/GPL/openjdk-11.0.2_windows-x64_bin.zip" -OutFile "C:/java/jdk-11.zip"
+    Invoke-WebRequest "https://download.oracle.com/java/GA/jdk11/9/GPL/openjdk-11.0.2_windows-x64_bin.zip" -OutFile "C:/java/jdk-11.zip"
     Expand-Archive -Path "C:/java/jdk-11.zip" -DestinationPath "C:/java/"
   SHELL
 

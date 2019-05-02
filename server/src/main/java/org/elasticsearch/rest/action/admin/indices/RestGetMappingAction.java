@@ -50,6 +50,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -116,7 +117,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     }
                 }
 
-                final Set<String> difference = Sets.sortedDifference(Arrays.stream(types).collect(Collectors.toSet()), typeNames);
+                final SortedSet<String> difference = Sets.sortedDifference(Arrays.stream(types).collect(Collectors.toSet()), typeNames);
 
                 // now remove requested aliases that contain wildcards that are simple matches
                 final List<String> matches = new ArrayList<>();

@@ -22,7 +22,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -51,7 +51,7 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
 
     @Override
     public void doRun() {
-        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(SecurityIndexManager.SECURITY_INDEX_NAME);
+        DeleteByQueryRequest expiredDbq = new DeleteByQueryRequest(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
         if (timeout != TimeValue.MINUS_ONE) {
             expiredDbq.setTimeout(timeout);
             expiredDbq.getSearchRequest().source().timeout(timeout);

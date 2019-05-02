@@ -18,6 +18,7 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
+[[ids-query-top-level-parameters]]
 ==== Top-level parameters for `ids`
 
 [cols="v,v",options="header"]

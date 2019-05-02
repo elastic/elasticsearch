@@ -19,7 +19,9 @@ A `min_bucket` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[min-bucket-params]]
 .`min_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the minimum for (see <<buckets-path-syntax>> for more

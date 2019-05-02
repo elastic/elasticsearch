@@ -67,7 +67,7 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
 
     public static void testVisitor(Geometry geom) {
         AtomicBoolean called = new AtomicBoolean(false);
-        Object result = geom.visit(new GeometryVisitor<Object>() {
+        Object result = geom.visit(new GeometryVisitor<Object, RuntimeException>() {
             private Object verify(Geometry geometry, String expectedClass) {
                 assertFalse("Visitor should be called only once", called.getAndSet(true));
                 assertSame(geom, geometry);

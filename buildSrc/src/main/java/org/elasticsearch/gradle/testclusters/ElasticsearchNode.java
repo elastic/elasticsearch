@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.logging.Logger;
@@ -63,7 +64,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final int NODE_UP_TIMEOUT = 60;
     private static final TimeUnit NODE_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
-        "path.repo"
+        "path.repo",
+        "discovery.seed_providers"
     );
 
     private final String path;
@@ -79,6 +81,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final List<File> modules = new ArrayList<>();
     private final Map<String, Supplier<CharSequence>> settings = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> keystoreSettings = new LinkedHashMap<>();
+    private final Map<String, FileSupplier> keystoreFiles = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> systemProperties = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
     private final Map<String, File> extraConfigFiles = new HashMap<>();
@@ -169,6 +172,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public void keystore(String key, Supplier<CharSequence> valueSupplier) {
         addSupplier("Keystore", keystoreSettings, key, valueSupplier);
+    }
+
+    @Override
+    public void keystore(String key, File value) {
+        requireNonNull(value, "keystore value was null when configuring test cluster`" + this + "`");
+        keystore(key, () -> value);
+    }
+
+    @Override
+    public void keystore(String key, FileSupplier valueSupplier) {
+        requireNonNull(key, "Keystore" + " key was null when configuring test cluster `" + this + "`");
+        requireNonNull(valueSupplier, "Keystore" + " value supplier was null when configuring test cluster `" + this + "`");
+        keystoreFiles.put(key, valueSupplier);
     }
 
     @Override
@@ -281,12 +297,22 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             "install", "--batch", plugin.toString())
         );
 
-        if (keystoreSettings.isEmpty() == false) {
-            checkSuppliers("Keystore", keystoreSettings);
+        if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             runElaticsearchBinScript("elasticsearch-keystore", "create");
-            keystoreSettings.forEach((key, value) -> {
-                runElaticsearchBinScriptWithInput(value.get().toString(), "elasticsearch-keystore", "add", "-x", key);
-            });
+
+            checkSuppliers("Keystore", keystoreSettings);
+            keystoreSettings.forEach((key, value) ->
+                runElaticsearchBinScriptWithInput(value.get().toString(), "elasticsearch-keystore", "add", "-x", key)
+            );
+
+            for (Map.Entry<String, FileSupplier> entry : keystoreFiles.entrySet()) {
+                File file = entry.getValue().get();
+                requireNonNull(file, "supplied keystoreFile was null when configuring " + this);
+                if (file.exists() == false) {
+                    throw new TestClustersException("supplied keystore file " + file + " does not exist, require for " + this);
+                }
+                runElaticsearchBinScript("elasticsearch-keystore", "add-file", entry.getKey(), file.getAbsolutePath());
+            }
         }
 
         installModules();

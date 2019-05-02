@@ -24,7 +24,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
@@ -32,7 +31,6 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -48,13 +46,9 @@ import static org.mockito.Mockito.when;
 public class DataFrameIndexerTests extends ESTestCase {
 
     private Client client;
-    private static final String TEST_ORIGIN = "test_origin";
-    private static final String TEST_INDEX = "test_index";
 
     class MockedDataFrameIndexer extends DataFrameIndexer {
 
-        private final DataFrameTransformConfig transformConfig;
-        private final Map<String, String> fieldMappings;
         private final Function<SearchRequest, SearchResponse> searchFunction;
         private final Function<BulkRequest, BulkResponse> bulkFunction;
         private final Consumer<Exception> failureConsumer;
@@ -73,9 +67,8 @@ public class DataFrameIndexerTests extends ESTestCase {
                 Function<SearchRequest, SearchResponse> searchFunction,
                 Function<BulkRequest, BulkResponse> bulkFunction,
                 Consumer<Exception> failureConsumer) {
-            super(executor, auditor, initialState, initialPosition, jobStats);
-            this.transformConfig = Objects.requireNonNull(transformConfig);
-            this.fieldMappings = Objects.requireNonNull(fieldMappings);
+            super(executor, auditor, transformConfig, fieldMappings, initialState, initialPosition, jobStats,
+                    /* DataFrameTransformProgress */ null);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -83,21 +76,6 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         public CountDownLatch newLatch(int count) {
             return latch = new CountDownLatch(count);
-        }
-
-        @Override
-        protected DataFrameTransformConfig getConfig() {
-            return transformConfig;
-        }
-
-        @Override
-        protected Map<String, String> getFieldMappings() {
-            return fieldMappings;
-        }
-
-        @Override
-        protected DataFrameTransformProgress getProgress() {
-            return null;
         }
 
         @Override

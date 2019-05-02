@@ -29,7 +29,7 @@ import org.elasticsearch.env.Environment;
 /**
  * A sub-command for the keystore CLI that enables upgrading the keystore format.
  */
-public class UpgradeKeyStoreCommand extends EnvironmentAwareCommand  {
+public class UpgradeKeyStoreCommand extends EnvironmentAwareCommand {
 
     UpgradeKeyStoreCommand() {
         super("Upgrade the keystore format");

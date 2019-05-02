@@ -36,6 +36,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41734")
     public void testHistoryAndTriggeredOnRejection() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");

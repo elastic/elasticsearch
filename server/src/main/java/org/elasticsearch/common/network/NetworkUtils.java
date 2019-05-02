@@ -22,6 +22,7 @@ package org.elasticsearch.common.network;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 
+import java.io.IOException;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -33,6 +34,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * Utilities for network interfaces / addresses binding and publishing.
@@ -150,77 +152,53 @@ public abstract class NetworkUtils {
         return Constants.WINDOWS ? false : true;
     }
 
-    /** Returns all interface-local scope (loopback) addresses for interfaces that are up. */
-    static InetAddress[] getLoopbackAddresses() throws SocketException {
-        List<InetAddress> list = new ArrayList<>();
-        for (NetworkInterface intf : getInterfaces()) {
-            if (intf.isUp()) {
-                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
-                    if (address.isLoopbackAddress()) {
-                        list.add(address);
-                    }
-                }
-            }
-        }
-        if (list.isEmpty()) {
-            throw new IllegalArgumentException("No up-and-running loopback addresses found, got " + getInterfaces());
-        }
-        return list.toArray(new InetAddress[list.size()]);
-    }
-    
-    /** Returns all site-local scope (private) addresses for interfaces that are up. */
-    static InetAddress[] getSiteLocalAddresses() throws SocketException {
-        List<InetAddress> list = new ArrayList<>();
-        for (NetworkInterface intf : getInterfaces()) {
-            if (intf.isUp()) {
-                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
-                    if (address.isSiteLocalAddress()) {
-                        list.add(address);
-                    }
-                }
-            }
-        }
-        if (list.isEmpty()) {
-            throw new IllegalArgumentException("No up-and-running site-local (private) addresses found, got " + getInterfaces());
-        }
-        return list.toArray(new InetAddress[list.size()]);
-    }
-    
-    /** Returns all global scope addresses for interfaces that are up. */
-    static InetAddress[] getGlobalAddresses() throws SocketException {
-        List<InetAddress> list = new ArrayList<>();
-        for (NetworkInterface intf : getInterfaces()) {
-            if (intf.isUp()) {
-                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
-                    if (address.isLoopbackAddress() == false && 
-                        address.isSiteLocalAddress() == false &&
-                        address.isLinkLocalAddress() == false) {
-                        list.add(address);
-                    }
-                }
-            }
-        }
-        if (list.isEmpty()) {
-            throw new IllegalArgumentException("No up-and-running global-scope (public) addresses found, got " + getInterfaces());
-        }
-        return list.toArray(new InetAddress[list.size()]);
-    }
-    
-    /** Returns all addresses (any scope) for interfaces that are up. 
-     *  This is only used to pick a publish address, when the user set network.host to a wildcard */
-    static InetAddress[] getAllAddresses() throws SocketException {
-        List<InetAddress> list = new ArrayList<>();
-        for (NetworkInterface intf : getInterfaces()) {
-            if (intf.isUp()) {
-                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+    private static InetAddress[] filterAllAddresses(final Predicate<InetAddress> predicate, final String message) throws IOException {
+        final List<NetworkInterface> interfaces = getInterfaces();
+        final List<InetAddress> list = new ArrayList<>();
+        for (final NetworkInterface intf : interfaces) {
+            for (final InetAddress address : Collections.list(intf.getInetAddresses())) {
+                if (predicate.test(address) && isUp(intf)) {
                     list.add(address);
                 }
             }
         }
         if (list.isEmpty()) {
-            throw new IllegalArgumentException("No up-and-running addresses found, got " + getInterfaces());
+            throw new IllegalArgumentException(message + ", got " + interfaces);
         }
-        return list.toArray(new InetAddress[list.size()]);
+        return list.toArray(new InetAddress[0]);
+    }
+
+    private static boolean isUp(final NetworkInterface intf) throws IOException {
+        try {
+            return intf.isUp();
+        } catch (final SocketException e) {
+            throw new IOException("failed to check if interface [" + intf.getName() + "] is up", e);
+        }
+    }
+
+    /** Returns all interface-local scope (loopback) addresses for interfaces that are up. */
+    static InetAddress[] getLoopbackAddresses() throws IOException {
+        return filterAllAddresses(InetAddress::isLoopbackAddress, "no up-and-running loopback addresses found");
+    }
+    
+    /** Returns all site-local scope (private) addresses for interfaces that are up. */
+    static InetAddress[] getSiteLocalAddresses() throws IOException {
+        return filterAllAddresses(InetAddress::isSiteLocalAddress, "No up-and-running site-local (private) addresses found");
+    }
+    
+    /** Returns all global scope addresses for interfaces that are up. */
+    static InetAddress[] getGlobalAddresses() throws IOException {
+        return filterAllAddresses(
+                address -> address.isLoopbackAddress() == false
+                        && address.isSiteLocalAddress() == false
+                        && address.isLinkLocalAddress() == false,
+                "no up-and-running global-scope (public) addresses found");
+    }
+    
+    /** Returns all addresses (any scope) for interfaces that are up. 
+     *  This is only used to pick a publish address, when the user set network.host to a wildcard */
+    static InetAddress[] getAllAddresses() throws IOException {
+        return filterAllAddresses(address -> true, "no up-and-running addresses found");
     }
     
     /** Returns addresses for the given interface (it must be marked up) */

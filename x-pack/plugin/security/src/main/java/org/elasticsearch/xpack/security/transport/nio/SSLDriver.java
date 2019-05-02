@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport.nio;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
 import org.elasticsearch.nio.Page;
+import org.elasticsearch.nio.utils.ByteBufferUtils;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import javax.net.ssl.SSLEngine;
@@ -16,6 +17,7 @@ import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.function.IntFunction;
 
 /**
  * SSLDriver is a class that wraps the {@link SSLEngine} and attempts to simplify the API. The basic usage is
@@ -27,9 +29,9 @@ import java.util.ArrayList;
  * application to be written to the wire.
  *
  * Handling reads from a channel with this class is very simple. When data has been read, call
- * {@link #read(InboundChannelBuffer)}. If the data is application data, it will be decrypted and placed into
- * the buffer passed as an argument. Otherwise, it will be consumed internally and advance the SSL/TLS close
- * or handshake process.
+ * {@link #read(InboundChannelBuffer, InboundChannelBuffer)}. If the data is application data, it will be
+ * decrypted and placed into the application buffer passed as an argument. Otherwise, it will be consumed
+ * internally and advance the SSL/TLS close or handshake process.
  *
  * Producing writes for a channel is more complicated. The method {@link #needsNonApplicationWrite()} can be
  * called to determine if this driver needs to produce more data to advance the handshake or close process.
@@ -54,21 +56,22 @@ public class SSLDriver implements AutoCloseable {
     private static final FlushOperation EMPTY_FLUSH_OPERATION = new FlushOperation(EMPTY_BUFFERS, (r, t) -> {});
 
     private final SSLEngine engine;
-    // TODO: When the bytes are actually recycled, we need to test that they are released on driver close
-    private final SSLOutboundBuffer outboundBuffer = new SSLOutboundBuffer((n) -> new Page(ByteBuffer.allocate(n)));
+    private final IntFunction<Page> pageAllocator;
+    private final SSLOutboundBuffer outboundBuffer;
+    private Page networkReadPage;
     private final boolean isClientMode;
     // This should only be accessed by the network thread associated with this channel, so nothing needs to
     // be volatile.
     private Mode currentMode = new HandshakeMode();
-    private ByteBuffer networkReadBuffer;
     private int packetSize;
 
-    public SSLDriver(SSLEngine engine, boolean isClientMode) {
+    public SSLDriver(SSLEngine engine, IntFunction<Page> pageAllocator, boolean isClientMode) {
         this.engine = engine;
+        this.pageAllocator = pageAllocator;
+        this.outboundBuffer = new SSLOutboundBuffer(pageAllocator);
         this.isClientMode = isClientMode;
         SSLSession session = engine.getSession();
         packetSize = session.getPacketBufferSize();
-        this.networkReadBuffer = ByteBuffer.allocate(packetSize);
     }
 
     public void init() throws SSLException {
@@ -106,22 +109,25 @@ public class SSLDriver implements AutoCloseable {
         return currentMode.isHandshake();
     }
 
-    public ByteBuffer getNetworkReadBuffer() {
-        return networkReadBuffer;
-    }
-
     public SSLOutboundBuffer getOutboundBuffer() {
         return outboundBuffer;
     }
 
-    public void read(InboundChannelBuffer buffer) throws SSLException {
-        Mode modePriorToRead;
-        do {
-            modePriorToRead = currentMode;
-            currentMode.read(buffer);
-            // If we switched modes we want to read again as there might be unhandled bytes that need to be
-            // handled by the new mode.
-        } while (modePriorToRead != currentMode);
+    public void read(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer applicationBuffer) throws SSLException {
+        networkReadPage = pageAllocator.apply(packetSize);
+        try {
+            Mode modePriorToRead;
+            do {
+                modePriorToRead = currentMode;
+                currentMode.read(encryptedBuffer, applicationBuffer);
+                // It is possible that we received multiple SSL packets from the network since the last read.
+                // If one of those packets causes us to change modes (such as finished handshaking), we need
+                // to call read in the new mode to handle the remaining packets.
+            } while (modePriorToRead != currentMode);
+        } finally {
+            networkReadPage.close();
+            networkReadPage = null;
+        }
     }
 
     public boolean readyForApplicationWrites() {
@@ -171,27 +177,34 @@ public class SSLDriver implements AutoCloseable {
         ExceptionsHelper.rethrowAndSuppress(closingExceptions);
     }
 
-    private SSLEngineResult unwrap(InboundChannelBuffer buffer) throws SSLException {
+    private SSLEngineResult unwrap(InboundChannelBuffer networkBuffer, InboundChannelBuffer applicationBuffer) throws SSLException {
         while (true) {
-            SSLEngineResult result = engine.unwrap(networkReadBuffer, buffer.sliceBuffersFrom(buffer.getIndex()));
-            buffer.incrementIndex(result.bytesProduced());
+            ensureApplicationBufferSize(applicationBuffer);
+            ByteBuffer networkReadBuffer = networkReadPage.byteBuffer();
+            networkReadBuffer.clear();
+            ByteBufferUtils.copyBytes(networkBuffer.sliceBuffersTo(Math.min(networkBuffer.getIndex(), packetSize)), networkReadBuffer);
+            networkReadBuffer.flip();
+            SSLEngineResult result = engine.unwrap(networkReadBuffer, applicationBuffer.sliceBuffersFrom(applicationBuffer.getIndex()));
+            networkBuffer.release(result.bytesConsumed());
+            applicationBuffer.incrementIndex(result.bytesProduced());
             switch (result.getStatus()) {
                 case OK:
-                    networkReadBuffer.compact();
                     return result;
                 case BUFFER_UNDERFLOW:
                     // There is not enough space in the network buffer for an entire SSL packet. Compact the
                     // current data and expand the buffer if necessary.
-                    int currentCapacity = networkReadBuffer.capacity();
-                    ensureNetworkReadBufferSize();
-                    if (currentCapacity == networkReadBuffer.capacity()) {
-                        networkReadBuffer.compact();
+                    packetSize = engine.getSession().getPacketBufferSize();
+                    if (networkReadPage.byteBuffer().capacity() < packetSize) {
+                        networkReadPage.close();
+                        networkReadPage = pageAllocator.apply(packetSize);
+                    } else {
+                        return result;
                     }
-                    return result;
+                    break;
                 case BUFFER_OVERFLOW:
                     // There is not enough space in the application buffer for the decrypted message. Expand
                     // the application buffer to ensure that it has enough space.
-                    ensureApplicationBufferSize(buffer);
+                    ensureApplicationBufferSize(applicationBuffer);
                     break;
                 case CLOSED:
                     assert engine.isInboundDone() : "We received close_notify so read should be done";
@@ -254,15 +267,6 @@ public class SSLDriver implements AutoCloseable {
         }
     }
 
-    private void ensureNetworkReadBufferSize() {
-        packetSize = engine.getSession().getPacketBufferSize();
-        if (networkReadBuffer.capacity() < packetSize) {
-            ByteBuffer newBuffer = ByteBuffer.allocate(packetSize);
-            networkReadBuffer.flip();
-            newBuffer.put(networkReadBuffer);
-        }
-    }
-
     // There are three potential modes for the driver to be in - HANDSHAKE, APPLICATION, or CLOSE. HANDSHAKE
     // is the initial mode. During this mode data that is read and written will be related to the TLS
     // handshake process. Application related data cannot be encrypted until the handshake is complete. From
@@ -282,7 +286,7 @@ public class SSLDriver implements AutoCloseable {
 
     private interface Mode {
 
-        void read(InboundChannelBuffer buffer) throws SSLException;
+        void read(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer applicationBuffer) throws SSLException;
 
         int write(FlushOperation applicationBytes) throws SSLException;
 
@@ -342,13 +346,11 @@ public class SSLDriver implements AutoCloseable {
         }
 
         @Override
-        public void read(InboundChannelBuffer buffer) throws SSLException {
-            ensureApplicationBufferSize(buffer);
+        public void read(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer applicationBuffer) throws SSLException {
             boolean continueUnwrap = true;
-            while (continueUnwrap && networkReadBuffer.position() > 0) {
-                networkReadBuffer.flip();
+            while (continueUnwrap && encryptedBuffer.getIndex() > 0) {
                 try {
-                    SSLEngineResult result = unwrap(buffer);
+                    SSLEngineResult result = unwrap(encryptedBuffer, applicationBuffer);
                     handshakeStatus = result.getHandshakeStatus();
                     handshake();
                     // If we are done handshaking we should exit the handshake read
@@ -430,12 +432,10 @@ public class SSLDriver implements AutoCloseable {
     private class ApplicationMode implements Mode {
 
         @Override
-        public void read(InboundChannelBuffer buffer) throws SSLException {
-            ensureApplicationBufferSize(buffer);
+        public void read(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer applicationBuffer) throws SSLException {
             boolean continueUnwrap = true;
-            while (continueUnwrap && networkReadBuffer.position() > 0) {
-                networkReadBuffer.flip();
-                SSLEngineResult result = unwrap(buffer);
+            while (continueUnwrap && encryptedBuffer.getIndex() > 0) {
+                SSLEngineResult result = unwrap(encryptedBuffer, applicationBuffer);
                 boolean renegotiationRequested = result.getStatus() != SSLEngineResult.Status.CLOSED
                     && maybeRenegotiation(result.getHandshakeStatus());
                 continueUnwrap = result.bytesConsumed() > 0 && renegotiationRequested == false;
@@ -515,7 +515,7 @@ public class SSLDriver implements AutoCloseable {
         }
 
         @Override
-        public void read(InboundChannelBuffer buffer) throws SSLException {
+        public void read(InboundChannelBuffer encryptedBuffer, InboundChannelBuffer applicationBuffer) throws SSLException {
             if (needToReceiveClose == false) {
                 // There is an issue where receiving handshake messages after initiating the close process
                 // can place the SSLEngine back into handshaking mode. In order to handle this, if we
@@ -524,11 +524,9 @@ public class SSLDriver implements AutoCloseable {
                 return;
             }
 
-            ensureApplicationBufferSize(buffer);
             boolean continueUnwrap = true;
-            while (continueUnwrap && networkReadBuffer.position() > 0) {
-                networkReadBuffer.flip();
-                SSLEngineResult result = unwrap(buffer);
+            while (continueUnwrap && encryptedBuffer.getIndex() > 0) {
+                SSLEngineResult result = unwrap(encryptedBuffer, applicationBuffer);
                 continueUnwrap = result.bytesProduced() > 0 || result.bytesConsumed() > 0;
             }
             if (engine.isInboundDone()) {

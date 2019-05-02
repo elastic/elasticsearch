@@ -1,0 +1,14 @@
+[[release-highlights-7.1.0]]
+== 7.1.0 release highlights
+++++
+<titleabbrev>7.1.0</titleabbrev>
+++++
+
+coming[7.1.0]
+
+//NOTE: The notable-highlights tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+// tag::notable-highlights[]
+
+// end::notable-highlights[]

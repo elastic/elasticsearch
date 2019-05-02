@@ -120,8 +120,9 @@ public class SSLDriver implements AutoCloseable {
             do {
                 modePriorToRead = currentMode;
                 currentMode.read(encryptedBuffer, applicationBuffer);
-                // If we switched modes we want to read again as there might be unhandled bytes that need to be
-                // handled by the new mode.
+                // It is possible that we received multiple SSL packets from the network since the last read.
+                // If one of those packets causes us to change modes (such as finished handshaking), we need
+                // to call read in the new mode to handle the remaining packets.
             } while (modePriorToRead != currentMode);
         } finally {
             networkReadPage.close();

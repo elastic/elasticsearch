@@ -18,33 +18,46 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -167,6 +180,25 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
+    private void assertDocCountOnAllCopies(String index, int expectedCount) throws Exception {
+        assertBusy(() -> {
+            Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+            String xpath = "routing_table.indices." + index + ".shards.0.node";
+            @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
+            assertNotNull(state.toString(), assignedNodes);
+            for (String assignedNode : assignedNodes) {
+                try {
+                    assertCount(index, "_only_nodes:" + assignedNode, expectedCount);
+                } catch (ResponseException e) {
+                    if (e.getMessage().contains("no data nodes with criteria [" + assignedNode + "found for shard: [" + index + "][0]")) {
+                        throw new AssertionError(e); // shard is relocating - ask assert busy to retry
+                    }
+                    throw e;
+                }
+            }
+        });
+    }
+
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
         final Request request = new Request("GET", index + "/_count");
         request.addParameter("preference", preference);
@@ -187,6 +219,22 @@ public class RecoveryIT extends AbstractRollingTestCase {
             }
         }
         return null;
+    }
+
+    private String getNodeIdByName(String nodeName) {
+        try {
+            Response response = client().performRequest(new Request("GET", "_nodes"));
+            ObjectPath objectPath = ObjectPath.createFromResponse(response);
+            Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
+            for (String id : nodesAsMap.keySet()) {
+                if (objectPath.<String>evaluate("nodes." + id + ".name").equals(nodeName)) {
+                    return id;
+                }
+            }
+            throw new IllegalArgumentException("no node found for node name[" + nodeName + "]");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public void testRelocationWithConcurrentIndexing() throws Exception {
@@ -222,15 +270,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
                 updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._id", newNode));
                 asyncIndexDocs(index, 10, 50).get();
-                // ensure the relocation from old node to new node has occurred; otherwise ensureGreen can
-                // return true even though shards haven't moved to the new node yet (allocation was throttled).
-                assertBusy(() -> {
-                    Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
-                    String xpath = "routing_table.indices." + index + ".shards.0.node";
-                    @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
-                    assertNotNull(state.toString(), assignedNodes);
-                    assertThat(state.toString(), newNode, isIn(assignedNodes));
-                }, 60, TimeUnit.SECONDS);
+                ensureIndexAssignedToNodeIds(index, Collections.singleton(newNode));
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
                 assertCount(index, "_primary", 60);
@@ -361,7 +401,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
      */
     public void testRecoveryWithSyncIdVerifySeqNoStats() throws Exception {
         final String index = "recovery_sync_id_seq_no";
-        boolean firstMixedRound = Boolean.parseBoolean(System.getProperty("tests.first_round", "false"));
         if (CLUSTER_TYPE == ClusterType.MIXED && firstMixedRound) {
             // allocate the primary on node-1 and replica on node-2
             Settings.Builder settings = Settings.builder()
@@ -370,54 +409,82 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put("index.routing.allocation.include._name", "node-1");
             createIndex(index, settings.build());
             updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._name", "node-1,node-2"));
+            ensureIndexAssignedToNodeIds(index,
+                Sets.newHashSet("node-1", "node-2").stream().map(this::getNodeIdByName).collect(Collectors.toSet()));
             ensureGreen(index);
-            // move the primary from node-1 to upgraded-node-0 so we can index documents with sequence numbers
+            // relocate the primary from node-1 to upgraded-node-0 so we can index documents with sequence numbers
             // and prevent allocating the replica on upgraded-node-2 until we trim translog on the primary so recovery won't replay ops
             updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._name", "upgraded-node-0,node-2"));
+            ensureIndexAssignedToNodeIds(index,
+                Sets.newHashSet("upgraded-node-0", "node-2").stream().map(this::getNodeIdByName).collect(Collectors.toSet()));
             ensureGreen(index);
             indexDocs(index, 0, 10);
             syncedFlush(index);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
-            updateIndexSettings(index, Settings.builder()
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
-                .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
-                .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), "256b"));
-            // index more documents to roll translog so we can trim translog
-            indexDocs(index, 10, 100);
-            assertBusy(() -> {
-                Map<String, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
-                Integer translogOps = (Integer) XContentMapValues.extractValue("_all.primaries.translog.operations", stats);
-                assertThat(translogOps, equalTo(100));
-            });
+            assertDocCountOnAllCopies(index, 10);
+            final int moreDocs;
+            if (randomBoolean()) {
+                updateIndexSettings(index, Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING.getKey(), "256b"));
+                // index more documents to roll translog so we can trim translog
+                moreDocs = randomIntBetween(50, 100);
+                indexDocs(index, 10, moreDocs);
+                assertBusy(() -> {
+                    Map<String, ?> stats = entityAsMap(client().performRequest(new Request("GET", index + "/_stats?level=shards")));
+                    Integer translogOps = (Integer) XContentMapValues.extractValue("_all.primaries.translog.operations", stats);
+                    assertThat(translogOps, equalTo(moreDocs));
+                });
+            } else {
+                moreDocs = 0;
+            }
             updateIndexSettings(index, Settings.builder().put("index.routing.allocation.include._name", "upgraded-node-0,upgraded-node-2"));
+            ensureIndexAssignedToNodeIds(index,
+                Sets.newHashSet("upgraded-node-0", "upgraded-node-2").stream().map(this::getNodeIdByName).collect(Collectors.toSet()));
             ensureGreen(index);
+            assertPeerRecoveredFiles("peer recovery must ignore syncId when seq_nos mismatched", index, "upgraded-node-2", greaterThan(0));
+            assertDocCountOnAllCopies(index, 10 + moreDocs);
         }
     }
 
-    public void testRollingUpgradeWithSyncedFlush() throws Exception {
+    public void testRollingUpgradeWithSyncedFlushSkipCopyingFiles() throws Exception {
         final String index = "rolling_upgrade_with_synced_flush";
         if (CLUSTER_TYPE == ClusterType.OLD) {
-            createIndex(index, Settings.builder()
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "30s")
+            Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(1, 2)).build());
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(1, 2));
+            if (Version.CURRENT.before(Version.V_6_0_0)) {
+                // Disable rebalancing to prevent the primary from relocating to 6.x node while replicas are still on 5.x.
+                // The relocating scenario is tested in testRecoveryWithSyncIdVerifySeqNoStats where peer recovery ignores
+                // syncId and performs a file-based recovery.
+                settings.put("index.routing.rebalance.enable", "none");
+            }
+            createIndex(index, settings.build());
             ensureGreen(index);
             indexDocs(index, 0, 40);
             syncedFlush(index);
         } else if (CLUSTER_TYPE == ClusterType.MIXED) {
             ensureGreen(index);
-            assertNoFileBasedRecovery(index);
-            indexDocs(index, 40, 50);
+            if (firstMixedRound) {
+                assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-0", equalTo(0));
+                assertDocCountOnAllCopies(index, 40);
+                indexDocs(index, 40, 50);
+            } else {
+                assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-1", equalTo(0));
+                assertDocCountOnAllCopies(index, 90);
+                indexDocs(index, 90, 60);
+            }
             syncedFlush(index);
         } else {
             ensureGreen(index);
-            assertNoFileBasedRecovery(index);
-            indexDocs(index, 90, 60);
-            syncedFlush(index);
+            assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-2", equalTo(0));
+            assertDocCountOnAllCopies(index, 150);
         }
     }
 
     private void syncedFlush(String index) throws Exception {
+        ensureGlobalCheckpointSynced(index);
         // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
         // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
         assertBusy(() -> {
@@ -432,16 +499,64 @@ public class RecoveryIT extends AbstractRollingTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertNoFileBasedRecovery(String index) throws Exception {
-        Map<?, ?> recoveryStats = entityAsMap(client().performRequest(new Request("GET", index + "/_recovery?human")));
+    private void assertPeerRecoveredFiles(String reason, String index, String targetNode, Matcher<Integer> sizeMatcher) throws IOException {
+        Response indicesStats = client().performRequest(new Request("GET", index + "/_stats?level=shards"));
+        Map<?, ?> recoveryStats = entityAsMap(client().performRequest(new Request("GET", index + "/_recovery")));
         List<Map<?, ?>> shards = (List<Map<?, ?>>) XContentMapValues.extractValue(index + "." + "shards", recoveryStats);
         for (Map<?, ?> shard : shards) {
-            if ((Boolean) XContentMapValues.extractValue("primary", shard) == false &&
-                ((String) XContentMapValues.extractValue("target.name", shard)).startsWith("upgrade-")) {
-                assertThat(recoveryStats.toString(), XContentMapValues.extractValue("index.files.total", shard), equalTo(0));
-                assertThat(recoveryStats.toString(), XContentMapValues.extractValue("index.files.recovered", shard), equalTo(0));
-                assertThat(recoveryStats.toString(), XContentMapValues.extractValue("index.files.reused", shard), equalTo(0));
+            if (Objects.equals(XContentMapValues.extractValue("type", shard), "PEER")) {
+                if (Objects.equals(XContentMapValues.extractValue("target.name", shard), targetNode)) {
+                    Integer recoveredFileSize = (Integer) XContentMapValues.extractValue("index.files.recovered", shard);
+                    assertThat(reason + "target node [" + targetNode + "] recovery stats [" + recoveryStats + "]" +
+                        " indices stats [" + EntityUtils.toString(indicesStats.getEntity()) + "]", recoveredFileSize, sizeMatcher);
+                }
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void ensureGlobalCheckpointSynced(String index) throws Exception {
+        // we need to send the stats request to a 6.0+ node which has seq_no_stats;
+        // otherwise seq_no_stats will be stripped out if it is [de]serialized on a node before 6.0.
+        Node[] upgradedNodes = client().getNodes().stream()
+            .filter(node -> Version.fromString(node.getVersion()).onOrAfter(Version.V_6_0_0)).toArray(Node[]::new);
+        if (upgradedNodes.length == 0) {
+            assert CLUSTER_TYPE == ClusterType.OLD : CLUSTER_TYPE;
+            return;
+        }
+        RestClientBuilder clientBuilder = RestClient.builder(upgradedNodes);
+        configureClient(clientBuilder, restClientSettings());
+        try (RestClient client = clientBuilder.build()) {
+            assertBusy(() -> {
+                Map<?, ?> stats = entityAsMap(client.performRequest(new Request("GET", index + "/_stats?level=shards")));
+                List<Map<?, ?>> shardStats = (List<Map<?, ?>>) XContentMapValues.extractValue("indices." + index + ".shards.0", stats);
+                List<? extends Map<?, ?>> seqNoStats = shardStats.stream()
+                    .map(shard -> (Map<?, ?>) XContentMapValues.extractValue("seq_no", shard))
+                    .filter(Objects::nonNull).collect(Collectors.toList());
+                for (Map<?, ?> seqNoStat : seqNoStats) {
+                    long globalCheckpoint = ((Number) XContentMapValues.extractValue("global_checkpoint", seqNoStat)).longValue();
+                    long localCheckpoint = ((Number) XContentMapValues.extractValue("local_checkpoint", seqNoStat)).longValue();
+                    if (globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        assertThat(stats.toString(), localCheckpoint, equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+                    } else {
+                        assertThat(stats.toString(), globalCheckpoint, equalTo(localCheckpoint));
+                    }
+                }
+            }, 60, TimeUnit.SECONDS);
+        }
+    }
+
+    /**
+     * This method should be called after changing the allocation filter to ensure the relocation has actually occurred;
+     * otherwise subsequent calls to ensure green can return true although shards haven't moved around yet due to allocation throttling.
+     */
+    private void ensureIndexAssignedToNodeIds(String index, Set<String> expectedNodeIds) throws Exception {
+        assertBusy(() -> {
+            Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
+            String xpath = "routing_table.indices." + index + ".shards.0.node";
+            @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
+            assertNotNull(state.toString(), assignedNodes);
+            assertThat(state.toString(), new HashSet<>(assignedNodes), equalTo(expectedNodeIds));
+        }, 60, TimeUnit.SECONDS);
     }
 }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryParser;
@@ -58,7 +57,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
         try {
             shape = parse(value);
         } catch (ParseException ex) {
-            throw new ElasticsearchParseException("cannot load shape", ex);
+            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape value", ex);
         }
     }
 
@@ -66,7 +65,7 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
         try {
             shape = parse(in.readString());
         } catch (ParseException ex) {
-            throw new ElasticsearchParseException("cannot load shape", ex);
+            throw new SqlIllegalArgumentException("cannot load geo_shape", ex);
         }
     }
 

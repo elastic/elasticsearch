@@ -205,6 +205,5 @@ in the results.
   }
 }
 ----
-// TESTRESPONSE[s/1/$body.took/]
-
+// TESTRESPONSE[s/"took" : 1/"took" : $body.took/]
 --

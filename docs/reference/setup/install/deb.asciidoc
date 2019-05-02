@@ -173,6 +173,7 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
+[[deb-sysv-init-vs-systemd]]
 ==== SysV `init` vs `systemd`
 
 include::init-systemd.asciidoc[]

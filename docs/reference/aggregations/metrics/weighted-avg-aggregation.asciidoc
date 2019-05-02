@@ -12,7 +12,9 @@ As a formula, a weighted average is the `∑(value * weight) / ∑(weight)`
 
 A regular average can be thought of as a weighted average where every value has an implicit weight of `1`.
 
+[[weighted-avg-params]]
 .`weighted_avg` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`value` | The configuration for the field or script that provides the values |Required |
@@ -23,7 +25,9 @@ A regular average can be thought of as a weighted average where every value has 
 
 The `value` and `weight` objects have per-field specific configuration:
 
+[[value-params]]
 .`value` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`field` | The field that values should be extracted from |Required |
@@ -31,7 +35,9 @@ The `value` and `weight` objects have per-field specific configuration:
 |`script` | A script which provides the values for the document.  This is mutually exclusive with `field` |Optional
 |===
 
+[[weight-params]]
 .`weight` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`field` | The field that weights should be extracted from |Required |

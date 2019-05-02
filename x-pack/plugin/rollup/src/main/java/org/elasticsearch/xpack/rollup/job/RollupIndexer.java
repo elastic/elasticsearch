@@ -129,7 +129,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         final CompositeAggregation response = searchResponse.getAggregations().get(AGGREGATION_NAME);
 
         if (response.getBuckets().isEmpty()) {
-            // do not reset the position as we what to continue from where we stopped
+            // do not reset the position as we want to continue from where we stopped
             return new IterationResult<>(Collections.emptyList(), getPosition(), true);
         }
 

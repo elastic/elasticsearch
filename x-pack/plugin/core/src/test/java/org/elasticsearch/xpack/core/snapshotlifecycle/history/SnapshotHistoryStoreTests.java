@@ -18,6 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -55,25 +56,68 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testPut() {
+    public void testPut() throws IOException {
         String policyId = randomAlphaOfLength(5);
         String repository = randomAlphaOfLength(6);
         String snapshotId = randomAlphaOfLength(7);
         CreateSnapshotRequest request = new CreateSnapshotRequest(repository, snapshotId);
-        Map<String, Object> config = randomBoolean() ? null : randomSnapshotConfiguration();
+        Map<String, Object> config = randomSnapshotConfiguration();
         final long timestamp = randomNonNegativeLong();
-        SnapshotCreationHistoryItem record = SnapshotCreationHistoryItem.successRecord(timestamp, policyId, request, config);
+        {
+            SnapshotCreationHistoryItem record = SnapshotCreationHistoryItem.successRecord(timestamp, policyId, request, config);
 
-        historyStore.putAsync(record);
-        ArgumentCaptor<IndexRequest> indexRequest = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(client, times(1)).index(indexRequest.capture(), notNull(ActionListener.class));
+            historyStore.putAsync(record);
+            ArgumentCaptor<IndexRequest> indexRequest = ArgumentCaptor.forClass(IndexRequest.class);
+            verify(client, times(1)).index(indexRequest.capture(), notNull(ActionListener.class));
 
-        assertEquals(getHistoryIndexNameForTime(Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC)),
-            indexRequest.getValue().index());
-        final String indexedDocument = indexRequest.getValue().source().utf8ToString();
-        assertThat(indexedDocument, containsString(policyId));
-        assertThat(indexedDocument, containsString(repository));
-        assertThat(indexedDocument, containsString(snapshotId));
+            assertEquals(getHistoryIndexNameForTime(Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC)),
+                indexRequest.getValue().index());
+            final String indexedDocument = indexRequest.getValue().source().utf8ToString();
+            assertThat(indexedDocument, containsString(policyId));
+            assertThat(indexedDocument, containsString(repository));
+            assertThat(indexedDocument, containsString(snapshotId));
+            if (config != null) {
+                assertContainsMap(indexedDocument, config);
+            }
+        }
+
+        {
+            final String cause = randomAlphaOfLength(9);
+            Exception failureException = new RuntimeException(cause);
+            SnapshotCreationHistoryItem record = SnapshotCreationHistoryItem.failureRecord(timestamp, policyId, request, config,
+                failureException);
+            historyStore.putAsync(record);
+            ArgumentCaptor<IndexRequest> indexRequest = ArgumentCaptor.forClass(IndexRequest.class);
+            verify(client, times(2)).index(indexRequest.capture(), notNull(ActionListener.class));
+
+            assertEquals(getHistoryIndexNameForTime(Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC)),
+                indexRequest.getValue().index());
+            final String indexedDocument = indexRequest.getValue().source().utf8ToString();
+            assertThat(indexedDocument, containsString(policyId));
+            assertThat(indexedDocument, containsString(repository));
+            assertThat(indexedDocument, containsString(snapshotId));
+            if (config != null) {
+                assertContainsMap(indexedDocument, config);
+            }
+            assertThat(indexedDocument, containsString("runtime_exception"));
+            assertThat(indexedDocument, containsString(cause));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertContainsMap(String indexedDocument, Map<String, Object> map) {
+        map.forEach((k, v) -> {
+            assertThat(indexedDocument, containsString(k));
+            if (v instanceof Map) {
+                assertContainsMap(indexedDocument, (Map<String, Object>) v);
+            } if (v instanceof Iterable) {
+                ((Iterable) v).forEach(elem -> {
+                    assertThat(indexedDocument, containsString(elem.toString()));
+                });
+            } else {
+                assertThat(indexedDocument, containsString(v.toString()));
+            }
+        });
     }
 
 

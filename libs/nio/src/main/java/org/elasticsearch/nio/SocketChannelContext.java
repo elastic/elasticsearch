@@ -169,6 +169,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     @Override
     protected void register() throws IOException {
         super.register();
+        readWriteHandler.channelRegistered();
         if (allowChannelPredicate.test(channel) == false) {
             closeNow = true;
         }

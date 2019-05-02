@@ -161,6 +161,7 @@ GET index/_search
 // TEST[continued]
 
 [float]
+[[map-ids-as-keyword]]
 === Consider mapping identifiers as `keyword`
 
 The fact that some data is numeric does not mean it should always be mapped as a
@@ -354,6 +355,7 @@ conjunctions faster at the cost of slightly slower indexing. Read more about it
 in the <<index-modules-index-sorting-conjunctions,index sorting documentation>>.
 
 [float]
+[[preference-cache-optimization]]
 === Use `preference` to optimize cache utilization
 
 There are multiple caches that can help with search performance, such as the

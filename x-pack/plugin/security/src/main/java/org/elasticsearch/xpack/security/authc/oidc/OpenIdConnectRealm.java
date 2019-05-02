@@ -203,19 +203,17 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return;
         }
 
-        final Map<String, Object> userMetadata = new HashMap<>();
+        final Map<String, Object> userMetadata;
         if (populateUserMetadata) {
-            Map<String, Object> claimsMap = claims.getClaims();
-            /*
-             * We whitelist the Types that we want to parse as metadata from the Claims, explicitly filtering out {@link Date}s
-             */
-            Set<Map.Entry> allowedEntries = claimsMap.entrySet().stream().filter(entry -> {
+            userMetadata = claims.getClaims().entrySet().stream().filter(entry -> {
+                /*
+                 * We whitelist the Types that we want to parse as metadata from the Claims, explicitly filtering out {@link Date}s
+                 */
                 Object v = entry.getValue();
                 return (v instanceof String || v instanceof Boolean || v instanceof Number || v instanceof Collections);
-            }).collect(Collectors.toSet());
-            for (Map.Entry entry : allowedEntries) {
-                userMetadata.put("oidc(" + entry.getKey() + ")", entry.getValue());
-            }
+            }).collect(Collectors.toUnmodifiableMap(entry -> "oidc(" + entry.getKey() + ")", Map.Entry::getValue));
+        } else {
+            userMetadata = Map.of();
         }
         final List<String> groups = groupsAttribute.getClaimValues(claims);
         final String dn = dnAttribute.getClaimValue(claims);

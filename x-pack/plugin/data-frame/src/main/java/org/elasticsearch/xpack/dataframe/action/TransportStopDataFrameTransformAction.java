@@ -132,19 +132,17 @@ public class TransportStopDataFrameTransformAction extends
                                          ActionListener<StopDataFrameTransformAction.Response> listener) {
         persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetaData -> {
 
-            logger.error("Waiting for tasks " + persistentTaskIds);
             if (persistentTasksCustomMetaData == null) {
                 return true;
             }
-            logger.error("PTasks: " + persistentTasksCustomMetaData.toString());
 
-            for (String persistentTaskId: persistentTaskIds) {
+            for (String persistentTaskId : persistentTaskIds) {
                 if (persistentTasksCustomMetaData.getTask(persistentTaskId) != null) {
                     return false;
                 }
             }
-                logger.error("task gone");
-                return true;
+            return true;
+
         }, timeout, new ActionListener<>() {
             @Override
             public void onResponse(Boolean result) {

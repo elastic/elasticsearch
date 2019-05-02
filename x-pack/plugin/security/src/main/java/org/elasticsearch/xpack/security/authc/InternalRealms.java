@@ -78,7 +78,7 @@ public final class InternalRealms {
         return ReservedRealm.TYPE.equals(type);
     }
 
-    static Collection<String> getConfigurableRealmsTypes() {
+    public static Collection<String> getConfigurableRealmsTypes() {
         return Collections.unmodifiableSet(XPACK_TYPES);
     }
 

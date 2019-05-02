@@ -121,7 +121,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         } else {
             retentionLeases = RetentionLeases.EMPTY;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             mappingVersionOnPrimary = in.readVLong();
         } else {
             mappingVersionOnPrimary = Long.MAX_VALUE;
@@ -144,7 +144,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
             retentionLeases.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeVLong(mappingVersionOnPrimary);
         }
     }

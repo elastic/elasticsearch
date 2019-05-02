@@ -218,7 +218,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"),
             hostnameVerificationEnabled, false);
     }
 
@@ -244,7 +245,8 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem", "testclient",
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                 Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                              "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"),
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt",
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"),
                 hostnameVerificationEnabled, true);
         } else {
             addSSLSettingsForStore(builder, prefix, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",

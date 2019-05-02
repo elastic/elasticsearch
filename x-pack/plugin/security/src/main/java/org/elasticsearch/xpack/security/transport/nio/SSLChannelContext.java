@@ -36,19 +36,22 @@ public final class SSLChannelContext extends SocketChannelContext {
     private static final Runnable DEFAULT_TIMEOUT_CANCELLER = () -> {};
 
     private final SSLDriver sslDriver;
+    private final InboundChannelBuffer networkReadBuffer;
     private final LinkedList<FlushOperation> encryptedFlushes = new LinkedList<>();
     private Runnable closeTimeoutCanceller = DEFAULT_TIMEOUT_CANCELLER;
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer, ALWAYS_ALLOW_CHANNEL);
+                      ReadWriteHandler readWriteHandler, InboundChannelBuffer applicationBuffer) {
+        this(channel, selector, exceptionHandler, sslDriver, readWriteHandler, InboundChannelBuffer.allocatingInstance(),
+            applicationBuffer, ALWAYS_ALLOW_CHANNEL);
     }
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
+                      ReadWriteHandler readWriteHandler, InboundChannelBuffer networkReadBuffer, InboundChannelBuffer channelBuffer,
                       Predicate<NioSocketChannel> allowChannelPredicate) {
         super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, allowChannelPredicate);
         this.sslDriver = sslDriver;
+        this.networkReadBuffer = networkReadBuffer;
     }
 
     @Override
@@ -157,12 +160,12 @@ public final class SSLChannelContext extends SocketChannelContext {
         if (closeNow()) {
             return bytesRead;
         }
-        bytesRead = readFromChannel(sslDriver.getNetworkReadBuffer());
+        bytesRead = readFromChannel(networkReadBuffer);
         if (bytesRead == 0) {
             return bytesRead;
         }
 
-        sslDriver.read(channelBuffer);
+        sslDriver.read(networkReadBuffer, channelBuffer);
 
         handleReadBytes();
         // It is possible that a read call produced non-application bytes to flush
@@ -201,7 +204,7 @@ public final class SSLChannelContext extends SocketChannelContext {
                 getSelector().executeFailedListener(encryptedFlush.getListener(), new ClosedChannelException());
             }
             encryptedFlushes.clear();
-            IOUtils.close(super::closeFromSelector, sslDriver::close);
+            IOUtils.close(super::closeFromSelector, networkReadBuffer::close, sslDriver::close);
         }
     }
 

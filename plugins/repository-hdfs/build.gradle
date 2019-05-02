@@ -122,10 +122,10 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     runner {
       if (integTestTaskName.contains("Secure")) {
         dependsOn secureHdfsFixture
-        systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
-        systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
+        nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
+        nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
         jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
-        systemProperty (
+        nonInputProperties.systemProperty (
                 "test.krb5.keytab.hdfs",
                 project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs","hdfs_hdfs.build.elastic.co.keytab")
         )

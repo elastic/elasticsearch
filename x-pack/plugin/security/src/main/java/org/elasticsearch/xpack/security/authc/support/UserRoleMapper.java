@@ -20,9 +20,6 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -64,9 +61,7 @@ public interface UserRoleMapper {
             this.username = username;
             this.dn = dn;
             this.groups = Set.copyOf(groups);
-            // noinspection Java9CollectionFactory (because null values happen in production code, can such keys be dropped?)
-            this.metadata = metadata == null || metadata.isEmpty()
-                    ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(metadata));
+            this.metadata = metadata;
             this.realm = realm;
         }
 

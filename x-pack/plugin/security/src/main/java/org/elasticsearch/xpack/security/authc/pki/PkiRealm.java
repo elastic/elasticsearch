@@ -42,7 +42,6 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -150,7 +149,7 @@ public class PkiRealm extends Realm implements CachingRealm {
     }
 
     private void buildUser(X509AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
-        final Map<String, Object> metadata = Collections.singletonMap("pki_dn", token.dn());
+        final Map<String, Object> metadata = Map.of("pki_dn", token.dn());
         final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(token.principal(), token.dn(), Set.of(), metadata, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User computedUser =

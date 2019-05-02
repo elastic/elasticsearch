@@ -78,7 +78,7 @@ public class EnrichPolicyRunner implements Runnable {
         final String sourceIndexPattern = policy.getIndexPattern();
         logger.debug("Policy [{}]: Checking source index [{}]", policyName, sourceIndexPattern);
         GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndexPattern);
-        client.admin().indices().getIndex(getIndexRequest, new ActionListener<>() {
+        client.admin().indices().getIndex(getIndexRequest, new ActionListener<GetIndexResponse>() {
             @Override
             public void onResponse(GetIndexResponse getIndexResponse) {
                 validateMappings(getIndexResponse);
@@ -167,7 +167,7 @@ public class EnrichPolicyRunner implements Runnable {
         CreateIndexRequest createEnrichIndexRequest = new CreateIndexRequest(enrichIndexName, enrichIndexSettings);
         createEnrichIndexRequest.mapping(MapperService.SINGLE_MAPPING_NAME, resolveEnrichMapping(policy));
         logger.debug("Policy [{}]: Creating new enrich index [{}]", policyName, enrichIndexName);
-        client.admin().indices().create(createEnrichIndexRequest, new ActionListener<>() {
+        client.admin().indices().create(createEnrichIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override
             public void onResponse(CreateIndexResponse createIndexResponse) {
                 transferDataToEnrichIndex(enrichIndexName);
@@ -196,7 +196,7 @@ public class EnrichPolicyRunner implements Runnable {
             .setSourceIndices(policy.getIndexPattern());
         reindexRequest.getSearchRequest().source(searchSourceBuilder);
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
-        client.execute(ReindexAction.INSTANCE, reindexRequest, new ActionListener<>() {
+        client.execute(ReindexAction.INSTANCE, reindexRequest, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 // Do we want to fail the request if there were failures during the reindex process?
@@ -220,7 +220,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void refreshEnrichIndex(final String destinationIndexName) {
         logger.debug("Policy [{}]: Refreshing newly created enrich index [{}]", policyName, destinationIndexName);
-        client.admin().indices().refresh(new RefreshRequest(destinationIndexName), new ActionListener<>() {
+        client.admin().indices().refresh(new RefreshRequest(destinationIndexName), new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse refreshResponse) {
                 updateEnrichPolicyAlias(destinationIndexName);
@@ -246,7 +246,7 @@ public class EnrichPolicyRunner implements Runnable {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }
         aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(destinationIndexName).alias(enrichIndexBase));
-        client.admin().indices().aliases(aliasToggleRequest, new ActionListener<>() {
+        client.admin().indices().aliases(aliasToggleRequest, new ActionListener<AcknowledgedResponse>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 logger.info("Policy [{}]: Policy execution complete", policyName);

@@ -195,9 +195,9 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
-import org.elasticsearch.xpack.security.rest.action.RestCreateApiKeyAction;
-import org.elasticsearch.xpack.security.rest.action.RestGetApiKeyAction;
-import org.elasticsearch.xpack.security.rest.action.RestInvalidateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
@@ -258,9 +258,9 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
@@ -406,9 +406,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
-        securityIndex.set(SecurityIndexManager.buildSecurityIndexManager(client, clusterService));
+        securityIndex.set(SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService));
 
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService);
+        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, getLicenseState(),
+            securityIndex.get(), SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
@@ -449,8 +450,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
 
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService,
-            threadPool);
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
+            clusterService, threadPool);
         components.add(apiKeyService);
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
@@ -965,7 +966,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
         return templates -> {
             // .security index is not managed by using templates anymore
-            templates.remove(SECURITY_TEMPLATE_NAME);
+            templates.remove(SECURITY_MAIN_TEMPLATE_7);
             templates.remove("security_audit_log");
             return templates;
         };
@@ -1031,9 +1032,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             if (state.getNodes().getMinNodeVersion().before(Version.V_7_0_0)) {
-                IndexMetaData indexMetaData = state.getMetaData().getIndices().get(SECURITY_INDEX_NAME);
-                if (indexMetaData != null && INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()) < INTERNAL_INDEX_FORMAT) {
-                    throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_INDEX_FORMAT + "] - " +
+                IndexMetaData indexMetaData = state.getMetaData().getIndices().get(SECURITY_MAIN_ALIAS);
+                if (indexMetaData != null && INDEX_FORMAT_SETTING.get(indexMetaData.getSettings()) < INTERNAL_MAIN_INDEX_FORMAT) {
+                    throw new IllegalStateException("Security index is not on the current version [" + INTERNAL_MAIN_INDEX_FORMAT + "] - " +
                         "The Upgrade API must be run for 7.x nodes to join the cluster");
                 }
             }

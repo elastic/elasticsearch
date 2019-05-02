@@ -17,9 +17,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -33,9 +31,9 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetFiltersAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
@@ -72,12 +70,12 @@ import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -85,15 +83,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class AutodetectProcessManager implements ClusterStateListener {
-
-    // Undocumented setting for integration test purposes
-    public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
-            Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(AutodetectProcessManager.class);
 
@@ -111,9 +104,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private NativeStorageProvider nativeStorageProvider;
     private final ConcurrentMap<Long, ProcessContext> processByAllocation = new ConcurrentHashMap<>();
 
-    // a map that manages the allocation of temporary space to jobs
-    private final ConcurrentMap<String, Path> nativeTmpStorage = new ConcurrentHashMap<>();
-
     private volatile int maxAllowedRunningJobs;
 
     private final NamedXContentRegistry xContentRegistry;
@@ -123,10 +113,10 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private volatile boolean upgradeInProgress;
 
     public AutodetectProcessManager(Environment environment, Settings settings, Client client, ThreadPool threadPool,
+                                    NamedXContentRegistry xContentRegistry, Auditor auditor, ClusterService clusterService,
                                     JobManager jobManager, JobResultsProvider jobResultsProvider, JobResultsPersister jobResultsPersister,
-                                    JobDataCountsPersister jobDataCountsPersister,
-                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
-                                    NamedXContentRegistry xContentRegistry, Auditor auditor, ClusterService clusterService) {
+                                    JobDataCountsPersister jobDataCountsPersister, AutodetectProcessFactory autodetectProcessFactory,
+                                    NormalizerFactory normalizerFactory, NativeStorageProvider nativeStorageProvider) {
         this.environment = environment;
         this.client = client;
         this.threadPool = threadPool;
@@ -139,7 +129,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         this.jobResultsPersister = jobResultsPersister;
         this.jobDataCountsPersister = jobDataCountsPersister;
         this.auditor = auditor;
-        this.nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
+        this.nativeStorageProvider = Objects.requireNonNull(nativeStorageProvider);
         clusterService.addListener(this);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxAllowedRunningJobs);
@@ -147,14 +137,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
     void setMaxAllowedRunningJobs(int maxAllowedRunningJobs) {
         this.maxAllowedRunningJobs = maxAllowedRunningJobs;
-    }
-
-    public void onNodeStartup() {
-        try {
-            nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
-        } catch (Exception e) {
-            logger.warn("Failed to cleanup native storage from previous invocation", e);
-        }
     }
 
     public synchronized void closeAllJobsOnThisNode(String reason) {
@@ -281,28 +263,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 handler.onResponse(flushAcknowledgement);
             }
         });
-    }
-
-    /**
-     * Request temporary storage to be used for the job
-     *
-     * @param jobTask The job task
-     * @param requestedSize requested size
-     * @return a Path to local storage or null if storage is not available
-     */
-    public Path tryGetTmpStorage(JobTask jobTask, ByteSizeValue requestedSize) {
-        String jobId = jobTask.getJobId();
-        Path path = nativeTmpStorage.get(jobId);
-        if (path == null) {
-            path = nativeStorageProvider.tryGetLocalTmpStorage(jobId, requestedSize);
-            if (path != null) {
-                nativeTmpStorage.put(jobId, path);
-            }
-        } else if (!nativeStorageProvider.localTmpStorageHasEnoughSpace(path, requestedSize)) {
-            // the previous tmp location ran out of disk space, do not allow further usage
-            return null;
-        }
-        return path;
     }
 
     /**
@@ -602,7 +562,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
             }
             setJobState(jobTask, JobState.FAILED, reason);
             try {
-                removeTmpStorage(jobTask.getJobId());
+                nativeStorageProvider.cleanupLocalTmpStorage(jobTask.getDescription());
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Failed to delete temporary files", jobTask.getJobId()), e);
             }
@@ -666,7 +626,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         }
         // delete any tmp storage
         try {
-            removeTmpStorage(jobId);
+            nativeStorageProvider.cleanupLocalTmpStorage(jobTask.getDescription());
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("[{}]Failed to delete temporary files", jobId), e);
         }
@@ -758,13 +718,6 @@ public class AutodetectProcessManager implements ClusterStateListener {
             return Optional.empty();
         }
         return Optional.of(new Tuple<>(communicator.getDataCounts(), communicator.getModelSizeStats()));
-    }
-
-    private void removeTmpStorage(String jobId) throws IOException {
-        Path path = nativeTmpStorage.get(jobId);
-        if (path != null) {
-            nativeStorageProvider.cleanupLocalTmpStorage(path);
-        }
     }
 
     ExecutorService createAutodetectExecutorService(ExecutorService executorService) {

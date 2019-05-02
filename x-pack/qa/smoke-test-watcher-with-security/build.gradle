@@ -25,6 +25,7 @@ integTestCluster {
   keystoreSetting 'xpack.notification.email.account._email.smtp.secure_password', '_passwd'
   setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'roles.yml', 'roles.yml'
+  extraConfigFile 'log4j2.properties', 'custom-log4j2.properties'
   setupCommand 'setupTestAdminUser',
                'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupXpackUserForTests',

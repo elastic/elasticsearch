@@ -62,6 +62,7 @@ setup() {
 
 @test "[UPGRADE] modify keystore" {
     # deliberately modify the keystore to force it to be preserved during package upgrade
+    export_elasticsearch_paths
     sudo -E "$ESHOME/bin/elasticsearch-keystore" remove keystore.seed
     sudo -E echo keystore_seed | "$ESHOME/bin/elasticsearch-keystore" add -x keystore.seed
 }

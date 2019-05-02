@@ -32,12 +32,12 @@ public abstract class Boilerplate {
         return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
     }
 
-    public static <T> T findOrCreate(NamedDomainObjectContainer<T> collection, String name) {
+    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name) {
         return Optional.ofNullable(collection.findByName(name))
             .orElse(collection.create(name));
 
     }
-    public static <T> T findOrCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
+    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
         return Optional.ofNullable(collection.findByName(name))
             .orElseGet(() -> {
                 T result = collection.create(name);

@@ -32,7 +32,6 @@ import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 import org.gradle.api.credentials.HttpHeaderCredentials;
 import org.gradle.api.execution.TaskActionListener;
 import org.gradle.api.execution.TaskExecutionListener;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -48,7 +47,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -58,7 +56,7 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
     private static final String NODE_EXTENSION_NAME = "testClusters";
-    private static final String HELPER_CONFIGURATION_NAME = "testclusters";
+    private static final String HELPER_CONFIGURATION_PREFIX = "testclusters";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
     private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
@@ -72,7 +70,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public static String getHelperConfigurationName(String version) {
-        return HELPER_CONFIGURATION_NAME + "-" + version;
+        return HELPER_CONFIGURATION_PREFIX + "-" + version;
     }
 
     @Override
@@ -264,7 +262,6 @@ public class TestClustersPlugin implements Plugin<Project> {
         mavenCentral.content(spec -> {
             spec.includeGroupByRegex("org\\.elasticsearch\\.distribution\\..*");
         });
-        project.getRepositories().add(mavenCentral);
 
         // Other distributions from the download service
         project.getRepositories().add(
@@ -282,7 +279,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         // the clusters will look for artifacts there based on the naming conventions.
         // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
         // the build.
-        Task sync = Boilerplate.findOrCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
+        Task sync = Boilerplate.maybeCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
             onCreate.getOutputs().dir(getExtractDir(rootProject));
             // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
             onCreate.doFirst(new Action<Task>() {
@@ -301,7 +298,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         // all because fields can change after the fact.
         project.afterEvaluate(ip -> container.forEach(esCluster ->
             esCluster.eachVersionedDistribution((version, distribution) -> {
-                Configuration helperConfiguration = Boilerplate.findOrCreate(
+                Configuration helperConfiguration = Boilerplate.maybeCreate(
                     rootProject.getConfigurations(),
                     getHelperConfigurationName(version),
                     onCreate ->
@@ -351,7 +348,7 @@ public class TestClustersPlugin implements Plugin<Project> {
 
                 }
 
-                sync.getInputs().files((Callable<FileCollection>) helperConfiguration::getAsFileTree);
+                sync.getInputs().files(helperConfiguration);
                 // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
                 sync.doLast(new Action<Task>() {
                     @Override

@@ -274,20 +274,19 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     }
 
     @After
-    public static void waitForDataFrame() throws Exception {
+    public void waitForDataFrame() throws Exception {
+        wipeDataFrameTransforms();
         waitForPendingDataFrameTasks();
     }
 
     @AfterClass
     public static void removeIndices() throws Exception {
-        wipeDataFrameTransforms();
-        waitForPendingDataFrameTasks();
         // we might have disabled wiping indices, but now its time to get rid of them
         // note: can not use super.cleanUpCluster() as this method must be static
         wipeIndices();
     }
 
-    protected static void wipeDataFrameTransforms() throws IOException, InterruptedException {
+    public void wipeDataFrameTransforms() throws IOException, InterruptedException {
         List<Map<String, Object>> transformConfigs = getDataFrameTransforms();
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");

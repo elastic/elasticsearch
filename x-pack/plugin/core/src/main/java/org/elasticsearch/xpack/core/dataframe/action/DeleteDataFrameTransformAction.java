@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
@@ -29,6 +30,15 @@ public class DeleteDataFrameTransformAction extends Action<AcknowledgedResponse>
     @Override
     public AcknowledgedResponse newResponse() {
         throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<AcknowledgedResponse> getResponseReader() {
+        return in -> {
+            AcknowledgedResponse response = new AcknowledgedResponse();
+            response.readFrom(in);
+            return response;
+        };
     }
 
     public static class Request extends MasterNodeRequest<Request> {

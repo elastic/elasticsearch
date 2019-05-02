@@ -92,6 +92,7 @@ public class TransportStopDataFrameTransformAction extends
             }
 
             transformTask.stop();
+            listener.onResponse(new StopDataFrameTransformAction.Response(Boolean.TRUE));
         } else {
             listener.onFailure(new RuntimeException("ID of data frame indexer task [" + transformTask.getTransformId()
                     + "] does not match request's ID [" + request.getId() + "]"));
@@ -131,6 +132,10 @@ public class TransportStopDataFrameTransformAction extends
                                          ActionListener<StopDataFrameTransformAction.Response> listener) {
         persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetaData -> {
 
+            logger.error("Waiting for tasks " + persistentTaskIds);
+            if (persistentTasksCustomMetaData == null) {
+                return true;
+            }
             logger.error("PTasks: " + persistentTasksCustomMetaData.toString());
 
             for (String persistentTaskId: persistentTaskIds) {

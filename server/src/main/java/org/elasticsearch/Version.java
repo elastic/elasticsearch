@@ -158,7 +158,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 return V_7_0_0;
             case V_6_7_3_ID:
                 return V_6_7_3;
-	    case V_6_7_1_ID:
+            case V_6_7_1_ID:
                 return V_6_7_1;
             case V_6_7_2_ID:
                 return V_6_7_2;

@@ -15,14 +15,27 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.After;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class EnrichIT extends ESRestTestCase {
+
+    @After
+    private void deletePolicies() throws Exception {
+        Map<String, Object> responseMap = toMap(client().performRequest(new Request("GET", "/_enrich/policy")));
+        @SuppressWarnings("unchecked")
+        List<Map<?,?>> policies = (List<Map<?,?>>) responseMap.get("policies");
+
+        for (Map<?, ?> entry: policies) {
+            client().performRequest(new Request("DELETE", "/_enrich/policy/" + entry.get("name")));
+        }
+    }
 
     // TODO: update this test when policy runner is ready
     public void testBasicFlow() throws Exception {
@@ -72,6 +85,10 @@ public class EnrichIT extends ESRestTestCase {
         assertThat(_source.get("host"), equalTo("elastic.co"));
         assertThat(_source.get("global_rank"), equalTo(25));
         assertThat(_source.get("tld_rank"), equalTo(7));
+
+        // Delete policy:
+        Request deletePolicyRequest = new Request("DELETE", "/_enrich/policy/my_policy");
+        assertOK(client().performRequest(deletePolicyRequest));
     }
 
     private static Map<String, Object> toMap(Response response) throws IOException {

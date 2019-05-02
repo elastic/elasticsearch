@@ -177,6 +177,8 @@ class S3Service implements Closeable {
         clientConfiguration.setMaxErrorRetry(clientSettings.maxRetries);
         clientConfiguration.setUseThrottleRetries(clientSettings.throttleRetries);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
+        // We should explicitly use V4Signer https://docs.aws.amazon.com/AmazonS3/latest/dev/kms-using-sdks.html
+        clientConfiguration.withSignerOverride("AWSS3V4SignerType");
 
         return clientConfiguration;
     }

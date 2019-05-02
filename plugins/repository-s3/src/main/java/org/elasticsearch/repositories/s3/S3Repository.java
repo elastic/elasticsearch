@@ -87,6 +87,17 @@ class S3Repository extends BlobStoreRepository {
     static final Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
 
     /**
+     * Encryption algorithm for S3 bucket.
+     * Defaults to AES256.
+     */
+    static final Setting<String> SERVER_SIDE_ENCRYPTION_ALGORITHM = Setting.simpleString("server_side_encryption_algorithm", "AES256");
+
+    /**
+     * KMS Key Id to be used for bucket encryption.
+     */
+    static final Setting<String> SSEKMS_KEY_ID = Setting.simpleString("ssekms_key_id");
+
+    /**
      * Maximum size of files that can be uploaded using a single upload request.
      */
     static final ByteSizeValue MAX_FILE_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
@@ -154,6 +165,10 @@ class S3Repository extends BlobStoreRepository {
 
     private final boolean serverSideEncryption;
 
+    private final String serverSideEncrpytionAlgorithm;
+
+    private final String sseKmsKeyId;
+
     private final String storageClass;
 
     private final String cannedACL;
@@ -191,6 +206,8 @@ class S3Repository extends BlobStoreRepository {
         }
 
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
+        this.serverSideEncrpytionAlgorithm = SERVER_SIDE_ENCRYPTION_ALGORITHM.get(metadata.settings());
+        this.sseKmsKeyId = SSEKMS_KEY_ID.get(metadata.settings());
 
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
@@ -202,10 +219,12 @@ class S3Repository extends BlobStoreRepository {
         }
 
         logger.debug(
-                "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
+                "using bucket [{}], chunk_size [{}], server_side_encryption [{}], server_side_encryption_algorithm [{}], ssekms_key_id [{}], sse buffer_size [{}], cannedACL [{}], storageClass [{}]",
                 bucket,
                 chunkSize,
                 serverSideEncryption,
+                serverSideEncrpytionAlgorithm,
+                sseKmsKeyId,
                 bufferSize,
                 cannedACL,
                 storageClass);
@@ -213,7 +232,7 @@ class S3Repository extends BlobStoreRepository {
 
     @Override
     protected S3BlobStore createBlobStore() {
-        return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata);
+        return new S3BlobStore(service, bucket, serverSideEncryption, serverSideEncrpytionAlgorithm, sseKmsKeyId, bufferSize, cannedACL, storageClass, metadata);
     }
 
     // only use for testing

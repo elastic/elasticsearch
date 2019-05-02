@@ -46,18 +46,24 @@ class S3BlobStore implements BlobStore {
 
     private final boolean serverSideEncryption;
 
+    private final String serverSideEncryptionAlgorithm;
+
+    private final String sseKmsKeyId;
+
     private final CannedAccessControlList cannedACL;
 
     private final StorageClass storageClass;
 
     private final RepositoryMetaData repositoryMetaData;
 
-    S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
-                ByteSizeValue bufferSize, String cannedACL, String storageClass,
+    S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption, String serverSideEncryptionAlgorithm,
+                String sseKmsKeyId, ByteSizeValue bufferSize, String cannedACL, String storageClass,
                 RepositoryMetaData repositoryMetaData) {
         this.service = service;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
+        this.serverSideEncryptionAlgorithm = serverSideEncryptionAlgorithm;
+        this.sseKmsKeyId = sseKmsKeyId;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
@@ -79,6 +85,14 @@ class S3BlobStore implements BlobStore {
 
     public boolean serverSideEncryption() {
         return serverSideEncryption;
+    }
+
+    public String serverSideEncryptionAlgorithm() {
+        return serverSideEncryptionAlgorithm;
+    }
+
+    public String sseKmsKeyId() {
+        return sseKmsKeyId;
     }
 
     public long bufferSizeInBytes() {

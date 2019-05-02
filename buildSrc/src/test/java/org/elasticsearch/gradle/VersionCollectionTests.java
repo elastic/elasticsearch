@@ -82,10 +82,10 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             "6_2_4", "6_3_0", "6_3_1", "6_3_2", "6_4_0", "6_4_1", "6_4_2"
         ));
         sampleVersions.put("7.0.0", asList(
-            "7_0_0", "6_7_0", "6_6_2", "6_6_1", "6_6_0"
+            "7_0_0", "6_8_0", "6_7_2", "6_7_1", "6_7_0", "6_6_2", "6_6_1", "6_6_0"
         ));
         sampleVersions.put("7.1.0", asList(
-            "7_1_0", "7_0_0", "6_7_0", "6_6_1", "6_6_0"
+            "7_1_0", "7_0_0", "6_8_0", "6_7_2", "6_7_1", "6_7_0", "6_6_1", "6_6_0"
         ));
     }
 
@@ -152,7 +152,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("8.0.0").getWireCompatible()
         );
         assertVersionsEquals(
-            asList("6.7.0", "7.0.0"),
+            asList("6.8.0", "7.0.0"),
             getVersionCollection("7.1.0").getWireCompatible()
         );
 
@@ -183,7 +183,7 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("8.0.0").getUnreleasedWireCompatible()
         );
         assertVersionsEquals(
-            asList("6.7.0", "7.0.0"),
+            asList("6.8.0", "7.0.0"),
             getVersionCollection("7.1.0").getWireCompatible()
         );
     }
@@ -286,11 +286,11 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("8.0.0").getUnreleased()
         );
         assertVersionsEquals(
-            asList("6.6.1", "6.7.0", "7.0.0", "7.1.0"),
+            asList("6.7.2", "6.8.0", "7.0.0", "7.1.0"),
             getVersionCollection("7.1.0").getUnreleased()
         );
         assertVersionsEquals(
-            asList("6.6.2", "6.7.0", "7.0.0"),
+            asList("6.7.2", "6.8.0", "7.0.0"),
             getVersionCollection("7.0.0").getUnreleased()
         );
     }
@@ -317,11 +317,11 @@ public class VersionCollectionTests extends GradleUnitTestCase {
             getVersionCollection("8.0.0")
         );
         assertUnreleasedBranchNames(
-            asList("6.6", "6.7", "7.0"),
+            asList("6.7", "6.8", "7.0"),
             getVersionCollection("7.1.0")
         );
         assertUnreleasedBranchNames(
-            asList("6.6", "6.7"),
+            asList("6.7", "6.8"),
             getVersionCollection("7.0.0")
         );
     }

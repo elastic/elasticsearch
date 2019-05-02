@@ -453,7 +453,6 @@ public final class SamlRealm extends Realm implements Releasable {
             userMeta.put(USER_METADATA_NAMEID_FORMAT, attributes.name().format);
         }
 
-
         final List<String> groups = groupsAttribute.getAttribute(attributes);
         final String dn = resolveSingleValueAttribute(attributes, dnAttribute, DN_ATTRIBUTE.name(config));
         final String name = resolveSingleValueAttribute(attributes, nameAttribute, NAME_ATTRIBUTE.name(config));
@@ -764,7 +763,7 @@ public final class SamlRealm extends Realm implements Releasable {
                                     return null;
                                 }
                                 return value;
-                            }).filter(Objects::nonNull).collect(Collectors.toList())
+                            }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList())
                     );
                 } else {
                     return new AttributeParser(
@@ -780,7 +779,7 @@ public final class SamlRealm extends Realm implements Releasable {
                         + "] is also set");
             } else {
                 return new AttributeParser("No SAML attribute for [" + setting.name(realmConfig) + "]",
-                        attributes -> Collections.emptyList());
+                        attributes -> List.of());
             }
         }
 

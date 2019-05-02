@@ -104,7 +104,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
         final UserRoleMapper.UserData user = new UserRoleMapper.UserData("sasquatch",
                 randomiseDn("cn=walter.langowski,ou=people,ou=dept_h,o=forces,dc=gc,dc=ca"),
-                Arrays.asList(
+                List.of(
                         randomiseDn("cn=alphaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"),
                         randomiseDn("cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")
                 ), Collections.singletonMap("extra_group", "flight"), realm);

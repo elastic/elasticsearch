@@ -63,9 +63,7 @@ public interface UserRoleMapper {
                         Map<String, Object> metadata, RealmConfig realm) {
             this.username = username;
             this.dn = dn;
-            // noinspection Java9CollectionFactory (because null values happen in some tests, is this realistic?)
-            this.groups = groups == null || groups.isEmpty()
-                    ? Collections.emptySet() : Collections.unmodifiableSet(new HashSet<>(groups));
+            this.groups = Set.copyOf(groups);
             // noinspection Java9CollectionFactory (because null values happen in production code, can such keys be dropped?)
             this.metadata = metadata == null || metadata.isEmpty()
                     ? Collections.emptyMap() : Collections.unmodifiableMap(new HashMap<>(metadata));
@@ -87,7 +85,6 @@ public interface UserRoleMapper {
                 model.defineField("dn", dn, new DistinguishedNamePredicate(dn));
             }
             model.defineField("groups", groups, groups.stream()
-                    .filter(group -> group != null)
                     .<Predicate<FieldExpression.FieldValue>>map(DistinguishedNamePredicate::new)
                     .reduce(Predicate::or)
                     .orElse(fieldValue -> false)

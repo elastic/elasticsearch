@@ -46,6 +46,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
@@ -150,8 +151,7 @@ public class PkiRealm extends Realm implements CachingRealm {
 
     private void buildUser(X509AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
         final Map<String, Object> metadata = Collections.singletonMap("pki_dn", token.dn());
-        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(token.principal(),
-                token.dn(), Collections.emptySet(), metadata, this.config);
+        final UserRoleMapper.UserData userData = new UserRoleMapper.UserData(token.principal(), token.dn(), Set.of(), metadata, config);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User computedUser =
                     new User(token.principal(), roles.toArray(new String[roles.size()]), null, null, metadata, true);

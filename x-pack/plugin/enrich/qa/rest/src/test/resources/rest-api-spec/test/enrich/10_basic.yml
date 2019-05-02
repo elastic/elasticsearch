@@ -21,3 +21,8 @@
   - match: { policies.0.enrich_key: baz }
   - match: { policies.0.enrich_values: ["a", "b"] }
   - match: { policies.0.schedule: "*/120" }
+
+  - do:
+      enrich.delete_policy:
+        name: policy-crud
+  - is_true: acknowledged

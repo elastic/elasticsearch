@@ -268,7 +268,7 @@ public class CertGenUtils {
     /**
      * Converts the {@link InetAddress} objects into a {@link GeneralNames} object that is used to represent subject alternative names.
      */
-    public static GeneralNames getSubjectAlternativeNames(boolean resolveName, Set<InetAddress> addresses) throws SocketException {
+    public static GeneralNames getSubjectAlternativeNames(boolean resolveName, Set<InetAddress> addresses) throws IOException {
         Set<GeneralName> generalNameList = new HashSet<>();
         for (InetAddress address : addresses) {
             if (address.isAnyLocalAddress()) {

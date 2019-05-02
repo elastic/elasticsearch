@@ -119,8 +119,9 @@ abstract class TrustConfig {
 
             try {
                 return CertParsingUtils.trustManager(trustConfigs.stream()
-                    .flatMap((tc) -> Arrays.stream(tc.createTrustManager(environment).getAcceptedIssuers()))
-                    .toArray(X509Certificate[]::new));
+                        .flatMap((tc) -> Arrays.stream(tc.createTrustManager(environment).getAcceptedIssuers()))
+                        .collect(Collectors.toList())
+                        .toArray(new X509Certificate[0]));
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to create trust manager", e);
             }

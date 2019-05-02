@@ -31,7 +31,6 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.SocketException;
-import java.net.SocketTimeoutException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -166,7 +165,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     public void testCertificateWithTrustedNameIsAccepted() throws Exception {
         writeRestrictions("*.trusted");
         try {
-            tryConnect(trustedCert, false);
+            tryConnect(trustedCert);
         } catch (SSLException | SocketException ex) {
             logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
                     trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
@@ -177,7 +176,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     public void testCertificateWithUntrustedNameFails() throws Exception {
         writeRestrictions("*.trusted");
         try {
-            tryConnect(untrustedCert, true);
+            tryConnect(untrustedCert);
             fail("handshake should have failed, but was successful");
         } catch (SSLException | SocketException ex) {
             // expected
@@ -188,7 +187,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*");
         assertBusy(() -> {
             try {
-                tryConnect(untrustedCert, false);
+                tryConnect(untrustedCert);
             } catch (SSLException | SocketException ex) {
                 fail("handshake should have been successful, but failed with " + ex);
             }
@@ -197,7 +196,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*.trusted");
         assertBusy(() -> {
             try {
-                tryConnect(untrustedCert, true);
+                tryConnect(untrustedCert);
                 fail("handshake should have failed, but was successful");
             } catch (SSLException | SocketException ex) {
                 // expected
@@ -222,7 +221,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         }
     }
 
-    private void tryConnect(CertificateInfo certificate, boolean shouldFail) throws Exception {
+    private void tryConnect(CertificateInfo certificate) throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("xpack.security.transport.ssl.key", certificate.getKeyPath())
@@ -240,16 +239,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             assertThat(socket.isConnected(), is(true));
             // The test simply relies on this (synchronously) connecting (or not), so we don't need a handshake handler
             socket.startHandshake();
-
-            // blocking read for TLSv1.3 to see if the other side closed the connection
-            if (socket.getSession().getProtocol().equals("TLSv1.3")) {
-                if (shouldFail) {
-                    socket.getInputStream().read();
-                } else {
-                    socket.setSoTimeout(1000); // 1 second timeout
-                    expectThrows(SocketTimeoutException.class, () -> socket.getInputStream().read());
-                }
-            }
         }
     }
 

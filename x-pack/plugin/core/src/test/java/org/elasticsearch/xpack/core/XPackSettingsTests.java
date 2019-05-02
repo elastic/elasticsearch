@@ -7,19 +7,30 @@ package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
+import javax.net.ssl.SSLContext;
 
 import java.security.NoSuchAlgorithmException;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class XPackSettingsTests extends ESTestCase {
 
-    public void testDefaultSSLCiphers() {
+    public void testDefaultSSLCiphers() throws Exception {
         assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_128_CBC_SHA"));
-        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_256_CBC_SHA"));
+
+        final boolean useAES256 = Cipher.getMaxAllowedKeyLength("AES") > 128;
+        if (useAES256) {
+            logger.info("AES 256 is available");
+            assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_256_CBC_SHA"));
+        } else {
+            logger.info("AES 256 is not available");
+            assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_RSA_WITH_AES_256_CBC_SHA")));
+        }
     }
 
     public void testPasswordHashingAlgorithmSettingValidation() {
@@ -39,13 +50,28 @@ public class XPackSettingsTests extends ESTestCase {
             Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), bcryptAlgo).build()));
     }
 
-    public void testDefaultSupportedProtocols() {
+    public void testDefaultSupportedProtocolsWithTLSv13() throws Exception {
+        assumeTrue("current JVM does not support TLSv1.3", supportTLSv13());
         assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.3", "TLSv1.2", "TLSv1.1"));
+    }
+
+    public void testDefaultSupportedProtocolsWithoutTLSv13() throws Exception {
+        assumeFalse("current JVM supports TLSv1.3", supportTLSv13());
+        assertThat(XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS, contains("TLSv1.2", "TLSv1.1"));
     }
 
     private boolean isSecretkeyFactoryAlgoAvailable(String algorithmId) {
         try {
             SecretKeyFactory.getInstance(algorithmId);
+            return true;
+        } catch (NoSuchAlgorithmException e) {
+            return false;
+        }
+    }
+
+    private boolean supportTLSv13() {
+        try {
+            SSLContext.getInstance("TLSv1.3");
             return true;
         } catch (NoSuchAlgorithmException e) {
             return false;

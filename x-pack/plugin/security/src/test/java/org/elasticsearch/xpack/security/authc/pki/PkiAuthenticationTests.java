@@ -66,9 +66,8 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
             .put("xpack.security.authc.realms.file.file.order", "0")
             .put("xpack.security.authc.realms.pki.pki1.order", "1")
-            .putList("xpack.security.authc.realms.pki.pki1.certificate_authorities",
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
-                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt").toString())
+            .put("xpack.security.authc.realms.pki.pki1.certificate_authorities",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
             .put("xpack.security.authc.realms.pki.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
         return builder.build();
     }
@@ -92,8 +91,8 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
             "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"));
+            Arrays.asList
+                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (TransportClient client = createTransportClient(builder.build())) {
             client.addTransportAddress(randomFrom(node().injector().getInstance(Transport.class).boundAddress().boundAddresses()));
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
@@ -120,8 +119,7 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
             Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"));
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
             try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {
@@ -135,8 +133,7 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
         SSLContext context = getRestSSLContext("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem",
             "testclient", "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
             Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"));
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (CloseableHttpClient client = HttpClients.custom().setSSLContext(context).build()) {
             HttpPut put = new HttpPut(getNodeUrl() + "foo");
             try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(put))) {

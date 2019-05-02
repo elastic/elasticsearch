@@ -135,7 +135,6 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.pem");
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.crt");
         Path nodeCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
-        Path nodeEcCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt");
 
         if (Files.notExists(keyPath) || Files.notExists(certPath)) {
             throw new ElasticsearchException("key or certificate path doesn't exist");
@@ -148,7 +147,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
             .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
             .put("xpack.security.transport.ssl.key", keyPath)
             .put("xpack.security.transport.ssl.certificate", certPath)
-            .putList("xpack.security.transport.ssl.certificate_authorities", nodeCertPath.toString(), nodeEcCertPath.toString())
+            .put("xpack.security.transport.ssl.certificate_authorities", nodeCertPath)
             .setSecureSettings(secureSettings)
             .put("cluster.name", internalCluster().getClusterName())
             .put(SecurityField.USER_SETTING.getKey(), transportClientUsername() + ":" + new String(transportClientPassword().getChars()))
@@ -166,13 +165,12 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         try {
             String certPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt";
             String nodeCertPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
-            String nodeEcCertPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt";
             String keyPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem";
             TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Arrays.asList(getDataPath
-                (certPath), getDataPath(nodeCertPath), getDataPath(nodeEcCertPath))));
+                (certPath), getDataPath(nodeCertPath))));
             KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
                 (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
-            SSLContext context = SSLContext.getInstance(randomFrom("TLSv1.3", "TLSv1.2"));
+            SSLContext context = SSLContext.getInstance("TLSv1.2");
             context.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
             return context;
         } catch (Exception e) {

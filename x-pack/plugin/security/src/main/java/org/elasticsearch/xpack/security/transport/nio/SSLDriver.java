@@ -438,7 +438,7 @@ public class SSLDriver implements AutoCloseable {
                 SSLEngineResult result = unwrap(encryptedBuffer, applicationBuffer);
                 boolean renegotiationRequested = result.getStatus() != SSLEngineResult.Status.CLOSED
                     && maybeRenegotiation(result.getHandshakeStatus());
-                continueUnwrap = result.bytesConsumed() > 0 && renegotiationRequested == false;
+                continueUnwrap = result.bytesProduced() > 0 && renegotiationRequested == false;
             }
         }
 

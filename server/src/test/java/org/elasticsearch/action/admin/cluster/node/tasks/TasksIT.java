@@ -320,22 +320,20 @@ public class TasksIT extends ESIntegTestCase {
             shardTask = shardTasks.get(0);
             // and it should have the main task as a parent
             assertParentTask(shardTask, findEvents(BulkAction.NAME, Tuple::v1).get(0));
-            assertEquals("requests[1], index[test]", shardTask.getDescription());
         } else {
             if (shardTasks.get(0).getParentTaskId().equals(shardTasks.get(1).getTaskId())) {
                 // task 1 is the parent of task 0, that means that task 0 will control [s][p] and [s][r] tasks
                  shardTask = shardTasks.get(0);
                 // in turn the parent of the task 1 should be the main task
                 assertParentTask(shardTasks.get(1), findEvents(BulkAction.NAME, Tuple::v1).get(0));
-                assertEquals("requests[1], index[test]", shardTask.getDescription());
             } else {
                 // otherwise task 1 will control [s][p] and [s][r] tasks
                 shardTask = shardTasks.get(1);
                 // in turn the parent of the task 0 should be the main task
                 assertParentTask(shardTasks.get(0), findEvents(BulkAction.NAME, Tuple::v1).get(0));
-                assertEquals("requests[1], index[test]", shardTask.getDescription());
             }
         }
+        assertThat(shardTask.getDescription(), startsWith("requests[1], index[test]["));
 
         // we should also get one [s][p] operation with shard operation as a parent
         assertEquals(1, numberOfEvents(BulkAction.NAME + "[s][p]", Tuple::v1));

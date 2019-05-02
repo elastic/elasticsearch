@@ -87,11 +87,11 @@ public class DataFrameTransformConfig implements ToXContentObject {
         return new DataFrameTransformConfig(null, source, null, pivotConfig, null);
     }
 
-    public DataFrameTransformConfig(final String id,
-                                    final SourceConfig source,
-                                    final DestConfig dest,
-                                    final PivotConfig pivotConfig,
-                                    final String description) {
+    DataFrameTransformConfig(final String id,
+                             final SourceConfig source,
+                             final DestConfig dest,
+                             final PivotConfig pivotConfig,
+                             final String description) {
         this.id = id;
         this.source = source;
         this.dest = dest;
@@ -169,5 +169,47 @@ public class DataFrameTransformConfig implements ToXContentObject {
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private String id;
+        private SourceConfig source;
+        private DestConfig dest;
+        private PivotConfig pivotConfig;
+        private String description;
+
+        public Builder setId(String id) {
+            this.id = id;
+            return this;
+        }
+
+        public Builder setSource(SourceConfig source) {
+            this.source = source;
+            return this;
+        }
+
+        public Builder setDest(DestConfig dest) {
+            this.dest = dest;
+            return this;
+        }
+
+        public Builder setPivotConfig(PivotConfig pivotConfig) {
+            this.pivotConfig = pivotConfig;
+            return this;
+        }
+
+        public Builder setDescription(String description) {
+            this.description = description;
+            return this;
+        }
+
+        public DataFrameTransformConfig build() {
+            return new DataFrameTransformConfig(id, source, dest, pivotConfig, description);
+        }
     }
 }

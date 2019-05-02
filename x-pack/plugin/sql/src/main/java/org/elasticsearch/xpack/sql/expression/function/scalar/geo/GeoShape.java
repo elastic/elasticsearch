@@ -5,15 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.builders.PointBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.geo.geometry.Circle;
 import org.elasticsearch.geo.geometry.Geometry;
 import org.elasticsearch.geo.geometry.GeometryCollection;
@@ -26,9 +29,12 @@ import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.text.ParseException;
 import java.util.Objects;
 
 /**
@@ -41,41 +47,50 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
 
     public static final String NAME = "geo";
 
-    private final ShapeBuilder<?, ?, ?> shapeBuilder;
+    private final Geometry shape;
 
     public GeoShape(double lon, double lat) {
-        shapeBuilder = new PointBuilder(lon, lat);
+        shape = new Point(lat, lon);
     }
 
     public GeoShape(Object value) throws IOException {
-        shapeBuilder = ShapeParser.parse(value);
+        try {
+            shape = parse(value);
+        } catch (ParseException ex) {
+            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape value", ex);
+        }
     }
 
     public GeoShape(StreamInput in) throws IOException {
-        shapeBuilder = ShapeParser.parse(in.readString());
+        String value = in.readString();
+        try {
+            shape = parse(value);
+        } catch (ParseException ex) {
+            throw new SqlIllegalArgumentException("Cannot parse [" + value + "] as a geo_shape value", ex);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(shapeBuilder.toWKT());
+        out.writeString(WellKnownText.toWKT(shape));
     }
 
     @Override
     public String toString() {
-        return shapeBuilder.toWKT();
+        return WellKnownText.toWKT(shape);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(shapeBuilder.toWKT());
+        return builder.value(WellKnownText.toWKT(shape));
     }
 
     public Geometry toGeometry() {
-        return shapeBuilder.buildGeometry();
+        return shape;
     }
 
     public Point firstPoint() {
-        return shapeBuilder.buildGeometry().visit(new GeometryVisitor<Point, RuntimeException>() {
+        return shape.visit(new GeometryVisitor<Point, RuntimeException>() {
             @Override
             public Point visit(Circle circle) {
                 return new Point(circle.getLat(), circle.getLon(), circle.hasAlt() ? circle.getAlt() : Double.NaN);
@@ -149,16 +164,16 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
     }
 
     public static double distance(GeoShape shape1, GeoShape shape2) {
-        if (shape1.shapeBuilder instanceof PointBuilder == false) {
+        if (shape1.shape instanceof Point == false) {
             throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape1);
         }
-        if (shape2.shapeBuilder instanceof PointBuilder == false) {
+        if (shape2.shape instanceof Point == false) {
             throw new SqlIllegalArgumentException("distance calculation is only supported for points; received [{}]", shape2);
         }
-        double srcLat = ((PointBuilder) shape1.shapeBuilder).latitude();
-        double srcLon = ((PointBuilder) shape1.shapeBuilder).longitude();
-        double dstLat = ((PointBuilder) shape2.shapeBuilder).latitude();
-        double dstLon = ((PointBuilder) shape2.shapeBuilder).longitude();
+        double srcLat = ((Point) shape1.shape).getLat();
+        double srcLon = ((Point) shape1.shape).getLon();
+        double dstLat = ((Point) shape2.shape).getLat();
+        double dstLon = ((Point) shape2.shape).getLon();
         return GeoUtils.arcDistance(srcLat, srcLon, dstLat, dstLon);
     }
 
@@ -171,12 +186,12 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
             return false;
         }
         GeoShape geoShape = (GeoShape) o;
-        return shapeBuilder.equals(geoShape.shapeBuilder);
+        return shape.equals(geoShape.shape);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shapeBuilder);
+        return Objects.hash(shape);
     }
 
     @Override
@@ -184,4 +199,19 @@ public class GeoShape implements ToXContentFragment, NamedWriteable {
         return NAME;
     }
 
+    private static Geometry parse(Object value) throws IOException, ParseException {
+        XContentBuilder content = JsonXContent.contentBuilder();
+        content.startObject();
+        content.field("value", value);
+        content.endObject();
+
+        try (InputStream stream = BytesReference.bytes(content).streamInput();
+             XContentParser parser = JsonXContent.jsonXContent.createParser(
+                 NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            parser.nextToken(); // start object
+            parser.nextToken(); // field name
+            parser.nextToken(); // field value
+            return GeometryParser.parse(parser, true, true, true);
+        }
+    }
 }

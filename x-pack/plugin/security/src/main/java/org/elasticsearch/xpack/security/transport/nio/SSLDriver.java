@@ -429,6 +429,8 @@ public class SSLDriver implements AutoCloseable {
 
     private class ApplicationMode implements Mode {
 
+        private static final int MAX_ENCRYPT_LIMIT = 1 << 17
+
         @Override
         public void read(InboundChannelBuffer buffer) throws SSLException {
             ensureApplicationBufferSize(buffer);
@@ -446,7 +448,7 @@ public class SSLDriver implements AutoCloseable {
         public int write(FlushOperation applicationBytes) throws SSLException {
             boolean continueWrap = true;
             int totalBytesProduced = 0;
-            while (continueWrap && applicationBytes.isFullyFlushed() == false) {
+            while (continueWrap && applicationBytes.isFullyFlushed() == false && totalBytesProduced < MAX_ENCRYPT_LIMIT) {
                 SSLEngineResult result = wrap(outboundBuffer, applicationBytes);
                 int bytesProduced = result.bytesProduced();
                 totalBytesProduced += bytesProduced;

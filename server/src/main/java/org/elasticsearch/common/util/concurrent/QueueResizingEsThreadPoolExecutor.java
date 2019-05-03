@@ -151,9 +151,14 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         final long totalNanos = totalTaskNanos.addAndGet(taskNanos);
 
         final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
-        assert taskExecutionNanos > 0 :
-            "expected task to always take longer than 0 nanoseconds, got: " + taskExecutionNanos + " for " + timedRunnable;
-        executionEWMA.addValue(taskExecutionNanos);
+        if (taskExecutionNanos > 0) {
+            executionEWMA.addValue(taskExecutionNanos);
+        } else {
+            // wrapper (e.g. ContextPreservingAbstractRunnable) threw an exception before being able to run this task
+            assert taskExecutionNanos == -1 && timedRunnable.isStarted() == false && t != null :
+                "expected task exceptionally never to have started, but got: "
+                    + taskExecutionNanos + " for " + timedRunnable + " with exception [" + t + "]";
+        }
 
         if (taskCount.incrementAndGet() == this.tasksPerFrame) {
             final long endTimeNs = System.nanoTime();

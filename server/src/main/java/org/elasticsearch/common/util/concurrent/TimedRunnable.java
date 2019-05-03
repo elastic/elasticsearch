@@ -110,4 +110,9 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
             "original=" + original +
             '}';
     }
+
+    // used by assertions only
+    public boolean isStarted() {
+        return startTimeNanos != 0;
+    }
 }

@@ -584,12 +584,11 @@ class BuildPlugin implements Plugin<Project> {
     static void configureRepositories(Project project) {
         project.getRepositories().whenObjectAdded { repository ->
             if (repository instanceof MavenArtifactRepository) {
-                final MavenArtifactRepository maven = (MavenArtifactRepository)repository
+                final MavenArtifactRepository maven = (MavenArtifactRepository) repository
                 assertRepositoryURIUsesHttps(project, maven.getUrl())
-                repository.getArtifactUrls().each {uri -> assertRepositoryURIUsesHttps(project, uri)}
-            }
-            else if (repository instanceof IvyArtifactRepository) {
-                final IvyArtifactRepository ivy = (IvyArtifactRepository)repository
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(project, uri) }
+            } else if (repository instanceof IvyArtifactRepository) {
+                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
                 assertRepositoryURIUsesHttps(project, ivy.getUrl())
             }
         }

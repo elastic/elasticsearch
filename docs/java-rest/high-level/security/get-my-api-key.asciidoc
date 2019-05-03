@@ -1,21 +1,21 @@
 --
 :api: get-my-api-key
-:request: GetApiKeyRequest
-:response: GetApiKeyResponse
+:request: GetMyApiKeyRequest
+:response: GetMyApiKeyRequest
 --
 
 [id="{upid}-{api}"]
-=== Get information for API key(s) owned by authenticated user API
+=== Get information for API key(s) owned by the authenticated user API
 
-API Key(s) information owned by authenticated user can be retrieved using this API.
+API Key(s) information owned by the authenticated user can be retrieved using this API.
 
 [id="{upid}-{api}-request"]
 ==== Get My API Key Request
 The +{request}+ supports retrieving API key information for
 
-. A specific API key by api key id or by name
+. A specific API key by id or by name
 
-. All API keys of current logged in user
+. All API key(s) of the current authenticated user
 
 ===== Retrieve information for a specific API key by its id
 ["source","java",subs="attributes,callouts,macros"]
@@ -29,7 +29,7 @@ include-tagged::{doc-tests-file}[get-my-api-key-id-request]
 include-tagged::{doc-tests-file}[get-my-api-key-name-request]
 --------------------------------------------------
 
-===== Retrieve information for all API key(s) owned by authenticated user
+===== Retrieve information for all API key(s) owned by the authenticated user
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[get-my-api-key-all-request]

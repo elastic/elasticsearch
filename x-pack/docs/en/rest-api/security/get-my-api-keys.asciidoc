@@ -14,7 +14,7 @@ Retrieves information for one or more API keys owned by the authenticated user
 ==== Description
 
 The information for the API keys created by <<security-api-create-api-key,create API Key>> can be retrieved
-using this API. This API can only retrieve API key information for the API keys owned by the logged-in user.
+using this API. This API can only retrieve API key information for the API keys owned by the current authenticated user.
 
 ==== Request Body
 
@@ -27,7 +27,7 @@ pertain to retrieving api keys:
 `name` (optional)::
 (string) An API key name.
 
-NOTE: If none of the parameters are set, it will get information for all API keys owned by the authenticated user.
+NOTE: If none of the parameters are set, it will get information for all API keys owned by the current authenticated user.
 
 ==== Examples
 
@@ -77,7 +77,7 @@ GET /_security/api_key/my?name=my-api-key
 // CONSOLE
 // TEST[continued]
 
-The following example retrieves all API keys owned by the logged in user:
+The following example retrieves all API keys owned by the current authenticated user:
 
 [source,js]
 --------------------------------------------------

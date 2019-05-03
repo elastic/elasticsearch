@@ -657,12 +657,26 @@ public class ApiKeyService {
         ensureEnabled();
 
         final Authentication authentication = Authentication.getAuthentication(threadPool.getThreadContext());
-        final String userName = authentication.getUser().principal();
-        final String realmName = authentication.getLookedUpBy() == null ?
-                authentication.getAuthenticatedBy().getName() : authentication.getLookedUpBy().getName();
+        final String userName;
+        final String realmName;
+        final String apiKeyId;
+        final String apiKeyName;
+        if (authentication.getAuthenticatedBy().getType().equals("_es_api_key")) {
+            // in case of authenticated by API key, fetch key by API key id from authentication metadata
+            realmName = null;
+            userName = null;
+            apiKeyId = (String) authentication.getMetadata().get(API_KEY_ID_KEY);
+            apiKeyName = null;
+        } else {
+            realmName = authentication.getLookedUpBy() == null ? authentication.getAuthenticatedBy().getName()
+                    : authentication.getLookedUpBy().getName();
+            userName = authentication.getUser().principal();
+            apiKeyId = invalidateMyApiKeyRequest.getId();
+            apiKeyName = invalidateMyApiKeyRequest.getName();
+        }
 
-        findApiKeysForUserRealmApiKeyIdAndNameCombination(userName, realmName, invalidateMyApiKeyRequest.getName(),
-                invalidateMyApiKeyRequest.getId(), true, false, ActionListener.wrap(apiKeyIds -> {
+        findApiKeysForUserRealmApiKeyIdAndNameCombination(userName, realmName, apiKeyName, apiKeyId, true, false,
+                ActionListener.wrap(apiKeyIds -> {
                     if (apiKeyIds.isEmpty()) {
                         logger.warn("No api key to invalidate for {}", invalidateMyApiKeyRequest);
                         listener.onResponse(InvalidateApiKeyResponse.emptyResponse());

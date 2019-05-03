@@ -1,21 +1,21 @@
 --
 :api: invalidate-my-api-key
-:request: InvalidateApiKeyRequest
-:response: InvalidateApiKeyResponse
+:request: InvalidateMyApiKeyRequest
+:response: InvalidateMyApiKeyRequest
 --
 
 [id="{upid}-{api}"]
-=== Invalidate API key(s) owned by authenticated user API
+=== Invalidate API key(s) owned by the authenticated user API
 
-API Key(s) owned by authenticated user can be invalidated using this API.
+API Key(s) owned by the authenticated user can be invalidated using this API.
 
 [id="{upid}-{api}-request"]
 ==== Invalidate My API Key Request
 The +{request}+ supports invalidating
 
-. A specific API key by api key id or by name
+. A specific API key by id or by name
 
-. All API key(s) for current logged in user
+. All API key(s) of the current authenticated user
 
 ===== Specific API key by API key id
 ["source","java",subs="attributes,callouts,macros"]

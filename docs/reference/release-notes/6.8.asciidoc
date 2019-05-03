@@ -1,0 +1,30 @@
+[[release-notes-6.8.0]]
+== {es} version 6.8.0
+
+coming[6.8.0]
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
+[[enhancement-6.8.0]]
+[float]
+=== Enhancements
+
+Infra/Settings::
+* Drop distinction in entries for keystore {pull}41701[#41701]
+
+
+[[bug-6.8.0]]
+[float]
+=== Bug fixes
+
+Features/Watcher::
+* Fix Watcher deadlock that can cause in-abilty to index documents. {pull}41418[#41418] (issue: {issue}41390[#41390])
+
+
+
+
+
+
+
+
+

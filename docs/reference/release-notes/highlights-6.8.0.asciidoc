@@ -1,0 +1,12 @@
+[[release-highlights-6.8.0]]
+== 6.8.0 release highlights
+++++
+<titleabbrev>6.8.0</titleabbrev>
+++++
+
+See also <<release-notes-6.8.0,{es} 6.8.0 release notes>>.
+
+[float]
+=== TODO
+
+TODO

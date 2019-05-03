@@ -1,0 +1,23 @@
+[[breaking-changes-6.8]]
+== Breaking changes in 6.8
+++++
+<titleabbrev>6.8</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.8.
+
+* <<breaking_68_TODO_changes>>
+
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+[float]
+[[breaking_68_TODO_changes]]
+=== TODO changes category
+
+[float]
+==== TODO change
+
+TODO
+

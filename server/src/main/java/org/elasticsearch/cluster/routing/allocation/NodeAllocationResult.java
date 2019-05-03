@@ -228,6 +228,10 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
          * matching sync ids are irrelevant.
          */
         public boolean hasMatchingSyncId() {
+            // TODO: we should eventually either distinguish between sync-id and non sync-id equivalent closed shard allocation or
+            // rename this to isSynced().
+            // left this for now, since it changes the API and should preferably be handled together with seqno based
+            // replica shard allocation.
             return matchingBytes == Long.MAX_VALUE;
         }
 

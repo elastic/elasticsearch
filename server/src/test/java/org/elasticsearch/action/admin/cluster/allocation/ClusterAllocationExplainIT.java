@@ -154,7 +154,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting 3 nodes");
         internalCluster().startNodes(3);
 
-        prepareIndex(1, 1);
+        IndexMetaData.State state = prepareIndex(1, 1);
         logger.info("--> stopping the node with the replica");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode().getName()));
         ensureStableCluster(2);
@@ -263,7 +263,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             nodes.put(primaryNodeName, AllocationDecision.NO);
             String[] currentNodes = internalCluster().getNodeNames();
             nodes.put(currentNodes[0].equals(primaryNodeName) ? currentNodes[1] : currentNodes[0], AllocationDecision.YES);
-            verifyNodeDecisions(parser, nodes, includeYesDecisions, true);
+            verifyNodeDecisions(parser, nodes, includeYesDecisions, true, state == IndexMetaData.State.CLOSE);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -272,7 +272,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting 3 nodes");
         List<String> nodes = internalCluster().startNodes(3);
 
-        prepareIndex(1, 1);
+        IndexMetaData.State indexState = prepareIndex(1, 1);
         String primaryNodeName = primaryNodeName();
         nodes.remove(primaryNodeName);
 
@@ -383,7 +383,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             for (String nodeName : internalCluster().getNodeNames()) {
                 nodeDecisions.put(nodeName, AllocationDecision.NO);
             }
-            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, true);
+            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, true, indexState == IndexMetaData.State.CLOSE);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -476,7 +476,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             for (String nodeName : internalCluster().getNodeNames()) {
                 nodeDecisions.put(nodeName, AllocationDecision.NO);
             }
-            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, false);
+            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -584,7 +584,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("move_explanation", parser.currentName());
             parser.nextToken();
             assertEquals("cannot move shard to another node, even though it is not allowed to remain on its current node", parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -696,7 +696,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("rebalancing is not allowed, even though there is at least one node on which the shard can be allocated",
                 parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.YES, true), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.YES, true), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -799,7 +799,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
                 parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.WORSE_BALANCE, true), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.WORSE_BALANCE, true), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -909,7 +909,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
                 parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -1006,7 +1006,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("rebalance_explanation", parser.currentName());
             parser.nextToken();
             assertEquals("rebalancing is not allowed", parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, false), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, false), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -1160,8 +1160,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         return explanation;
     }
 
-    private void prepareIndex(final int numPrimaries, final int numReplicas) {
-        prepareIndex(randomIndexState(), numPrimaries, numReplicas, Settings.EMPTY, ActiveShardCount.ALL);
+    private IndexMetaData.State prepareIndex(final int numPrimaries, final int numReplicas) {
+        IndexMetaData.State indexState = randomIndexState();
+        prepareIndex(indexState, numPrimaries, numReplicas, Settings.EMPTY, ActiveShardCount.ALL);
+        return indexState;
     }
 
     private void prepareIndex(final IndexMetaData.State state, final int numPrimaries, final int numReplicas,
@@ -1326,7 +1328,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     }
 
     private void verifyNodeDecisions(XContentParser parser, Map<String, AllocationDecision> expectedNodeDecisions,
-                                     boolean includeYesDecisions, boolean reuseStore) throws IOException {
+                                     boolean includeYesDecisions, boolean reuseStore, boolean synced) throws IOException {
         parser.nextToken();
         assertEquals("node_allocation_decisions", parser.currentName());
         assertEquals(Token.START_ARRAY, parser.nextToken());
@@ -1346,9 +1348,15 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 assertTrue("store info should not be present", reuseStore);
                 assertEquals(Token.START_OBJECT, parser.nextToken());
                 parser.nextToken();
-                assertEquals("matching_size_in_bytes", parser.currentName());
-                parser.nextToken();
-                assertThat(parser.longValue(), greaterThan(0L));
+                if (synced) {
+                    assertEquals("matching_sync_id", parser.currentName());
+                    parser.nextToken();
+                    assertTrue(parser.booleanValue());
+                } else {
+                    assertEquals("matching_size_in_bytes", parser.currentName());
+                    parser.nextToken();
+                    assertThat(parser.longValue(), greaterThan(0L));
+                }
                 assertEquals(Token.END_OBJECT, parser.nextToken());
                 parser.nextToken();
             }

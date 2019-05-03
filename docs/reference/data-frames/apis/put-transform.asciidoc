@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[put-data-frame-transform]]
 === Create {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Create {dataframe-transforms}</titleabbrev>
 ++++

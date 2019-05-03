@@ -20,7 +20,9 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 
+[[extended-stats-bucket-params]]
 .`extended_stats_bucket` Parameters
+[options="header"]
 |===
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to calculate stats for (see <<buckets-path-syntax>> for more

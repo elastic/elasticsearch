@@ -690,9 +690,9 @@ public class TokenServiceTests extends ESTestCase {
         final Version version = tokenService.getTokenVersionCompatibility();
         Tuple<String, String> encryptedTokens = tokenService.encryptSupersedingTokens(newAccessToken, newRefreshToken, refrehToken, iv,
             salt);
-        TokenService.RefreshTokenStatus refreshTokenStatus = new TokenService.RefreshTokenStatus(false, authentication.getUser().principal(),
-            authentication.getAuthenticatedBy().getName(), true, Instant.now().minusSeconds(5L), encryptedTokens.v1(), encryptedTokens.v2(),
-            Base64.getEncoder().encodeToString(iv), Base64.getEncoder().encodeToString(salt));
+        TokenService.RefreshTokenStatus refreshTokenStatus = new TokenService.RefreshTokenStatus(false,
+            authentication.getUser().principal(), authentication.getAuthenticatedBy().getName(), true, Instant.now().minusSeconds(5L),
+            encryptedTokens.v1(), encryptedTokens.v2(), Base64.getEncoder().encodeToString(iv), Base64.getEncoder().encodeToString(salt));
         refreshTokenStatus.setVersion(version);
         tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, tokenFuture);
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
@@ -749,7 +749,7 @@ public class TokenServiceTests extends ESTestCase {
                 final Authentication tokenAuth = new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
                     authentication.getLookedUpBy(), tokenVersion, AuthenticationType.TOKEN, authentication.getMetadata());
                 final UserToken userToken = new UserToken(possiblyHashedUserTokenId, tokenVersion, tokenAuth,
-                    tokenService.getExpirationTime(), Collections.emptyMap());
+                    tokenService.getExpirationTime(), authentication.getMetadata());
                 try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
                     userToken.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     Map<String, Object> accessTokenMap = new HashMap<>();

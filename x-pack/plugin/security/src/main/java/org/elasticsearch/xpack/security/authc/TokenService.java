@@ -183,6 +183,7 @@ public final class TokenService {
     static final String TOKEN_DOC_TYPE = "token";
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
+    private static final int HASHED_TOKEN_LENGTH = 44;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int LEGACY_MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
@@ -260,7 +261,9 @@ public final class TokenService {
      * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata. The created
      * tokens are stored in the security index for versions up to 7.1.0 and to a specific security tokens index for later versions.
      */
-    void createOAuth2Tokens(String accessToken, String refreshToken, Authentication authentication, Authentication originatingClientAuth,
+    //public for testing
+    public void createOAuth2Tokens(String accessToken, String refreshToken, Authentication authentication,
+                                   Authentication originatingClientAuth,
                             Map<String, Object> metadata, ActionListener<Tuple<String, String>> listener) {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getTokenVersionCompatibility();
@@ -333,7 +336,8 @@ public final class TokenService {
      * Hashes an access or refresh token String so that it can safely be persisted in the index. We don't salt
      * the values as these are v4 UUIDs that have enough entropy by themselves.
      */
-    static String hashTokenString(String accessTokenString) {
+    // public for testing
+    public static String hashTokenString(String accessTokenString) {
         return new String(Hasher.SHA256.hash(new SecureString(accessTokenString.toCharArray())));
     }
 
@@ -444,7 +448,7 @@ public final class TokenService {
             if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
                 if (in.available() < MINIMUM_BYTES) {
-                    logger.debug("invalid token size [{}] smaller than [{}] bytes", MINIMUM_BYTES);
+                    logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BYTES);
                     listener.onResponse(null);
                     return;
                 }
@@ -767,31 +771,38 @@ public final class TokenService {
     }
 
     /**
-     * Inferes the format and version of the passed in {@code refreshToken}. Delegates the actual search of the token document to
+     * Infers the format and version of the passed in {@code refreshToken}. Delegates the actual search of the token document to
      * {@code #findTokenFromRefreshToken(String, SecurityIndexManager, Iterator, ActionListener)} .
      */
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
         if (refreshToken.length() == TOKEN_LENGTH) {
             // first check if token has the old format before the new version-prepended one
             logger.debug("Assuming an unversioned refresh token [{}], generated for node versions"
-                    + " prior to the introduction of the version-header format.", refreshToken);
+                + " prior to the introduction of the version-header format.", refreshToken);
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         } else {
-            try {
-                final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
-                final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
-                final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
-                if (false == refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)
-                    || unencodedRefreshToken.length() != TOKEN_LENGTH) {
-                    logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
+            if (refreshToken.length() == HASHED_TOKEN_LENGTH) {
+                logger.debug("Assuming a hashed refresh token [{}] retrieved from the tokens index", refreshToken);
+                findTokenFromRefreshToken(refreshToken, securityTokensIndex, backoff, listener);
+            } else {
+                logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
+                try {
+                    final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
+                    final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
+                    final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
+                    if (false == refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)
+                        || unencodedRefreshToken.length() != TOKEN_LENGTH) {
+                        logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken,
+                            refreshTokenVersion);
+                        listener.onFailure(malformedTokenException());
+                    } else {
+                        final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                    }
+                } catch (IOException e) {
+                    logger.debug("Could not decode refresh token [" + refreshToken + "].", e);
                     listener.onFailure(malformedTokenException());
-                } else {
-                    final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                    findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
                 }
-            } catch (IOException e) {
-                logger.debug("Could not decode refresh token [" + refreshToken + "].", e);
-                listener.onFailure(malformedTokenException());
             }
         }
     }
@@ -1362,21 +1373,14 @@ public final class TokenService {
      */
     private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
             throws IllegalStateException, DateTimeException {
-        final String plainRefreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
+        final String hashedRefreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
         final Map<String, Object> userTokenSource = (Map<String, Object>)
             ((Map<String, Object>) source.get("access_token")).get("user_token");
         if (null != filter && filter.test(userTokenSource) == false) {
             return null;
         }
         final UserToken userToken = UserToken.fromSourceMap(userTokenSource);
-        if (userToken.getVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
-            final String versionedRefreshToken = plainRefreshToken != null ?
-                prependVersionAndEncodeRefreshToken(userToken.getVersion(), plainRefreshToken) : null;
-            return new Tuple<>(userToken, versionedRefreshToken);
-        } else {
-            // do not prepend version to refresh token as the audience node version cannot deal with it
-            return new Tuple<>(userToken, plainRefreshToken);
-        }
+        return new Tuple<>(userToken, hashedRefreshToken);
     }
 
     private static String getTokenDocumentId(UserToken userToken) {

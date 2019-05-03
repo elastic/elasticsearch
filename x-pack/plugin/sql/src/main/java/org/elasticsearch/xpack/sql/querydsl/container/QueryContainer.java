@@ -464,7 +464,8 @@ public class QueryContainer {
                 && Objects.equals(fields, other.fields)
                 && Objects.equals(aliases, other.aliases)
                 && Objects.equals(sort, other.sort)
-                && Objects.equals(limit, other.limit) && Objects.equals(trackHits, other.trackHits)
+                && Objects.equals(limit, other.limit)
+                && Objects.equals(trackHits, other.trackHits)
                 && Objects.equals(includeFrozen, other.includeFrozen);
     }
 

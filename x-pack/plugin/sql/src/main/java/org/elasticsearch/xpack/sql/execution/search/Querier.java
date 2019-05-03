@@ -135,6 +135,8 @@ public class Querier {
     public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
             String... indices) {
         SearchRequest search = client.prepareSearch(indices)
+                // always track total hits accurately
+                .setTrackTotalHits(true)
                 .setAllowPartialSearchResults(false)
                 .setSource(source)
                 .setTimeout(timeout)

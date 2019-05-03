@@ -50,7 +50,7 @@ public class ShowTables extends Command {
 
     @Override
     public List<Attribute> output() {
-        return asList(keyword("name"), keyword("type"), keyword("native"));
+        return asList(keyword("name"), keyword("type"), keyword("kind"));
     }
 
     @Override

@@ -213,7 +213,7 @@ public class IndexResolver {
                     .includeDefaults(false)
                     .indicesOptions(INDICES_ONLY_OPTIONS);
 
-            // if frozen indices are request, make sure to update the request accordingly
+            // if frozen indices are requested, make sure to update the request accordingly
             if (retrieveFrozenIndices) {
                 indexRequest.indicesOptions(FROZEN_INDICES_OPTIONS);
             }
@@ -284,59 +284,59 @@ public class IndexResolver {
 
         // merge all indices onto the same one
         List<EsIndex> indices = buildIndices(indexNames, null, fieldCaps, i -> indexPattern, (n, types) -> {
-        StringBuilder errorMessage = new StringBuilder();
+            StringBuilder errorMessage = new StringBuilder();
 
             boolean hasUnmapped = types.containsKey(UNMAPPED);
 
             if (types.size() > (hasUnmapped ? 2 : 1)) {
-                    // build the error message
-                    // and create a MultiTypeField
-                    
-                    for (Entry<String, FieldCapabilities> type : types.entrySet()) {
+                // build the error message
+                // and create a MultiTypeField
+
+                for (Entry<String, FieldCapabilities> type : types.entrySet()) {
                     // skip unmapped
                     if (UNMAPPED.equals(type.getKey())) {
                         continue;
                     }
 
-                        if (errorMessage.length() > 0) {
-                            errorMessage.append(", ");
-                        }
-                        errorMessage.append("[");
-                        errorMessage.append(type.getKey());
-                        errorMessage.append("] in ");
-                        errorMessage.append(Arrays.toString(type.getValue().indices()));
+                    if (errorMessage.length() > 0) {
+                        errorMessage.append(", ");
                     }
+                    errorMessage.append("[");
+                    errorMessage.append(type.getKey());
+                    errorMessage.append("] in ");
+                    errorMessage.append(Arrays.toString(type.getValue().indices()));
+                }
 
                 errorMessage.insert(0, "mapped as [" + (types.size() - (hasUnmapped ? 1 : 0)) + "] incompatible types: ");
-                    
-                return new InvalidMappedField(n, errorMessage.toString());
-                }
-                // type is okay, check aggregation
-                else {
-                FieldCapabilities fieldCap = types.values().iterator().next();
-                    
-                    // validate search/agg-able
-                    if (fieldCap.isAggregatable() && fieldCap.nonAggregatableIndices() != null) {
-                        errorMessage.append("mapped as aggregatable except in ");
-                        errorMessage.append(Arrays.toString(fieldCap.nonAggregatableIndices()));
-                    }
-                    if (fieldCap.isSearchable() && fieldCap.nonSearchableIndices() != null) {
-                        if (errorMessage.length() > 0) {
-                            errorMessage.append(",");
-                        }
-                        errorMessage.append("mapped as searchable except in ");
-                        errorMessage.append(Arrays.toString(fieldCap.nonSearchableIndices()));
-                    }
 
-                    if (errorMessage.length() > 0) {
-                    return new InvalidMappedField(n, errorMessage.toString());
-                    }
+                return new InvalidMappedField(n, errorMessage.toString());
+            }
+            // type is okay, check aggregation
+            else {
+                FieldCapabilities fieldCap = types.values().iterator().next();
+
+                // validate search/agg-able
+                if (fieldCap.isAggregatable() && fieldCap.nonAggregatableIndices() != null) {
+                    errorMessage.append("mapped as aggregatable except in ");
+                    errorMessage.append(Arrays.toString(fieldCap.nonAggregatableIndices()));
                 }
-                
+                if (fieldCap.isSearchable() && fieldCap.nonSearchableIndices() != null) {
+                    if (errorMessage.length() > 0) {
+                        errorMessage.append(",");
+                    }
+                    errorMessage.append("mapped as searchable except in ");
+                    errorMessage.append(Arrays.toString(fieldCap.nonSearchableIndices()));
+                }
+
+                if (errorMessage.length() > 0) {
+                    return new InvalidMappedField(n, errorMessage.toString());
+                }
+            }
+
             // everything checks
             return null;
         });
-                
+
         if (indices.size() != 1) {
             throw new SqlIllegalArgumentException("Incorrect merging of mappings (likely due to a bug) - expect 1 but found [{}]",
                     indices.size());
@@ -372,11 +372,11 @@ public class IndexResolver {
                     FieldCapabilities parentCap = iterator.next();
                     if (iterator.hasNext() && UNMAPPED.equals(parentCap.getType())) {
                         parentCap = iterator.next();
-                }
+                    }
                     final FieldCapabilities parentC = parentCap;
                     fieldFunction = s -> createField(s, parentC.getType(), new TreeMap<>(), parentC.isAggregatable());
                 }
-                
+
                 parent = createField(parentName, globalCaps, hierarchicalMapping, flattedMapping, fieldFunction);
             }
             parentProps = parent.getProperties();
@@ -451,7 +451,7 @@ public class IndexResolver {
 
         if (indexNames == null || indexNames.length == 0) {
             return emptyList();
-                        }
+        }
 
         final List<String> resolvedIndices = asList(indexNames);
         Map<String, Fields> indices = new LinkedHashMap<>(resolvedIndices.size());
@@ -466,15 +466,15 @@ public class IndexResolver {
         for (Entry<String, Map<String, FieldCapabilities>> entry : sortedFields) {
             String fieldName = entry.getKey();
             Map<String, FieldCapabilities> types = entry.getValue();
-            
+
             // ignore size added by the mapper plugin
             if (FIELD_NAMES_BLACKLIST.contains(fieldName)) {
                 continue;
-                    }
+            }
 
             // apply verification
             final InvalidMappedField invalidField = validityVerifier.apply(fieldName, types);
-            
+
             // filter meta fields and unmapped
             FieldCapabilities unmapped = types.get(UNMAPPED);
             Set<String> unmappedIndices = unmapped != null ? new HashSet<>(asList(unmapped.indices())) : emptySet();
@@ -483,7 +483,7 @@ public class IndexResolver {
             for (Entry<String, FieldCapabilities> typeEntry : types.entrySet()) {
                 FieldCapabilities typeCap = typeEntry.getValue();
                 String[] capIndices = typeCap.indices();
-                
+
                 // Skip internal fields (name starting with underscore and its type reported by field_caps starts
                 // with underscore as well). A meta field named "_version", for example, has the type named "_version".
                 if (typeEntry.getKey().startsWith("_") && typeCap.getType().startsWith("_")) {
@@ -520,8 +520,8 @@ public class IndexResolver {
                         EsField field = indexFields.flattedMapping.get(fieldName);
                         if (field == null || (invalidField != null && (field instanceof InvalidMappedField) == false)) {
                             createField(fieldName, fieldCaps, indexFields.hierarchicalMapping, indexFields.flattedMapping,
-                                    s -> invalidField != null ? invalidField : 
-                                        createField(s, typeCap.getType(), emptyMap(), typeCap.isAggregatable()));
+                                    s -> invalidField != null ? invalidField : createField(s, typeCap.getType(), emptyMap(),
+                                            typeCap.isAggregatable()));
                         }
                     }
                 }

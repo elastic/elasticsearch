@@ -560,7 +560,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         DateHistogramValuesSourceBuilder dateHisto
             = new DateHistogramValuesSourceBuilder("the_histo." + DateHistogramAggregationBuilder.NAME)
             .field(timestampField)
-            .dateHistogramInterval(new DateHistogramInterval("1d"))
+            .calendarInterval(new DateHistogramInterval("1d"))
             .timeZone(ZoneId.of("-01:00", ZoneId.SHORT_IDS));  // adds a timezone so that we aren't on default UTC
 
         CompositeAggregationBuilder compositeBuilder = new CompositeAggregationBuilder(RollupIndexer.AGGREGATION_NAME,

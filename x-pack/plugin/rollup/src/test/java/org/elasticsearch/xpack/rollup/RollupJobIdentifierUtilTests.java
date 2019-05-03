@@ -657,21 +657,21 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
     public void testObsoleteTimezone() {
         // Job has "obsolete" timezone
-        DateHistogramGroupConfig dateHisto = new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, "Canada/Mountain");
+        DateHistogramGroupConfig dateHisto = new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1h"), null, "Canada/Mountain");
         GroupConfig group = new GroupConfig(dateHisto);
         RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
         RollupJobCaps cap = new RollupJobCaps(job);
         Set<RollupJobCaps> caps = singletonSet(cap);
 
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
-            .dateHistogramInterval(job.getGroupConfig().getDateHistogram().getInterval())
+            .calendarInterval(job.getGroupConfig().getDateHistogram().getInterval())
             .timeZone(ZoneId.of("Canada/Mountain"));
 
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
         assertThat(bestCaps.size(), equalTo(1));
 
         builder = new DateHistogramAggregationBuilder("foo").field("foo")
-            .dateHistogramInterval(job.getGroupConfig().getDateHistogram().getInterval())
+            .calendarInterval(job.getGroupConfig().getDateHistogram().getInterval())
             .timeZone(ZoneId.of("America/Edmonton"));
 
         bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
@@ -679,21 +679,21 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         // now the reverse, job has "new" timezone
 
-        dateHisto = new DateHistogramGroupConfig("foo", new DateHistogramInterval("1h"), null, "America/Edmonton");
+        dateHisto = new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1h"), null, "America/Edmonton");
         group = new GroupConfig(dateHisto);
         job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
         cap = new RollupJobCaps(job);
         caps = singletonSet(cap);
 
         builder = new DateHistogramAggregationBuilder("foo").field("foo")
-            .dateHistogramInterval(job.getGroupConfig().getDateHistogram().getInterval())
+            .calendarInterval(job.getGroupConfig().getDateHistogram().getInterval())
             .timeZone(ZoneId.of("Canada/Mountain"));
 
         bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
         assertThat(bestCaps.size(), equalTo(1));
 
         builder = new DateHistogramAggregationBuilder("foo").field("foo")
-            .dateHistogramInterval(job.getGroupConfig().getDateHistogram().getInterval())
+            .calendarInterval(job.getGroupConfig().getDateHistogram().getInterval())
             .timeZone(ZoneId.of("America/Edmonton"));
 
         bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);

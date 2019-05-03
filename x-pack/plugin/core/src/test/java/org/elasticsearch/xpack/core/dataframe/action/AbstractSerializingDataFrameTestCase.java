@@ -10,18 +10,18 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public abstract class AbstractWireSerializingDataFrameTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
-    /**
-     * Test case that ensures aggregation named objects are registered
-     */
+public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent & Writeable>
+        extends AbstractSerializingTestCase<T> {
+
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;
 
@@ -45,4 +45,5 @@ public abstract class AbstractWireSerializingDataFrameTestCase<T extends Writeab
     protected NamedXContentRegistry xContentRegistry() {
         return namedXContentRegistry;
     }
+
 }

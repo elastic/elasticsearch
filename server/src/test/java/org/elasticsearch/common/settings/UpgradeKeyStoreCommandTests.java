@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
 
@@ -41,7 +42,7 @@ public class UpgradeKeyStoreCommandTests extends KeyStoreCommandTestCase {
         return new UpgradeKeyStoreCommand() {
 
             @Override
-            protected Environment createEnv(final Map<String, String> settings) {
+            protected Environment createEnv(final Terminal terminal, final Map<String, String> settings) {
                 return env;
             }
 

@@ -133,12 +133,12 @@ public final class ExtractorUtils {
         }
 
         // TODO retains `dateHistogramInterval()`/`interval()` access for bwc logic, needs updating
-        if (dateHistogram.dateHistogramInterval() != null) {
-            return validateAndGetCalendarInterval(dateHistogram.dateHistogramInterval().toString());
-        } else if (dateHistogram.getCalendarInterval() != null) {
+        if (dateHistogram.getCalendarInterval() != null) {
             return validateAndGetCalendarInterval(dateHistogram.getCalendarInterval().toString());
         } else if (dateHistogram.getFixedInterval() != null) {
             return dateHistogram.getFixedInterval().estimateMillis();
+        } else if (dateHistogram.dateHistogramInterval() != null) {
+            return validateAndGetCalendarInterval(dateHistogram.dateHistogramInterval().toString());
         } else if (dateHistogram.interval() != 0) {
             return dateHistogram.interval();
         } else {

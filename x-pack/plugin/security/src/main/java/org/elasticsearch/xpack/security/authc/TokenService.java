@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
@@ -155,11 +156,12 @@ public final class TokenService {
      * Cheat Sheet</a> and the <a href="https://pages.nist.gov/800-63-3/sp800-63b.html#sec5">
      * NIST Digital Identity Guidelines</a>
      */
-    private static final int ITERATIONS = 100000;
+    static final int TOKEN_SERVICE_KEY_ITERATIONS = 100000;
+    static final int TOKENS_ENCRYPTION_KEY_ITERATIONS = 1024;
     private static final String KDF_ALGORITHM = "PBKDF2withHMACSHA512";
-    private static final int SALT_BYTES = 32;
+    static final int SALT_BYTES = 32;
     private static final int KEY_BYTES = 64;
-    private static final int IV_BYTES = 12;
+    static final int IV_BYTES = 12;
     private static final int VERSION_BYTES = 4;
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
     private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\"" + XPackField.SECURITY +
@@ -177,14 +179,16 @@ public final class TokenService {
             TimeValue.MINUS_ONE, Property.NodeScope);
 
     static final String TOKEN_DOC_TYPE = "token";
+    // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
+    private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
-    static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
+    static final int LEGACY_MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
+    static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
+    static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
     static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_1_0;
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_1_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_1_0;
-    // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
-    private static final int TOKEN_ID_LENGTH = 22;
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
     private final SecureRandom secureRandom = new SecureRandom();
@@ -230,31 +234,45 @@ public final class TokenService {
     }
 
     /**
-     * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata with an
-     * auto-generated token document id. The created tokens are stored in the security index.
+     * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata with
+     * auto-generated values. The created tokens are stored in the security index for versions up to 7.1.0 and to
+     * a specific security tokens index for later versions.
      */
     public void createOAuth2Tokens(Authentication authentication, Authentication originatingClientAuth,
                                    Map<String, Object> metadata, boolean includeRefreshToken,
-                                   ActionListener<Tuple<UserToken, String>> listener) {
+                                   ActionListener<Tuple<String, String>> listener) {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
         final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
         // the id of the created tokens ought be unguessable
-        final String userTokenId = UUIDs.randomBase64UUID();
-        createOAuth2Tokens(userTokenId, tokenVersion, tokensIndex, authentication, originatingClientAuth, metadata, includeRefreshToken,
-                listener);
+        final String accessToken = UUIDs.randomBase64UUID();
+        final String refreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
+        createOAuth2Tokens(accessToken, refreshToken, tokenVersion, tokensIndex, authentication, originatingClientAuth, metadata, listener);
     }
 
     /**
-     * Create an access token and optionally a refresh token as well, based on the provided authentication and metadata, with the given
-     * token document id. The created tokens are be stored in the security index.
+     * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata. The created
+     * tokens are stored in the security index for versions up to 7.1.0 and to a specific security tokens index for later versions.
      */
-    private void createOAuth2Tokens(String userTokenId, Version tokenVersion, SecurityIndexManager tokensIndex,
+    void createOAuth2Tokens(String accessToken, String refreshToken, Authentication authentication, Authentication originatingClientAuth,
+                            Map<String, Object> metadata, ActionListener<Tuple<String, String>> listener) {
+        // the created token is compatible with the oldest node version in the cluster
+        final Version tokenVersion = getTokenVersionCompatibility();
+        // tokens moved to a separate index in newer versions
+        final SecurityIndexManager tokensIndex = getTokensIndexForVersion(tokenVersion);
+        createOAuth2Tokens(accessToken, refreshToken, tokenVersion, tokensIndex, authentication, originatingClientAuth, metadata, listener);
+    }
+
+    /**
+     * Create an access token and optionally a refresh token as well, based on the provided authentication and metadata. The created
+     * tokens are stored in the security index for versions up to 7.1.0 and to a specific security tokens index for later versions.
+     */
+    private void createOAuth2Tokens(String accessToken, String plainRefreshToken, Version tokenVersion, SecurityIndexManager tokensIndex,
                                     Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
-                                    boolean includeRefreshToken, ActionListener<Tuple<UserToken, String>> listener) {
-        assert userTokenId.length() == TOKEN_ID_LENGTH : "We assume token ids have a fixed length for nodes of a certain version."
-                + " When changing the token length, be careful that the inferences about its length still hold.";
+                                    ActionListener<Tuple<String, String>> listener) {
+        assert accessToken.length() == TOKEN_LENGTH : "We assume token ids have a fixed length for nodes of a certain version."
+            + " When changing the token length, be careful that the inferences about its length still hold.";
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(traceLog("create token", new IllegalArgumentException("authentication must be provided")));
@@ -264,10 +282,19 @@ public final class TokenService {
         } else {
             final Authentication tokenAuth = new Authentication(authentication.getUser(), authentication.getAuthenticatedBy(),
                 authentication.getLookedUpBy(), tokenVersion, AuthenticationType.TOKEN, authentication.getMetadata());
-            final UserToken userToken = new UserToken(userTokenId, tokenVersion, tokenAuth, getExpirationTime(), metadata);
-            final String plainRefreshToken = includeRefreshToken ? UUIDs.randomBase64UUID() : null;
-            final BytesReference tokenDocument = createTokenDocument(userToken, plainRefreshToken, originatingClientAuth);
-            final String documentId = getTokenDocumentId(userToken);
+            final String storedAccessToken;
+            final String storedRefreshToken;
+            if (tokenVersion.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+                storedAccessToken = hashTokenString(accessToken);
+                storedRefreshToken = null == plainRefreshToken ? null : hashTokenString(plainRefreshToken);
+            } else {
+                storedAccessToken = accessToken;
+                storedRefreshToken = plainRefreshToken;
+            }
+            final UserToken userToken = new UserToken(storedAccessToken, tokenVersion, tokenAuth, getExpirationTime(), metadata);
+            final BytesReference tokenDocument = createTokenDocument(userToken, storedRefreshToken, originatingClientAuth);
+            final String documentId = getTokenDocumentId(storedAccessToken);
+
             final IndexRequest indexTokenRequest = client.prepareIndex(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, documentId)
                     .setOpType(OpType.CREATE)
                     .setSource(tokenDocument, XContentType.JSON)
@@ -278,15 +305,16 @@ public final class TokenService {
                     () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexTokenRequest,
                             ActionListener.wrap(indexResponse -> {
                                 if (indexResponse.getResult() == Result.CREATED) {
+                                    final String versionedAccessToken = prependVersionAndEncodeAccessToken(tokenVersion, accessToken);
                                     if (tokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
                                         final String versionedRefreshToken = plainRefreshToken != null
-                                                ? prependVersionAndEncode(tokenVersion, plainRefreshToken)
-                                                : null;
-                                        listener.onResponse(new Tuple<>(userToken, versionedRefreshToken));
+                                            ? prependVersionAndEncodeRefreshToken(tokenVersion, plainRefreshToken)
+                                            : null;
+                                        listener.onResponse(new Tuple<>(versionedAccessToken, versionedRefreshToken));
                                     } else {
                                         // prior versions are not version-prepended, as nodes on those versions don't expect it.
                                         // Such nodes might exist in a mixed cluster during a rolling upgrade.
-                                        listener.onResponse(new Tuple<>(userToken, plainRefreshToken));
+                                        listener.onResponse(new Tuple<>(versionedAccessToken, plainRefreshToken));
                                     }
                                 } else {
                                     listener.onFailure(traceLog("create token",
@@ -294,6 +322,14 @@ public final class TokenService {
                                 }
                             }, listener::onFailure)));
         }
+    }
+
+    /**
+     * Hashes an access or refresh token String so that it can safely be persisted in the index. We don't salt
+     * the values as these are v4 UUIDs that have enough entropy by themselves.
+     */
+    static String hashTokenString(String accessTokenString) {
+        return new String(Hasher.SHA256.hash(new SecureString(accessTokenString.toCharArray())));
     }
 
     /**
@@ -401,13 +437,19 @@ public final class TokenService {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
             if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
-                // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster so it contains the tokenId as a String
-                String usedTokenId = in.readString();
-                getUserTokenFromId(usedTokenId, version, listener);
+                // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
+                if (in.available() < MINIMUM_BYTES) {
+                    logger.debug("invalid token size [{}] smaller than [{}] bytes", MINIMUM_BYTES);
+                    listener.onResponse(null);
+                    return;
+                }
+                final String accessToken = in.readString();
+                final String userTokenId = hashTokenString(accessToken);
+                getUserTokenFromId(userTokenId, version, listener);
             } else {
                 // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
-                if (in.available() < MINIMUM_BASE64_BYTES) {
-                    logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BASE64_BYTES);
+                if (in.available() < LEGACY_MINIMUM_BYTES) {
+                    logger.debug("invalid token, smaller than [{}] bytes", LEGACY_MINIMUM_BYTES);
                     listener.onResponse(null);
                     return;
                 }
@@ -705,7 +747,7 @@ public final class TokenService {
     /**
      * Called by the transport action in order to start the process of refreshing a token.
      */
-    public void refreshToken(String refreshToken, ActionListener<Tuple<UserToken, String>> listener) {
+    public void refreshToken(String refreshToken, ActionListener<Tuple<String, String>> listener) {
         ensureEnabled();
         final Instant refreshRequested = clock.instant();
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
@@ -713,8 +755,9 @@ public final class TokenService {
             backoff,
             ActionListener.wrap(tokenDocHit -> {
                 final Authentication clientAuth = Authentication.readFromContext(client.threadPool().getThreadContext());
-                innerRefresh(tokenDocHit.getId(), tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(), tokenDocHit.getPrimaryTerm(),
-                        clientAuth, backoff, refreshRequested, listener);
+                innerRefresh(refreshToken, tokenDocHit.getId(), tokenDocHit.getSourceAsMap(), tokenDocHit.getSeqNo(),
+                    tokenDocHit.getPrimaryTerm(),
+                    clientAuth, backoff, refreshRequested, listener);
             }, listener::onFailure));
     }
 
@@ -723,7 +766,7 @@ public final class TokenService {
      * {@code #findTokenFromRefreshToken(String, SecurityIndexManager, Iterator, ActionListener)} .
      */
     private void findTokenFromRefreshToken(String refreshToken, Iterator<TimeValue> backoff, ActionListener<SearchHit> listener) {
-        if (refreshToken.length() == TOKEN_ID_LENGTH) {
+        if (refreshToken.length() == TOKEN_LENGTH) {
             // first check if token has the old format before the new version-prepended one
             logger.debug("Assuming an unversioned refresh token [{}], generated for node versions"
                     + " prior to the introduction of the version-header format.", refreshToken);
@@ -734,11 +777,12 @@ public final class TokenService {
                 final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
                 final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
                 if (false == refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)
-                        || unencodedRefreshToken.length() != TOKEN_ID_LENGTH) {
+                    || unencodedRefreshToken.length() != TOKEN_LENGTH) {
                     logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken, refreshTokenVersion);
                     listener.onFailure(malformedTokenException());
                 } else {
-                    findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
+                    final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                    findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
                 }
             } catch (IOException e) {
                 logger.debug("Could not decode refresh token [" + refreshToken + "].", e);
@@ -816,8 +860,9 @@ public final class TokenService {
      * supersedes this one. The new document that contains the new access token and refresh token is created and finally the new access
      * token and refresh token are returned to the listener.
      */
-    private void innerRefresh(String tokenDocId, Map<String, Object> source, long seqNo, long primaryTerm, Authentication clientAuth,
-                              Iterator<TimeValue> backoff, Instant refreshRequested, ActionListener<Tuple<UserToken, String>> listener) {
+    private void innerRefresh(String refreshToken, String tokenDocId, Map<String, Object> source, long seqNo, long primaryTerm,
+                              Authentication clientAuth, Iterator<TimeValue> backoff, Instant refreshRequested,
+                              ActionListener<Tuple<String, String>> listener) {
         logger.debug("Attempting to refresh token stored in token document [{}]", tokenDocId);
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
         final Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkRefreshResult;
@@ -833,23 +878,30 @@ public final class TokenService {
         }
         final RefreshTokenStatus refreshTokenStatus = checkRefreshResult.v1();
         if (refreshTokenStatus.isRefreshed()) {
-            logger.debug("Token document [{}] was recently refreshed, when a new token document [{}] was generated. Reusing that result.",
-                    tokenDocId, refreshTokenStatus.getSupersededBy());
-            getSupersedingTokenDocAsyncWithRetry(refreshTokenStatus, backoff, listener);
+            logger.debug("Token document [{}] was recently refreshed, when a new token document was generated. Reusing that result.",
+                tokenDocId);
+            decryptAndReturnSupersedingTokens(refreshToken, refreshTokenStatus, listener);
         } else {
-            final String newUserTokenId = UUIDs.randomBase64UUID();
+            final String newAccessTokenString = UUIDs.randomBase64UUID();
+            final String newRefreshTokenString = UUIDs.randomBase64UUID();
             final Version newTokenVersion = getTokenVersionCompatibility();
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
-            updateMap.put("refresh_time", clock.instant().toEpochMilli());
             if (newTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
-                // the superseding token document reference is formated as "<alias>|<document_id>";
-                // for now, only the ".security-tokens|<document_id>" is a valid reference format
-                updateMap.put("superseded_by", securityTokensIndex.aliasName() + "|" + getTokenDocumentId(newUserTokenId));
-            } else {
-                // preservers the format of the reference (without the alias prefix)
-                // so that old nodes in a mixed cluster can still understand it
-                updateMap.put("superseded_by", getTokenDocumentId(newUserTokenId));
+                updateMap.put("refresh_time", clock.instant().toEpochMilli());
+                try {
+                    final byte[] iv = getRandomBytes(IV_BYTES);
+                    final byte[] salt = getRandomBytes(SALT_BYTES);
+                    Tuple<String, String> encryptedAccessAndRefreshToken = encryptSupersedingTokens(newAccessTokenString,
+                        newRefreshTokenString, refreshToken, iv, salt);
+                    updateMap.put("superseding_access_token", encryptedAccessAndRefreshToken.v1());
+                    updateMap.put("superseding_refresh_token", encryptedAccessAndRefreshToken.v2());
+                    updateMap.put("superseding_encryption_iv", Base64.getEncoder().encodeToString(iv));
+                    updateMap.put("superseding_encryption_salt", Base64.getEncoder().encodeToString(salt));
+                } catch (GeneralSecurityException e) {
+                    logger.warn("could not encrypt access token and refresh token string", e);
+                    onFailure.accept(invalidGrantException("could not refresh the requested token"));
+                }
             }
             assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "expected an assigned sequence number";
             assert primaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM : "expected an assigned primary term";
@@ -870,14 +922,15 @@ public final class TokenService {
                                     updateResponse.getGetResult().sourceAsMap()));
                             final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
-                            createOAuth2Tokens(newUserTokenId, newTokenVersion, getTokensIndexForVersion(newTokenVersion),
-                                    toRefreshUserToken.getAuthentication(), clientAuth, toRefreshUserToken.getMetadata(), true, listener);
+                            createOAuth2Tokens(newAccessTokenString, newRefreshTokenString, newTokenVersion,
+                                getTokensIndexForVersion(newTokenVersion), toRefreshUserToken.getAuthentication(), clientAuth,
+                                toRefreshUserToken.getMetadata(), listener);
                         } else if (backoff.hasNext()) {
                             logger.info("failed to update the original token document [{}], the update result was [{}]. Retrying",
                                     tokenDocId, updateResponse.getResult());
                             final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                    .preserveContext(() -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, backoff,
-                                            refreshRequested, listener));
+                                .preserveContext(() -> innerRefresh(refreshToken, tokenDocId, source, seqNo, primaryTerm, clientAuth,
+                                    backoff, refreshRequested, listener));
                             client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                         } else {
                             logger.info("failed to update the original token document [{}] after all retries, the update result was [{}]. ",
@@ -893,8 +946,8 @@ public final class TokenService {
                                 @Override
                                 public void onResponse(GetResponse response) {
                                     if (response.isExists()) {
-                                        innerRefresh(tokenDocId, response.getSource(), response.getSeqNo(), response.getPrimaryTerm(),
-                                                clientAuth, backoff, refreshRequested, listener);
+                                        innerRefresh(refreshToken, tokenDocId, response.getSource(), response.getSeqNo(),
+                                            response.getPrimaryTerm(), clientAuth, backoff, refreshRequested, listener);
                                     } else {
                                         logger.warn("could not find token document [{}] for refresh", tokenDocId);
                                         onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -922,8 +975,8 @@ public final class TokenService {
                             if (backoff.hasNext()) {
                                 logger.debug("failed to update the original token document [{}], retrying", tokenDocId);
                                 final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                                        .preserveContext(() -> innerRefresh(tokenDocId, source, seqNo, primaryTerm, clientAuth, backoff,
-                                                refreshRequested, listener));
+                                    .preserveContext(() -> innerRefresh(refreshToken, tokenDocId, source, seqNo, primaryTerm,
+                                        clientAuth, backoff, refreshRequested, listener));
                                 client.threadPool().schedule(retryWithContextRunnable, backoff.next(), GENERIC);
                             } else {
                                 logger.warn("failed to update the original token document [{}], after all retries", tokenDocId);
@@ -936,72 +989,49 @@ public final class TokenService {
         }
     }
 
-    private void getSupersedingTokenDocAsyncWithRetry(RefreshTokenStatus refreshTokenStatus, Iterator<TimeValue> backoff,
-                                                      ActionListener<Tuple<UserToken, String>> listener) {
-        final Consumer<Exception> onFailure = ex -> listener
-                .onFailure(traceLog("get superseding token", refreshTokenStatus.getSupersededBy(), ex));
-        getSupersedingTokenDocAsync(refreshTokenStatus, new ActionListener<GetResponse>() {
-            private final Consumer<Exception> maybeRetryOnFailure = ex -> {
-                if (backoff.hasNext()) {
-                    final TimeValue backofTimeValue = backoff.next();
-                    logger.debug("retrying after [" + backofTimeValue + "] back off");
-                    final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
-                            .preserveContext(() -> getSupersedingTokenDocAsync(refreshTokenStatus, this));
-                    client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);
-                } else {
-                    logger.warn("back off retries exhausted");
-                    onFailure.accept(ex);
-                }
-            };
-
-            @Override
-            public void onResponse(GetResponse response) {
-                if (response.isExists()) {
-                    logger.debug("found superseding token document [{}] in index [{}] by following the [{}] reference", response.getId(),
-                            response.getIndex(), refreshTokenStatus.getSupersededBy());
-                    final Tuple<UserToken, String> parsedTokens;
-                    try {
-                        parsedTokens = parseTokensFromDocument(response.getSource(), null);
-                    } catch (IllegalStateException | DateTimeException e) {
-                        logger.error("unable to decode existing user token", e);
-                        listener.onFailure(new ElasticsearchSecurityException("could not refresh the requested token", e));
-                        return;
-                    }
-                    listener.onResponse(parsedTokens);
-                } else {
-                    // We retry this since the creation of the superseding token document might already be in flight but not
-                    // yet completed, triggered by a refresh request that came a few milliseconds ago
-                    logger.info("could not find superseding token document from [{}] reference, retrying",
-                            refreshTokenStatus.getSupersededBy());
-                    maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                if (isShardNotAvailableException(e)) {
-                    logger.info("could not find superseding token document from reference [{}], retrying",
-                            refreshTokenStatus.getSupersededBy());
-                    maybeRetryOnFailure.accept(invalidGrantException("could not refresh the requested token"));
-                } else {
-                    logger.warn("could not find superseding token document from reference [{}]", refreshTokenStatus.getSupersededBy());
-                    onFailure.accept(invalidGrantException("could not refresh the requested token"));
-                }
-            }
-        });
+    /**
+     * Decrypts the values of the superseding access token and the refresh token, using a key derived from the superseded refresh token. It
+     * encodes the version and serializes the tokens before calling the listener, in the same manner as {@link #createOAuth2Tokens } does
+     **/
+    void decryptAndReturnSupersedingTokens(String refreshToken, RefreshTokenStatus refreshTokenStatus,
+                                           ActionListener<Tuple<String, String>> listener) {
+        final byte[] iv = Base64.getDecoder().decode(refreshTokenStatus.getIv());
+        final byte[] salt = Base64.getDecoder().decode(refreshTokenStatus.getSalt());
+        final byte[] encryptedSupersedingAccessToken = Base64.getDecoder().decode(refreshTokenStatus.getSupersedingAccessToken());
+        final byte[] encryptedSupersedingRefreshToken = Base64.getDecoder().decode(refreshTokenStatus.getSupersedingRefreshToken());
+        try {
+            Cipher cipher = getDecryptionCipher(iv, refreshToken, salt);
+            final String supersedingAccessToken = new String(cipher.doFinal(encryptedSupersedingAccessToken), StandardCharsets.UTF_8);
+            byte[] iv2 = new byte[iv.length];
+            System.arraycopy(iv, iv.length / 2, iv2, 0, iv.length / 2);
+            System.arraycopy(iv, 0, iv2, iv.length / 2, iv.length / 2);
+            cipher = getDecryptionCipher(iv2, refreshToken, salt);
+            final String supersedingRefreshToken = new String(cipher.doFinal(encryptedSupersedingRefreshToken), StandardCharsets.UTF_8);
+            listener.onResponse(new Tuple<>(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(), supersedingAccessToken),
+                prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), supersedingRefreshToken)));
+        } catch (GeneralSecurityException | IOException e) {
+            logger.warn("Could not get stored superseding token values", e);
+            listener.onFailure(invalidGrantException("could not refresh the requested token"));
+        }
     }
 
-    private void getSupersedingTokenDocAsync(RefreshTokenStatus refreshTokenStatus, ActionListener<GetResponse> listener) {
-        final String supersedingDocReference = refreshTokenStatus.getSupersededBy();
-        if (supersedingDocReference.startsWith(securityTokensIndex.aliasName() + "|")) {
-            // superseding token doc is stored on the new tokens index, irrespective of where the superseded token doc resides
-            final String supersedingDocId = supersedingDocReference.substring(securityTokensIndex.aliasName().length() + 1);
-            getTokenDocAsync(supersedingDocId, securityTokensIndex, listener);
-        } else {
-            assert false == supersedingDocReference
-                    .contains("|") : "The superseding doc reference appears to contain an alias name but should not";
-            getTokenDocAsync(supersedingDocReference, securityMainIndex, listener);
-        }
+    /*
+     * Encrypts the values of the superseding access token and the refresh token, using a key derived from the superseded refresh token.
+     */
+    Tuple<String, String> encryptSupersedingTokens(String supersedingAccessToken, String supersedingRefreshToken,
+                                                   String refreshToken, byte[] iv, byte[] salt) throws GeneralSecurityException {
+        Cipher cipher = getEncryptionCipher(iv, refreshToken, salt);
+        final String encryptedSupersedingAccessToken =
+            Base64.getEncoder().encodeToString(cipher.doFinal(supersedingAccessToken.getBytes(StandardCharsets.UTF_8)));
+        // In AES GCM we cannot reuse the same IV. We predictably generate the IV for the second decryption instead of
+        // storing an extra field, since it doesn't have to be unpredictable, just not reused with the same key.
+        byte[] iv2 = new byte[iv.length];
+        System.arraycopy(iv, iv.length / 2, iv2, 0, iv.length / 2);
+        System.arraycopy(iv, 0, iv2, iv.length / 2, iv.length / 2);
+        cipher = getEncryptionCipher(iv2, refreshToken, salt);
+        final String encryptedSupersedingRefreshToken =
+            Base64.getEncoder().encodeToString(cipher.doFinal(supersedingRefreshToken.getBytes(StandardCharsets.UTF_8)));
+        return new Tuple<>(encryptedSupersedingAccessToken, encryptedSupersedingRefreshToken);
     }
 
     private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
@@ -1011,7 +1041,7 @@ public final class TokenService {
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get));
     }
 
-    private Version getTokenVersionCompatibility() {
+    Version getTokenVersionCompatibility() {
         // newly minted tokens are compatible with the min node version in the cluster
         return clusterService.state().nodes().getMinNodeVersion();
     }
@@ -1261,17 +1291,17 @@ public final class TokenService {
         listener.onResponse(indicesWithTokens);
     }
 
-    private BytesReference createTokenDocument(UserToken userToken, @Nullable String refreshToken,
+    private BytesReference createTokenDocument(UserToken userToken, @Nullable String hashedRefreshToken,
                                                @Nullable Authentication originatingClientAuth) {
-        assert refreshToken == null || originatingClientAuth != null : "non-null refresh token " + refreshToken
-                + " requires non-null client authn " + originatingClientAuth;
+        assert hashedRefreshToken == null || originatingClientAuth != null : "non-null refresh token " + hashedRefreshToken
+            + " requires non-null client authn " + originatingClientAuth;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             builder.field("doc_type", TOKEN_DOC_TYPE);
             builder.field("creation_time", getCreationTime(userToken.getExpirationTime()).toEpochMilli());
-            if (refreshToken != null) {
+            if (hashedRefreshToken != null) {
                 builder.startObject("refresh_token")
-                    .field("token", refreshToken)
+                    .field("token", hashedRefreshToken)
                     .field("invalidated", false)
                     .field("refreshed", false)
                     .startObject("client")
@@ -1336,7 +1366,7 @@ public final class TokenService {
         final UserToken userToken = UserToken.fromSourceMap(userTokenSource);
         if (userToken.getVersion().onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
             final String versionedRefreshToken = plainRefreshToken != null ?
-                    prependVersionAndEncode(userToken.getVersion(), plainRefreshToken) : null;
+                prependVersionAndEncodeRefreshToken(userToken.getVersion(), plainRefreshToken) : null;
             return new Tuple<>(userToken, versionedRefreshToken);
         } else {
             // do not prepend version to refresh token as the audience node version cannot deal with it
@@ -1438,7 +1468,7 @@ public final class TokenService {
         return expirationDelay;
     }
 
-    private Instant getExpirationTime() {
+    Instant getExpirationTime() {
         return clock.instant().plusSeconds(expirationDelay.getSeconds());
     }
 
@@ -1466,38 +1496,33 @@ public final class TokenService {
         return null;
     }
 
-    /**
-     * Serializes a token to a String containing the minimum compatible node version for decoding it back and either an encrypted
-     * representation of the token id for versions earlier to {@code #VERSION_ACCESS_TOKENS_UUIDS} or the token itself for versions after
-     * {@code #VERSION_ACCESS_TOKENS_UUIDS}
-     */
-    public String getAccessTokenAsString(UserToken userToken) throws IOException, GeneralSecurityException {
-        if (userToken.getVersion().onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+    String prependVersionAndEncodeAccessToken(Version version, String accessToken) throws IOException, GeneralSecurityException {
+        if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {
-                out.setVersion(userToken.getVersion());
-                Version.writeVersion(userToken.getVersion(), out);
-                out.writeString(userToken.getId());
+                out.setVersion(version);
+                Version.writeVersion(version, out);
+                out.writeString(accessToken);
                 return new String(os.toByteArray(), StandardCharsets.UTF_8);
             }
         } else {
             // we know that the minimum length is larger than the default of the ByteArrayOutputStream so set the size to this explicitly
-            try (ByteArrayOutputStream os = new ByteArrayOutputStream(MINIMUM_BASE64_BYTES);
+            try (ByteArrayOutputStream os = new ByteArrayOutputStream(LEGACY_MINIMUM_BASE64_BYTES);
                  OutputStream base64 = Base64.getEncoder().wrap(os);
                  StreamOutput out = new OutputStreamStreamOutput(base64)) {
-                out.setVersion(userToken.getVersion());
+                out.setVersion(version);
                 KeyAndCache keyAndCache = keyCache.activeKeyCache;
-                Version.writeVersion(userToken.getVersion(), out);
+                Version.writeVersion(version, out);
                 out.writeByteArray(keyAndCache.getSalt().bytes);
                 out.writeByteArray(keyAndCache.getKeyHash().bytes);
-                final byte[] initializationVector = getNewInitializationVector();
+                final byte[] initializationVector = getRandomBytes(IV_BYTES);
                 out.writeByteArray(initializationVector);
                 try (CipherOutputStream encryptedOutput =
-                         new CipherOutputStream(out, getEncryptionCipher(initializationVector, keyAndCache, userToken.getVersion()));
+                         new CipherOutputStream(out, getEncryptionCipher(initializationVector, keyAndCache, version));
                      StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)) {
-                    encryptedStreamOutput.setVersion(userToken.getVersion());
-                    encryptedStreamOutput.writeString(userToken.getId());
+                    encryptedStreamOutput.setVersion(version);
+                    encryptedStreamOutput.writeString(accessToken);
                     encryptedStreamOutput.close();
                     return new String(os.toByteArray(), StandardCharsets.UTF_8);
                 }
@@ -1505,7 +1530,7 @@ public final class TokenService {
         }
     }
 
-    private static String prependVersionAndEncode(Version version, String payload) {
+    static String prependVersionAndEncodeRefreshToken(Version version, String payload) {
         try (ByteArrayOutputStream os = new ByteArrayOutputStream();
                 OutputStream base64 = Base64.getEncoder().wrap(os);
                 StreamOutput out = new OutputStreamStreamOutput(base64)) {
@@ -1551,6 +1576,17 @@ public final class TokenService {
         return cipher;
     }
 
+    /**
+     * Initialize the encryption cipher using the provided password to derive the encryption key.
+     */
+    Cipher getEncryptionCipher(byte[] iv, String password, byte[] salt) throws GeneralSecurityException {
+        SecretKey key = computeSecretKey(password.toCharArray(), salt, TOKENS_ENCRYPTION_KEY_ITERATIONS);
+        Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
+        cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, iv), secureRandom);
+        cipher.updateAAD(salt);
+        return cipher;
+    }
+
     private void getKeyAsync(BytesKey decodedSalt, KeyAndCache keyAndCache, ActionListener<SecretKey> listener) {
         final SecretKey decodeKey = keyAndCache.getKey(decodedSalt);
         if (decodeKey != null) {
@@ -1583,21 +1619,31 @@ public final class TokenService {
         return cipher;
     }
 
-    // Package private for testing
-    byte[] getNewInitializationVector() {
-        final byte[] initializationVector = new byte[IV_BYTES];
+    /**
+     * Initialize the decryption cipher using the provided password to derive the decryption key.
+     */
+    private Cipher getDecryptionCipher(byte[] iv, String password, byte[] salt) throws GeneralSecurityException {
+        SecretKey key = computeSecretKey(password.toCharArray(), salt, TOKENS_ENCRYPTION_KEY_ITERATIONS);
+        Cipher cipher = Cipher.getInstance(ENCRYPTION_CIPHER);
+        cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv), secureRandom);
+        cipher.updateAAD(salt);
+        return cipher;
+    }
+
+    byte[] getRandomBytes(int length) {
+        final byte[] initializationVector = new byte[length];
         secureRandom.nextBytes(initializationVector);
         return initializationVector;
     }
 
     /**
      * Generates a secret key based off of the provided password and salt.
-     * This method is computationally expensive.
+     * This method can be computationally expensive.
      */
-    static SecretKey computeSecretKey(char[] rawPassword, byte[] salt)
+    static SecretKey computeSecretKey(char[] rawPassword, byte[] salt, int iterations)
         throws NoSuchAlgorithmException, InvalidKeySpecException {
         SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(KDF_ALGORITHM);
-        PBEKeySpec keySpec = new PBEKeySpec(rawPassword, salt, ITERATIONS, 128);
+        PBEKeySpec keySpec = new PBEKeySpec(rawPassword, salt, iterations, 128);
         SecretKey tmp = secretKeyFactory.generateSecret(keySpec);
         return new SecretKeySpec(tmp.getEncoded(), "AES");
     }
@@ -1991,7 +2037,7 @@ public final class TokenService {
                 .setMaximumWeight(500L)
                 .build();
             try {
-                SecretKey secretKey = computeSecretKey(keyAndTimestamp.getKey().getChars(), salt.bytes);
+                SecretKey secretKey = computeSecretKey(keyAndTimestamp.getKey().getChars(), salt.bytes, TOKEN_SERVICE_KEY_ITERATIONS);
                 keyCache.put(salt, secretKey);
             } catch (Exception e) {
                 throw new IllegalStateException(e);
@@ -2007,7 +2053,7 @@ public final class TokenService {
         public SecretKey getOrComputeKey(BytesKey decodedSalt) throws ExecutionException {
             return keyCache.computeIfAbsent(decodedSalt, (salt) -> {
                 try (SecureString closeableChars = keyAndTimestamp.getKey().clone()) {
-                    return computeSecretKey(closeableChars.getChars(), salt.bytes);
+                    return computeSecretKey(closeableChars.getChars(), salt.bytes, TOKEN_SERVICE_KEY_ITERATIONS);
                 }
             });
         }
@@ -2062,24 +2108,36 @@ public final class TokenService {
     /**
      * Contains metadata associated with the refresh token that is used for validity checks, but does not contain the proper token string.
      */
-    private static final class RefreshTokenStatus {
+    static final class RefreshTokenStatus {
 
         private final boolean invalidated;
         private final String associatedUser;
         private final String associatedRealm;
         private final boolean refreshed;
         @Nullable private final Instant refreshInstant;
-        @Nullable private final String supersededBy;
+        @Nullable
+        private final String supersedingAccessToken;
+        @Nullable
+        private final String supersedingRefreshToken;
+        @Nullable
+        private final String iv;
+        @Nullable
+        private final String salt;
         private Version version;
 
-        private RefreshTokenStatus(boolean invalidated, String associatedUser, String associatedRealm, boolean refreshed,
-                                   Instant refreshInstant, String supersededBy) {
+        // pkg-private for testing
+        RefreshTokenStatus(boolean invalidated, String associatedUser, String associatedRealm, boolean refreshed,
+                           Instant refreshInstant, String supersedingAccessToken, String supersedingRefreshToken,
+                           String iv, String salt) {
             this.invalidated = invalidated;
             this.associatedUser = associatedUser;
             this.associatedRealm = associatedRealm;
             this.refreshed = refreshed;
             this.refreshInstant = refreshInstant;
-            this.supersededBy = supersededBy;
+            this.supersedingAccessToken = supersedingAccessToken;
+            this.supersedingRefreshToken = supersedingRefreshToken;
+            this.iv = iv;
+            this.salt = salt;
         }
 
         boolean isInvalidated() {
@@ -2102,8 +2160,24 @@ public final class TokenService {
             return refreshInstant;
         }
 
-        @Nullable String getSupersededBy() {
-            return supersededBy;
+        @Nullable
+        String getSupersedingAccessToken() {
+            return supersedingAccessToken;
+        }
+
+        @Nullable
+        String getSupersedingRefreshToken() {
+            return supersedingRefreshToken;
+        }
+
+        @Nullable
+        String getIv() {
+            return iv;
+        }
+
+        @Nullable
+        String getSalt() {
+            return salt;
         }
 
         Version getVersion() {
@@ -2137,8 +2211,12 @@ public final class TokenService {
             }
             final Long refreshEpochMilli = (Long) refreshTokenSource.get("refresh_time");
             final Instant refreshInstant = refreshEpochMilli == null ? null : Instant.ofEpochMilli(refreshEpochMilli);
-            final String supersededBy = (String) refreshTokenSource.get("superseded_by");
-            return new RefreshTokenStatus(invalidated, associatedUser, associatedRealm, refreshed, refreshInstant, supersededBy);
+            final String supersedingAccessToken = (String) refreshTokenSource.get("superseding_access_token");
+            final String supersedingRefreshToken = (String) refreshTokenSource.get("superseding_refresh_token");
+            final String iv = (String) refreshTokenSource.get("superseding_encryption_iv");
+            final String salt = (String) refreshTokenSource.get("superseding_encryption_salt");
+            return new RefreshTokenStatus(invalidated, associatedUser, associatedRealm, refreshed, refreshInstant, supersedingAccessToken,
+                supersedingRefreshToken, iv, salt);
         }
     }
 

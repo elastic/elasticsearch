@@ -238,14 +238,13 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Map<String, Object> tokenMetaData = samlRealm.createTokenMetadata(
                 new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
 
-        final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(authentication, authentication, tokenMetaData, true, future);
-        final UserToken userToken = future.actionGet().v1();
-        mockGetTokenFromId(userToken, false, client);
-        final String tokenString = tokenService.getAccessTokenAsString(userToken);
+        final String accessToken = future.actionGet().v1();
+        mockGetTokenFromId(tokenService, accessToken, authentication, false, client);
 
         final SamlLogoutRequest request = new SamlLogoutRequest();
-        request.setToken(tokenString);
+        request.setToken(accessToken);
         final PlainActionFuture<SamlLogoutResponse> listener = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, listener);
         final SamlLogoutResponse response = listener.get();

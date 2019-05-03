@@ -213,8 +213,17 @@
               "type": "date",
               "format": "epoch_millis"
             },
-            "superseded_by": {
-              "type": "keyword"
+            "superseding_access_token": {
+              "type": "binary"
+            },
+            "superseding_refresh_token": {
+              "type": "binary"
+            },
+            "superseding_encryption_iv": {
+              "type": "binary"
+            },
+            "superseding_encryption_salt": {
+              "type": "binary"
             },
             "invalidated" : {
               "type" : "boolean"

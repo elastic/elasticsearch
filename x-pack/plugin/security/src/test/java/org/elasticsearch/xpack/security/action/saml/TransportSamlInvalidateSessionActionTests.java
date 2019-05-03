@@ -249,8 +249,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
     public void testInvalidateCorrectTokensFromLogoutRequest() throws Exception {
         storeToken(logoutRequest.getNameId(), randomAlphaOfLength(10));
-        final Tuple<UserToken, String> tokenToInvalidate1 = storeToken(logoutRequest.getNameId(), logoutRequest.getSession());
-        final Tuple<UserToken, String> tokenToInvalidate2 = storeToken(logoutRequest.getNameId(), logoutRequest.getSession());
+        final Tuple<String, String> tokenToInvalidate1 = storeToken(logoutRequest.getNameId(), logoutRequest.getSession());
+        final Tuple<String, String> tokenToInvalidate2 = storeToken(logoutRequest.getNameId(), logoutRequest.getSession());
         storeToken(new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null), logoutRequest.getSession());
 
         assertThat(indexRequests.size(), equalTo(4));
@@ -317,22 +317,22 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(bulkRequests.size(), equalTo(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1
         assertThat(bulkRequests.get(0).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1().getId()));
+        assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1()));
         UpdateRequest updateRequest1 = (UpdateRequest) bulkRequests.get(0).requests().get(0);
         assertThat(updateRequest1.toString().contains("refresh_token"), equalTo(true));
         // Invalidate access token 1
         assertThat(bulkRequests.get(1).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(1).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1().getId()));
+        assertThat(bulkRequests.get(1).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1()));
         UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(1).requests().get(0);
         assertThat(updateRequest2.toString().contains("access_token"), equalTo(true));
         // Invalidate refresh token 2
         assertThat(bulkRequests.get(2).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(2).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1().getId()));
+        assertThat(bulkRequests.get(2).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1()));
         UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(2).requests().get(0);
         assertThat(updateRequest3.toString().contains("refresh_token"), equalTo(true));
         // Invalidate access token 2
         assertThat(bulkRequests.get(3).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(3).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1().getId()));
+        assertThat(bulkRequests.get(3).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1()));
         UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(3).requests().get(0);
         assertThat(updateRequest4.toString().contains("access_token"), equalTo(true));
     }
@@ -355,11 +355,11 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         };
     }
 
-    private Tuple<UserToken, String> storeToken(SamlNameId nameId, String session) throws IOException {
+    private Tuple<String, String> storeToken(SamlNameId nameId, String session) throws IOException {
         Authentication authentication = new Authentication(new User("bob"),
                 new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
-        final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
+        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(authentication, authentication, metadata, true, future);
         return future.actionGet();
     }

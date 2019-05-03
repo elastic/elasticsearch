@@ -34,8 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
@@ -285,36 +285,13 @@ public class SocketChannelContextTests extends ESTestCase {
             when(channel.getRawChannel()).thenReturn(realChannel);
             when(channel.isOpen()).thenReturn(true);
             Runnable closer = mock(Runnable.class);
-            Supplier<Page> pageSupplier = () -> new Page(ByteBuffer.allocate(1 << 14), closer);
-            InboundChannelBuffer buffer = new InboundChannelBuffer(pageSupplier);
+            IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), closer);
+            InboundChannelBuffer buffer = new InboundChannelBuffer(pageAllocator);
             buffer.ensureCapacity(1);
             TestSocketChannelContext context = new TestSocketChannelContext(channel, selector, exceptionHandler, readWriteHandler, buffer);
             context.closeFromSelector();
             verify(closer).run();
         }
-    }
-
-    public void testReadToBufferLimitsToPassedBuffer() throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(10);
-        when(rawChannel.read(any(ByteBuffer.class))).thenAnswer(completelyFillBufferAnswer());
-
-        int bytesRead = context.readFromChannel(buffer);
-        assertEquals(bytesRead, 10);
-        assertEquals(0, buffer.remaining());
-    }
-
-    public void testReadToBufferHandlesIOException() throws IOException {
-        when(rawChannel.read(any(ByteBuffer.class))).thenThrow(new IOException());
-
-        expectThrows(IOException.class, () -> context.readFromChannel(ByteBuffer.allocate(10)));
-        assertTrue(context.closeNow());
-    }
-
-    public void testReadToBufferHandlesEOF() throws IOException {
-        when(rawChannel.read(any(ByteBuffer.class))).thenReturn(-1);
-
-        context.readFromChannel(ByteBuffer.allocate(10));
-        assertTrue(context.closeNow());
     }
 
     public void testReadToChannelBufferWillReadAsMuchAsIOBufferAllows() throws IOException {
@@ -342,33 +319,6 @@ public class SocketChannelContextTests extends ESTestCase {
         context.readFromChannel(channelBuffer);
         assertTrue(context.closeNow());
         assertEquals(0, channelBuffer.getIndex());
-    }
-
-    public void testFlushBufferHandlesPartialFlush() throws IOException {
-        int bytesToConsume = 3;
-        when(rawChannel.write(any(ByteBuffer.class))).thenAnswer(consumeBufferAnswer(bytesToConsume));
-
-        ByteBuffer buffer = ByteBuffer.allocate(10);
-        context.flushToChannel(buffer);
-        assertEquals(10 - bytesToConsume, buffer.remaining());
-    }
-
-    public void testFlushBufferHandlesFullFlush() throws IOException {
-        int bytesToConsume = 10;
-        when(rawChannel.write(any(ByteBuffer.class))).thenAnswer(consumeBufferAnswer(bytesToConsume));
-
-        ByteBuffer buffer = ByteBuffer.allocate(10);
-        context.flushToChannel(buffer);
-        assertEquals(0, buffer.remaining());
-    }
-
-    public void testFlushBufferHandlesIOException() throws IOException {
-        when(rawChannel.write(any(ByteBuffer.class))).thenThrow(new IOException());
-
-        ByteBuffer buffer = ByteBuffer.allocate(10);
-        expectThrows(IOException.class, () -> context.flushToChannel(buffer));
-        assertTrue(context.closeNow());
-        assertEquals(10, buffer.remaining());
     }
 
     public void testFlushBuffersHandlesZeroFlush() throws IOException {
@@ -456,22 +406,14 @@ public class SocketChannelContextTests extends ESTestCase {
 
         @Override
         public int read() throws IOException {
-            if (randomBoolean()) {
-                InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
-                return readFromChannel(channelBuffer);
-            } else {
-                return readFromChannel(ByteBuffer.allocate(10));
-            }
+            InboundChannelBuffer channelBuffer = InboundChannelBuffer.allocatingInstance();
+            return readFromChannel(channelBuffer);
         }
 
         @Override
         public void flushChannel() throws IOException {
-            if (randomBoolean()) {
-                ByteBuffer[] byteBuffers = {ByteBuffer.allocate(10)};
-                flushToChannel(new FlushOperation(byteBuffers, (v, e) -> {}));
-            } else {
-                flushToChannel(ByteBuffer.allocate(10));
-            }
+            ByteBuffer[] byteBuffers = {ByteBuffer.allocate(10)};
+            flushToChannel(new FlushOperation(byteBuffers, (v, e) -> {}));
         }
 
         @Override

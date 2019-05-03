@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateReque
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
-import java.util.concurrent.TimeUnit;
-
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;

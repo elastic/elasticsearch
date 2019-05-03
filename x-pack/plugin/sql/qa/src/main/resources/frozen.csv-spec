@@ -5,7 +5,7 @@
 showTables
 SHOW TABLES INCLUDE FROZEN;
 
-       name        |     type   |  native   
+       name        |     type   |  kind   
 frozen_emp         |BASE TABLE  |FROZEN INDEX
 logs               |BASE TABLE  |INDEX
 test_alias         |VIEW        |ALIAS

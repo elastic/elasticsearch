@@ -422,6 +422,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                     .setQueryConfig(queryConfig)
                     .build(), // <1>
                 pivotConfig); // <2>
+
         PreviewDataFrameTransformRequest request =
                 new PreviewDataFrameTransformRequest(transformConfig); // <3>
         // end::preview-data-frame-transform-request
@@ -469,7 +470,6 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         RestHighLevelClient client = highLevelClient();
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
             TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
@@ -554,8 +554,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
     public void testGetDataFrameTransform() throws IOException, InterruptedException {
         createIndex("source-data");
-        
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
             TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();

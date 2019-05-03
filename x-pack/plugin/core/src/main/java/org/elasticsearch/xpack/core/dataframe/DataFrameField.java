@@ -27,6 +27,10 @@ public final class DataFrameField {
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESTINATION = new ParseField("dest");
     public static final ParseField FORCE = new ParseField("force");
+    public static final ParseField FIELD = new ParseField("field");
+    public static final ParseField SYNC = new ParseField("sync");
+    public static final ParseField TIME_BASED_SYNC = new ParseField("time");
+    public static final ParseField DELAY = new ParseField("delay");
 
     /**
      * Fields for checkpointing

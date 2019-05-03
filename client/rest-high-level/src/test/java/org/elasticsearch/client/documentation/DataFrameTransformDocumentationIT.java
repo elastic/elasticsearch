@@ -61,7 +61,6 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -119,13 +118,15 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         // end::put-data-frame-transform-query-config
         // tag::put-data-frame-transform-source-config
-        SourceConfig sourceConfig =
-            new SourceConfig(new String[]{"source-index"}, queryConfig);
+        SourceConfig sourceConfig = SourceConfig.builder()
+            .setIndex("source-index")
+            .setQueryConfig(queryConfig).build();
         // end::put-data-frame-transform-source-config
         // tag::put-data-frame-transform-group-config
-        GroupConfig groupConfig =
-                new GroupConfig(Collections.singletonMap("reviewer", // <1>
-                        new TermsGroupSource("user_id")));           // <2>
+        GroupConfig groupConfig = GroupConfig.builder()
+            .groupBy("reviewer", // <1>
+                TermsGroupSource.builder().setField("user_id").build()) // <2>
+            .build();
         // end::put-data-frame-transform-group-config
         // tag::put-data-frame-transform-agg-config
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
@@ -134,15 +135,20 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
         // end::put-data-frame-transform-agg-config
         // tag::put-data-frame-transform-pivot-config
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder()
+            .setGroups(groupConfig)
+            .setAggregationConfig(aggConfig)
+            .build();
         // end::put-data-frame-transform-pivot-config
         // tag::put-data-frame-transform-config
-        DataFrameTransformConfig transformConfig =
-                new DataFrameTransformConfig("reviewer-avg-rating", // <1>
-                sourceConfig, // <2>
-                new DestConfig("pivot-destination"),  // <3>
-                pivotConfig, // <4>
-                "This is my test transform");  // <5>
+        DataFrameTransformConfig transformConfig = DataFrameTransformConfig
+            .builder()
+            .setId("reviewer-avg-rating") // <1>
+            .setSource(sourceConfig) // <2>
+            .setDest(new DestConfig("pivot-destination")) // <3>
+            .setPivotConfig(pivotConfig) // <4>
+            .setDescription("This is my test transform") // <5>
+            .build();
         // end::put-data-frame-transform-config
 
         {
@@ -160,9 +166,12 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             assertTrue(response.isAcknowledged());
         }
         {
-            DataFrameTransformConfig configWithDifferentId = new DataFrameTransformConfig("reviewer-avg-rating2",
-                    transformConfig.getSource(), transformConfig.getDestination(),
-                    transformConfig.getPivotConfig(), null);
+            DataFrameTransformConfig configWithDifferentId = DataFrameTransformConfig.builder()
+                .setId("reviewer-avg-rating2")
+                .setSource(transformConfig.getSource())
+                .setDest(transformConfig.getDestination())
+                .setPivotConfig(transformConfig.getPivotConfig())
+                .build();
             PutDataFrameTransformRequest request = new PutDataFrameTransformRequest(configWithDifferentId);
 
             // tag::put-data-frame-transform-execute-listener
@@ -199,14 +208,19 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
-        DataFrameTransformConfig transformConfig = new DataFrameTransformConfig("mega-transform",
-                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"), pivotConfig, null);
+        DataFrameTransformConfig transformConfig = DataFrameTransformConfig.builder()
+            .setId("mega-transform")
+            .setSource(SourceConfig.builder().setIndex("source-data").setQueryConfig(queryConfig).build())
+            .setDest(new DestConfig("pivot-dest"))
+            .setPivotConfig(pivotConfig)
+            .build();
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
         transformsToClean.add(transformConfig.getId());
@@ -313,17 +327,31 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
         RestHighLevelClient client = highLevelClient();
 
-        QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
-        DataFrameTransformConfig transformConfig1 = new DataFrameTransformConfig("mega-transform",
-                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest"), pivotConfig, null);
-        DataFrameTransformConfig transformConfig2 = new DataFrameTransformConfig("mega-transform2",
-                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("pivot-dest2"), pivotConfig, null);
+        DataFrameTransformConfig transformConfig1 = DataFrameTransformConfig.builder()
+            .setId("mega-transform")
+            .setSource(SourceConfig.builder()
+                .setIndex("source-data")
+                .setQuery(new MatchAllQueryBuilder())
+                .build())
+            .setDest(new DestConfig("pivot-dest"))
+            .setPivotConfig(pivotConfig)
+            .build();
+        DataFrameTransformConfig transformConfig2 = DataFrameTransformConfig.builder()
+            .setId("mega-transform2")
+            .setSource(SourceConfig.builder()
+                .setIndex("source-data")
+                .setQuery(new MatchAllQueryBuilder())
+                .build())
+            .setDest(new DestConfig("pivot-dest2"))
+            .setPivotConfig(pivotConfig)
+            .build();
 
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig1), RequestOptions.DEFAULT);
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig2), RequestOptions.DEFAULT);
@@ -379,16 +407,20 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
         // tag::preview-data-frame-transform-request
         DataFrameTransformConfig transformConfig =
             DataFrameTransformConfig.forPreview(
-                new SourceConfig(new String[]{"source-data"}, queryConfig), // <1>
+                SourceConfig.builder()
+                    .setIndex("source-data")
+                    .setQueryConfig(queryConfig)
+                    .build(), // <1>
                 pivotConfig); // <2>
         PreviewDataFrameTransformRequest request =
                 new PreviewDataFrameTransformRequest(transformConfig); // <3>
@@ -438,15 +470,23 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         RestHighLevelClient client = highLevelClient();
 
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
         String id = "statisitcal-transform";
-        DataFrameTransformConfig transformConfig = new DataFrameTransformConfig(id,
-                new SourceConfig(new String[]{"source-data"}, queryConfig), new DestConfig("dest"), pivotConfig, null);
+        DataFrameTransformConfig transformConfig = DataFrameTransformConfig.builder()
+            .setId(id)
+            .setSource(SourceConfig.builder()
+                .setIndex("source-data")
+                .setQuery(new MatchAllQueryBuilder())
+                .build())
+            .setDest(new DestConfig("pivot-dest"))
+            .setPivotConfig(pivotConfig)
+            .build();
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(transformConfig), RequestOptions.DEFAULT);
 
         // tag::get-data-frame-transform-stats-request
@@ -516,16 +556,23 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         createIndex("source-data");
         
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
-        GroupConfig groupConfig = new GroupConfig(Collections.singletonMap("reviewer", new TermsGroupSource("user_id")));
+        GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
+            TermsGroupSource.builder().setField("user_id").build()).build();
         AggregatorFactories.Builder aggBuilder = new AggregatorFactories.Builder();
         aggBuilder.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggConfig = new AggregationConfig(aggBuilder);
-        PivotConfig pivotConfig = new PivotConfig(groupConfig, aggConfig);
+        PivotConfig pivotConfig = PivotConfig.builder().setGroups(groupConfig).setAggregationConfig(aggConfig).build();
 
-        
-        DataFrameTransformConfig putTransformConfig = new DataFrameTransformConfig("mega-transform",
-                new SourceConfig(new String[]{"source-data"}, queryConfig),
-                new DestConfig("pivot-dest"), pivotConfig, null);
+
+        DataFrameTransformConfig putTransformConfig = DataFrameTransformConfig.builder()
+            .setId("mega-transform")
+            .setSource(SourceConfig.builder()
+                .setIndex("source-data")
+                .setQuery(new MatchAllQueryBuilder())
+                .build())
+            .setDest(new DestConfig("pivot-dest"))
+            .setPivotConfig(pivotConfig)
+            .build();
 
         RestHighLevelClient client = highLevelClient();
         client.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(putTransformConfig), RequestOptions.DEFAULT);

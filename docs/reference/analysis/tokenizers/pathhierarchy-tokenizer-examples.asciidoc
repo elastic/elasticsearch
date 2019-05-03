@@ -32,12 +32,10 @@ PUT file-path-test
         "custom_hierarchy": {
           "type": "path_hierarchy",
           "delimiter": "/",
-          "search_analyzer": "keyword"
         },
         "custom_hierarchy_reversed": {
           "type": "path_hierarchy",
           "delimiter": "/",
-          "search_analyzer": "keyword",
           "reverse": "true"
         }
       }
@@ -174,7 +172,7 @@ POST file-path-test/_analyze
 
 It's also useful to be able to filter with file paths when combined with other
 types of searches, such as this example looking for any files paths with `16` 
-that also must be in Alice's photo directoryy.
+that also must be in Alice's photo directory.
 
 [source,js]
 --------------------------------------------------

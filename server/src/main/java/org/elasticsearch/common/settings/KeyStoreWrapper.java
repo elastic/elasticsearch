@@ -100,7 +100,7 @@ public class KeyStoreWrapper implements SecureSettings {
     private static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
-    private static final int FORMAT_VERSION = 4;
+    static final int FORMAT_VERSION = 4;
 
     /** The oldest metadata format version that can be read. */
     private static final int MIN_FORMAT_VERSION = 1;

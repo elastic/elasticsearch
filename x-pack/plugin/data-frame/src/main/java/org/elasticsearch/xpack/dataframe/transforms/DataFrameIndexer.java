@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
@@ -97,8 +96,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     @Override
     protected void onStart(long now, ActionListener<Void> listener) {
         try {
-            QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
-            pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
+            pivot = new Pivot(getConfig().getPivotConfig());
 
             // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
             if (pageSize == 0) {
@@ -180,7 +178,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected SearchRequest buildSearchRequest() {
-        return pivot.buildSearchRequest(getPosition(), pageSize);
+        return pivot.buildSearchRequest(getConfig().getSource(), getPosition(), pageSize);
     }
 
     /**

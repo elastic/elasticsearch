@@ -83,6 +83,7 @@ stop word.
 
 
 [float]
+[[synonym-tokenizer-ignore_case-deprecated]]
 ==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to

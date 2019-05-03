@@ -2,6 +2,8 @@
 [testenv="platinum"]
 [[ml-put-datafeed]]
 === Create {dfeeds} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Create {dfeeds}</titleabbrev>
 ++++

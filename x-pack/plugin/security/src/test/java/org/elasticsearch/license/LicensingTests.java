@@ -137,7 +137,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     @Before
     public void resetLicensing() throws InterruptedException {
-        enableLicensing(OperationMode.BASIC);
+        enableLicensing(OperationMode.MISSING);
     }
 
     @After
@@ -234,7 +234,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         // enable a license that enables security
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
+                License.OperationMode.PLATINUM, License.OperationMode.STANDARD, OperationMode.BASIC);
         enableLicensing(mode);
         // security actions should work!
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {

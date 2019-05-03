@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.rest.action;
+package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -32,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.ApiKey;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -57,6 +58,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         threadPool = new ThreadPool(settings);
         when(mockLicenseState.isSecurityAvailable()).thenReturn(true);
+        when(mockLicenseState.isApiKeyServiceAllowed()).thenReturn(true);
     }
 
     @Override
@@ -92,7 +94,7 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             public <    Request extends ActionRequest,
                         Response extends ActionResponse,
-                        RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>  
+                        RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
             void doExecute(Action<Request, Response, RequestBuilder> action,
                            Request request,
                            ActionListener<Response> listener) {

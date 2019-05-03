@@ -678,7 +678,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals("Had: " + categories, 5, categories.size());
+        assertEquals("Had: " + categories, 6, categories.size());
         assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));

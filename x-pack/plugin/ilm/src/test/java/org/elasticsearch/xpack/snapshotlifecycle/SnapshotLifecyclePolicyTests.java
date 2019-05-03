@@ -78,11 +78,15 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
 
     @Override
     protected SnapshotLifecyclePolicy createTestInstance() {
+        id = randomAlphaOfLength(5);
+        return randomSnapshotLifecyclePolicy(id);
+    }
+
+    public static SnapshotLifecyclePolicy randomSnapshotLifecyclePolicy(String id) {
         Map<String, Object> config = new HashMap<>();
         for (int i = 0; i < randomIntBetween(2, 5); i++) {
             config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
         }
-        id = randomAlphaOfLength(5);
         return new SnapshotLifecyclePolicy(id,
             randomAlphaOfLength(4),
             randomSchedule(),
@@ -90,7 +94,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
             config);
     }
 
-    private String randomSchedule() {
+    private static String randomSchedule() {
         return randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 59) + " " +
             randomIntBetween(0, 12) + " * * ?";
@@ -114,7 +118,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractSerializingTestCase<Sn
             case 2:
                 return new SnapshotLifecyclePolicy(instance.getId(),
                     instance.getName(),
-                    randomValueOtherThan(instance.getSchedule(), this::randomSchedule),
+                    randomValueOtherThan(instance.getSchedule(), SnapshotLifecyclePolicyTests::randomSchedule),
                     instance.getRepository(),
                     instance.getConfig());
             case 3:

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.snapshotlifecycle.history;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -15,15 +14,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryItemTests.randomSnapshotConfiguration;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore.getHistoryIndexNameForTime;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
@@ -58,13 +58,12 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testPut() throws IOException {
         String policyId = randomAlphaOfLength(5);
-        String repository = randomAlphaOfLength(6);
-        String snapshotId = randomAlphaOfLength(7);
-        CreateSnapshotRequest request = new CreateSnapshotRequest(repository, snapshotId);
-        Map<String, Object> config = randomSnapshotConfiguration();
+        SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(policyId);
         final long timestamp = randomNonNegativeLong();
+        SnapshotLifecyclePolicy.ResolverContext context = new SnapshotLifecyclePolicy.ResolverContext(timestamp);
+        String snapshotId = policy.generateSnapshotName(context);
         {
-            SnapshotHistoryItem record = SnapshotHistoryItem.successRecord(timestamp, policyId, request, config);
+            SnapshotHistoryItem record = SnapshotHistoryItem.successRecord(timestamp, policy, snapshotId);
 
             historyStore.putAsync(record);
             ArgumentCaptor<IndexRequest> indexRequest = ArgumentCaptor.forClass(IndexRequest.class);
@@ -73,19 +72,18 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             assertEquals(getHistoryIndexNameForTime(Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC)),
                 indexRequest.getValue().index());
             final String indexedDocument = indexRequest.getValue().source().utf8ToString();
-            assertThat(indexedDocument, containsString(policyId));
-            assertThat(indexedDocument, containsString(repository));
+            assertThat(indexedDocument, containsString(policy.getId()));
+            assertThat(indexedDocument, containsString(policy.getRepository()));
             assertThat(indexedDocument, containsString(snapshotId));
-            if (config != null) {
-                assertContainsMap(indexedDocument, config);
+            if (policy.getConfig() != null) {
+                assertContainsMap(indexedDocument, policy.getConfig());
             }
         }
 
         {
             final String cause = randomAlphaOfLength(9);
             Exception failureException = new RuntimeException(cause);
-            SnapshotHistoryItem record = SnapshotHistoryItem.failureRecord(timestamp, policyId, request, config,
-                failureException);
+            SnapshotHistoryItem record = SnapshotHistoryItem.failureRecord(timestamp, policy, snapshotId, failureException);
             historyStore.putAsync(record);
             ArgumentCaptor<IndexRequest> indexRequest = ArgumentCaptor.forClass(IndexRequest.class);
             verify(client, times(2)).index(indexRequest.capture(), notNull(ActionListener.class));
@@ -93,11 +91,11 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             assertEquals(getHistoryIndexNameForTime(Instant.ofEpochMilli(timestamp).atZone(ZoneOffset.UTC)),
                 indexRequest.getValue().index());
             final String indexedDocument = indexRequest.getValue().source().utf8ToString();
-            assertThat(indexedDocument, containsString(policyId));
-            assertThat(indexedDocument, containsString(repository));
+            assertThat(indexedDocument, containsString(policy.getId()));
+            assertThat(indexedDocument, containsString(policy.getRepository()));
             assertThat(indexedDocument, containsString(snapshotId));
-            if (config != null) {
-                assertContainsMap(indexedDocument, config);
+            if (policy.getConfig() != null) {
+                assertContainsMap(indexedDocument, policy.getConfig());
             }
             assertThat(indexedDocument, containsString("runtime_exception"));
             assertThat(indexedDocument, containsString(cause));
@@ -131,5 +129,23 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
             equalTo(".slm-history-" + indexTemplateVersion + "-2014.11"));
         assertThat(getHistoryIndexNameForTime(Instant.ofEpochMilli(2833165811000L).atZone(ZoneOffset.UTC)),
             equalTo(".slm-history-" + indexTemplateVersion + "-2059.10"));
+    }
+
+    public static SnapshotLifecyclePolicy randomSnapshotLifecyclePolicy(String id) {
+        Map<String, Object> config = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            config.put(randomAlphaOfLength(4), randomAlphaOfLength(4));
+        }
+        return new SnapshotLifecyclePolicy(id,
+            randomAlphaOfLength(4),
+            randomSchedule(),
+            randomAlphaOfLength(4),
+            config);
+    }
+
+    private static String randomSchedule() {
+        return randomIntBetween(0, 59) + " " +
+            randomIntBetween(0, 59) + " " +
+            randomIntBetween(0, 12) + " * * ?";
     }
 }

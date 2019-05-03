@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.snapshotlifecycle.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -94,14 +94,12 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         this.errorDetails = errorDetails;
     }
 
-    public static SnapshotHistoryItem successRecord(long timestamp, String policyId, CreateSnapshotRequest request,
-                                                    Map<String, Object> snapshotConfiguration) {
-        return new SnapshotHistoryItem(timestamp, policyId, request.repository(), request.snapshot(), CREATE_OPERATION, true,
-            snapshotConfiguration, null);
+    public static SnapshotHistoryItem successRecord(long timestamp, SnapshotLifecyclePolicy policy, String snapshotName) {
+        return new SnapshotHistoryItem(timestamp, policy.getId(), policy.getRepository(), snapshotName, CREATE_OPERATION, true,
+            policy.getConfig(), null);
     }
 
-    public static SnapshotHistoryItem failureRecord(long timeStamp, String policyId, CreateSnapshotRequest request,
-                                                    Map<String, Object> snapshotConfiguration,
+    public static SnapshotHistoryItem failureRecord(long timeStamp, SnapshotLifecyclePolicy policy, String snapshotName,
                                                     Exception exception) throws IOException {
         ToXContent.Params stacktraceParams = new ToXContent.MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
         String exceptionString;
@@ -111,8 +109,8 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
             causeXContentBuilder.endObject();
             exceptionString = BytesReference.bytes(causeXContentBuilder).utf8ToString();
         }
-        return new SnapshotHistoryItem(timeStamp, policyId, request.repository(), request.snapshot(), CREATE_OPERATION, false,
-            snapshotConfiguration, exceptionString);
+        return new SnapshotHistoryItem(timeStamp, policy.getId(), policy.getRepository(), snapshotName, CREATE_OPERATION, false,
+            policy.getConfig(), exceptionString);
     }
 
     public SnapshotHistoryItem(StreamInput in) throws IOException {

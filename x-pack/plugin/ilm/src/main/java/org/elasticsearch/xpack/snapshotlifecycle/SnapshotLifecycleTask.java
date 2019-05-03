@@ -94,10 +94,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     final long timestamp = Instant.now().toEpochMilli();
                     clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
                         WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp));
-                    historyStore.putAsync(SnapshotHistoryItem.successRecord(timestamp,
-                        policyMetadata.getPolicy().getId(),
-                        request,
-                        policyMetadata.getPolicy().getConfig()));
+                    historyStore.putAsync(SnapshotHistoryItem.successRecord(timestamp, policyMetadata.getPolicy(), request.snapshot()));
                 }
 
                 @Override
@@ -109,11 +106,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                         WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e));
                     final SnapshotHistoryItem failureRecord;
                     try {
-                        failureRecord = SnapshotHistoryItem.failureRecord(timestamp,
-                            policyMetadata.getPolicy().getId(),
-                            request,
-                            policyMetadata.getPolicy().getConfig(),
-                            e);
+                        failureRecord = SnapshotHistoryItem.failureRecord(timestamp, policyMetadata.getPolicy(), request.snapshot(), e);
                         historyStore.putAsync(failureRecord);
                     } catch (IOException ex) {
                         // This shouldn't happen unless there's an issue with serializing the original exception, which shouldn't happen

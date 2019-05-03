@@ -108,6 +108,7 @@ services:
     image: {docker-image}
     environment:
       - node.name=es01
+      - discovery.seed_hosts=es02
       - cluster.initial_master_nodes=es01,es02
       - ELASTIC_PASSWORD=$ELASTIC_PASSWORD <1>
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m"

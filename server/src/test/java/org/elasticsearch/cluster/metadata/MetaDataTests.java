@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
@@ -890,5 +891,20 @@ public class MetaDataTests extends ESTestCase {
             .persistentSettings(Settings.builder().put(setting.getKey(), "persistent-value").build())
             .transientSettings(Settings.builder().put(setting.getKey(), "transient-value").build()).build();
         assertThat(setting.get(metaData.settings()), equalTo("transient-value"));
+    }
+
+    public void testBuilderRejectsNullCustom() {
+        final MetaData.Builder builder = MetaData.builder();
+        final String key = randomAlphaOfLength(10);
+        assertThat(expectThrows(NullPointerException.class, () -> builder.putCustom(key, null)).getMessage(), containsString(key));
+    }
+
+    public void testBuilderRejectsNullInCustoms() {
+        final MetaData.Builder builder = MetaData.builder();
+        final String key = randomAlphaOfLength(10);
+        final ImmutableOpenMap.Builder<String, MetaData.Custom> mapBuilder = ImmutableOpenMap.builder();
+        mapBuilder.put(key, null);
+        final ImmutableOpenMap<String, MetaData.Custom> map = mapBuilder.build();
+        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 }

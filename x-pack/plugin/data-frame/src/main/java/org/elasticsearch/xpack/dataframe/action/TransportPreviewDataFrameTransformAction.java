@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.util.List;
@@ -61,24 +62,22 @@ public class TransportPreviewDataFrameTransformAction extends
 
         final DataFrameTransformConfig config = request.getConfig();
 
-        Pivot pivot = new Pivot(config.getSource().getIndex(),
-            config.getSource().getQueryConfig().getQuery(),
-            config.getPivotConfig());
+        Pivot pivot = new Pivot(config.getPivotConfig());
 
-        getPreview(pivot, ActionListener.wrap(
+        getPreview(pivot, config.getSource(), ActionListener.wrap(
             previewResponse -> listener.onResponse(new PreviewDataFrameTransformAction.Response(previewResponse)),
             listener::onFailure
         ));
     }
 
-    private void getPreview(Pivot pivot, ActionListener<List<Map<String, Object>>> listener) {
-        pivot.deduceMappings(client, ActionListener.wrap(
+    private void getPreview(Pivot pivot, SourceConfig source, ActionListener<List<Map<String, Object>>> listener) {
+        pivot.deduceMappings(client, source, ActionListener.wrap(
             deducedMappings -> {
                 ClientHelper.executeWithHeadersAsync(threadPool.getThreadContext().getHeaders(),
                     ClientHelper.DATA_FRAME_ORIGIN,
                     client,
                     SearchAction.INSTANCE,
-                    pivot.buildSearchRequest(null, NUMBER_OF_PREVIEW_BUCKETS),
+                    pivot.buildSearchRequest(source, null, NUMBER_OF_PREVIEW_BUCKETS),
                     ActionListener.wrap(
                         r -> {
                             final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);

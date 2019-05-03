@@ -29,6 +29,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 
+/**
+ * Records Snapshot Lifecycle Management actions as represented by {@link SnapshotHistoryItem} into an index
+ * for the purposes of querying and alerting.
+ */
 public class SnapshotHistoryStore implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(SnapshotHistoryStore.class);
     private static final DateFormatter indexTimeFormat = DateFormatter.forPattern("yyyy.MM");

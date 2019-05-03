@@ -23,7 +23,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotCreationHistoryItemTests.randomSnapshotConfiguration;
+import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryItemTests.randomSnapshotConfiguration;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore.getHistoryIndexNameForTime;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
@@ -64,7 +64,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         Map<String, Object> config = randomSnapshotConfiguration();
         final long timestamp = randomNonNegativeLong();
         {
-            SnapshotCreationHistoryItem record = SnapshotCreationHistoryItem.successRecord(timestamp, policyId, request, config);
+            SnapshotHistoryItem record = SnapshotHistoryItem.successRecord(timestamp, policyId, request, config);
 
             historyStore.putAsync(record);
             ArgumentCaptor<IndexRequest> indexRequest = ArgumentCaptor.forClass(IndexRequest.class);
@@ -84,7 +84,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         {
             final String cause = randomAlphaOfLength(9);
             Exception failureException = new RuntimeException(cause);
-            SnapshotCreationHistoryItem record = SnapshotCreationHistoryItem.failureRecord(timestamp, policyId, request, config,
+            SnapshotHistoryItem record = SnapshotHistoryItem.failureRecord(timestamp, policyId, request, config,
                 failureException);
             historyStore.putAsync(record);
             ArgumentCaptor<IndexRequest> indexRequest = ArgumentCaptor.forClass(IndexRequest.class);

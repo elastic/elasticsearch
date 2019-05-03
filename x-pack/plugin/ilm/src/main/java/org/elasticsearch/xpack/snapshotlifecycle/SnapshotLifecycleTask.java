@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotCreationHistoryItem;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.indexlifecycle.LifecyclePolicySecurityClient;
 
@@ -94,7 +94,7 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     final long timestamp = Instant.now().toEpochMilli();
                     clusterService.submitStateUpdateTask("slm-record-success-" + policyMetadata.getPolicy().getId(),
                         WriteJobStatus.success(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp));
-                    historyStore.putAsync(SnapshotCreationHistoryItem.successRecord(timestamp,
+                    historyStore.putAsync(SnapshotHistoryItem.successRecord(timestamp,
                         policyMetadata.getPolicy().getId(),
                         request,
                         policyMetadata.getPolicy().getConfig()));
@@ -107,9 +107,9 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                     final long timestamp = Instant.now().toEpochMilli();
                     clusterService.submitStateUpdateTask("slm-record-failure-" + policyMetadata.getPolicy().getId(),
                         WriteJobStatus.failure(policyMetadata.getPolicy().getId(), request.snapshot(), timestamp, e));
-                    final SnapshotCreationHistoryItem failureRecord;
+                    final SnapshotHistoryItem failureRecord;
                     try {
-                        failureRecord = SnapshotCreationHistoryItem.failureRecord(timestamp,
+                        failureRecord = SnapshotHistoryItem.failureRecord(timestamp,
                             policyMetadata.getPolicy().getId(),
                             request,
                             policyMetadata.getPolicy().getConfig(),

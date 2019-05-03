@@ -6,28 +6,37 @@
 
 package org.elasticsearch.xpack.core.snapshotlifecycle.history;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
-/**
- * Represents an entry in the Snapshot Lifecycle Management history index. Subclass this to add fields which are specific to a type of
- * operation (e.g. creation, deletion, any others).
- *
- * In addition to the abstract methods that subclasses must implement, subclasses should also implement:
- * 1) a constructor that takes a {@link StreamInput} for deserialization. Remember to call {@code super(in)} before reading any new fields.
- * 2) an xContent parser using {@link org.elasticsearch.common.xcontent.ConstructingObjectParser}. This will need to parse the fields that
- *      are part of {@link SnapshotHistoryItem} as well as new fields.
- */
-public abstract class SnapshotHistoryItem implements Writeable, ToXContentObject {
+import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 
+public class SnapshotHistoryItem implements Writeable, ToXContentObject {
+    static final ParseField TIMESTAMP = new ParseField("@timestamp");
+    static final ParseField POLICY_ID = new ParseField("policy");
+    static final ParseField REPOSITORY = new ParseField("repository");
+    static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
+    static final ParseField OPERATION = new ParseField("operation");
+    static final ParseField SUCCESS = new ParseField("success");
+    private static final String CREATE_OPERATION = "CREATE";
     protected final long timestamp;
     protected final String policyId;
     protected final String repository;
@@ -35,20 +44,75 @@ public abstract class SnapshotHistoryItem implements Writeable, ToXContentObject
     protected final String operation;
     protected final boolean success;
 
-    static final ParseField TIMESTAMP = new ParseField("@timestamp");
-    static final ParseField POLICY_ID = new ParseField("policy");
-    static final ParseField REPOSITORY = new ParseField("repository");
-    static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
-    static final ParseField OPERATION = new ParseField("operation");
-    static final ParseField SUCCESS = new ParseField("success");
+    private final Map<String, Object> snapshotConfiguration;
+    @Nullable
+    private final String errorDetails;
 
-    public SnapshotHistoryItem(long timestamp, String policyId, String repository, String snapshotName, String operation, boolean success) {
+    static final ParseField SNAPSHOT_CONFIG = new ParseField("configuration");
+    static final ParseField ERROR_DETAILS = new ParseField("error_details");
+
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<SnapshotHistoryItem, String> PARSER =
+        new ConstructingObjectParser<>("snapshot_lifecycle_history_item", true,
+            (a, id) -> {
+                final long timestamp = (long) a[0];
+                final String policyId = (String) a[1];
+                final String repository = (String) a[2];
+                final String snapshotName = (String) a[3];
+                final String operation = (String) a[4];
+                final boolean success = (boolean) a[5];
+                final Map<String, Object> snapshotConfiguration = (Map<String, Object>) a[6];
+                final String errorDetails = (String) a[7];
+                return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, operation, success,
+                    snapshotConfiguration, errorDetails);
+            });
+
+    static {
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIMESTAMP);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_ID);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_NAME);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), OPERATION);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), SUCCESS);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), SNAPSHOT_CONFIG);
+        PARSER.declareStringOrNull(ConstructingObjectParser.constructorArg(), ERROR_DETAILS);
+    }
+
+    public static SnapshotHistoryItem parse(XContentParser parser, String name) {
+        return PARSER.apply(parser, name);
+    }
+
+    SnapshotHistoryItem(long timestamp, String policyId, String repository, String snapshotName, String operation,
+                        boolean success, Map<String, Object> snapshotConfiguration, String errorDetails) {
         this.timestamp = timestamp;
         this.policyId = Objects.requireNonNull(policyId);
         this.repository = Objects.requireNonNull(repository);
         this.snapshotName = Objects.requireNonNull(snapshotName);
         this.operation = Objects.requireNonNull(operation);
         this.success = success;
+        this.snapshotConfiguration = Objects.requireNonNull(snapshotConfiguration);
+        this.errorDetails = errorDetails;
+    }
+
+    public static SnapshotHistoryItem successRecord(long timestamp, String policyId, CreateSnapshotRequest request,
+                                                    Map<String, Object> snapshotConfiguration) {
+        return new SnapshotHistoryItem(timestamp, policyId, request.repository(), request.snapshot(), CREATE_OPERATION, true,
+            snapshotConfiguration, null);
+    }
+
+    public static SnapshotHistoryItem failureRecord(long timeStamp, String policyId, CreateSnapshotRequest request,
+                                                    Map<String, Object> snapshotConfiguration,
+                                                    Exception exception) throws IOException {
+        ToXContent.Params stacktraceParams = new ToXContent.MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
+        String exceptionString;
+        try (XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder()) {
+            causeXContentBuilder.startObject();
+            ElasticsearchException.generateThrowableXContent(causeXContentBuilder, stacktraceParams, exception);
+            causeXContentBuilder.endObject();
+            exceptionString = BytesReference.bytes(causeXContentBuilder).utf8ToString();
+        }
+        return new SnapshotHistoryItem(timeStamp, policyId, request.repository(), request.snapshot(), CREATE_OPERATION, false,
+            snapshotConfiguration, exceptionString);
     }
 
     public SnapshotHistoryItem(StreamInput in) throws IOException {
@@ -58,6 +122,16 @@ public abstract class SnapshotHistoryItem implements Writeable, ToXContentObject
         this.snapshotName = in.readString();
         this.operation = in.readString();
         this.success = in.readBoolean();
+        this.snapshotConfiguration = in.readMap();
+        this.errorDetails = in.readOptionalString();
+    }
+
+    public Map<String, Object> getSnapshotConfiguration() {
+        return snapshotConfiguration;
+    }
+
+    public String getErrorDetails() {
+        return errorDetails;
     }
 
     public long getTimestamp() {
@@ -92,7 +166,8 @@ public abstract class SnapshotHistoryItem implements Writeable, ToXContentObject
         out.writeString(snapshotName);
         out.writeString(operation);
         out.writeBoolean(success);
-        innerWriteTo(out);
+        out.writeMap(snapshotConfiguration);
+        out.writeOptionalString(errorDetails);
     }
 
     @Override
@@ -105,7 +180,8 @@ public abstract class SnapshotHistoryItem implements Writeable, ToXContentObject
             builder.field(SNAPSHOT_NAME.getPreferredName(), snapshotName);
             builder.field(OPERATION.getPreferredName(), operation);
             builder.field(SUCCESS.getPreferredName(), success);
-            innerToXContent(builder, params);
+            builder.field(SNAPSHOT_CONFIG.getPreferredName(), snapshotConfiguration);
+            builder.field(ERROR_DETAILS.getPreferredName(), errorDetails);
         }
         builder.endObject();
 
@@ -113,47 +189,32 @@ public abstract class SnapshotHistoryItem implements Writeable, ToXContentObject
     }
 
     @Override
-    public String toString() {
-        return Strings.toString(this);
-    }
-
-    /**
-     * Write any fields that are introduced in the subclass here. This is called as part of
-     * {@link SnapshotHistoryItem#writeTo(StreamOutput)}, you do not need to (and should not) override that method. All fields that are
-     * part of the {@link SnapshotHistoryItem} class will already be written to the stream, so only write new fields introduced in the
-     * subclass.
-     * @param out The output stream
-     * @throws IOException if an error occurs while writing to the output stream
-     */
-    protected abstract void innerWriteTo(StreamOutput out) throws IOException;
-
-    /**
-     * Write any fields that are introduced in the subclass here. This is called as part of
-     * {@link SnapshotHistoryItem#toXContent(XContentBuilder, Params)}, you do not need to (and should not) override that method. All fields
-     * that are part of the {@link SnapshotHistoryItem} class will already be written to the stream, so only write new fields introduced in
-     * the subclass.
-     * @param builder The xContent builder
-     * @param params Parameters
-     * @return The XContent builder
-     * @throws IOException if an error occurs while writing to the builder
-     */
-    protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
-
-    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
+        boolean result;
+        if (this == o) result = true;
+        if (o == null || getClass() != o.getClass()) result = false;
+        SnapshotHistoryItem that1 = (SnapshotHistoryItem) o;
+        result = isSuccess() == that1.isSuccess() &&
+            timestamp == that1.getTimestamp() &&
+            Objects.equals(getPolicyId(), that1.getPolicyId()) &&
+            Objects.equals(getRepository(), that1.getRepository()) &&
+            Objects.equals(getSnapshotName(), that1.getSnapshotName()) &&
+            Objects.equals(getOperation(), that1.getOperation());
+        if (!result) return false;
         SnapshotHistoryItem that = (SnapshotHistoryItem) o;
-        return isSuccess() == that.isSuccess() &&
-            timestamp == that.getTimestamp() &&
-            Objects.equals(getPolicyId(), that.getPolicyId()) &&
-            Objects.equals(getRepository(), that.getRepository()) &&
-            Objects.equals(getSnapshotName(), that.getSnapshotName()) &&
-            Objects.equals(getOperation(), that.getOperation());
+        return Objects.equals(getSnapshotConfiguration(), that.getSnapshotConfiguration()) &&
+            Objects.equals(getErrorDetails(), that.getErrorDetails());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getTimestamp(), getPolicyId(), getRepository(), getSnapshotName(), getOperation(), isSuccess());
+        return Objects.hash(Objects.hash(getTimestamp(), getPolicyId(), getRepository(), getSnapshotName(), getOperation(), isSuccess()), getSnapshotConfiguration(), getErrorDetails());
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

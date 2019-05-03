@@ -16,20 +16,20 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-public class SnapshotCreationHistoryItemTests extends AbstractSerializingTestCase<SnapshotCreationHistoryItem> {
+public class SnapshotHistoryItemTests extends AbstractSerializingTestCase<SnapshotHistoryItem> {
 
     @Override
-    protected SnapshotCreationHistoryItem doParseInstance(XContentParser parser) throws IOException {
-        return SnapshotCreationHistoryItem.parse(parser, this.getClass().getCanonicalName());
+    protected SnapshotHistoryItem doParseInstance(XContentParser parser) throws IOException {
+        return SnapshotHistoryItem.parse(parser, this.getClass().getCanonicalName());
     }
 
     @Override
-    protected Writeable.Reader<SnapshotCreationHistoryItem> instanceReader() {
-        return SnapshotCreationHistoryItem::new;
+    protected Writeable.Reader<SnapshotHistoryItem> instanceReader() {
+        return SnapshotHistoryItem::new;
     }
 
     @Override
-    protected SnapshotCreationHistoryItem createTestInstance() {
+    protected SnapshotHistoryItem createTestInstance() {
         long timestamp = randomNonNegativeLong();
         String policyId = randomAlphaOfLengthBetween(5, 10);
         String repository = randomAlphaOfLengthBetween(5, 10);
@@ -39,51 +39,51 @@ public class SnapshotCreationHistoryItemTests extends AbstractSerializingTestCas
         Map<String, Object> snapshotConfig = randomSnapshotConfiguration();
         String errorDetails = randomBoolean() ? null : randomAlphaOfLengthBetween(10, 20);
 
-        return new SnapshotCreationHistoryItem(timestamp, policyId, repository, snapshotName, operation, success, snapshotConfig,
+        return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, operation, success, snapshotConfig,
             errorDetails);
     }
 
     @Override
-    protected SnapshotCreationHistoryItem mutateInstance(SnapshotCreationHistoryItem instance) {
+    protected SnapshotHistoryItem mutateInstance(SnapshotHistoryItem instance) {
         final int branch = between(0, 7);
         switch (branch) {
             case 0: // New timestamp
-                return new SnapshotCreationHistoryItem(
+                return new SnapshotHistoryItem(
                     randomValueOtherThan(instance.getTimestamp(), ESTestCase::randomNonNegativeLong),
                     instance.getPolicyId(), instance.getRepository(), instance.getSnapshotName(), instance.getOperation(),
                     instance.isSuccess(), instance.getSnapshotConfiguration(), instance.getErrorDetails());
             case 1: // new policyId
-                return new SnapshotCreationHistoryItem(instance.getTimestamp(),
+                return new SnapshotHistoryItem(instance.getTimestamp(),
                     randomValueOtherThan(instance.getPolicyId(), () -> randomAlphaOfLengthBetween(5, 10)),
                     instance.getSnapshotName(), instance.getRepository(), instance.getOperation(), instance.isSuccess(),
                     instance.getSnapshotConfiguration(), instance.getErrorDetails());
             case 2: // new repo name
-                return new SnapshotCreationHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getSnapshotName(),
+                return new SnapshotHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getSnapshotName(),
                     randomValueOtherThan(instance.getRepository(), () -> randomAlphaOfLengthBetween(5, 10)),
                     instance.getOperation(), instance.isSuccess(), instance.getSnapshotConfiguration(), instance.getErrorDetails());
             case 3:
-                return new SnapshotCreationHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
+                return new SnapshotHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
                     randomValueOtherThan(instance.getSnapshotName(), () -> randomAlphaOfLengthBetween(5, 10)),
                     instance.getOperation(), instance.isSuccess(), instance.getSnapshotConfiguration(), instance.getErrorDetails());
             case 4:
-                return new SnapshotCreationHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
+                return new SnapshotHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
                     instance.getSnapshotName(),
                     randomValueOtherThan(instance.getOperation(), () -> randomAlphaOfLengthBetween(5, 10)),
                     instance.isSuccess(), instance.getSnapshotConfiguration(), instance.getErrorDetails());
             case 5:
-                return new SnapshotCreationHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
+                return new SnapshotHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
                     instance.getSnapshotName(),
                     instance.getOperation(),
                     instance.isSuccess() == false,
                     instance.getSnapshotConfiguration(), instance.getErrorDetails());
             case 6:
-                return new SnapshotCreationHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
+                return new SnapshotHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
                     instance.getSnapshotName(), instance.getOperation(), instance.isSuccess(),
                     randomValueOtherThan(instance.getSnapshotConfiguration(),
-                        SnapshotCreationHistoryItemTests::randomSnapshotConfiguration),
+                        SnapshotHistoryItemTests::randomSnapshotConfiguration),
                     instance.getErrorDetails());
             case 7:
-                return new SnapshotCreationHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
+                return new SnapshotHistoryItem(instance.getTimestamp(), instance.getPolicyId(), instance.getRepository(),
                     instance.getSnapshotName(), instance.getOperation(), instance.isSuccess(), instance.getSnapshotConfiguration(),
                     randomValueOtherThan(instance.getErrorDetails(), () -> randomAlphaOfLengthBetween(10, 20)));
             default:

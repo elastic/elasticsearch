@@ -172,11 +172,9 @@ GET _search
 {
   "query": {
     "script": {
-      "script": {
-        "id": "calculate-score",
-        "params": {
-          "my_modifier": 2
-        }
+      "id": "calculate-score",
+      "params": {
+        "my_modifier": 2
       }
     }
   }

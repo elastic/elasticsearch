@@ -5,56 +5,106 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.grok.Grok;
 
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
+import java.time.format.ResolverStyle;
+import java.time.temporal.ChronoField;
+import java.time.temporal.TemporalAccessor;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Used to find the best timestamp format for one of the following situations:
  * 1. Matching an entire field value
  * 2. Matching a timestamp found somewhere within a message
+ *
+ * This class is <em>not</em> thread safe.  Each object of this class should only be used from within a single thread.
  */
 public final class TimestampFormatFinder {
 
     private static final String PREFACE = "preface";
     private static final String EPILOGUE = "epilogue";
 
+    private static final String PUNCTUATION_THAT_NEEDS_ESCAPING_IN_REGEX = "\\|()[]{}^$.*?";
     private static final String FRACTIONAL_SECOND_SEPARATORS = ":.,";
-    private static final Pattern FRACTIONAL_SECOND_INTERPRETER = Pattern.compile("([" + FRACTIONAL_SECOND_SEPARATORS + "])(\\d{3,9})");
-    private static final char DEFAULT_FRACTIONAL_SECOND_SEPARATOR = ',';
-    private static final Pattern FRACTIONAL_SECOND_TIMESTAMP_FORMAT_PATTERN =
-        Pattern.compile("([" + FRACTIONAL_SECOND_SEPARATORS + "]S{3,9})");
-    private static final String DEFAULT_FRACTIONAL_SECOND_FORMAT = DEFAULT_FRACTIONAL_SECOND_SEPARATOR + "SSS";
+    private static final char INDETERMINATE_FIELD_PLACEHOLDER = '?';
+    // The ? characters in this must match INDETERMINATE_FIELD_PLACEHOLDER
+    // above, but they're literals in this regex to aid readability
+    private static final Pattern INDETERMINATE_FORMAT_INTERPRETER = Pattern.compile("([^?]*)(\\?{1,2})(?:([^?]*)(\\?{1,2})([^?]*))?");
 
     /**
-     * The timestamp patterns are complex and it can be slow to prove they do not
-     * match anywhere in a long message.  Many of the timestamps are similar and
-     * will never be found in a string if simpler sub-patterns do not exist in the
-     * string.  These sub-patterns can be used to quickly rule out multiple complex
-     * patterns.  These patterns do not need to represent quantities that are
-     * useful to know the value of, merely character sequences that can be used to
-     * prove that <em>several</em> more complex patterns cannot possibly match.
+     * These are the date format letter groups that are supported in custom formats
+     *
+     * (Note: Fractional seconds is a special case as they have to follow seconds.)
      */
-    private static final List<Pattern> QUICK_RULE_OUT_PATTERNS = Arrays.asList(
-        // YYYY-MM-dd followed by a space
-        Pattern.compile("\\b\\d{4}-\\d{2}-\\d{2} "),
-        // The end of some number (likely year or day) followed by a space then HH:mm
-        Pattern.compile("\\d \\d{2}:\\d{2}\\b"),
-        // HH:mm:ss surrounded by spaces
-        Pattern.compile(" \\d{2}:\\d{2}:\\d{2} "),
-        // Literal 'T' surrounded by numbers
-        Pattern.compile("\\dT\\d")
-    );
+    private static final Map<String, Tuple<String, String>> VALID_LETTER_GROUPS;
+    static {
+        Map<String, Tuple<String, String>> validLetterGroups = new HashMap<>();
+        validLetterGroups.put("yyyy", new Tuple<>("%{YEAR}", "\\d{4}"));
+        validLetterGroups.put("yy", new Tuple<>("%{YEAR}", "\\d{2}"));
+        validLetterGroups.put("M", new Tuple<>("%{MONTHNUM}", "\\d{1,2}"));
+        validLetterGroups.put("MM", new Tuple<>("%{MONTHNUM}", "\\d{2}"));
+        // The simple regex here is based on the fact that the %{MONTH} Grok pattern only matches English and German month names
+        validLetterGroups.put("MMM", new Tuple<>("%{MONTH}", "[A-Z]\\S{2}"));
+        validLetterGroups.put("MMMM", new Tuple<>("%{MONTH}", "[A-Z]\\S{2,8}"));
+        validLetterGroups.put("d", new Tuple<>("%{MONTHDAY}", "\\d{1,2}"));
+        validLetterGroups.put("dd", new Tuple<>("%{MONTHDAY}", "\\d{2}"));
+        // The simple regex here is based on the fact that the %{DAY} Grok pattern only matches English and German day names
+        validLetterGroups.put("EEE", new Tuple<>("%{DAY}", "[A-Z]\\S{2}"));
+        validLetterGroups.put("EEEE", new Tuple<>("%{DAY}", "[A-Z]\\S{2,8}"));
+        validLetterGroups.put("H", new Tuple<>("%{HOUR}", "\\d{1,2}"));
+        validLetterGroups.put("HH", new Tuple<>("%{HOUR}", "\\d{2}"));
+        validLetterGroups.put("h", new Tuple<>("%{HOUR}", "\\d{1,2}"));
+        validLetterGroups.put("mm", new Tuple<>("%{MINUTE}", "\\d{2}"));
+        validLetterGroups.put("ss", new Tuple<>("%{SECOND}", "\\d{2}"));
+        validLetterGroups.put("a", new Tuple<>("(?:AM|PM)", "[AP]M"));
+        validLetterGroups.put("XX", new Tuple<>("%{ISO8601_TIMEZONE}", "(?:Z|[+-]\\d{4})"));
+        validLetterGroups.put("XXX", new Tuple<>("%{ISO8601_TIMEZONE}", "(?:Z|[+-]\\d{2}:\\d{2})"));
+        validLetterGroups.put("zzz", new Tuple<>("%{TZ}", "[A-Z]{3}"));
+        VALID_LETTER_GROUPS = Collections.unmodifiableMap(validLetterGroups);
+    }
+
+    public static final String CUSTOM_TIMESTAMP_GROK_NAME = "CUSTOM_TIMESTAMP";
+
+    /**
+     * Candidates for the special format strings (ISO8601, UNIX_MS, UNIX and TAI64N)
+     */
+    static final CandidateTimestampFormat ISO8601_CANDIDATE_FORMAT =
+        new CandidateTimestampFormat(CandidateTimestampFormat::iso8601FormatFromExample,
+            "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", "\\b%{TIMESTAMP_ISO8601}\\b", "TIMESTAMP_ISO8601",
+            "1111 11 11 11 11");
+    static final CandidateTimestampFormat UNIX_MS_CANDIDATE_FORMAT =
+        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX_MS"), "\\b\\d{13}\\b", "\\b\\d{13}\\b", "POSINT",
+            "1111111111111");
+    static final CandidateTimestampFormat UNIX_CANDIDATE_FORMAT =
+        new CandidateTimestampFormat(example -> Collections.singletonList("UNIX"), "\\b\\d{10}\\b", "\\b\\d{10}(?:\\.\\d{3,9})?\\b",
+            "NUMBER", "1111111111");
+    static final CandidateTimestampFormat TAI64N_CANDIDATE_FORMAT =
+        new CandidateTimestampFormat(example -> Collections.singletonList("TAI64N"), "\\b[0-9A-Fa-f]{24}\\b", "\\b[0-9A-Fa-f]{24}\\b",
+            "BASE16NUM");
 
     /**
      * The first match in this list will be chosen, so it needs to be ordered
@@ -64,427 +114,1016 @@ public final class TimestampFormatFinder {
         // The TOMCAT_DATESTAMP format has to come before ISO8601 because it's basically ISO8601 but
         // with a space before the timezone, and because the timezone is optional in ISO8601 it will
         // be recognised as that with the timezone missed off if ISO8601 is checked first
-        new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss,SSS Z", "yyyy-MM-dd HH:mm:ss,SSS XX",
-            "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
+        new CandidateTimestampFormat(example -> CandidateTimestampFormat.iso8601LikeFormatFromExample(example, " ", " "),
+            "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
             "\\b20\\d{2}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9} (?:Z|[+-]%{HOUR}%{MINUTE})\\b",
-            "TOMCAT_DATESTAMP", Arrays.asList(0, 1)),
-        // The Elasticsearch ISO8601 parser requires a literal T between the date and time, so
-        // longhand formats are needed if there's a space instead
-        new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss,SSSZ", "yyyy-MM-dd HH:mm:ss,SSSXX",
-            "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}(?:Z|[+-]%{HOUR}%{MINUTE})\\b",
-            "TIMESTAMP_ISO8601", Arrays.asList(0, 1)),
-        new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss,SSSZZ", "yyyy-MM-dd HH:mm:ss,SSSXXX",
-            "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}[+-]%{HOUR}:%{MINUTE}\\b",
-            "TIMESTAMP_ISO8601", Arrays.asList(0, 1)),
-        new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss,SSS", "yyyy-MM-dd HH:mm:ss,SSS",
-            "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}\\b", "TIMESTAMP_ISO8601",
-            Arrays.asList(0, 1)),
-        new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ssZ", "yyyy-MM-dd HH:mm:ssXX", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)(?:Z|[+-]%{HOUR}%{MINUTE})\\b", "TIMESTAMP_ISO8601",
-            Arrays.asList(0, 1)),
-        new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ssZZ", "yyyy-MM-dd HH:mm:ssXXX", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[+-]%{HOUR}:%{MINUTE}\\b", "TIMESTAMP_ISO8601",
-            Arrays.asList(0, 1)),
-        new CandidateTimestampFormat("YYYY-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)\\b", "TIMESTAMP_ISO8601",
-            Arrays.asList(0, 1)),
-        // When using Java time the Elasticsearch ISO8601 parser for fractional time requires that the fractional
-        // separator match the current JVM locale, which is too restrictive for arbitrary log file parsing
-        new CandidateTimestampFormat("ISO8601", "yyyy-MM-dd'T'HH:mm:ss,SSSXX",
-            "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY}T%{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}(?:Z|[+-]%{HOUR}%{MINUTE})\\b",
-            "TIMESTAMP_ISO8601", Collections.singletonList(3)),
-        new CandidateTimestampFormat("ISO8601", "yyyy-MM-dd'T'HH:mm:ss,SSSXXX",
-            "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY}T%{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}[+-]%{HOUR}:%{MINUTE}\\b",
-            "TIMESTAMP_ISO8601", Collections.singletonList(3)),
-        new CandidateTimestampFormat("ISO8601", "yyyy-MM-dd'T'HH:mm:ss,SSS",
-            "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}",
-            "\\b%{YEAR}-%{MONTHNUM}-%{MONTHDAY}T%{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}\\b", "TIMESTAMP_ISO8601",
-            Collections.singletonList(3)),
-        new CandidateTimestampFormat("ISO8601", "ISO8601", "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "\\b%{TIMESTAMP_ISO8601}\\b",
-            "TIMESTAMP_ISO8601", Collections.singletonList(3)),
-        new CandidateTimestampFormat("EEE MMM dd YYYY HH:mm:ss zzz", "EEE MMM dd yyyy HH:mm:ss zzz",
-            "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2} ",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{TZ}\\b", "DATESTAMP_RFC822", Arrays.asList(1, 2)),
-        new CandidateTimestampFormat("EEE MMM dd YYYY HH:mm zzz", "EEE MMM dd yyyy HH:mm zzz",
-            "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{4} \\d{2}:\\d{2} ",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE} %{TZ}\\b", "DATESTAMP_RFC822", Collections.singletonList(1)),
-        new CandidateTimestampFormat("EEE, dd MMM YYYY HH:mm:ss ZZ", "EEE, dd MMM yyyy HH:mm:ss XXX",
-            "\\b[A-Z]\\S{2,8}, \\d{1,2} [A-Z]\\S{2,8} \\d{4} \\d{2}:\\d{2}:\\d{2} ",
-            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:Z|[+-]%{HOUR}:%{MINUTE})\\b",
-            "DATESTAMP_RFC2822", Arrays.asList(1, 2)),
-        new CandidateTimestampFormat("EEE, dd MMM YYYY HH:mm:ss Z", "EEE, dd MMM yyyy HH:mm:ss XX",
-            "\\b[A-Z]\\S{2,8}, \\d{1,2} [A-Z]\\S{2,8} \\d{4} \\d{2}:\\d{2}:\\d{2} ",
-            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:Z|[+-]%{HOUR}%{MINUTE})\\b",
-            "DATESTAMP_RFC2822", Arrays.asList(1, 2)),
-        new CandidateTimestampFormat("EEE, dd MMM YYYY HH:mm ZZ", "EEE, dd MMM yyyy HH:mm XXX",
-            "\\b[A-Z]\\S{2,8}, \\d{1,2} [A-Z]\\S{2,8} \\d{4} \\d{2}:\\d{2} ",
-            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE} (?:Z|[+-]%{HOUR}:%{MINUTE})\\b", "DATESTAMP_RFC2822",
-            Collections.singletonList(1)),
-        new CandidateTimestampFormat("EEE, dd MMM YYYY HH:mm Z", "EEE, dd MMM yyyy HH:mm XX",
-            "\\b[A-Z]\\S{2,8}, \\d{1,2} [A-Z]\\S{2,8} \\d{4} \\d{2}:\\d{2} ",
-            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE} (?:Z|[+-]%{HOUR}%{MINUTE})\\b", "DATESTAMP_RFC2822",
-            Collections.singletonList(1)),
-        new CandidateTimestampFormat("EEE MMM dd HH:mm:ss zzz YYYY", "EEE MMM dd HH:mm:ss zzz yyyy",
-            "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2} [A-Z]{3,4} \\d{4}\\b",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{TZ} %{YEAR}\\b", "DATESTAMP_OTHER",
-            Arrays.asList(1, 2)),
-        new CandidateTimestampFormat("EEE MMM dd HH:mm zzz YYYY", "EEE MMM dd HH:mm zzz yyyy",
-            "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2} [A-Z]{3,4} \\d{4}\\b",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE} %{TZ} %{YEAR}\\b", "DATESTAMP_OTHER", Collections.singletonList(1)),
-        new CandidateTimestampFormat("YYYYMMddHHmmss", "yyyyMMddHHmmss", "\\b\\d{14}\\b",
+            "TOMCAT_DATESTAMP", "1111 11 11 11 11 11 111"),
+        ISO8601_CANDIDATE_FORMAT,
+        new CandidateTimestampFormat(
+            example -> Arrays.asList("EEE MMM dd yy HH:mm:ss zzz", "EEE MMM d yy HH:mm:ss zzz"),
+            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{1,2} \\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}(?::(?:[0-5][0-9]|60)) %{TZ}\\b", "DATESTAMP_RFC822",
+            Arrays.asList("        11 11 11 11 11", "        1 11 11 11 11")),
+        new CandidateTimestampFormat(
+            example -> CandidateTimestampFormat.adjustTrailingTimezoneFromExample(example, "EEE, dd MMM yyyy HH:mm:ss XX"),
+            "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE}(?::(?:[0-5][0-9]|60)) (?:Z|[+-]%{HOUR}:?%{MINUTE})\\b",
+            "DATESTAMP_RFC2822", "1     1111 11 11 11"),
+        new CandidateTimestampFormat(
+            example -> Arrays.asList("EEE MMM dd HH:mm:ss zzz yyyy", "EEE MMM d HH:mm:ss zzz yyyy"),
+            "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}(?::(?:[0-5][0-9]|60)) %{TZ} %{YEAR}\\b", "DATESTAMP_OTHER",
+            Arrays.asList("        11 11 11 11", "        1 11 11 11")),
+        new CandidateTimestampFormat(example -> Collections.singletonList("yyyyMMddHHmmss"), "\\b\\d{14}\\b",
             "\\b20\\d{2}%{MONTHNUM2}(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01]))(?:2[0123]|[01][0-9])%{MINUTE}(?:[0-5][0-9]|60)\\b",
-            "DATESTAMP_EVENTLOG"),
-        new CandidateTimestampFormat("EEE MMM dd HH:mm:ss YYYY", "EEE MMM dd HH:mm:ss yyyy",
-            "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
-            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{YEAR}\\b", "HTTPDERROR_DATE", Arrays.asList(1, 2)),
-        new CandidateTimestampFormat(Arrays.asList("MMM dd HH:mm:ss,SSS", "MMM  d HH:mm:ss,SSS"),
-            Arrays.asList("MMM dd HH:mm:ss,SSS", "MMM  d HH:mm:ss,SSS"),
-            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2},\\d{3}",
-            "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9}\\b", "SYSLOGTIMESTAMP",
-            Collections.singletonList(1)),
-        new CandidateTimestampFormat(Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
-            Arrays.asList("MMM dd HH:mm:ss", "MMM  d HH:mm:ss"),
-            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b", "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b",
-            "SYSLOGTIMESTAMP", Collections.singletonList(1)),
-        new CandidateTimestampFormat("dd/MMM/YYYY:HH:mm:ss Z", "dd/MMM/yyyy:HH:mm:ss XX",
+            "DATESTAMP_EVENTLOG", "11111111111111"),
+        new CandidateTimestampFormat(example -> Collections.singletonList("EEE MMM dd HH:mm:ss yyyy"),
+            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{YEAR}\\b", "HTTPDERROR_DATE",
+            "        11 11 11 11 1111"),
+        new CandidateTimestampFormat(
+            example -> CandidateTimestampFormat.expandDayAndAdjustFractionalSecondsFromExample(example, "MMM dd HH:mm:ss"),
+            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+            "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)(?:[:.,][0-9]{3,9})?\\b", "SYSLOGTIMESTAMP",
+            Arrays.asList("    11 11 11 11", "    1 11 11 11")),
+        new CandidateTimestampFormat(example -> Collections.singletonList("dd/MMM/yyyy:HH:mm:ss XX"),
             "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
-            "\\b%{MONTHDAY}/%{MONTH}/%{YEAR}:%{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) [+-]?%{HOUR}%{MINUTE}\\b", "HTTPDATE"),
-        new CandidateTimestampFormat("MMM dd, YYYY h:mm:ss a", "MMM dd, yyyy h:mm:ss a",
-            "\\b[A-Z]\\S{2,8} \\d{1,2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
-            "%{MONTH} %{MONTHDAY}, 20\\d{2} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:AM|PM)\\b", "CATALINA_DATESTAMP"),
-        new CandidateTimestampFormat(Arrays.asList("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss"),
-            Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"),
-            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
-            "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b", "CISCOTIMESTAMP", Collections.singletonList(1)),
-        new CandidateTimestampFormat("UNIX_MS", "UNIX_MS", "\\b\\d{13}\\b", "\\b\\d{13}\\b", "POSINT"),
-        new CandidateTimestampFormat("UNIX", "UNIX", "\\b\\d{10}\\.\\d{3,9}\\b", "\\b\\d{10}\\.(?:\\d{3}){1,3}\\b", "NUMBER"),
-        new CandidateTimestampFormat("UNIX", "UNIX", "\\b\\d{10}\\b", "\\b\\d{10}\\b", "POSINT"),
-        new CandidateTimestampFormat("TAI64N", "TAI64N", "\\b[0-9A-Fa-f]{24}\\b", "\\b[0-9A-Fa-f]{24}\\b", "BASE16NUM")
+            "\\b%{MONTHDAY}/%{MONTH}/%{YEAR}:%{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) [+-]?%{HOUR}%{MINUTE}\\b", "HTTPDATE",
+            "11     1111 11 11 11"),
+        new CandidateTimestampFormat(example -> Collections.singletonList("MMM dd, yyyy h:mm:ss a"),
+            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
+            "%{MONTH} %{MONTHDAY}, 20\\d{2} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:AM|PM)\\b", "CATALINA_DATESTAMP",
+            Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11")),
+        new CandidateTimestampFormat(example -> Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"),
+            "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+            "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b", "CISCOTIMESTAMP",
+            Arrays.asList("    11 1111 11 11 11", "     1 1111 11 11 11")),
+        new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
+            "\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
+            "11 11 1111 11 11 11"),
+        new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
+            "\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}\\b", "\\b%{DATE}\\b", "DATE", "11 11 1111"),
+        UNIX_MS_CANDIDATE_FORMAT,
+        UNIX_CANDIDATE_FORMAT,
+        TAI64N_CANDIDATE_FORMAT
     );
 
-    private TimestampFormatFinder() {
+    /**
+     * It is expected that the explanation will be shared with other code.
+     * Both this class and other classes will update it.
+     */
+    private final List<String> explanation;
+    private final boolean requireFullMatch;
+    private final boolean errorOnNoTimestamp;
+    private final boolean errorOnMultiplePatterns;
+    private final List<CandidateTimestampFormat> orderedCandidateFormats;
+    private final TimeoutChecker timeoutChecker;
+    private final List<TimestampMatch> matches;
+    // These two are not volatile because the class is explicitly not for use from multiple threads.
+    // But if it ever were to be made thread safe, making these volatile would be one required step.
+    private List<TimestampFormat> matchedFormats;
+    private List<String> cachedJavaTimestampFormats;
+
+    /**
+     * Construct without any specific timestamp format override.
+     * @param explanation             List of reasons for making decisions.  May contain items when passed and new reasons
+     *                                can be appended by the methods of this class.
+     * @param requireFullMatch        Must samples added to this object represent a timestamp in their entirety?
+     * @param errorOnNoTimestamp      Should an exception be thrown if a sample is added that does not contain a recognised timestamp?
+     * @param errorOnMultiplePatterns Should an exception be thrown if samples are uploaded that require different Grok patterns?
+     * @param timeoutChecker          Will abort the operation if its timeout is exceeded.
+     */
+    public TimestampFormatFinder(List<String> explanation, boolean requireFullMatch, boolean errorOnNoTimestamp,
+                                 boolean errorOnMultiplePatterns, TimeoutChecker timeoutChecker) {
+        this(explanation, null, requireFullMatch, errorOnNoTimestamp, errorOnMultiplePatterns, timeoutChecker);
     }
 
     /**
-     * Find the first timestamp format that matches part of the supplied value.
-     * @param text The value that the returned timestamp format must exist within.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @return The timestamp format, or <code>null</code> if none matches.
+     * Construct with a timestamp format override.
+     * @param explanation             List of reasons for making decisions.  May contain items when passed and new reasons
+     *                                can be appended by the methods of this class.
+     * @param overrideFormat          A timestamp format that will take precedence when looking for timestamps.  If <code>null</code>
+     *                                then the effect is to have no such override, i.e. equivalent to calling the other constructor.
+     *                                Timestamps will also be matched that have slightly different formats, but match the same Grok
+     *                                pattern as is implied by the override format.
+     * @param requireFullMatch        Must samples added to this object represent a timestamp in their entirety?
+     * @param errorOnNoTimestamp      Should an exception be thrown if a sample is added that does not contain a recognised timestamp?
+     * @param errorOnMultiplePatterns Should an exception be thrown if samples are uploaded that require different Grok patterns?
+     * @param timeoutChecker          Will abort the operation if its timeout is exceeded.
      */
-    public static TimestampMatch findFirstMatch(String text, TimeoutChecker timeoutChecker) {
-        return findFirstMatch(text, 0, timeoutChecker);
+    public TimestampFormatFinder(List<String> explanation, String overrideFormat, boolean requireFullMatch, boolean errorOnNoTimestamp,
+                                 boolean errorOnMultiplePatterns, TimeoutChecker timeoutChecker) {
+        this.explanation = explanation;
+        this.requireFullMatch = requireFullMatch;
+        this.errorOnNoTimestamp = errorOnNoTimestamp;
+        this.errorOnMultiplePatterns = errorOnMultiplePatterns;
+        this.orderedCandidateFormats = (overrideFormat != null)
+            ? Collections.singletonList(makeCandidateFromOverrideFormat(overrideFormat, timeoutChecker))
+            : ORDERED_CANDIDATE_FORMATS;
+        this.timeoutChecker = Objects.requireNonNull(timeoutChecker);
+        this.matches = new ArrayList<>();
+        this.matchedFormats = new ArrayList<>();
     }
 
     /**
-     * Find the first timestamp format that matches part of the supplied value.
-     * @param text The value that the returned timestamp format must exist within.
-     * @param requiredFormat A timestamp format that any returned match must support.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @return The timestamp format, or <code>null</code> if none matches.
+     * Convert a user supplied Java timestamp format to a Grok pattern and simple regular expression.
+     * @param overrideFormat A user supplied Java timestamp format.
+     * @return A tuple where the first value is a Grok pattern and the second is a simple regex.
      */
-    public static TimestampMatch findFirstMatch(String text, String requiredFormat, TimeoutChecker timeoutChecker) {
-        return findFirstMatch(text, 0, requiredFormat, timeoutChecker);
-    }
+    static Tuple<String, String> overrideFormatToGrokAndRegex(String overrideFormat) {
 
-    /**
-     * Find the first timestamp format that matches part of the supplied value,
-     * excluding a specified number of candidate formats.
-     * @param text The value that the returned timestamp format must exist within.
-     * @param ignoreCandidates The number of candidate formats to exclude from the search.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @return The timestamp format, or <code>null</code> if none matches.
-     */
-    public static TimestampMatch findFirstMatch(String text, int ignoreCandidates, TimeoutChecker timeoutChecker) {
-        return findFirstMatch(text, ignoreCandidates, null, timeoutChecker);
-    }
-
-    /**
-     * Find the first timestamp format that matches part of the supplied value,
-     * excluding a specified number of candidate formats.
-     * @param text             The value that the returned timestamp format must exist within.
-     * @param ignoreCandidates The number of candidate formats to exclude from the search.
-     * @param requiredFormat A timestamp format that any returned match must support.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @return The timestamp format, or <code>null</code> if none matches.
-     */
-    public static TimestampMatch findFirstMatch(String text, int ignoreCandidates, String requiredFormat, TimeoutChecker timeoutChecker) {
-        if (ignoreCandidates >= ORDERED_CANDIDATE_FORMATS.size()) {
-            return null;
+        if (overrideFormat.indexOf('\n') >= 0 || overrideFormat.indexOf('\r') >= 0) {
+            throw new IllegalArgumentException("Multi-line timestamp formats [" + overrideFormat + "] not supported");
         }
-        Boolean[] quickRuleoutMatches = new Boolean[QUICK_RULE_OUT_PATTERNS.size()];
-        int index = ignoreCandidates;
-        String adjustedRequiredFormat = adjustRequiredFormat(requiredFormat);
-        for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS.subList(ignoreCandidates, ORDERED_CANDIDATE_FORMATS.size())) {
-            if (adjustedRequiredFormat == null || candidate.jodaTimestampFormats.contains(adjustedRequiredFormat) ||
-                candidate.javaTimestampFormats.contains(adjustedRequiredFormat)) {
-                boolean quicklyRuledOut = false;
-                for (Integer quickRuleOutIndex : candidate.quickRuleOutIndices) {
-                    if (quickRuleoutMatches[quickRuleOutIndex] == null) {
-                        quickRuleoutMatches[quickRuleOutIndex] = QUICK_RULE_OUT_PATTERNS.get(quickRuleOutIndex).matcher(text).find();
+
+        if (overrideFormat.indexOf(INDETERMINATE_FIELD_PLACEHOLDER) >= 0) {
+            throw new IllegalArgumentException("Timestamp format [" + overrideFormat + "] not supported because it contains ["
+                + INDETERMINATE_FIELD_PLACEHOLDER + "]");
+        }
+
+        StringBuilder grokPatternBuilder = new StringBuilder();
+        StringBuilder regexBuilder = new StringBuilder();
+
+        boolean notQuoted = true;
+        char prevChar = '\0';
+        String prevLetterGroup = null;
+        int pos = 0;
+        while (pos < overrideFormat.length()) {
+            char curChar = overrideFormat.charAt(pos);
+
+            if (curChar == '\'') {
+                notQuoted = !notQuoted;
+            } else if (notQuoted && Character.isLetter(curChar)) {
+                int startPos = pos;
+                int endPos = startPos + 1;
+                while (endPos < overrideFormat.length() && overrideFormat.charAt(endPos) == curChar) {
+                    ++endPos;
+                    ++pos;
+                }
+                String letterGroup = overrideFormat.substring(startPos, endPos);
+                Tuple<String, String> grokPatternAndRegexForGroup = VALID_LETTER_GROUPS.get(letterGroup);
+                if (grokPatternAndRegexForGroup == null) {
+                    // Special case of fractional seconds
+                    if (curChar != 'S' || FRACTIONAL_SECOND_SEPARATORS.indexOf(prevChar) == -1 ||
+                        "ss".equals(prevLetterGroup) == false || endPos - startPos > 9) {
+                        String msg = "Letter group [" + letterGroup + "] in [" + overrideFormat + "] is not supported";
+                        if (curChar == 'S') {
+                            msg += " because it is not preceeded by [ss] and a separator from [" + FRACTIONAL_SECOND_SEPARATORS + "]";
+                        }
+                        throw new IllegalArgumentException(msg);
                     }
-                    if (quickRuleoutMatches[quickRuleOutIndex] == false) {
-                        quicklyRuledOut = true;
+                    // No need to append to the Grok pattern as %{SECOND} already allows for an optional
+                    // fraction, but we need to remove the separator that's included in %{SECOND}
+                    grokPatternBuilder.deleteCharAt(grokPatternBuilder.length() - 1);
+                    regexBuilder.append("\\d{").append(endPos - startPos).append('}');
+                } else {
+                    grokPatternBuilder.append(grokPatternAndRegexForGroup.v1());
+                    if (regexBuilder.length() == 0) {
+                        regexBuilder.append("\\b");
+                    }
+                    regexBuilder.append(grokPatternAndRegexForGroup.v2());
+                }
+                if (pos + 1 == overrideFormat.length()) {
+                    regexBuilder.append("\\b");
+                }
+                prevLetterGroup = letterGroup;
+            } else {
+                if (PUNCTUATION_THAT_NEEDS_ESCAPING_IN_REGEX.indexOf(curChar) >= 0) {
+                    grokPatternBuilder.append('\\');
+                    regexBuilder.append('\\');
+                }
+                grokPatternBuilder.append(curChar);
+                regexBuilder.append(curChar);
+            }
+
+            prevChar = curChar;
+            ++pos;
+        }
+
+        if (prevLetterGroup == null) {
+            throw new IllegalArgumentException("No time format letter groups in override format [" + overrideFormat + "]");
+        }
+
+        return new Tuple<>(grokPatternBuilder.toString(), regexBuilder.toString());
+    }
+
+    /**
+     * Given a user supplied Java timestamp format, return an appropriate candidate timestamp object as required by this class.
+     * The returned candidate might be a built in one, or might be generated from the supplied format.
+     * @param overrideFormat A user supplied Java timestamp format.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @return An appropriate candidate timestamp object.
+     */
+    static CandidateTimestampFormat makeCandidateFromOverrideFormat(String overrideFormat, TimeoutChecker timeoutChecker) {
+
+        // First check for a special format string
+        switch (overrideFormat.toUpperCase(Locale.ROOT)) {
+            case "ISO8601":
+                return ISO8601_CANDIDATE_FORMAT;
+            case "UNIX_MS":
+                return UNIX_MS_CANDIDATE_FORMAT;
+            case "UNIX":
+                return UNIX_CANDIDATE_FORMAT;
+            case "TAI64N":
+                return TAI64N_CANDIDATE_FORMAT;
+        }
+
+        // Next check for a built-in candidate that incorporates the override, and prefer this
+
+        // If the override is not a valid format then one or other of these two calls will
+        // throw, and that is how we'll report the invalid format to the user
+        Tuple<String, String> grokPatternAndRegex = overrideFormatToGrokAndRegex(overrideFormat);
+        DateTimeFormatter javaTimeFormatter = DateTimeFormatter.ofPattern(overrideFormat, Locale.ROOT);
+
+        // This timestamp is chosen to avoid the possibility of truncating zeroes
+        String generatedTimestamp = javaTimeFormatter.withZone(ZoneOffset.ofHoursMinutesSeconds(5, 45, 0))
+            .format(Instant.ofEpochMilli(951844699123L).plusNanos(456789L));
+        for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS) {
+
+            TimestampMatch match = checkCandidate(candidate, generatedTimestamp, null, true, timeoutChecker);
+            if (match != null) {
+                return new CandidateTimestampFormat(example -> {
+
+                    // Modify the built in candidate so it prefers to return the user supplied format
+                    // if at all possible, and only falls back to standard logic for other situations
+                    try {
+                        // TODO consider support for overriding the locale too
+                        // But since Grok only supports English and German date words ingest
+                        // via Grok will fall down at an earlier stage for other languages...
+                        javaTimeFormatter.parse(example);
+                        return Collections.singletonList(overrideFormat);
+                    } catch (DateTimeException e) {
+                        return candidate.javaTimestampFormatSupplier.apply(example);
+                    }
+                }, candidate.simplePattern.pattern(), candidate.strictGrokPattern, candidate.outputGrokPatternName);
+            }
+        }
+
+        // None of the out-of-the-box formats were close, so use the built Grok pattern and simple regex for the override
+        return new CandidateTimestampFormat(example -> Collections.singletonList(overrideFormat),
+            grokPatternAndRegex.v2(), grokPatternAndRegex.v1(), CUSTOM_TIMESTAMP_GROK_NAME);
+    }
+
+    /**
+     * Find the first timestamp format that matches part or all of the supplied text.
+     * @param candidate        The timestamp candidate to consider.
+     * @param text             The text that the returned timestamp format must exist within.
+     * @param numberPosBitSet  If not <code>null</code>, each bit must be set to <code>true</code> if and only if the
+     *                         corresponding position in {@code text} is a digit.
+     * @param requireFullMatch Does the candidate have to match the entire text?
+     * @param timeoutChecker   Will abort the operation if its timeout is exceeded.
+     * @return The timestamp format, or <code>null</code> if none matches.
+     */
+    private static TimestampMatch checkCandidate(CandidateTimestampFormat candidate, String text, BitSet numberPosBitSet,
+                                                 boolean requireFullMatch, TimeoutChecker timeoutChecker) {
+        if (requireFullMatch) {
+            Map<String, Object> captures = timeoutChecker.grokCaptures(candidate.strictFullMatchGrok, text,
+                "timestamp format determination");
+            if (captures != null) {
+                return new TimestampMatch(candidate, "", text, "");
+            }
+        } else {
+            // Since an search in a long string that has sections that nearly match will be very slow, it's
+            // worth doing an initial sanity check to see if the relative positions of digits necessary to
+            // get a match exist first
+            if (numberPosBitSet == null || candidate.quickRuleOutBitSets.isEmpty() ||
+                candidate.quickRuleOutBitSets.stream()
+                    .anyMatch(quickRuleOutBitSet -> findBitPattern(numberPosBitSet, quickRuleOutBitSet) >= 0)) {
+                Map<String, Object> captures = timeoutChecker.grokCaptures(candidate.strictSearchGrok, text,
+                    "timestamp format determination");
+                if (captures != null) {
+                    String preface = captures.getOrDefault(PREFACE, "").toString();
+                    String epilogue = captures.getOrDefault(EPILOGUE, "").toString();
+                    return new TimestampMatch(candidate, preface, text.substring(preface.length(),
+                        text.length() - epilogue.length()), epilogue);
+                }
+            } else {
+                timeoutChecker.check("timestamp format determination");
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Add a sample value to be considered by the format finder.  If {@code requireFullMatch} was set to
+     * <code>true</code> on construction then the entire sample will be tested to see if it is a timestamp,
+     * otherwise a timestamp may be detected as just a portion of the sample.  An exception will be thrown
+     * if {@code errorOnNoTimestamp} was set to <code>true</code> on construction, and no timestamp is
+     * found.  An exception will also be thrown if {@code errorOnMultiplePatterns} was set to <code>true</code>
+     * on construction and a new timestamp format is detected that cannot be merged with a previously detected
+     * format.
+     * @param text The sample in which to detect a timestamp.
+     */
+    public void addSample(String text) {
+
+        BitSet numberPosBitSet = requireFullMatch ? null : stringToNumberPosBitSet(text);
+
+        for (CandidateTimestampFormat candidate : orderedCandidateFormats) {
+
+            TimestampMatch match = checkCandidate(candidate, text, numberPosBitSet, requireFullMatch, timeoutChecker);
+            if (match != null) {
+                TimestampFormat newFormat = match.timestampFormat;
+                boolean mustAdd = true;
+                for (int i = 0; i < matchedFormats.size(); ++i) {
+                    TimestampFormat existingFormat = matchedFormats.get(i);
+                    if (existingFormat.canMergeWith(newFormat)) {
+                        matchedFormats.set(i, existingFormat.mergeWith(newFormat));
+                        mustAdd = false;
                         break;
                     }
                 }
-                if (quicklyRuledOut == false) {
-                    Map<String, Object> captures = timeoutChecker.grokCaptures(candidate.strictSearchGrok, text,
-                        "timestamp format determination");
-                    if (captures != null) {
-                        String preface = captures.getOrDefault(PREFACE, "").toString();
-                        String epilogue = captures.getOrDefault(EPILOGUE, "").toString();
-                        return makeTimestampMatch(candidate, index, preface, text.substring(preface.length(),
-                            text.length() - epilogue.length()), epilogue);
+                if (mustAdd) {
+                    if (errorOnMultiplePatterns && matchedFormats.isEmpty() == false) {
+                        throw new IllegalArgumentException("Multiple timestamp formats found ["
+                            + matchedFormats.get(0) + "] and [" + newFormat + "]");
                     }
+                    matchedFormats.add(newFormat);
                 }
-            }
-            ++index;
-        }
-        return null;
-    }
 
-    /**
-     * Find the best timestamp format for matching an entire field value.
-     * @param text The value that the returned timestamp format must match in its entirety.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @return The timestamp format, or <code>null</code> if none matches.
-     */
-    public static TimestampMatch findFirstFullMatch(String text, TimeoutChecker timeoutChecker) {
-        return findFirstFullMatch(text, 0, timeoutChecker);
-    }
-
-    /**
-     * Find the best timestamp format for matching an entire field value.
-     * @param text The value that the returned timestamp format must match in its entirety.
-     * @param requiredFormat A timestamp format that any returned match must support.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @return The timestamp format, or <code>null</code> if none matches.
-     */
-    public static TimestampMatch findFirstFullMatch(String text, String requiredFormat, TimeoutChecker timeoutChecker) {
-        return findFirstFullMatch(text, 0, requiredFormat, timeoutChecker);
-    }
-
-    /**
-     * Find the best timestamp format for matching an entire field value,
-     * excluding a specified number of candidate formats.
-     * @param text The value that the returned timestamp format must match in its entirety.
-     * @param ignoreCandidates The number of candidate formats to exclude from the search.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @return The timestamp format, or <code>null</code> if none matches.
-     */
-    public static TimestampMatch findFirstFullMatch(String text, int ignoreCandidates, TimeoutChecker timeoutChecker) {
-        return findFirstFullMatch(text, ignoreCandidates, null, timeoutChecker);
-    }
-
-    /**
-     * Find the best timestamp format for matching an entire field value,
-     * excluding a specified number of candidate formats.
-     * @param text The value that the returned timestamp format must match in its entirety.
-     * @param ignoreCandidates The number of candidate formats to exclude from the search.
-     * @param requiredFormat A timestamp format that any returned match must support.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @return The timestamp format, or <code>null</code> if none matches.
-     */
-    public static TimestampMatch findFirstFullMatch(String text, int ignoreCandidates, String requiredFormat,
-                                                    TimeoutChecker timeoutChecker) {
-        if (ignoreCandidates >= ORDERED_CANDIDATE_FORMATS.size()) {
-            return null;
-        }
-        int index = ignoreCandidates;
-        String adjustedRequiredFormat = adjustRequiredFormat(requiredFormat);
-        for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS.subList(ignoreCandidates, ORDERED_CANDIDATE_FORMATS.size())) {
-            if (adjustedRequiredFormat == null || candidate.jodaTimestampFormats.contains(adjustedRequiredFormat) ||
-                candidate.javaTimestampFormats.contains(adjustedRequiredFormat)) {
-                Map<String, Object> captures = timeoutChecker.grokCaptures(candidate.strictFullMatchGrok, text,
-                    "timestamp format determination");
-                if (captures != null) {
-                    return makeTimestampMatch(candidate, index, "", text, "");
-                }
-            }
-            ++index;
-        }
-        return null;
-    }
-
-    /**
-     * If a required timestamp format contains a fractional seconds component, adjust it to the
-     * fractional seconds format that's in the candidate timestamp formats, i.e. ",SSS".  So, for
-     * example, "YYYY-MM-dd HH:mm:ss.SSSSSSSSS Z" would get adjusted to "YYYY-MM-dd HH:mm:ss,SSS Z".
-     */
-    static String adjustRequiredFormat(String requiredFormat) {
-
-        return (requiredFormat == null) ? null :
-            FRACTIONAL_SECOND_TIMESTAMP_FORMAT_PATTERN.matcher(requiredFormat).replaceFirst(DEFAULT_FRACTIONAL_SECOND_FORMAT);
-    }
-
-    private static TimestampMatch makeTimestampMatch(CandidateTimestampFormat chosenTimestampFormat, int chosenIndex,
-                                                     String preface, String matchedDate, String epilogue) {
-        Tuple<Character, Integer> fractionalSecondsInterpretation = interpretFractionalSeconds(matchedDate);
-        List<String> jodaTimestampFormats = chosenTimestampFormat.jodaTimestampFormats;
-        List<String> javaTimestampFormats = chosenTimestampFormat.javaTimestampFormats;
-        Pattern simplePattern = chosenTimestampFormat.simplePattern;
-        char separator = fractionalSecondsInterpretation.v1();
-        if (separator != DEFAULT_FRACTIONAL_SECOND_SEPARATOR) {
-            jodaTimestampFormats = jodaTimestampFormats.stream()
-                .map(jodaTimestampFormat -> jodaTimestampFormat.replace(DEFAULT_FRACTIONAL_SECOND_SEPARATOR, separator))
-                .collect(Collectors.toList());
-            javaTimestampFormats = javaTimestampFormats.stream()
-                .map(javaTimestampFormat -> javaTimestampFormat.replace(DEFAULT_FRACTIONAL_SECOND_SEPARATOR, separator))
-                .collect(Collectors.toList());
-            if (jodaTimestampFormats.stream().noneMatch(jodaTimestampFormat -> jodaTimestampFormat.startsWith("UNIX"))) {
-                String patternStr = simplePattern.pattern();
-                int separatorPos = patternStr.lastIndexOf(DEFAULT_FRACTIONAL_SECOND_SEPARATOR);
-                if (separatorPos >= 0) {
-                    StringBuilder newPatternStr = new StringBuilder(patternStr);
-                    newPatternStr.replace(separatorPos, separatorPos + 1, ((separator == '.') ? "\\" : "") + separator);
-                    simplePattern = Pattern.compile(newPatternStr.toString());
-                }
+                matches.add(match);
+                cachedJavaTimestampFormats = null;
+                return;
             }
         }
-        int numberOfDigitsInFractionalComponent = fractionalSecondsInterpretation.v2();
-        if (numberOfDigitsInFractionalComponent > 3) {
-            String fractionalSecondsFormat = "SSSSSSSSS".substring(0, numberOfDigitsInFractionalComponent);
-            jodaTimestampFormats = jodaTimestampFormats.stream()
-                .map(jodaTimestampFormat -> jodaTimestampFormat.replace("SSS", fractionalSecondsFormat))
-                .collect(Collectors.toList());
-            javaTimestampFormats = javaTimestampFormats.stream()
-                .map(javaTimestampFormat -> javaTimestampFormat.replace("SSS", fractionalSecondsFormat))
-                .collect(Collectors.toList());
+
+        if (errorOnNoTimestamp) {
+            throw new IllegalArgumentException("No timestamp found in [" + text + "]");
         }
-        return new TimestampMatch(chosenIndex, preface, jodaTimestampFormats, javaTimestampFormats, simplePattern,
-            chosenTimestampFormat.standardGrokPatternName, epilogue);
     }
 
     /**
-     * Interpret the fractional seconds component of a date to determine two things:
-     * 1. The separator character - one of colon, comma and dot.
-     * 2. The number of digits in the fractional component.
-     * @param date The textual representation of the date for which fractional seconds are to be interpreted.
-     * @return A tuple of (fractional second separator character, number of digits in fractional component).
+     * Where multiple timestamp formats have been found, select the "best" one, whose details
+     * will then be returned by methods such as {@link #getGrokPatternName} and
+     * {@link #getJavaTimestampFormats}.  If fewer than two timestamp formats have been found
+     * then this method does nothing.
      */
-    static Tuple<Character, Integer> interpretFractionalSeconds(String date) {
+    public void selectBestMatch() {
 
-        Matcher matcher = FRACTIONAL_SECOND_INTERPRETER.matcher(date);
-        if (matcher.find()) {
-            return new Tuple<>(matcher.group(1).charAt(0), matcher.group(2).length());
+        if (matchedFormats.size() < 2) {
+            // Nothing to do
+            return;
         }
 
-        return new Tuple<>(DEFAULT_FRACTIONAL_SECOND_SEPARATOR, 0);
+        int remainingMatches = matches.size();
+        Map<Integer, Double> timestampMatches = new HashMap<>();
+        for (TimestampMatch match : matches) {
+
+            int matchedFormatIndex = 0;
+            for (TimestampFormat matchedFormat : matchedFormats) {
+                if (matchedFormat.canMergeWith(match.timestampFormat)) {
+                    timestampMatches.compute(matchedFormatIndex, (k, v) -> weightForMatch(match.preface) + ((v == null) ? 0.0 : v));
+                    break;
+                }
+                ++matchedFormatIndex;
+            }
+
+            // The highest possible weight is 1, so if the difference between the two highest weights
+            // is less than the number of lines remaining then the leader cannot possibly be overtaken
+            if (findDifferenceBetweenTwoHighestWeights(timestampMatches.values()) > --remainingMatches) {
+                break;
+            }
+        }
+
+        timeoutChecker.check("timestamp format determination");
+
+        double highestWeight = 0.0;
+        int highestWeightFormatIndex = -1;
+        for (Map.Entry<Integer, Double> entry : timestampMatches.entrySet()) {
+            double weight = entry.getValue();
+            if (weight > highestWeight) {
+                highestWeight = weight;
+                highestWeightFormatIndex = entry.getKey();
+            }
+        }
+
+        timeoutChecker.check("timestamp format determination");
+
+        // Is the selected format not already at the beginning of the list?
+        if (highestWeightFormatIndex > 0) {
+            cachedJavaTimestampFormats = null;
+            List<TimestampFormat> newMatchedFormats = new ArrayList<>(matchedFormats);
+            // Swap the selected format with the one that's currently at the beginning of the list
+            newMatchedFormats.set(0, matchedFormats.get(highestWeightFormatIndex));
+            newMatchedFormats.set(highestWeightFormatIndex, matchedFormats.get(0));
+            matchedFormats = newMatchedFormats;
+        }
     }
 
     /**
-     * Represents a timestamp that has matched a field value or been found within a message.
+     * How many different timestamp formats have been matched in the supplied samples?
+     * @return The number of different timestamp formats that have been matched in the supplied samples.
      */
-    public static final class TimestampMatch {
+    public int getNumMatchedFormats() {
+        return matchedFormats.size();
+    }
+
+    /**
+     * Get the Grok pattern name that corresponds to the selected timestamp format.
+     * @return The Grok pattern name that corresponds to the selected timestamp format.
+     */
+    public String getGrokPatternName() {
+        if (matchedFormats.isEmpty()) {
+            if (errorOnNoTimestamp) {
+                throw new IllegalStateException("No matched timestamp formats");
+            } else {
+                return null;
+            }
+        }
+        return matchedFormats.get(0).grokPatternName;
+    }
+
+    /**
+     * Get the custom Grok pattern definition derived from the override format, if any.
+     * @return The custom Grok pattern definition for the selected timestamp format, or
+     *         <code>null</code> if there is none.
+     */
+    public String getCustomGrokPatternDefinition() {
+        if (matchedFormats.isEmpty()) {
+            if (errorOnNoTimestamp) {
+                throw new IllegalStateException("No matched timestamp formats");
+            } else {
+                return null;
+            }
+        }
+        // This may be null
+        return matchedFormats.get(0).customGrokPatternDefinition;
+    }
+
+    /**
+     * Of all the samples added that correspond to the selected format, return
+     * the portion of the sample that comes before the timestamp.
+     * @return A list of prefaces from samples that match the selected timestamp format.
+     */
+    public List<String> getPrefaces() {
+        if (matchedFormats.isEmpty()) {
+            if (errorOnNoTimestamp) {
+                throw new IllegalStateException("No matched timestamp formats");
+            } else {
+                return Collections.emptyList();
+            }
+        }
+        return matches.stream().filter(match -> matchedFormats.size() < 2 || matchedFormats.get(0).canMergeWith(match.timestampFormat))
+            .map(match -> match.preface).collect(Collectors.toList());
+    }
+
+    /**
+     * Get the simple regular expression that can be used to identify timestamps
+     * of the selected format in almost any programming language.
+     * @return A {@link Pattern} that will match timestamps of the selected format.
+     */
+    public Pattern getSimplePattern() {
+        if (matchedFormats.isEmpty()) {
+            if (errorOnNoTimestamp) {
+                throw new IllegalStateException("No matched timestamp formats");
+            } else {
+                return null;
+            }
+        }
+        return matchedFormats.get(0).simplePattern;
+    }
+
+    /**
+     * These are similar to Java timestamp formats but may contain indeterminate day/month
+     * placeholders if the order of day and month is uncertain.
+     * @return A list of Java timestamp formats possibly containing indeterminate day/month placeholders.
+     */
+    public List<String> getRawJavaTimestampFormats() {
+        if (matchedFormats.isEmpty()) {
+            if (errorOnNoTimestamp) {
+                throw new IllegalStateException("No matched timestamp formats");
+            } else {
+                return Collections.emptyList();
+            }
+        }
+        return matchedFormats.get(0).rawJavaTimestampFormats;
+    }
+
+    /**
+     * These are used by ingest pipeline and index mappings.
+     * @return A list of Java timestamp formats to use for parsing documents.
+     */
+    public List<String> getJavaTimestampFormats() {
+        List<String> rawJavaTimestampFormats = getRawJavaTimestampFormats();
+        if (rawJavaTimestampFormats == null) {
+            return Collections.emptyList();
+        }
+        if (cachedJavaTimestampFormats != null) {
+            return cachedJavaTimestampFormats;
+        }
+        return determiniseJavaTimestampFormats(rawJavaTimestampFormats,
+            // With multiple formats, only consider the matches that correspond to the first
+            // in the list (which is what we're returning information about via the getters).
+            // With just one format it's most efficient not to bother checking formats.
+            (matchedFormats.size() > 1) ? matchedFormats.get(0) : null);
+    }
+
+    /**
+     * Given a list of timestamp formats that might contain indeterminate day/month parts,
+     * return the corresponding pattern with the placeholders replaced with concrete
+     * day/month formats.
+     */
+    private List<String> determiniseJavaTimestampFormats(List<String> rawJavaTimestampFormats, TimestampFormat onlyConsiderFormat) {
+
+        // This method needs rework if the class is ever made thread safe
+
+        if (rawJavaTimestampFormats.stream().anyMatch(format -> format.indexOf(INDETERMINATE_FIELD_PLACEHOLDER) >= 0)) {
+            boolean isDayFirst = guessIsDayFirstFromMatches(onlyConsiderFormat, Locale.getDefault());
+            cachedJavaTimestampFormats = rawJavaTimestampFormats.stream()
+                .map(format -> determiniseJavaTimestampFormat(format, isDayFirst)).collect(Collectors.toList());
+        } else {
+            cachedJavaTimestampFormats = rawJavaTimestampFormats;
+        }
+        return cachedJavaTimestampFormats;
+    }
+
+    /**
+     * If timestamp formats where the order of day and month could vary (as in a choice between dd/MM/yyyy
+     * or MM/dd/yyyy for example), make a guess about whether the day comes first.
+     */
+    boolean guessIsDayFirstFromMatches(TimestampFormat onlyConsiderFormat, Locale localeForFallback) {
+
+        BitSet firstIndeterminateNumbers = new BitSet();
+        BitSet secondIndeterminateNumbers = new BitSet();
+
+        for (TimestampMatch match : matches) {
+
+            if (onlyConsiderFormat == null || onlyConsiderFormat.canMergeWith(match.timestampFormat)) {
+
+                if (match.firstIndeterminateDateNumber > 0) {
+                    if (match.firstIndeterminateDateNumber > 12) {
+                        explanation.add("Guessing day precedes month in timestamps as one sample had first number ["
+                            + match.firstIndeterminateDateNumber + "]");
+                        return true;
+                    }
+                    firstIndeterminateNumbers.set(match.firstIndeterminateDateNumber);
+                }
+                if (match.secondIndeterminateDateNumber > 0) {
+                    if (match.secondIndeterminateDateNumber > 12) {
+                        explanation.add("Guessing month precedes day in timestamps as one sample had second number ["
+                            + match.secondIndeterminateDateNumber + "]");
+                        return false;
+                    }
+                    secondIndeterminateNumbers.set(match.secondIndeterminateDateNumber);
+                }
+            }
+        }
+
+        // If there are many more values of one number than the other then assume that's the day
+        final int ratioForResult = 3;
+        int firstCardinality = firstIndeterminateNumbers.cardinality();
+        int secondCardinality = secondIndeterminateNumbers.cardinality();
+        if (secondCardinality == 0) {
+            // This happens in the following cases:
+            // - No indeterminate numbers (in which case the answer is irrelevant)
+            // - Only one indeterminate number (in which case we favour month over day)
+            return false;
+        }
+        // firstCardinality can be 0, but then secondCardinality should have been 0 too
+        assert firstCardinality > 0;
+        if (firstCardinality >= ratioForResult * secondCardinality) {
+            explanation.add("Guessing day precedes month in timestamps as there were ["
+                + firstCardinality + "] distinct values of the first number but only [" + secondCardinality + "] for the second");
+            return true;
+        }
+        if (secondCardinality >= ratioForResult * firstCardinality) {
+            explanation.add("Guessing month precedes day in timestamps as there " + (firstCardinality == 1 ? "was" : "were") + " only ["
+                + firstCardinality + "] distinct " + (firstCardinality == 1 ? "value" : "values")
+                + " of the first number but [" + secondCardinality + "] for the second");
+            return false;
+        }
+
+        // Fall back to whether the day comes before the month in the default short date format for the server locale.
+        // Can't use 1 as that occurs in 1970, so 3rd Feb is the earliest date that will reveal the server default.
+        String feb3rd1970 = makeShortLocalizedDateTimeFormatterForLocale(localeForFallback).format(LocalDate.ofEpochDay(33));
+        if (feb3rd1970.indexOf('3') < feb3rd1970.indexOf('2')) {
+            explanation.add("Guessing day precedes month in timestamps based on server locale ["
+                + localeForFallback.getDisplayName(Locale.ROOT) + "]");
+            return true;
+        } else {
+            explanation.add("Guessing month precedes day in timestamps based on server locale ["
+                + localeForFallback.getDisplayName(Locale.ROOT) + "]");
+            return false;
+        }
+    }
+
+    @SuppressForbidden(reason = "DateTimeFormatter.ofLocalizedDate() is forbidden because it uses the default locale, "
+        + "but here we are explicitly setting the locale on the formatter in a subsequent call")
+    private static DateTimeFormatter makeShortLocalizedDateTimeFormatterForLocale(Locale locale) {
+        return DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale).withZone(ZoneOffset.UTC);
+    }
+
+    /**
+     * Given a raw timestamp format that might contain indeterminate day/month parts,
+     * return the corresponding pattern with the placeholders replaced with concrete
+     * day/month formats.
+     */
+    static String determiniseJavaTimestampFormat(String rawJavaTimestampFormat, boolean isDayFirst) {
+
+        Matcher matcher = INDETERMINATE_FORMAT_INTERPRETER.matcher(rawJavaTimestampFormat);
+        if (matcher.matches()) {
+            StringBuilder builder = new StringBuilder();
+            for (int groupNum = 1; groupNum <= matcher.groupCount(); ++groupNum) {
+                switch (groupNum) {
+                    case 2: {
+                        char formatChar = isDayFirst ? 'd' : 'M';
+                        for (int count = matcher.group(groupNum).length(); count > 0; --count) {
+                            builder.append(formatChar);
+                        }
+                        break;
+                    }
+                    case 4: {
+                        char formatChar = isDayFirst ? 'M' : 'd';
+                        for (int count = matcher.group(groupNum).length(); count > 0; --count) {
+                            builder.append(formatChar);
+                        }
+                        break;
+                    }
+                    default:
+                        builder.append(matcher.group(groupNum));
+                        break;
+                }
+            }
+            return builder.toString();
+        } else {
+            return rawJavaTimestampFormat;
+        }
+    }
+
+    /**
+     * These are still used by Logstash.
+     * @return A list of Joda timestamp formats that correspond to the detected Java timestamp formats.
+     */
+    public List<String> getJodaTimestampFormats() {
+        List<String> javaTimestampFormats = getJavaTimestampFormats();
+        return (javaTimestampFormats == null) ? null : javaTimestampFormats.stream()
+            .map(format -> format.replace("yy", "YY").replace("XXX", "ZZ").replace("XX", "Z")).collect(Collectors.toList());
+    }
+
+    /**
+     * Does the parsing the timestamp produce different results depending on the timezone of the parser?
+     * I.e., does the textual representation NOT define the timezone?
+     */
+    public boolean hasTimezoneDependentParsing() {
+        if (matchedFormats.isEmpty()) {
+            if (errorOnNoTimestamp) {
+                throw new IllegalStateException("No matched timestamp formats");
+            } else {
+                return false;
+            }
+        }
+        return matches.stream().filter(match -> matchedFormats.size() < 2 || matchedFormats.get(0).canMergeWith(match.timestampFormat))
+            .anyMatch(match -> match.hasTimezoneDependentParsing);
+    }
+
+    /**
+     * Sometimes Elasticsearch mappings for dates need to include the format.
+     * This method returns appropriate mappings settings: at minimum "type" : "date",
+     * and possibly also a "format" setting.
+     */
+    public Map<String, String> getEsDateMappingTypeWithFormat() {
+        List<String> javaTimestampFormats = getJavaTimestampFormats();
+        if (javaTimestampFormats.contains("TAI64N")) {
+            // There's no format for TAI64N in the timestamp formats used in mappings
+            return Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+        }
+        Map<String, String> mapping = new LinkedHashMap<>();
+        mapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
+        String formats = javaTimestampFormats.stream().map(format -> {
+            switch (format) {
+                case "ISO8601":
+                    return "iso8601";
+                case "UNIX_MS":
+                    return "epoch_millis";
+                case "UNIX":
+                    return "epoch_second";
+                default:
+                    return format;
+            }
+        }).collect(Collectors.joining("||"));
+        if (formats.isEmpty() == false) {
+            mapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, formats);
+        }
+        return mapping;
+    }
+
+    /**
+     * Used to weight a timestamp match according to how far along the line it is found.
+     * Timestamps at the very beginning of the line are given a weight of 1.  The weight
+     * progressively decreases the more text there is preceding the timestamp match, but
+     * is always greater than 0.
+     * @return A weight in the range (0, 1].
+     */
+    private static double weightForMatch(String preface) {
+        return Math.pow(1.0 + preface.length() / 15.0, -1.1);
+    }
+
+    private static double findDifferenceBetweenTwoHighestWeights(Collection<Double> weights) {
+        double highestWeight = 0.0;
+        double secondHighestWeight = 0.0;
+        for (Double weight : weights) {
+            if (weight > highestWeight) {
+                secondHighestWeight = highestWeight;
+                highestWeight = weight;
+            } else if (weight > secondHighestWeight) {
+                secondHighestWeight = weight;
+            }
+        }
+        return highestWeight - secondHighestWeight;
+    }
+
+    /**
+     * This is basically the "Shift-Add" algorithm for string matching from the paper "A New Approach to Text Searching".
+     * In this case the "alphabet" has just two "characters": 0 and 1 (or <code>false</code> and <code>true</code> in
+     * some places because of the {@link BitSet} interface).
+     * @see <a href="http://akira.ruc.dk/~keld/teaching/algoritmedesign_f08/Artikler/09/Baeza92.pdf">A New Approach to Text Searching</a>
+     * @param findIn The binary string to search in; "text" in the terminology of the paper.
+     * @param toFind The binary string to find; "pattern" in the terminology of the paper.
+     * @return The index (starting from 0) of the first match of {@code toFind} in {@code findIn}, or -1 if no match is found.
+     */
+    static int findBitPattern(BitSet findIn, BitSet toFind) {
+
+        // Note that this only compares up to the highest bit that is set, so trailing non digit characters will not participate
+        // in the comparison.  This is not currently a problem for this class, but is something to consider if this functionality
+        // is ever reused elsewhere.  The solution would be to use a wrapper class containing a BitSet and a separate int to store
+        // the length to compare.
+        int toFindLength = toFind.length();
+        int findInLength = findIn.length();
+        if (toFindLength == 0) {
+            return 0;
+        }
+        // 63 here is the largest bit position (starting from 0) in a long
+        if (toFindLength > Math.min(63, findInLength)) {
+            // Since we control the input we should avoid the situation
+            // where the pattern to find has more bits than a single long
+            assert toFindLength <= 63 : "Length to find was [" + toFindLength + "] - cannot be greater than 63";
+            return -1;
+        }
+        // ~1L means all bits set except the least significant
+        long state = ~1L;
+        // This array has one entry per "character" in the "alphabet" (which for this method consists of just 0 and 1)
+        // ~0L means all bits set
+        long[] toFindMask = { ~0L, ~0L };
+        for (int i = 0; i < toFindLength; ++i) {
+            toFindMask[toFind.get(i) ? 1 : 0] &= ~(1L << i);
+        }
+        for (int i = 0; i < findInLength; ++i) {
+            state |= toFindMask[findIn.get(i) ? 1 : 0];
+            state <<= 1;
+            if ((state & (1L << toFindLength)) == 0L) {
+                return i - toFindLength + 1;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * Converts a string into a {@link BitSet} with one bit per character of the string and bits
+     * set to 1 if the corresponding character in the string is a digit and 0 if not.  (The first
+     * character of the string corresponds to the least significant bit in the {@link BitSet}, so
+     * if the {@link BitSet} is printed in natural order it will be reversed compared to the input,
+     * and then the most significant bit will be printed first.  However, in terms of random access
+     * to individual characters/bits, this "reversal" is by far the most intuitive representation.)
+     * @param str The string to be mapped.
+     * @return A {@link BitSet} suitable for use as input to {@link #findBitPattern}.
+     */
+    static BitSet stringToNumberPosBitSet(String str) {
+
+        BitSet result = new BitSet();
+        for (int index = 0; index < str.length(); ++index) {
+            if (Character.isDigit(str.charAt(index))) {
+                result.set(index);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Represents an overall format matched within the supplied samples.
+     * Similar {@link TimestampFormat}s can be merged when they can be
+     * recognised by the same Grok pattern, simple regular expression, and
+     * punctuation in the preface, but have different Java timestamp formats.
+     *
+     * Objects are immutable.  Merges that result in changes return new
+     * objects.
+     */
+    static final class TimestampFormat {
 
         /**
-         * The index of the corresponding entry in the <code>ORDERED_CANDIDATE_FORMATS</code> list.
+         * Java time formats that may contain indeterminate day/month patterns.
          */
-        public final int candidateIndex;
-
-        /**
-         * Text that came before the timestamp in the matched field/message.
-         */
-        public final String preface;
-
-        /**
-         * Time format specifier(s) that will work with Logstash and Ingest pipeline date parsers.
-         */
-        public final List<String> jodaTimestampFormats;
-
-        /**
-         * Time format specifier(s) that will work with Logstash and Ingest pipeline date parsers.
-         */
-        public final List<String> javaTimestampFormats;
+        final List<String> rawJavaTimestampFormats;
 
         /**
          * A simple regex that will work in many languages to detect whether the timestamp format
          * exists in a particular line.
          */
-        public final Pattern simplePattern;
+        final Pattern simplePattern;
 
         /**
-         * Name of an out-of-the-box Grok pattern that will match the timestamp.
+         * Name of a Grok pattern that will match the timestamp.
          */
-        public final String grokPatternName;
+        final String grokPatternName;
 
         /**
-         * Text that came after the timestamp in the matched field/message.
+         * If {@link #grokPatternName} is not an out-of-the-box Grok pattern, then its definition.
          */
-        public final String epilogue;
-
-        TimestampMatch(int candidateIndex, String preface, String jodaTimestampFormat, String javaTimestampFormat, String simpleRegex,
-                       String grokPatternName, String epilogue) {
-            this(candidateIndex, preface, Collections.singletonList(jodaTimestampFormat), Collections.singletonList(javaTimestampFormat),
-                simpleRegex, grokPatternName, epilogue);
-        }
-
-        TimestampMatch(int candidateIndex, String preface, List<String> jodaTimestampFormats, List<String> javaTimestampFormats,
-                       String simpleRegex, String grokPatternName, String epilogue) {
-            this(candidateIndex, preface, jodaTimestampFormats, javaTimestampFormats, Pattern.compile(simpleRegex), grokPatternName,
-                epilogue);
-        }
-
-        TimestampMatch(int candidateIndex, String preface, List<String> jodaTimestampFormats, List<String> javaTimestampFormats,
-                       Pattern simplePattern, String grokPatternName,
-                       String epilogue) {
-            this.candidateIndex = candidateIndex;
-            this.preface = preface;
-            this.jodaTimestampFormats = Collections.unmodifiableList(jodaTimestampFormats);
-            this.javaTimestampFormats = Collections.unmodifiableList(javaTimestampFormats);
-            this.simplePattern = simplePattern;
-            this.grokPatternName = grokPatternName;
-            this.epilogue = epilogue;
-        }
+        final String customGrokPatternDefinition;
 
         /**
-         * Does the parsing the timestamp produce different results depending on the timezone of the parser?
-         * I.e., does the textual representation NOT define the timezone?
+         * The punctuation characters in the text preceeding the timestamp in the samples.
          */
-        public boolean hasTimezoneDependentParsing() {
-            return javaTimestampFormats.stream().anyMatch(javaTimestampFormat ->
-                javaTimestampFormat.indexOf('X') == -1 && javaTimestampFormat.indexOf('z') == -1 && javaTimestampFormat.contains("mm"));
+        final String prefacePunctuation;
+
+        TimestampFormat(List<String> rawJavaTimestampFormats, Pattern simplePattern, String grokPatternName,
+                        String customGrokPatternDefinition, String prefacePunctuation) {
+            this.rawJavaTimestampFormats = Collections.unmodifiableList(rawJavaTimestampFormats);
+            this.simplePattern = Objects.requireNonNull(simplePattern);
+            this.grokPatternName = Objects.requireNonNull(grokPatternName);
+            this.customGrokPatternDefinition = customGrokPatternDefinition;
+            this.prefacePunctuation = prefacePunctuation;
         }
 
-        /**
-         * Sometimes Elasticsearch mappings for dates need to include the format.
-         * This method returns appropriate mappings settings: at minimum "type"="date",
-         * and possibly also a "format" setting.
-         */
-        public Map<String, String> getEsDateMappingTypeWithFormat() {
-            if (javaTimestampFormats.contains("TAI64N")) {
-                // There's no format for TAI64N in the timestamp formats used in mappings
-                return Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
-            }
-            Map<String, String> mapping = new LinkedHashMap<>();
-            mapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
-            String formats = javaTimestampFormats.stream().flatMap(format -> {
-                switch (format) {
-                    case "ISO8601":
-                        return Stream.empty();
-                    case "UNIX_MS":
-                        return Stream.of("epoch_millis");
-                    case "UNIX":
-                        return Stream.of("epoch_second");
-                    default:
-                        return Stream.of(format);
+        boolean canMergeWith(TimestampFormat other) {
+
+            return other != null &&
+                this.simplePattern.pattern().equals(other.simplePattern.pattern()) &&
+                this.grokPatternName.equals(other.grokPatternName) &&
+                Objects.equals(this.customGrokPatternDefinition, other.customGrokPatternDefinition) &&
+                this.prefacePunctuation.equals(other.prefacePunctuation);
+        }
+
+        TimestampFormat mergeWith(TimestampFormat other) {
+
+            if (canMergeWith(other)) {
+                if (rawJavaTimestampFormats.equals(other.rawJavaTimestampFormats) == false) {
+                    // Do the merge like this to preserve ordering
+                    Set<String> mergedJavaTimestampFormats = new LinkedHashSet<>(rawJavaTimestampFormats);
+                    if (mergedJavaTimestampFormats.addAll(other.rawJavaTimestampFormats)) {
+                        return new TimestampFormat(new ArrayList<>(mergedJavaTimestampFormats), simplePattern, grokPatternName,
+                            customGrokPatternDefinition, prefacePunctuation);
+                    }
                 }
-            }).collect(Collectors.joining("||"));
-            if (formats.isEmpty() == false) {
-                mapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, formats);
+                // The merged format is exactly the same as this format, so there's no need to create a new object
+                return this;
             }
-            return mapping;
+
+            throw new IllegalArgumentException("Cannot merge timestamp format [" + this + "] with [" + other + "]");
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(candidateIndex, preface, jodaTimestampFormats, javaTimestampFormats, simplePattern.pattern(),
-                grokPatternName, epilogue);
+            return Objects.hash(rawJavaTimestampFormats, simplePattern.pattern(), grokPatternName, customGrokPatternDefinition,
+                prefacePunctuation);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+
+            TimestampFormat that = (TimestampFormat) other;
+            return Objects.equals(this.rawJavaTimestampFormats, that.rawJavaTimestampFormats) &&
+                Objects.equals(this.simplePattern.pattern(), that.simplePattern.pattern()) &&
+                Objects.equals(this.grokPatternName, that.grokPatternName) &&
+                Objects.equals(this.customGrokPatternDefinition, that.customGrokPatternDefinition) &&
+                Objects.equals(this.prefacePunctuation, that.prefacePunctuation);
+        }
+
+        @Override
+        public String toString() {
+            return "Java timestamp formats = " + rawJavaTimestampFormats.stream().collect(Collectors.joining("', '", "[ '", "' ]"))
+                + ", simple pattern = '" + simplePattern.pattern() + "', grok pattern = '" + grokPatternName + "'"
+                + ((customGrokPatternDefinition != null) ? ", custom grok pattern definition = '" + customGrokPatternDefinition + "'" : "")
+                + ", preface punctuation = '" + prefacePunctuation + "'";
+        }
+    }
+
+    /**
+     * Represents one match of a timestamp in one added sample.
+     */
+    static final class TimestampMatch {
+
+        // This picks out punctuation that is likely to represent a field separator.  It deliberately
+        // leaves out punctuation that's most likely to vary between field values, such as dots.
+        private static final Pattern NON_PUNCTUATION_PATTERN = Pattern.compile("[^\\\\/|~:;,<>()\\[\\]{}«»\t]+");
+
+        // Used for deciding whether an ISO8601 timestamp contains a timezone.
+        private static final Pattern ISO8601_TIMEZONE_PATTERN = Pattern.compile("(Z|[+-]\\d{2}:?\\d{2})$");
+
+        /**
+         * Text that came before the timestamp in the matched field/message.
+         */
+        final String preface;
+
+        /**
+         * Time format specifier(s) that will work with Logstash and Ingest pipeline date parsers.
+         */
+        final TimestampFormat timestampFormat;
+
+        /**
+         * These store the first and second numbers when the ordering of day and month is unclear,
+         * for example in 05/05/2019.  Where the ordering is obvious they are set to -1.
+         */
+        final int firstIndeterminateDateNumber;
+        final int secondIndeterminateDateNumber;
+
+        final boolean hasTimezoneDependentParsing;
+
+        /**
+         * Text that came after the timestamp in the matched field/message.
+         */
+        final String epilogue;
+
+        TimestampMatch(CandidateTimestampFormat chosenTimestampFormat, String preface, String matchedDate, String epilogue) {
+            this.preface = preface;
+            this.timestampFormat = new TimestampFormat(chosenTimestampFormat.javaTimestampFormatSupplier.apply(matchedDate),
+                chosenTimestampFormat.simplePattern, chosenTimestampFormat.outputGrokPatternName,
+                chosenTimestampFormat.isCustomFormat() ? chosenTimestampFormat.strictGrokPattern : null,
+                preface.isEmpty() ? preface : NON_PUNCTUATION_PATTERN.matcher(preface).replaceAll(""));
+            int[] indeterminateDateNumbers = parseIndeterminateDateNumbers(matchedDate, timestampFormat.rawJavaTimestampFormats);
+            this.firstIndeterminateDateNumber = indeterminateDateNumbers[0];
+            this.secondIndeterminateDateNumber = indeterminateDateNumbers[1];
+            this.hasTimezoneDependentParsing = requiresTimezoneDependentParsing(timestampFormat.rawJavaTimestampFormats.get(0),
+                matchedDate);
+            this.epilogue = epilogue;
+        }
+
+        static boolean requiresTimezoneDependentParsing(String format, String matchedDate) {
+            switch (format) {
+                case "ISO8601":
+                    assert matchedDate.length() > 6;
+                    return ISO8601_TIMEZONE_PATTERN.matcher(matchedDate).find(matchedDate.length() - 6) == false;
+                case "UNIX_MS":
+                case "UNIX":
+                case "TAI64N":
+                    return false;
+                default:
+                    boolean notQuoted = true;
+                    for (int pos = 0; pos < format.length(); ++pos) {
+                        char curChar = format.charAt(pos);
+                        if (curChar == '\'') {
+                            notQuoted = !notQuoted;
+                        } else if (notQuoted && (curChar == 'X' || curChar == 'z')) {
+                            return false;
+                        }
+                    }
+                    return true;
+            }
+        }
+
+        static int[] parseIndeterminateDateNumbers(String matchedDate, List<String> rawJavaTimestampFormats) {
+            int[] indeterminateDateNumbers = { -1, -1 };
+
+            for (String rawJavaTimestampFormat : rawJavaTimestampFormats) {
+
+                if (rawJavaTimestampFormat.indexOf(INDETERMINATE_FIELD_PLACEHOLDER) >= 0) {
+
+                    try {
+                        // Parse leniently under the assumption the first sequence of hashes is day and the
+                        // second is month - this may not be true but all we do is extract the numbers
+                        String javaTimestampFormat = determiniseJavaTimestampFormat(rawJavaTimestampFormat, true);
+
+                        // TODO consider support for overriding the locale too
+                        // But it's not clear-cut as Grok only knows English and German date
+                        // words and for indetermine formats we're expecting numbers anyway
+                        DateTimeFormatter javaTimeFormatter = DateTimeFormatter.ofPattern(javaTimestampFormat, Locale.ROOT)
+                            .withResolverStyle(ResolverStyle.LENIENT);
+                        TemporalAccessor accessor = javaTimeFormatter.parse(matchedDate);
+                        indeterminateDateNumbers[0] = accessor.get(ChronoField.DAY_OF_MONTH);
+
+
+                        // Now parse again leniently under the assumption the first sequence of hashes is month and the
+                        // second is day - we have to do it twice and extract day as the lenient parser will wrap months > 12
+                        javaTimestampFormat = determiniseJavaTimestampFormat(rawJavaTimestampFormat, false);
+
+                        // TODO consider support for overriding the locale too
+                        // But it's not clear-cut as Grok only knows English and German date
+                        // words and for indetermine formats we're expecting numbers anyway
+                        javaTimeFormatter = DateTimeFormatter.ofPattern(javaTimestampFormat, Locale.ROOT)
+                            .withResolverStyle(ResolverStyle.LENIENT);
+                        accessor = javaTimeFormatter.parse(matchedDate);
+                        indeterminateDateNumbers[1] = accessor.get(ChronoField.DAY_OF_MONTH);
+                        if (indeterminateDateNumbers[0] > 0 && indeterminateDateNumbers[1] > 0) {
+                            break;
+                        }
+                    } catch (DateTimeException e) {
+                        // Move on to the next format
+                    }
+                }
+            }
+
+            return indeterminateDateNumbers;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(preface, timestampFormat, firstIndeterminateDateNumber, secondIndeterminateDateNumber, epilogue);
         }
 
         @Override
@@ -497,66 +1136,173 @@ public final class TimestampFormatFinder {
             }
 
             TimestampMatch that = (TimestampMatch) other;
-            return this.candidateIndex == that.candidateIndex &&
-                Objects.equals(this.preface, that.preface) &&
-                Objects.equals(this.jodaTimestampFormats, that.jodaTimestampFormats) &&
-                Objects.equals(this.javaTimestampFormats, that.javaTimestampFormats) &&
-                Objects.equals(this.simplePattern.pattern(), that.simplePattern.pattern()) &&
-                Objects.equals(this.grokPatternName, that.grokPatternName) &&
+            return Objects.equals(this.preface, that.preface) &&
+                Objects.equals(this.timestampFormat, that.timestampFormat) &&
+                this.firstIndeterminateDateNumber == that.firstIndeterminateDateNumber &&
+                this.secondIndeterminateDateNumber == that.secondIndeterminateDateNumber &&
                 Objects.equals(this.epilogue, that.epilogue);
         }
 
         @Override
         public String toString() {
-            return "index = " + candidateIndex + (preface.isEmpty() ? "" : ", preface = '" + preface + "'") +
-                ", Joda timestamp formats = " + jodaTimestampFormats.stream().collect(Collectors.joining("', '", "[ '", "' ]")) +
-                ", Java timestamp formats = " + javaTimestampFormats.stream().collect(Collectors.joining("', '", "[ '", "' ]")) +
-                ", simple pattern = '" + simplePattern.pattern() + "', grok pattern = '" + grokPatternName + "'" +
-                (epilogue.isEmpty() ? "" : ", epilogue = '" + epilogue + "'");
+            return (preface.isEmpty() ? "" : "preface = '" + preface + "', ") + timestampFormat
+                + ((firstIndeterminateDateNumber > 0 || secondIndeterminateDateNumber > 0)
+                    ? ", indeterminate date numbers = (" + firstIndeterminateDateNumber + "," + secondIndeterminateDateNumber + ")"
+                    : "")
+                + (epilogue.isEmpty() ? "" : ", epilogue = '" + epilogue + "'");
         }
     }
 
+    /**
+     * Stores the details of a possible timestamp format to consider when looking for timestamps.
+     */
     static final class CandidateTimestampFormat {
 
-        final List<String> jodaTimestampFormats;
-        final List<String> javaTimestampFormats;
+        private static final Pattern FRACTIONAL_SECOND_INTERPRETER = Pattern.compile("([" + FRACTIONAL_SECOND_SEPARATORS + "])(\\d{3,9})$");
+        // This means that in the case of a literal Z, XXX is preferred
+        private static final Pattern TRAILING_OFFSET_WITHOUT_COLON_FINDER = Pattern.compile("[+-]\\d{4}$");
+
+        final Function<String, List<String>> javaTimestampFormatSupplier;
         final Pattern simplePattern;
+        final String strictGrokPattern;
         final Grok strictSearchGrok;
         final Grok strictFullMatchGrok;
-        final String standardGrokPatternName;
-        final List<Integer> quickRuleOutIndices;
+        final String outputGrokPatternName;
+        final List<BitSet> quickRuleOutBitSets;
 
-        CandidateTimestampFormat(String jodaTimestampFormat, String javaTimestampFormat, String simpleRegex, String strictGrokPattern,
-                                 String standardGrokPatternName) {
-            this(Collections.singletonList(jodaTimestampFormat), Collections.singletonList(javaTimestampFormat), simpleRegex,
-                strictGrokPattern, standardGrokPatternName);
+        CandidateTimestampFormat(Function<String, List<String>> javaTimestampFormatSupplier, String simpleRegex, String strictGrokPattern,
+                                 String outputGrokPatternName) {
+            this(javaTimestampFormatSupplier, simpleRegex, strictGrokPattern, outputGrokPatternName, Collections.emptyList());
         }
 
-        CandidateTimestampFormat(String jodaTimestampFormat, String javaTimestampFormat, String simpleRegex, String strictGrokPattern,
-                                 String standardGrokPatternName, List<Integer> quickRuleOutIndices) {
-            this(Collections.singletonList(jodaTimestampFormat), Collections.singletonList(javaTimestampFormat), simpleRegex,
-                strictGrokPattern, standardGrokPatternName, quickRuleOutIndices);
+        CandidateTimestampFormat(Function<String, List<String>> javaTimestampFormatSupplier, String simpleRegex, String strictGrokPattern,
+                                 String outputGrokPatternName, String quickRuleOutPattern) {
+            this(javaTimestampFormatSupplier, simpleRegex, strictGrokPattern, outputGrokPatternName,
+                Collections.singletonList(quickRuleOutPattern));
         }
 
-        CandidateTimestampFormat(List<String> jodaTimestampFormats, List<String> javaTimestampFormats, String simpleRegex,
-                                 String strictGrokPattern, String standardGrokPatternName) {
-            this(jodaTimestampFormats, javaTimestampFormats, simpleRegex, strictGrokPattern, standardGrokPatternName,
-                Collections.emptyList());
-        }
-
-        CandidateTimestampFormat(List<String> jodaTimestampFormats, List<String> javaTimestampFormats, String simpleRegex,
-                                 String strictGrokPattern, String standardGrokPatternName, List<Integer> quickRuleOutIndices) {
-            this.jodaTimestampFormats = jodaTimestampFormats;
-            this.javaTimestampFormats = javaTimestampFormats;
+        CandidateTimestampFormat(Function<String, List<String>> javaTimestampFormatSupplier, String simpleRegex, String strictGrokPattern,
+                                 String outputGrokPatternName, List<String> quickRuleOutPatterns) {
+            this.javaTimestampFormatSupplier = Objects.requireNonNull(javaTimestampFormatSupplier);
             this.simplePattern = Pattern.compile(simpleRegex, Pattern.MULTILINE);
+            this.strictGrokPattern = Objects.requireNonNull(strictGrokPattern);
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
             this.strictSearchGrok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + strictGrokPattern +
                 "%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog);
             this.strictFullMatchGrok = new Grok(Grok.getBuiltinPatterns(), "^" + strictGrokPattern + "$", TimeoutChecker.watchdog);
-            this.standardGrokPatternName = standardGrokPatternName;
-            assert quickRuleOutIndices.stream()
-                .noneMatch(quickRuleOutIndex -> quickRuleOutIndex < 0 || quickRuleOutIndex >= QUICK_RULE_OUT_PATTERNS.size());
-            this.quickRuleOutIndices = quickRuleOutIndices;
+            this.outputGrokPatternName = Objects.requireNonNull(outputGrokPatternName);
+            this.quickRuleOutBitSets = quickRuleOutPatterns.stream().map(TimestampFormatFinder::stringToNumberPosBitSet)
+                .collect(Collectors.toList());
+        }
+
+        boolean isCustomFormat() {
+            return CUSTOM_TIMESTAMP_GROK_NAME.equals(outputGrokPatternName);
+        }
+
+        static List<String> iso8601FormatFromExample(String example) {
+
+            // The Elasticsearch ISO8601 parser requires a literal T between the date and time, so
+            // longhand formats are needed if there's a space instead
+            return (example.indexOf('T') >= 0) ? Collections.singletonList("ISO8601") : iso8601LikeFormatFromExample(example, " ", "");
+        }
+
+        static List<String> iso8601LikeFormatFromExample(String example, String timeSeparator, String timezoneSeparator) {
+
+            StringBuilder builder = new StringBuilder("yyyy-MM-dd");
+            builder.append(timeSeparator).append("HH:mm");
+
+            // Seconds are optional in ISO8601
+            if (example.length() > builder.length() && example.charAt(builder.length()) == ':') {
+                builder.append(":ss");
+            }
+
+            if (example.length() > builder.length()) {
+
+                // Add fractional seconds pattern if appropriate
+                char nextChar = example.charAt(builder.length());
+                if (FRACTIONAL_SECOND_SEPARATORS.indexOf(nextChar) >= 0) {
+                    builder.append(nextChar);
+                    for (int pos = builder.length(); pos < example.length(); ++pos) {
+                        if (Character.isDigit(example.charAt(pos))) {
+                            builder.append('S');
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                // Add timezone if appropriate - in the case of a literal Z, XX is preferred
+                if (example.length() > builder.length()) {
+                    builder.append(timezoneSeparator).append((example.indexOf(':', builder.length()) > 0) ? "XXX" : "XX");
+                }
+            } else {
+                // This method should not have been called if the example didn't include the bare minimum of date and time
+                assert example.length() == builder.length() : "Expected [" + example + "] and [" + builder + "] to be the same length";
+            }
+
+            return Collections.singletonList(builder.toString());
+        }
+
+        static List<String> adjustTrailingTimezoneFromExample(String example, String formatWithSecondsAndXX) {
+            return Collections.singletonList(
+                TRAILING_OFFSET_WITHOUT_COLON_FINDER.matcher(example).find() ? formatWithSecondsAndXX : formatWithSecondsAndXX + "X");
+        }
+
+        private static String adjustFractionalSecondsFromEndOfExample(String example, String formatNoFraction) {
+
+            Matcher matcher = FRACTIONAL_SECOND_INTERPRETER.matcher(example);
+            return matcher.find()
+                ? (formatNoFraction + matcher.group(1).charAt(0) + "SSSSSSSSS".substring(0, matcher.group(2).length()))
+                : formatNoFraction;
+        }
+
+        static List<String> expandDayAndAdjustFractionalSecondsFromExample(String example, String formatWithddAndNoFraction) {
+
+            String formatWithdd = adjustFractionalSecondsFromEndOfExample(example, formatWithddAndNoFraction);
+            return Arrays.asList(formatWithdd, formatWithdd.replace(" dd", "  d"));
+        }
+
+        static List<String> indeterminateDayMonthFormatFromExample(String example) {
+
+            StringBuilder builder = new StringBuilder();
+            int examplePos = 0;
+
+            // INDETERMINATE_FIELD_PLACEHOLDER here could represent either a day number (d) or month number (M) - it
+            // will get changed later based on evidence from many examples
+            for (Character patternChar
+                : Arrays.asList(INDETERMINATE_FIELD_PLACEHOLDER, INDETERMINATE_FIELD_PLACEHOLDER, 'y', 'H', 'm', 's')) {
+
+                boolean foundDigit = false;
+                while (examplePos < example.length() && Character.isDigit(example.charAt(examplePos))) {
+                    foundDigit = true;
+                    builder.append(patternChar);
+                    ++examplePos;
+                }
+
+                if (patternChar == 's' || examplePos >= example.length() || foundDigit == false) {
+                    break;
+                }
+
+                builder.append(example.charAt(examplePos));
+                ++examplePos;
+            }
+
+            String format = builder.toString();
+            // The Grok pattern should ensure we got at least as far as the year
+            assert format.contains("yy") : "Unexpected format [" + format + "] from example [" + example + "]";
+
+            if (examplePos < example.length()) {
+                // If we haven't consumed the whole example then we should have got as far as
+                // the (whole) seconds, and the bit afterwards should be the fractional seconds
+                assert builder.toString().endsWith("ss") : "Unexpected format [" + format + "] from example [" + example + "]";
+                format = adjustFractionalSecondsFromEndOfExample(example, format);
+            }
+
+            assert Character.isLetter(format.charAt(format.length() - 1))
+                : "Unexpected format [" + format + "] from example [" + example + "]";
+            assert format.length() == example.length() : "Unexpected format [" + format + "] from example [" + example + "]";
+
+            return Collections.singletonList(format);
         }
     }
 }

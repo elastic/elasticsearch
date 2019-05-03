@@ -167,7 +167,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public SnapshotInfo snapshot(final String repositoryName, final SnapshotId snapshotId) {
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(repositoryName, Collections.singletonList(snapshotId.getName()));
         if (!entries.isEmpty()) {
-            return inProgressSnapshot(entries.iterator().next());
+            return inProgressSnapshot(repositoryName, entries.iterator().next());
         }
         return repositoriesService.repository(repositoryName).getSnapshotInfo(snapshotId);
     }
@@ -192,7 +192,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final List<SnapshotsInProgress.Entry> entries =
             currentSnapshots(repositoryName, snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList()));
         for (SnapshotsInProgress.Entry entry : entries) {
-            snapshotSet.add(inProgressSnapshot(entry));
+            snapshotSet.add(inProgressSnapshot(repositoryName, entry));
             snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId());
         }
         // then, look in the repository
@@ -202,7 +202,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (incompatibleSnapshotIds.contains(snapshotId)) {
                     // an incompatible snapshot - cannot read its snapshot metadata file, just return
                     // a SnapshotInfo indicating its incompatible
-                    snapshotSet.add(SnapshotInfo.incompatible(snapshotId));
+                    snapshotSet.add(SnapshotInfo.incompatible(repositoryName, snapshotId));
                 } else {
                     snapshotSet.add(repository.getSnapshotInfo(snapshotId));
                 }
@@ -229,7 +229,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         List<SnapshotInfo> snapshotList = new ArrayList<>();
         List<SnapshotsInProgress.Entry> entries = currentSnapshots(repositoryName, Collections.emptyList());
         for (SnapshotsInProgress.Entry entry : entries) {
-            snapshotList.add(inProgressSnapshot(entry));
+            snapshotList.add(inProgressSnapshot(repositoryName, entry));
         }
         CollectionUtil.timSort(snapshotList);
         return unmodifiableList(snapshotList);
@@ -552,13 +552,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 try {
                     repositoriesService.repository(snapshot.snapshot().getRepository())
                                        .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                                                         snapshot.indices(),
-                                                         snapshot.startTime(),
-                                                         ExceptionsHelper.detailedMessage(exception),
-                                                         0,
-                                                         Collections.emptyList(),
-                                                         snapshot.getRepositoryStateId(),
-                                                         snapshot.includeGlobalState());
+                                               snapshot.snapshot().getRepository(),
+                                               snapshot.indices(),
+                                               snapshot.startTime(),
+                                               ExceptionsHelper.detailedMessage(exception),
+                                               0,
+                                               Collections.emptyList(),
+                                               snapshot.getRepositoryStateId(), snapshot.includeGlobalState());
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
                     logger.warn(() -> new ParameterizedMessage("[{}] failed to close snapshot in repository",
@@ -570,9 +570,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     }
 
-    private static SnapshotInfo inProgressSnapshot(SnapshotsInProgress.Entry entry) {
-        return new SnapshotInfo(entry.snapshot().getSnapshotId(),
-                                   entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+    private static SnapshotInfo inProgressSnapshot(String repository, SnapshotsInProgress.Entry entry) {
+        return new SnapshotInfo(entry.snapshot().getSnapshotId(), repository,
+                entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
                                    entry.startTime(), entry.includeGlobalState());
     }
 
@@ -983,13 +983,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 SnapshotInfo snapshotInfo = repository.finalizeSnapshot(
                     snapshot.getSnapshotId(),
-                    entry.indices(),
-                    entry.startTime(),
-                    failure,
-                    entry.shards().size(),
-                    unmodifiableList(shardFailures),
-                    entry.getRepositoryStateId(),
-                    entry.includeGlobalState());
+                        entry.snapshot().getRepository(),
+                        entry.indices(),
+                        entry.startTime(),
+                        failure,
+                        entry.shards().size(),
+                        unmodifiableList(shardFailures),
+                        entry.getRepositoryStateId(), entry.includeGlobalState());
                 removeSnapshotFromClusterState(snapshot, snapshotInfo, null);
                 logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
             }

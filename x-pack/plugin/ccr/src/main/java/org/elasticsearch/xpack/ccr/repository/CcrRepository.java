@@ -169,7 +169,8 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        return new SnapshotInfo(snapshotId, indices, SnapshotState.SUCCESS, response.getState().getNodes().getMaxNodeVersion());
+        return new SnapshotInfo(snapshotId, metadata.name(),
+                indices, SnapshotState.SUCCESS, response.getState().getNodes().getMaxNodeVersion());
     }
 
     @Override
@@ -254,7 +255,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+    public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, String repository, List<IndexId> indices, long startTime, String failure, int totalShards,
                                          List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }

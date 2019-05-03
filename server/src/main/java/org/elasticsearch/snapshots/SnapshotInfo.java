@@ -54,6 +54,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strictDateOptionalTime");
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
+    private static final String REPOSITORY = "repository";
     private static final String INDICES = "indices";
     private static final String STATE = "state";
     private static final String REASON = "reason";
@@ -76,11 +77,14 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
 
     private static final Comparator<SnapshotInfo> COMPARATOR =
-        Comparator.comparing(SnapshotInfo::startTime).thenComparing(SnapshotInfo::snapshotId);
+        Comparator.comparing(SnapshotInfo::repository).
+                thenComparing(SnapshotInfo::startTime).
+                thenComparing(SnapshotInfo::snapshotId);
 
     public static final class SnapshotInfoBuilder {
         private String snapshotName = null;
         private String snapshotUUID = null;
+        private String repository = null;
         private String state = null;
         private String reason = null;
         private List<String> indices = null;
@@ -98,6 +102,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         private void setSnapshotUUID(String snapshotUUID) {
             this.snapshotUUID = snapshotUUID;
         }
+
+        private void setRepository(String repository) {this.repository = repository; }
 
         private void setState(String state) {
             this.state = state;
@@ -152,7 +158,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                 shardFailures = new ArrayList<>();
             }
 
-            return new SnapshotInfo(snapshotId, indices, snapshotState, reason, version, startTime, endTime,
+            return new SnapshotInfo(snapshotId, repository, indices, snapshotState, reason, version, startTime, endTime,
                     totalShards, successfulShards, shardFailures, includeGlobalState);
         }
     }
@@ -187,6 +193,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     static {
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setSnapshotName, new ParseField(SNAPSHOT));
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setSnapshotUUID, new ParseField(UUID));
+        SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setRepository, new ParseField(REPOSITORY));
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setState, new ParseField(STATE));
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setReason, new ParseField(REASON));
         SNAPSHOT_INFO_PARSER.declareStringArray(SnapshotInfoBuilder::setIndices, new ParseField(INDICES));
@@ -203,6 +210,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     private final SnapshotId snapshotId;
+
+    @Nullable
+    private final String repository;
 
     @Nullable
     private final SnapshotState state;
@@ -228,31 +238,33 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     private final List<SnapshotShardFailure> shardFailures;
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state) {
-        this(snapshotId, indices, state, null, null, 0L, 0L, 0, 0,
+    public SnapshotInfo(SnapshotId snapshotId, String repository, List<String> indices, SnapshotState state) {
+        this(snapshotId, repository, indices, state, null, null, 0L, 0L, 0, 0,
             Collections.emptyList(), null);
     }
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state, Version version) {
-        this(snapshotId, indices, state, null, version, 0L, 0L, 0, 0,
+    public SnapshotInfo(SnapshotId snapshotId, String repository, List<String> indices, SnapshotState state, Version version) {
+        this(snapshotId, repository, indices, state, null, version, 0L, 0L, 0, 0,
             Collections.emptyList(), null);
     }
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, Boolean includeGlobalState) {
-        this(snapshotId, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L,
+    public SnapshotInfo(SnapshotId snapshotId, String repository, List<String> indices, long startTime, Boolean includeGlobalState) {
+        this(snapshotId, repository, indices, SnapshotState.IN_PROGRESS, null, Version.CURRENT, startTime, 0L,
             0, 0, Collections.emptyList(), includeGlobalState);
     }
 
-    public SnapshotInfo(SnapshotId snapshotId, List<String> indices, long startTime, String reason, long endTime,
+    public SnapshotInfo(SnapshotId snapshotId, String repository, List<String> indices, long startTime, String reason, long endTime,
                         int totalShards, List<SnapshotShardFailure> shardFailures, Boolean includeGlobalState) {
-        this(snapshotId, indices, snapshotState(reason, shardFailures), reason, Version.CURRENT,
+        this(snapshotId, repository, indices, snapshotState(reason, shardFailures), reason, Version.CURRENT,
              startTime, endTime, totalShards, totalShards - shardFailures.size(), shardFailures, includeGlobalState);
     }
 
-    private SnapshotInfo(SnapshotId snapshotId, List<String> indices, SnapshotState state, String reason, Version version,
+    private SnapshotInfo(SnapshotId snapshotId, String repository, List<String> indices, SnapshotState state, String reason,
+                         Version version,
                          long startTime, long endTime, int totalShards, int successfulShards, List<SnapshotShardFailure> shardFailures,
                          Boolean includeGlobalState) {
         this.snapshotId = Objects.requireNonNull(snapshotId);
+        this.repository = repository;
         this.indices = Collections.unmodifiableList(Objects.requireNonNull(indices));
         this.state = state;
         this.reason = reason;
@@ -270,6 +282,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      */
     public SnapshotInfo(final StreamInput in) throws IOException {
         snapshotId = new SnapshotId(in);
+        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+            repository = in.readString();
+        } else {
+            repository = null;
+        }
         int size = in.readVInt();
         List<String> indicesListBuilder = new ArrayList<>();
         for (int i = 0; i < size; i++) {
@@ -300,8 +317,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      * Gets a new {@link SnapshotInfo} instance for a snapshot that is incompatible with the
      * current version of the cluster.
      */
-    public static SnapshotInfo incompatible(SnapshotId snapshotId) {
-        return new SnapshotInfo(snapshotId, Collections.emptyList(), SnapshotState.INCOMPATIBLE,
+    public static SnapshotInfo incompatible(String repository, SnapshotId snapshotId) {
+        return new SnapshotInfo(snapshotId, repository, Collections.emptyList(), SnapshotState.INCOMPATIBLE,
                                 "the snapshot is incompatible with the current version of Elasticsearch and its exact version is unknown",
                                 null, 0L, 0L, 0, 0,
                                 Collections.emptyList(), null);
@@ -309,10 +326,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     /**
      * Gets a new {@link SnapshotInfo} instance from the given {@link SnapshotInfo} with
-     * all information stripped out except the snapshot id, state, and indices.
+     * all information stripped out except the repository, snapshot id, state, and indices.
      */
     public SnapshotInfo basic() {
-        return new SnapshotInfo(snapshotId, indices, state);
+        return new SnapshotInfo(snapshotId, repository, indices, state);
     }
 
     /**
@@ -322,6 +339,16 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      */
     public SnapshotId snapshotId() {
         return snapshotId;
+    }
+
+
+    /**
+     * Returns repository name the snapshot belongs to.
+     *
+     * @return repository name.
+     */
+    public String repository() {
+        return repository;
     }
 
     /**
@@ -429,8 +456,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
-     * Compares two snapshots by their start time; if the start times are the same, then
-     * compares the two snapshots by their snapshot ids.
+     * Compares two snapshots by their repo name, then start time, then snapshot id.
      */
     @Override
     public int compareTo(final SnapshotInfo o) {
@@ -441,6 +467,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public String toString() {
         return "SnapshotInfo{" +
             "snapshotId=" + snapshotId +
+            ", repository=" + repository +
             ", state=" + state +
             ", reason='" + reason + '\'' +
             ", indices=" + indices +
@@ -480,6 +507,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.startObject();
         builder.field(SNAPSHOT, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
+        if (repository != null) {
+            builder.field(REPOSITORY, repository);
+        }
         if (version != null) {
             builder.field(VERSION_ID, version.id);
             builder.field(VERSION, version.toString());
@@ -529,6 +559,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.startObject(SNAPSHOT);
         builder.field(NAME, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
+        if (repository != null) {
+            builder.field(REPOSITORY, repository);
+        }
         assert version != null : "version must always be known when writing a snapshot metadata blob";
         builder.field(VERSION_ID, version.id);
         builder.startArray(INDICES);
@@ -564,6 +597,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public static SnapshotInfo fromXContentInternal(final XContentParser parser) throws IOException {
         String name = null;
         String uuid = null;
+        String repository = null;
         Version version = Version.CURRENT;
         SnapshotState state = SnapshotState.IN_PROGRESS;
         String reason = null;
@@ -593,6 +627,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                                 name = parser.text();
                             } else if (UUID.equals(currentFieldName)) {
                                 uuid = parser.text();
+                            } else if (REPOSITORY.equals(currentFieldName)) {
+                                repository = parser.text();
                             } else if (STATE.equals(currentFieldName)) {
                                 state = SnapshotState.valueOf(parser.text());
                             } else if (REASON.equals(currentFieldName)) {
@@ -641,7 +677,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             // the old format where there wasn't a UUID
             uuid = name;
         }
-        return new SnapshotInfo(new SnapshotId(name, uuid),
+        return new SnapshotInfo(new SnapshotId(name, uuid), repository,
                                 indices,
                                 state,
                                 reason,
@@ -657,6 +693,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         snapshotId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+            out.writeString(repository);
+        }
         out.writeVInt(indices.size());
         for (String index : indices) {
             out.writeString(index);
@@ -707,6 +746,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             totalShards == that.totalShards &&
             successfulShards == that.successfulShards &&
             Objects.equals(snapshotId, that.snapshotId) &&
+            Objects.equals(repository, that.repository) &&
             state == that.state &&
             Objects.equals(reason, that.reason) &&
             Objects.equals(indices, that.indices) &&
@@ -717,8 +757,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     @Override
     public int hashCode() {
-
-        return Objects.hash(snapshotId, state, reason, indices, startTime, endTime,
+        return Objects.hash(snapshotId, repository, state, reason, indices, startTime, endTime,
                 totalShards, successfulShards, includeGlobalState, version, shardFailures);
     }
 }

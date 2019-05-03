@@ -46,6 +46,7 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
     @Override
     protected CreateSnapshotResponse createTestInstance() {
         SnapshotId snapshotId = new SnapshotId("test", UUID.randomUUID().toString());
+        String repo = randomAlphaOfLength(10);
         List<String> indices = new ArrayList<>();
         indices.add("test0");
         indices.add("test1");
@@ -64,6 +65,7 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, startTime, reason, endTime, totalShards, shardFailures, globalState));
+            new SnapshotInfo(snapshotId, repo, indices, startTime, reason, endTime, totalShards, shardFailures,
+                    globalState));
     }
 }

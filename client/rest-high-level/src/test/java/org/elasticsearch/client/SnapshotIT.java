@@ -44,9 +44,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -155,37 +153,44 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     }
 
     public void testGetSnapshots() throws IOException {
-        String repository = "test_repository";
+        String repository1 = "test_repository1";
+        String repository2 = "test_repository2";
         String snapshot1 = "test_snapshot1";
         String snapshot2 = "test_snapshot2";
 
-        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        AcknowledgedResponse putRepositoryResponse =
+                createTestRepository(repository1, FsRepository.TYPE, "{\"location\": \"loc1\"}");
         assertTrue(putRepositoryResponse.isAcknowledged());
 
-        CreateSnapshotRequest createSnapshotRequest1 = new CreateSnapshotRequest(repository, snapshot1);
+        AcknowledgedResponse putRepositoryResponse2 =
+                createTestRepository(repository2, FsRepository.TYPE, "{\"location\": \"loc2\"}");
+        assertTrue(putRepositoryResponse2.isAcknowledged());
+
+        CreateSnapshotRequest createSnapshotRequest1 = new CreateSnapshotRequest(repository1, snapshot1);
         createSnapshotRequest1.waitForCompletion(true);
         CreateSnapshotResponse putSnapshotResponse1 = createTestSnapshot(createSnapshotRequest1);
-        CreateSnapshotRequest createSnapshotRequest2 = new CreateSnapshotRequest(repository, snapshot2);
+        CreateSnapshotRequest createSnapshotRequest2 = new CreateSnapshotRequest(repository2, snapshot2);
         createSnapshotRequest2.waitForCompletion(true);
         CreateSnapshotResponse putSnapshotResponse2 = createTestSnapshot(createSnapshotRequest2);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
         assertEquals(RestStatus.OK, putSnapshotResponse1.status());
         assertEquals(RestStatus.OK, putSnapshotResponse2.status());
 
-        GetSnapshotsRequest request;
-        if (randomBoolean()) {
-            request = new GetSnapshotsRequest(repository);
-        } else if (randomBoolean()) {
-            request = new GetSnapshotsRequest(repository, new String[] {"_all"});
+        GetSnapshotsRequest request = new GetSnapshotsRequest(
+                randomFrom(new String[]{"_all"}, new String[]{"*"}, new String[]{repository1, repository2}),
+                randomFrom(new String[]{"_all"}, new String[]{"*"}, new String[]{snapshot1, snapshot2})
+        );
+        request.ignoreUnavailable(true);
 
-        } else {
-            request = new GetSnapshotsRequest(repository, new String[] {snapshot1, snapshot2});
-        }
         GetSnapshotsResponse response = execute(request, highLevelClient().snapshot()::get, highLevelClient().snapshot()::getAsync);
 
+        logger.info(response.getSnapshots());
         assertEquals(2, response.getSnapshots().size());
-        assertThat(response.getSnapshots().stream().map((s) -> s.snapshotId().getName()).collect(Collectors.toList()),
-            contains("test_snapshot1", "test_snapshot2"));
+        assertEquals(repository1, response.getSnapshots().get(0).repository());
+        assertEquals(snapshot1, response.getSnapshots().get(0).snapshotId().getName());
+
+        assertEquals(repository2, response.getSnapshots().get(1).repository());
+        assertEquals(snapshot2, response.getSnapshots().get(1).snapshotId().getName());
     }
 
     public void testSnapshotsStatus() throws IOException {

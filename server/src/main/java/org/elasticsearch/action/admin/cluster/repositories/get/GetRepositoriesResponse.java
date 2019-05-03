@@ -58,6 +58,9 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
         return repositories.repositories();
     }
 
+    public GetRepositoriesResponse(StreamInput in) throws IOException {
+        readFrom(in);
+    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

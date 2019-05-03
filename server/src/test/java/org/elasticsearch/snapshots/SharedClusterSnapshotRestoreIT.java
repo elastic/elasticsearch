@@ -69,6 +69,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
@@ -116,6 +117,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -3124,6 +3126,91 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                        .setIndices(indexName)
                                        .get();
         assertThat(createSnapshotResponse.getSnapshotInfo().snapshotId().getName(), equalTo(snapshotName));
+    }
+
+    public void testGetSnapshotsMultipleRepos() {
+        final Client client = client();
+
+        List<String> snaphostList = new ArrayList<>();
+        List<String> repoList = new ArrayList<>();
+        List<Tuple<String, String>> repoSnapshotList = new ArrayList<>();
+
+        logger.info("--> create an index and index some documents");
+        final String indexName = "test-idx";
+        assertAcked(prepareCreate(indexName));
+        ensureGreen();
+        for (int i = 0; i < 10; i++) {
+            index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);
+        }
+        refresh();
+
+        for (int repoIndex = 0; repoIndex < randomIntBetween(2, 5); repoIndex++) {
+            final String repoName = "repo" + repoIndex;
+            repoList.add(repoName);
+            final Path repoPath = randomRepoPath();
+            logger.info("--> create repository with name " + repoName);
+            assertAcked(client.admin().cluster().preparePutRepository(repoName)
+                    .setType("mock").setSettings(Settings.builder()
+                            .put("location", repoPath)
+                            .put("compress", false)
+                            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                            .put("wait_after_unblock", 200)));
+
+            for (int snapshotIndex = 0; snapshotIndex < randomIntBetween(2, 5); snapshotIndex++) {
+                final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+                snaphostList.add(snapshotName);
+                logger.info("--> create snapshot with index {} and name {} in repository {}", snapshotIndex, snapshotName, repoName);
+                CreateSnapshotResponse createSnapshotResponse = client.admin()
+                        .cluster()
+                        .prepareCreateSnapshot(repoName, snapshotName)
+                        .setWaitForCompletion(true)
+                        .setIndices(indexName)
+                        .get();
+                assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+                repoSnapshotList.add(Tuple.tuple(repoName, snapshotName));
+            }
+        }
+
+        Supplier<String[]> repoNames = () -> randomFrom(new String[]{"_all"},
+                new String[]{"repo*"}, repoList.toArray(new String[0]));
+
+
+        logger.info("--> get and verify snapshots");
+        GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster()
+                .prepareGetSnapshots(repoNames.get())
+                .setSnapshots(randomFrom("_all", "*"))
+                .get();
+
+
+        List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots();
+        assertThat(snapshots, hasSize(repoSnapshotList.size()));
+
+        for (int i = 0; i < snapshots.size(); i++) {
+            assertEquals(repoSnapshotList.get(i).v1(), snapshots.get(i).repository());
+            assertEquals(repoSnapshotList.get(i).v2(), snapshots.get(i).snapshotId().getName());
+        }
+
+        logger.info("--> specify all snapshot names with ignoreUnavailable=false");
+        expectThrows(SnapshotMissingException.class, () -> client.admin().cluster()
+                .prepareGetSnapshots(randomFrom("_all", "repo*"))
+                .setIgnoreUnavailable(false)
+                .setSnapshots(snaphostList.toArray(new String[0]))
+                .get());
+
+        logger.info("--> specify all snapshot names with ignoreUnavailable=true");
+        getSnapshotsResponse = client.admin().cluster()
+                .prepareGetSnapshots(randomFrom("_all", "repo*"))
+                .setIgnoreUnavailable(true)
+                .setSnapshots(snaphostList.toArray(new String[0]))
+                .get();
+
+        snapshots = getSnapshotsResponse.getSnapshots();
+        assertThat(snapshots, hasSize(repoSnapshotList.size()));
+
+        for (int i = 0; i < snapshots.size(); i++) {
+            assertEquals(repoSnapshotList.get(i).v1(), snapshots.get(i).repository());
+            assertEquals(repoSnapshotList.get(i).v2(), snapshots.get(i).snapshotId().getName());
+        }
     }
 
     public void testGetSnapshotsRequest() throws Exception {

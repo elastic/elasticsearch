@@ -23,6 +23,7 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -58,7 +59,7 @@ public class RestSnapshotAction extends AbstractCatAction {
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
         GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
-                .repository(request.param("repository"))
+                .repositories(request.paramAsStringArray("repository", Strings.EMPTY_ARRAY))
                 .snapshots(new String[]{GetSnapshotsRequest.ALL_SNAPSHOTS});
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
@@ -66,7 +67,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
 
         return channel ->
-            client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<GetSnapshotsResponse>(channel) {
+            client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(GetSnapshotsResponse getSnapshotsResponse) throws Exception {
                     return RestTable.buildResponse(buildTable(request, getSnapshotsResponse), channel);
@@ -84,6 +85,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         return new Table()
                 .startHeaders()
                 .addCell("id", "alias:id,snapshot;desc:unique snapshot")
+                .addCell("repository", "alias:re,repo;desc:repository name")
                 .addCell("status", "alias:s,status;text-align:right;desc:snapshot name")
                 .addCell("start_epoch", "alias:ste,startEpoch;desc:start time in seconds since 1970-01-01 00:00:00")
                 .addCell("start_time", "alias:sti,startTime;desc:start time in HH:MM:SS")
@@ -106,6 +108,7 @@ public class RestSnapshotAction extends AbstractCatAction {
             table.startRow();
 
             table.addCell(snapshotStatus.snapshotId().getName());
+            table.addCell(snapshotStatus.repository());
             table.addCell(snapshotStatus.state());
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.startTime(), TimeUnit.MILLISECONDS));
             table.addCell(FORMATTER.format(Instant.ofEpochMilli(snapshotStatus.startTime())));

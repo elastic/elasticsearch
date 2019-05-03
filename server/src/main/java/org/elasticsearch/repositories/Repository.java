@@ -124,6 +124,7 @@ public interface Repository extends LifecycleComponent {
      * This method is called on master after all shards are snapshotted.
      *
      * @param snapshotId    snapshot id
+     * @param repository    repository name
      * @param indices       list of indices in the snapshot
      * @param startTime     start time of the snapshot
      * @param failure       global failure reason or null
@@ -133,8 +134,9 @@ public interface Repository extends LifecycleComponent {
      * @param includeGlobalState include cluster global state
      * @return snapshot description
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
-                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState);
+    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, String repository, List<IndexId> indices, long startTime, String failure,
+                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
+                                  boolean includeGlobalState);
 
     /**
      * Deletes snapshot

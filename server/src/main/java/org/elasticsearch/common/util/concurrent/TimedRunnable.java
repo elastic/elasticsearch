@@ -39,6 +39,7 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     @Override
     public void doRun() {
         try {
+            assert finishTimeNanos == -1 : "task already run: finishTimeNanos=" + finishTimeNanos + " for " + this;
             startTimeNanos = System.nanoTime();
             original.run();
         } finally {
@@ -82,7 +83,6 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
      */
     long getTotalNanos() {
         if (finishTimeNanos == -1) {
-            // There must have been an exception thrown, the total time is unknown (-1)
             return -1;
         }
         return Math.max(finishTimeNanos - creationTimeNanos, 1);
@@ -93,8 +93,7 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
      * If the task is still running or has not yet been run, returns -1.
      */
     long getTotalExecutionNanos() {
-        if (startTimeNanos == -1 || finishTimeNanos == -1) {
-            // There must have been an exception thrown, the total time is unknown (-1)
+        if (finishTimeNanos == -1) {
             return -1;
         }
         return Math.max(finishTimeNanos - startTimeNanos, 1);
@@ -105,4 +104,10 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
         return original;
     }
 
+    @Override
+    public String toString() {
+        return "TimedRunnable{" +
+            "original=" + original +
+            '}';
+    }
 }

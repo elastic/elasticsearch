@@ -151,7 +151,8 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         final long totalNanos = totalTaskNanos.addAndGet(taskNanos);
 
         final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
-        assert taskExecutionNanos >= 0 : "expected task to always take longer than 0 nanoseconds, got: " + taskExecutionNanos;
+        assert taskExecutionNanos > 0 :
+            "expected task to always take longer than 0 nanoseconds, got: " + taskExecutionNanos + " for " + timedRunnable;
         executionEWMA.addValue(taskExecutionNanos);
 
         if (taskCount.incrementAndGet() == this.tasksPerFrame) {

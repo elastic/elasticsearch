@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -30,15 +31,20 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -81,14 +87,14 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                 .build())
             .build();
 
-        final SnapshotHistoryStore historyStore = mock(SnapshotHistoryStore.class);
-
         final ThreadPool threadPool = new TestThreadPool("test");
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
              VerifyingClient client = new VerifyingClient(threadPool, (a, r, l) -> {
                  fail("should not have tried to take a snapshot");
                  return null;
              })) {
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, client, ZoneOffset.UTC, clusterService,
+                item -> fail("should not have tried to store an item"));
 
             SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
 
@@ -96,7 +102,6 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             // not run the function to create a snapshot
             task.triggered(new SchedulerEngine.Event("nonexistent-job", System.currentTimeMillis(), System.currentTimeMillis()));
         }
-        verify(historyStore, times(0)).putAsync(any());
 
         threadPool.shutdownNow();
     }
@@ -213,5 +218,21 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             .setVersion(1)
             .setModifiedDate(1)
             .build();
+    }
+
+    public static class VerifyingHistoryStore extends SnapshotHistoryStore {
+
+        Consumer<SnapshotHistoryItem> verifier;
+
+        public VerifyingHistoryStore(SnapshotLifecycleTemplateRegistry registry, Client client, ZoneId timeZone,
+                                     ClusterService clusterService, Consumer<SnapshotHistoryItem> verifier) {
+            super(registry, client, timeZone, clusterService);
+            this.verifier = verifier;
+        }
+
+        @Override
+        public void putAsync(SnapshotHistoryItem item) {
+            verifier.accept(item);
+        }
     }
 }

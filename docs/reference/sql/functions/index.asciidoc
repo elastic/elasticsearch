@@ -143,6 +143,7 @@
 ** <<sql-functions-geo-st-wkt-to-sql>>
 ** <<sql-functions-geo-st-x>>
 ** <<sql-functions-geo-st-y>>
+** <<sql-functions-geo-st-z>>
 * <<sql-functions-system>>
 ** <<sql-functions-system-database>>
 ** <<sql-functions-system-user>>

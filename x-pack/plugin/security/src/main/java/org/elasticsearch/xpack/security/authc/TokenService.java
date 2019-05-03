@@ -1307,17 +1307,17 @@ public final class TokenService {
         listener.onResponse(indicesWithTokens);
     }
 
-    private BytesReference createTokenDocument(UserToken userToken, @Nullable String hashedRefreshToken,
+    private BytesReference createTokenDocument(UserToken userToken, @Nullable String refreshToken,
                                                @Nullable Authentication originatingClientAuth) {
-        assert hashedRefreshToken == null || originatingClientAuth != null : "non-null refresh token " + hashedRefreshToken
+        assert refreshToken == null || originatingClientAuth != null : "non-null refresh token " + refreshToken
             + " requires non-null client authn " + originatingClientAuth;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             builder.field("doc_type", TOKEN_DOC_TYPE);
             builder.field("creation_time", getCreationTime(userToken.getExpirationTime()).toEpochMilli());
-            if (hashedRefreshToken != null) {
+            if (refreshToken != null) {
                 builder.startObject("refresh_token")
-                    .field("token", hashedRefreshToken)
+                    .field("token", refreshToken)
                     .field("invalidated", false)
                     .field("refreshed", false)
                     .startObject("client")

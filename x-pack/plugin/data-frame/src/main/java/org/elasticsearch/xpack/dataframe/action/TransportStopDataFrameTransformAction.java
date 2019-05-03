@@ -7,13 +7,17 @@ package org.elasticsearch.xpack.dataframe.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -53,22 +57,33 @@ public class TransportStopDataFrameTransformAction extends
     @Override
     protected void doExecute(Task task, StopDataFrameTransformAction.Request request,
             ActionListener<StopDataFrameTransformAction.Response> listener) {
-
-        final ActionListener<StopDataFrameTransformAction.Response> finalListener;
-        if (request.waitForCompletion()) {
-            finalListener = waitForStopListener(request, listener);
+        final ClusterState state = clusterService.state();
+        final DiscoveryNodes nodes = state.nodes();
+        if (nodes.isLocalNodeElectedMaster() == false) {
+            // Delegates stop data frame to elected master node so it becomes the coordinating node.
+            if (nodes.getMasterNode() == null) {
+                listener.onFailure(new MasterNotDiscoveredException("no known master node"));
+            } else {
+                transportService.sendRequest(nodes.getMasterNode(), actionName, request,
+                        new ActionListenerResponseHandler<>(listener, StopDataFrameTransformAction.Response::new));
+            }
         } else {
-            finalListener = listener;
-        }
+            final ActionListener<StopDataFrameTransformAction.Response> finalListener;
+            if (request.waitForCompletion()) {
+                finalListener = waitForStopListener(request, listener);
+            } else {
+                finalListener = listener;
+            }
 
-        dataFrameTransformsConfigManager.expandTransformIds(request.getId(), new PageParams(0, 10_000), ActionListener.wrap(
-                expandedIds -> {
-                    request.setExpandedIds(new HashSet<>(expandedIds));
-                    request.setNodes(DataFrameNodes.dataFrameTaskNodes(expandedIds, clusterService.state()));
-                    super.doExecute(task, request, finalListener);
-                },
-                listener::onFailure
-        ));
+            dataFrameTransformsConfigManager.expandTransformIds(request.getId(), new PageParams(0, 10_000), ActionListener.wrap(
+                    expandedIds -> {
+                        request.setExpandedIds(new HashSet<>(expandedIds));
+                        request.setNodes(DataFrameNodes.dataFrameTaskNodes(expandedIds, clusterService.state()));
+                        super.doExecute(task, request, finalListener);
+                    },
+                    listener::onFailure
+            ));
+        }
     }
 
     @Override

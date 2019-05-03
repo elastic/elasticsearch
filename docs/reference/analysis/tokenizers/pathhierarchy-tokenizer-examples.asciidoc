@@ -31,7 +31,7 @@ PUT file-path-test
       "tokenizer": {
         "custom_hierarchy": {
           "type": "path_hierarchy",
-          "delimiter": "/",
+          "delimiter": "/"
         },
         "custom_hierarchy_reversed": {
           "type": "path_hierarchy",

@@ -8,7 +8,7 @@ ext.version = VersionProperties.elasticsearch
 // for this project so it can be used with dependency substitution.
 
 void getZip(File snapshotZip) {
-  String zipUrl = "http://prelert-artifacts.s3.amazonaws.com/maven/org/elasticsearch/ml/ml-cpp/${version}/ml-cpp-${version}.zip"
+  String zipUrl = "https://prelert-artifacts.s3.amazonaws.com/maven/org/elasticsearch/ml/ml-cpp/${version}/ml-cpp-${version}.zip"
   File snapshotMd5 = new File(snapshotZip.toString() + '.md5')
   HttpURLConnection conn = (HttpURLConnection) new URL(zipUrl).openConnection();
   

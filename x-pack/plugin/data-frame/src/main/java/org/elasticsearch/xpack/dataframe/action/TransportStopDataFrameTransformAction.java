@@ -35,7 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.ExceptionsHelper.convertToElastic;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class TransportStopDataFrameTransformAction extends
@@ -136,26 +135,11 @@ public class TransportStopDataFrameTransformAction extends
             List<StopDataFrameTransformAction.Response> tasks, List<TaskOperationFailure> taskOperationFailures,
             List<FailedNodeException> failedNodeExceptions) {
 
-        if (taskOperationFailures.isEmpty() == false) {
-            throw convertToElastic(taskOperationFailures.get(0).getCause());
-        } else if (failedNodeExceptions.isEmpty() == false) {
-            throw convertToElastic(failedNodeExceptions.get(0));
+        if (taskOperationFailures.isEmpty() == false || failedNodeExceptions.isEmpty() == false) {
+            return new StopDataFrameTransformAction.Response(taskOperationFailures, failedNodeExceptions, false);
         }
 
-        // Either the transform doesn't exist (the user didn't create it yet) or was deleted
-        // after the Stop API executed.
-        // In either case, let the user know
-        if (tasks.size() == 0) {
-            if (taskOperationFailures.isEmpty() == false) {
-                throw convertToElastic(taskOperationFailures.get(0).getCause());
-            } else if (failedNodeExceptions.isEmpty() == false) {
-                throw convertToElastic(failedNodeExceptions.get(0));
-            } else {
-                // This can happen we the actual task in the node no longer exists, or was never started
-                return new StopDataFrameTransformAction.Response(true);
-            }
-        }
-
+        // if tasks is empty allMatch is 'vacuously satisfied'
         boolean allStopped = tasks.stream().allMatch(StopDataFrameTransformAction.Response::isStopped);
         return new StopDataFrameTransformAction.Response(allStopped);
     }

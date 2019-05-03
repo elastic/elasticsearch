@@ -189,7 +189,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testEncodeHttpResponse() throws IOException {
         prepareHandlerForResponse(handler);
-        NioHttpResponse httpResponse = createGetEmptyResponse(0);
+        NioHttpResponse httpResponse = emptyGetResponse(0);
 
         SocketChannelContext context = mock(SocketChannelContext.class);
         HttpWriteOperation writeOperation = new HttpWriteOperation(context, httpResponse, mock(BiConsumer.class));
@@ -338,7 +338,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         prepareHandlerForResponse(handler);
         SocketChannelContext context = mock(SocketChannelContext.class);
-        HttpWriteOperation writeOperation0 = new HttpWriteOperation(context, createGetEmptyResponse(0), mock(BiConsumer.class));
+        HttpWriteOperation writeOperation0 = new HttpWriteOperation(context, emptyGetResponse(0), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation0).get(0).getListener()).setSuccess();
 
         taskScheduler.pollTask(timeValue.getNanos() + 1).run();
@@ -352,14 +352,14 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         // There was a read. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
-        HttpWriteOperation writeOperation1 = new HttpWriteOperation(context, createGetEmptyResponse(1), mock(BiConsumer.class));
+        HttpWriteOperation writeOperation1 = new HttpWriteOperation(context, emptyGetResponse(1), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation1).get(0).getListener()).setSuccess();
 
         taskScheduler.pollTask(timeValue.getNanos() + 5).run();
         // There has not been a read, however there is still an inflight request. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
-        HttpWriteOperation writeOperation2 = new HttpWriteOperation(context, createGetEmptyResponse(2), mock(BiConsumer.class));
+        HttpWriteOperation writeOperation2 = new HttpWriteOperation(context, emptyGetResponse(2), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation2).get(0).getListener()).setSuccess();
 
         taskScheduler.pollTask(timeValue.getNanos() + 7).run();
@@ -368,7 +368,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         assertNull(taskScheduler.pollTask(timeValue.getNanos() + 9));
     }
 
-    private NioHttpResponse createGetEmptyResponse(int sequenceNumber) {
+    private NioHttpResponse emptyGetResponse(int sequenceNumber) {
         DefaultFullHttpRequest nettyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
         NioHttpRequest nioHttpRequest = new NioHttpRequest(nettyRequest, sequenceNumber);
         NioHttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);

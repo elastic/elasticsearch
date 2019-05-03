@@ -437,6 +437,9 @@ public class CloseIndexIT extends ESIntegTestCase {
         indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(1, 50))
             .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
         ensureGreen(indexName);
+        if (randomBoolean()) {
+            flush(indexName);
+        }
 
         internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
             @Override
@@ -445,15 +448,16 @@ public class CloseIndexIT extends ESIntegTestCase {
                     .mapToObj(i -> client().prepareIndex(indexName, "_doc", "Extra" + i).setSource("num", i)).collect(toList()));
                 ensureGreen();
 
+                assertAcked(client().admin().indices().prepareClose(indexName).get());
+                ensureGreen();
+
+                // Must disable replica allocation before stopping node because of caching in ReplicaShardAllocator (async fetch)
+                assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                    .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries")).get());
                 internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) throws Exception {
                         ensureYellow();
-
-                        assertAcked(client().admin().indices().prepareClose(indexName).get());
-
-                        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")).get());
                         return super.onNodeStopped(nodeName);
                     }
                 });
@@ -465,8 +469,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
             .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null)).get());
         ensureGreen();
-        // needs merge of #41400 before we can check this.
-//        assertNoFileBasedRecovery(indexName);
+        assertNoFileBasedRecovery(indexName);
     }
 
     static void assertIndexIsClosed(final String... indices) {
@@ -515,7 +518,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
     }
 
-    void assertNoFileBasedRecovery(String indexName) {
+    private void assertNoFileBasedRecovery(String indexName) {
         for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());

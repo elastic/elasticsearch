@@ -148,8 +148,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
-import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
+import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
@@ -564,7 +564,8 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        List<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toList());
+        List<NodeAndClient> values = nodes.values().stream().filter(nc -> nc.isClosed() == false).filter(predicate)
+            .collect(Collectors.toList());
         if (values.isEmpty() == false) {
             return randomFrom(random, values);
         }
@@ -1003,6 +1004,10 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
 
+        public boolean isClosed() {
+            return closed.get();
+        }
+
         private void markNodeDataDirsAsPendingForWipe(Node node) {
             assert Thread.holdsLock(InternalTestCluster.this);
             NodeEnvironment nodeEnv = node.getNodeEnvironment();
@@ -1178,10 +1183,11 @@ public final class InternalTestCluster extends TestCluster {
 
     /** ensure a cluster is formed with all published nodes, but do so by using the client of the specified node */
     private synchronized void validateClusterFormed(String viaNode) {
-        Set<DiscoveryNode> expectedNodes = new HashSet<>();
-        for (NodeAndClient nodeAndClient : nodes.values()) {
-            expectedNodes.add(getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode());
-        }
+        Set<DiscoveryNode> expectedNodes =
+            nodes.values().stream()
+                .filter(nc -> nc.isClosed() == false)
+                .map(nc -> getInstanceFromNode(ClusterService.class, nc.node()).localNode())
+                .collect(Collectors.toSet());
         logger.trace("validating cluster formed via [{}], expecting {}", viaNode, expectedNodes);
         final Client client = client(viaNode);
         try {
@@ -1533,7 +1539,7 @@ public final class InternalTestCluster extends TestCluster {
 
     @Override
     public int size() {
-        return nodes.size();
+        return Math.toIntExact(nodes.values().stream().filter(nc -> nc.isClosed() == false).count());
     }
 
     @Override
@@ -2085,7 +2091,10 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private int getMasterNodesCount() {
-        return (int) nodes.values().stream().filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings())).count();
+        return (int) nodes.values().stream()
+            .filter(n -> n.isClosed() == false)
+            .filter(n -> Node.NODE_MASTER_SETTING.get(n.node().settings()))
+            .count();
     }
 
     public String startMasterOnlyNode() {

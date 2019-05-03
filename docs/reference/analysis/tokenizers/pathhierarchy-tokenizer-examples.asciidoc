@@ -16,7 +16,7 @@ for photos inside photo folders of two different users.
 
 [source,js]
 --------------------------------------------------
-PUT /file-path-test/
+PUT file-path-test
 {
   "settings": {
     "analysis": {
@@ -64,27 +64,27 @@ PUT /file-path-test/
   }
 }
 
-POST /file-path-test/_doc/1
+POST file-path-test/_doc/1
 {
   "file_path": "/User/alice/photos/2017/05/16/my_photo1.jpg"
 }
 
-POST /file-path-test/_doc/2
+POST file-path-test/_doc/2
 {
   "file_path": "/User/alice/photos/2017/05/16/my_photo2.jpg"
 }
 
-POST /file-path-test/_doc/3
+POST file-path-test/_doc/3
 {
   "file_path": "/User/alice/photos/2017/05/16/my_photo3.jpg"
 }
 
-POST /file-path-test/_doc/4
+POST file-path-test/_doc/4
 {
   "file_path": "/User/alice/photos/2017/05/15/my_photo1.jpg"
 }
 
-POST /file-path-test/_doc/5
+POST file-path-test/_doc/5
 {
   "file_path": "/User/bob/photos/2017/05/16/my_photo1.jpg"
 }

@@ -43,6 +43,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -218,6 +219,13 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
          */
         public String syncId() {
             return metadataSnapshot.getSyncId();
+        }
+
+        /**
+         * @return sequence number info from lucene commit
+         */
+        public SequenceNumbers.CommitInfo seqNoInfo() {
+            return metadataSnapshot.seqNoInfo();
         }
 
         @Override

@@ -41,6 +41,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData;
@@ -49,7 +50,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
@@ -101,17 +101,16 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
                     DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
                     // current node will not be in matchingNodes as it is filtered away by SameShardAllocationDecider
-                    final String currentSyncId;
+                    final TransportNodesListShardStoreMetaData.StoreFilesMetaData currentStore;
                     if (shardStores.getData().containsKey(currentNode)) {
-                        currentSyncId = shardStores.getData().get(currentNode).storeFilesMetaData().syncId();
+                        currentStore = shardStores.getData().get(currentNode).storeFilesMetaData();
                     } else {
-                        currentSyncId = null;
+                        currentStore = null;
                     }
                     if (currentNode.equals(nodeWithHighestMatch) == false
-                            && Objects.equals(currentSyncId, primaryStore.syncId()) == false
-                            && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch)) {
-                        // we found a better match that has a full sync id match, the existing allocation is not fully synced
-                        // so we found a better one, cancel this one
+                            && isSyncedRecovery(primaryStore, currentStore, isClosedIndex(shard, allocation)) == false
+                            && matchingNodes.isSyncedRecovery(nodeWithHighestMatch)) {
+                        // we found a better match that can do a fast recovery, cancel current recovery
                         logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
                                 currentNode, nodeWithHighestMatch);
                         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
@@ -315,6 +314,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                                             boolean explain) {
         ObjectLongMap<DiscoveryNode> nodesToSize = new ObjectLongHashMap<>();
         Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
+        final boolean closedIndex = isClosedIndex(shard, allocation);
         for (Map.Entry<DiscoveryNode, NodeStoreFilesMetaData> nodeStoreEntry : data.getData().entrySet()) {
             DiscoveryNode discoNode = nodeStoreEntry.getKey();
             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData = nodeStoreEntry.getValue().storeFilesMetaData();
@@ -335,7 +335,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
             long matchingBytes = -1;
             if (explain) {
-                matchingBytes = computeMatchingBytes(primaryStore, storeFilesMetaData);
+                matchingBytes = computeMatchingBytes(primaryStore, storeFilesMetaData, closedIndex);
                 ShardStoreInfo shardStoreInfo = new ShardStoreInfo(matchingBytes);
                 nodeDecisions.put(node.nodeId(), new NodeAllocationResult(discoNode, shardStoreInfo, decision));
             }
@@ -345,7 +345,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             }
 
             if (matchingBytes < 0) {
-                matchingBytes = computeMatchingBytes(primaryStore, storeFilesMetaData);
+                matchingBytes = computeMatchingBytes(primaryStore, storeFilesMetaData, closedIndex);
             }
             nodesToSize.put(discoNode, matchingBytes);
             if (logger.isTraceEnabled()) {
@@ -362,11 +362,9 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     }
 
     private static long computeMatchingBytes(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
-                                             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData) {
-        String primarySyncId = primaryStore.syncId();
-        String replicaSyncId = storeFilesMetaData.syncId();
-        // see if we have a sync id we can make use of
-        if (replicaSyncId != null && replicaSyncId.equals(primarySyncId)) {
+                                             TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData,
+                                             boolean closedIndex) {
+        if (isSyncedRecovery(primaryStore, storeFilesMetaData, closedIndex)) {
             return Long.MAX_VALUE;
         } else {
             long sizeMatched = 0;
@@ -378,6 +376,37 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             }
             return sizeMatched;
         }
+    }
+
+    /**
+     * Is a "synced recovery", which is either sync-id match or a closed index with equivalent last commits.
+     */
+    private static boolean isSyncedRecovery(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
+                                            TransportNodesListShardStoreMetaData.StoreFilesMetaData candidateStore, boolean closedIndex) {
+        return syncIdMatch(primaryStore, candidateStore)
+            || (closedIndex && equivalentStores(primaryStore, candidateStore));
+    }
+
+    private static boolean syncIdMatch(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
+                                       TransportNodesListShardStoreMetaData.StoreFilesMetaData candidateStore) {
+        String primarySyncId = primaryStore.syncId();
+        String replicaSyncId = candidateStore.syncId();
+        return (replicaSyncId != null && replicaSyncId.equals(primarySyncId));
+    }
+
+    private static boolean equivalentStores(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
+                                            TransportNodesListShardStoreMetaData.StoreFilesMetaData candidateStore) {
+        SequenceNumbers.CommitInfo primarySeqNoInfo = primaryStore.seqNoInfo();
+        SequenceNumbers.CommitInfo candidateSeqNoInfo = candidateStore.seqNoInfo();
+
+        return primarySeqNoInfo.maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED // disregard empty or upgraded without ops
+            && primarySeqNoInfo.maxSeqNo == primarySeqNoInfo.localCheckpoint
+            && candidateSeqNoInfo.maxSeqNo == candidateSeqNoInfo.localCheckpoint
+            && primarySeqNoInfo.maxSeqNo == candidateSeqNoInfo.maxSeqNo;
+    }
+
+    private boolean isClosedIndex(ShardRouting shard, RoutingAllocation allocation) {
+        return allocation.metaData().getIndexSafe(shard.index()).getState() == IndexMetaData.State.CLOSE;
     }
 
     protected abstract AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation);
@@ -418,7 +447,10 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             return this.nodeWithHighestMatch;
         }
 
-        public boolean isNodeMatchBySyncID(DiscoveryNode node) {
+        /**
+         * Is supplied node a sync'ed recovery, either sync-id match or closed index with identical last commit.
+         */
+        public boolean isSyncedRecovery(DiscoveryNode node) {
             return nodesToSize.get(node) == Long.MAX_VALUE;
         }
 

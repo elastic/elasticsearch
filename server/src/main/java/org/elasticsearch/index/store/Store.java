@@ -845,6 +845,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return numDocs;
         }
 
+        /**
+         * @return sequence number info from lucene commit
+         */
+        public SequenceNumbers.CommitInfo seqNoInfo() {
+            return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(commitUserData.entrySet());
+        }
+
         static class LoadedMetadata {
             final Map<String, StoreFileMetaData> fileMetadata;
             final Map<String, String> userData;

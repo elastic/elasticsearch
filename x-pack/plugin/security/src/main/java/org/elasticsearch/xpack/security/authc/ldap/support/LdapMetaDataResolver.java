@@ -74,7 +74,10 @@ public class LdapMetaDataResolver {
         return Arrays.stream(this.attributeNames).map(attributes).filter(Objects::nonNull)
                         .collect(Collectors.toUnmodifiableMap(
                                 attr -> attr.getName(),
-                                attr -> List.of(attr.getValues()))
+                                attr -> {
+                                    final String[] values = attr.getValues();
+                                    return values.length == 1 ? values[0] : List.of(values);
+                                })
                         );
     }
 

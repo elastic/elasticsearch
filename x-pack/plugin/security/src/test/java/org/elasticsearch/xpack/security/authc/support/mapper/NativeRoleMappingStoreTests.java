@@ -42,6 +42,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -107,7 +108,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
                 List.of(
                         randomiseDn("cn=alphaflight,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca"),
                         randomiseDn("cn=mutants,ou=groups,ou=dept_h,o=forces,dc=gc,dc=ca")
-                ), Collections.singletonMap("extra_group", "flight"), realm);
+                ), Map.of("extra_group", "flight"), realm);
 
         logger.info("UserData is [{}]", user);
         store.resolveRoles(user, future);

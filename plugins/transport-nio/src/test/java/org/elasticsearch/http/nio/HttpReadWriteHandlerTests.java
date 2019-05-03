@@ -368,7 +368,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         assertNull(taskScheduler.pollTask(timeValue.getNanos() + 9));
     }
 
-    private NioHttpResponse emptyGetResponse(int sequenceNumber) {
+    private static NioHttpResponse emptyGetResponse(int sequenceNumber) {
         DefaultFullHttpRequest nettyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
         NioHttpRequest nioHttpRequest = new NioHttpRequest(nettyRequest, sequenceNumber);
         NioHttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);

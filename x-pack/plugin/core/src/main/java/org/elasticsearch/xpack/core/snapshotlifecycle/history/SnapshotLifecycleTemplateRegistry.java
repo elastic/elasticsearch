@@ -27,6 +27,10 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
+/**
+ * Manages the index template and associated ILM policy for the Snapshot
+ * Lifecycle Management history index.
+ */
 public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     // history (please add a comment why you increased the version here)
     // version 1: initial

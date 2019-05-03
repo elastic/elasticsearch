@@ -12,6 +12,8 @@ Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
 Infra/Settings::
 * Drop distinction in entries for keystore {pull}41701[#41701]
 
+Security::
+* Moved some security features to basic
 
 [[bug-6.8.0]]
 [float]

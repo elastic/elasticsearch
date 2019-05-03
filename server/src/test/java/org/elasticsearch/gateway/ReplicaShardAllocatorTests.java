@@ -324,7 +324,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
         return onePrimaryOnNode1And1Replica(deciders, settings, reason,
-            randomBoolean() ? IndexMetaData.State.OPEN : IndexMetaData.State.CLOSE);
+            randomFrom(IndexMetaData.State.values()));
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason,

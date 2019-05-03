@@ -454,10 +454,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(1, 2));
-            if (Version.CURRENT.before(Version.V_6_0_0)) {
-                // Disable rebalancing to prevent the primary from relocating to 6.x node while replicas are still on 5.x.
-                // The relocating scenario is tested in testRecoveryWithSyncIdVerifySeqNoStats where peer recovery ignores
-                // syncId and performs a file-based recovery.
+            if (getNodeId(version -> version.before(Version.V_6_0_0)) != null) {
+                // If we are upgrading from 5.x, disable rebalancing to prevent the primary from relocating to 6.x node
+                // while replicas are still on 5.x. The relocating scenario is tested in testRecoveryWithSyncIdVerifySeqNoStats
+                // where peer recovery ignores syncId and performs a file-based recovery.
                 settings.put("index.routing.rebalance.enable", "none");
             }
             createIndex(index, settings.build());
@@ -507,7 +507,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
             if (Objects.equals(XContentMapValues.extractValue("type", shard), "PEER")) {
                 if (Objects.equals(XContentMapValues.extractValue("target.name", shard), targetNode)) {
                     Integer recoveredFileSize = (Integer) XContentMapValues.extractValue("index.files.recovered", shard);
-                    assertThat(reason + "target node [" + targetNode + "] recovery stats [" + recoveryStats + "]" +
+                    assertThat(reason + " target node [" + targetNode + "] recovery stats [" + recoveryStats + "]" +
                         " indices stats [" + EntityUtils.toString(indicesStats.getEntity()) + "]", recoveredFileSize, sizeMatcher);
                 }
             }

@@ -327,6 +327,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41794")
     @SuppressWarnings("unchecked")
     public void testReadTimeout() throws IOException {
         TimeValue timeValue = TimeValue.timeValueMillis(500);

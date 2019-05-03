@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -62,7 +63,7 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
             listener.onFailure(new ElasticsearchStatusException("Cannot delete data frame [" + request.getId() +
                     "] as the task is running. Stop the task first", RestStatus.CONFLICT));
         } else {
-            // Task is not runing, delete the configuration document
+            // Task is not running, delete the configuration document
             transformsConfigManager.deleteTransform(request.getId(), ActionListener.wrap(
                     r -> listener.onResponse(new AcknowledgedResponse(r)),
                     listener::onFailure));
@@ -71,6 +72,6 @@ public class TransportDeleteDataFrameTransformAction extends TransportMasterNode
 
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-        return null;
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

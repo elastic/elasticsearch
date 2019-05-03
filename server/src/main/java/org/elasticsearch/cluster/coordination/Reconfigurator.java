@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.set.Sets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -123,8 +124,8 @@ public class Reconfigurator {
         final Set<String> liveInConfigIds = new TreeSet<>(currentConfig.getNodeIds());
         liveInConfigIds.retainAll(liveNodeIds);
 
-        final Set<String> inConfigNotLiveIds = Sets.unmodifiableSortedDifference(currentConfig.getNodeIds(), liveInConfigIds);
-        final Set<String> nonRetiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
+        final SortedSet<String> inConfigNotLiveIds = Sets.unmodifiableSortedDifference(currentConfig.getNodeIds(), liveInConfigIds);
+        final SortedSet<String> nonRetiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
         nonRetiredInConfigNotLiveIds.removeAll(retiredNodeIds);
 
         final Set<String> nonRetiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
@@ -141,7 +142,7 @@ public class Reconfigurator {
             nonRetiredInConfigLiveMasterIds = Collections.emptySet();
         }
 
-        final Set<String> nonRetiredLiveNotInConfigIds = Sets.sortedDifference(liveNodeIds, currentConfig.getNodeIds());
+        final SortedSet<String> nonRetiredLiveNotInConfigIds = Sets.sortedDifference(liveNodeIds, currentConfig.getNodeIds());
         nonRetiredLiveNotInConfigIds.removeAll(retiredNodeIds);
 
         /*

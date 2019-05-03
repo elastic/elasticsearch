@@ -94,7 +94,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
                 }
             }
         }
-        expressions.add(c.defaultElse());
+        expressions.add(c.elseResult());
         return expressions;
     }
 }

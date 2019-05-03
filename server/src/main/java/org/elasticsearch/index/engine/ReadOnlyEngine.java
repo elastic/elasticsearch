@@ -130,7 +130,7 @@ public class ReadOnlyEngine extends Engine {
         // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
         // that guarantee that all operations have been flushed to Lucene.
         final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-        if (indexVersionCreated.onOrAfter(Version.V_7_1_0) ||
+        if (indexVersionCreated.onOrAfter(Version.V_7_2_0) ||
             (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(Version.V_6_7_0))) {
             if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
                 throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
@@ -456,11 +456,6 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    @Override
-    public void reinitializeMaxSeqNoOfUpdatesOrDeletes() {
-        advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
-    }
-
     protected void processReaders(IndexReader reader, IndexReader previousReader) {
         searcherFactory.processReaders(reader, previousReader);
     }
@@ -486,5 +481,16 @@ public class ReadOnlyEngine extends Engine {
                 return null;
             }
         };
+    }
+
+    @Override
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return seqNoStats.getMaxSeqNo();
+    }
+
+    @Override
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+        assert maxSeqNoOfUpdatesOnPrimary <= getMaxSeqNoOfUpdatesOrDeletes() :
+            maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 }

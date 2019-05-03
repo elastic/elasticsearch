@@ -16,9 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
@@ -180,16 +178,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected SearchRequest buildSearchRequest() {
-        SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex());
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        sourceBuilder.aggregation(pivot.buildAggregation(getPosition(), pageSize));
-        sourceBuilder.size(0);
-
-        QueryBuilder pivotQueryBuilder = getConfig().getSource().getQueryConfig().getQuery();
-        sourceBuilder.query(pivotQueryBuilder);
-
-        searchRequest.source(sourceBuilder);
-        return searchRequest;
+        return pivot.buildSearchRequest(getConfig().getSource(), getPosition(), pageSize);
     }
 
     /**

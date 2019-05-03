@@ -14,7 +14,7 @@ allprojects { all ->
         String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision")
         if (luceneSnapshotRevision != null) {
             maven {
-                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision
+                url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision
             }
         }
 

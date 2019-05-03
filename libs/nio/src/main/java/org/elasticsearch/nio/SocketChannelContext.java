@@ -20,6 +20,7 @@
 package org.elasticsearch.nio;
 
 import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.nio.utils.ByteBufferUtils;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -249,26 +250,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     // data that is copied to the buffer for a write, but not successfully flushed immediately, must be
     // copied again on the next call.
 
-    protected int readFromChannel(ByteBuffer buffer) throws IOException {
-        ByteBuffer ioBuffer = getSelector().getIoBuffer();
-        ioBuffer.limit(Math.min(buffer.remaining(), ioBuffer.limit()));
-        int bytesRead;
-        try {
-            bytesRead = rawChannel.read(ioBuffer);
-        } catch (IOException e) {
-            closeNow = true;
-            throw e;
-        }
-        if (bytesRead < 0) {
-            closeNow = true;
-            return 0;
-        } else {
-            ioBuffer.flip();
-            buffer.put(ioBuffer);
-            return bytesRead;
-        }
-    }
-
     protected int readFromChannel(InboundChannelBuffer channelBuffer) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
         int bytesRead;
@@ -288,7 +269,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             int j = 0;
             while (j < buffers.length && ioBuffer.remaining() > 0) {
                 ByteBuffer buffer = buffers[j++];
-                copyBytes(ioBuffer, buffer);
+                ByteBufferUtils.copyBytes(ioBuffer, buffer);
             }
             channelBuffer.incrementIndex(bytesRead);
             return bytesRead;
@@ -299,24 +280,6 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
     // copying.
     private final int WRITE_LIMIT = 1 << 16;
 
-    protected int flushToChannel(ByteBuffer buffer) throws IOException {
-        int initialPosition = buffer.position();
-        ByteBuffer ioBuffer = getSelector().getIoBuffer();
-        ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
-        copyBytes(buffer, ioBuffer);
-        ioBuffer.flip();
-        int bytesWritten;
-        try {
-            bytesWritten = rawChannel.write(ioBuffer);
-        } catch (IOException e) {
-            closeNow = true;
-            buffer.position(initialPosition);
-            throw e;
-        }
-        buffer.position(initialPosition + bytesWritten);
-        return bytesWritten;
-    }
-
     protected int flushToChannel(FlushOperation flushOperation) throws IOException {
         ByteBuffer ioBuffer = getSelector().getIoBuffer();
 
@@ -325,12 +288,8 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         while (continueFlush) {
             ioBuffer.clear();
             ioBuffer.limit(Math.min(WRITE_LIMIT, ioBuffer.limit()));
-            int j = 0;
             ByteBuffer[] buffers = flushOperation.getBuffersToWrite(WRITE_LIMIT);
-            while (j < buffers.length && ioBuffer.remaining() > 0) {
-                ByteBuffer buffer = buffers[j++];
-                copyBytes(buffer, ioBuffer);
-            }
+            ByteBufferUtils.copyBytes(buffers, ioBuffer);
             ioBuffer.flip();
             int bytesFlushed;
             try {
@@ -344,13 +303,5 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             continueFlush = ioBuffer.hasRemaining() == false && flushOperation.isFullyFlushed() == false;
         }
         return totalBytesFlushed;
-    }
-
-    private void copyBytes(ByteBuffer from, ByteBuffer to) {
-        int nBytesToCopy = Math.min(to.remaining(), from.remaining());
-        int initialLimit = from.limit();
-        from.limit(from.position() + nBytesToCopy);
-        to.put(from);
-        from.limit(initialLimit);
     }
 }

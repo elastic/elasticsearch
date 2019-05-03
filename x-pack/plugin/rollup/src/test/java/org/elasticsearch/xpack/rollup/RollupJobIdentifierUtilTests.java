@@ -657,7 +657,8 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
     public void testObsoleteTimezone() {
         // Job has "obsolete" timezone
-        DateHistogramGroupConfig dateHisto = new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1h"), null, "Canada/Mountain");
+        DateHistogramGroupConfig dateHisto = new DateHistogramGroupConfig.CalendarInterval("foo",
+            new DateHistogramInterval("1h"), null, "Canada/Mountain");
         GroupConfig group = new GroupConfig(dateHisto);
         RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10,  group, emptyList(), null);
         RollupJobCaps cap = new RollupJobCaps(job);

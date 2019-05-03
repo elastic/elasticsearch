@@ -487,8 +487,9 @@ public class AuthenticationService {
                 });
                 List<Realm> unlicensedRealms = realms.getUnlicensedRealms();
                 if (unlicensedRealms.isEmpty() == false) {
-                    logger.warn("Authentication failed." +
-                            " The following realms were skipped because they are not permitted on the current license: [{}]",
+                    logger.warn("Authentication failed using realms [{}]." +
+                            " Realms [{}] were skipped because they are not permitted on the current license",
+                        Strings.collectionToCommaDelimitedString(defaultOrderedRealmList),
                         Strings.collectionToCommaDelimitedString(unlicensedRealms));
                 }
                 listener.onFailure(request.authenticationFailed(authenticationToken));

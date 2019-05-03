@@ -5,7 +5,9 @@
 
 {es-sql} supports two types of patterns for matching multiple indices or tables:
 
-* {es} multi-index
+[[sql-index-patterns-multi]]
+[float]
+=== {es} multi-index
 
 The {es} notation for enumerating, including or excluding <<multi-index,multi index syntax>>
 is supported _as long_ as it is quoted or escaped as a table identifier.
@@ -33,7 +35,9 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
 
 NOTE: There is the restriction that all resolved concrete tables have the exact same mapping.
 
-* SQL `LIKE` notation
+[[sql-index-patterns-like]]
+[float]
+=== SQL `LIKE` notation
 
 The common `LIKE` statement (including escaping if needed) to match a wildcard pattern, based on one `_`
 or multiple `%` characters.
@@ -81,3 +85,31 @@ Which one to use, is up to you however try to stick to the same one across your 
 NOTE: As the query type of quoting between the two patterns is fairly similar (`"` vs `'`), {es-sql} _always_
 requires the keyword `LIKE` for SQL `LIKE` pattern.
 
+[[sql-index-frozen]]
+== Frozen Indices
+
+{es} <<frozen-indices, frozen indices>> are a useful and powerful tool for hot/warm architecture introduced in {es} 6.6, 
+essentially by trading speed for memory.
+{es-sql} supports frozen indices and similar to {es}, due to their performance characteristics, allows searches on them only
+when explicitly told so by user - in other words, by default, frozen indices are not included in searches.
+
+One can toggle the use of frozen indices through:
+
+::dedicated configuration parameter
+Set to `true` properties `index_include_frozen` in the <<sql-rest>> or `index.include.frozen` in the drivers to include frozen indices.
+
+::dedicated keyword
+Explicitly perform the inclusion through the dedicated `FROZEN` keyword in the `FROM` clause or `INCLUDE FROZEN` in the `SHOW ` commands:
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[showTablesIncludeFrozen]
+----
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[fromTableIncludeFrozen]
+----
+
+Unless enabled, frozen indices are completely ignored; it is as if they do not exist and as such, queries ran against them are likely to fail.

@@ -1,7 +1,7 @@
 --
 :api: invalidate-my-api-key
 :request: InvalidateMyApiKeyRequest
-:response: InvalidateMyApiKeyRequest
+:response: InvalidateMyApiKeyResponse
 --
 
 [id="{upid}-{api}"]

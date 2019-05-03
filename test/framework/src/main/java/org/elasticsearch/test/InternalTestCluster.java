@@ -562,9 +562,13 @@ public final class InternalTestCluster extends TestCluster {
         return getRandomNodeAndClient(nc -> true);
     }
 
-    private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
+    private NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
+        return getRandomNodeAndClientIncludingClosed(((Predicate<NodeAndClient>) nc -> nc.isClosed() == false).and(predicate));
+    }
+
+    private synchronized NodeAndClient getRandomNodeAndClientIncludingClosed(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        List<NodeAndClient> values = nodes.values().stream().filter(nc -> nc.isClosed() == false).filter(predicate)
+        List<NodeAndClient> values = nodes.values().stream().filter(predicate)
             .collect(Collectors.toList());
         if (values.isEmpty() == false) {
             return randomFrom(random, values);
@@ -1521,7 +1525,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized <T> T getInstance(Class<T> clazz, Predicate<NodeAndClient> predicate) {
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(predicate);
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClientIncludingClosed(predicate);
         assert randomNodeAndClient != null;
         return getInstanceFromNode(clazz, randomNodeAndClient.node);
     }

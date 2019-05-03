@@ -189,11 +189,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testEncodeHttpResponse() throws IOException {
         prepareHandlerForResponse(handler);
-
-        DefaultFullHttpRequest nettyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
-        NioHttpRequest nioHttpRequest = new NioHttpRequest(nettyRequest, 0);
-        NioHttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
-        httpResponse.addHeader(HttpHeaderNames.CONTENT_LENGTH.toString(), "0");
+        NioHttpResponse httpResponse = emptyGetResponse(0);
 
         SocketChannelContext context = mock(SocketChannelContext.class);
         HttpWriteOperation writeOperation = new HttpWriteOperation(context, httpResponse, mock(BiConsumer.class));
@@ -327,16 +323,11 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41794")
     @SuppressWarnings("unchecked")
     public void testReadTimeout() throws IOException {
         TimeValue timeValue = TimeValue.timeValueMillis(500);
         Settings settings = Settings.builder().put(SETTING_HTTP_READ_TIMEOUT.getKey(), timeValue).build();
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
-        DefaultFullHttpRequest nettyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
-        NioHttpRequest nioHttpRequest = new NioHttpRequest(nettyRequest, 0);
-        NioHttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
-        httpResponse.addHeader(HttpHeaderNames.CONTENT_LENGTH.toString(), "0");
 
         NioCorsConfig corsConfig = NioCorsConfigBuilder.forAnyOrigin().build();
         TaskScheduler taskScheduler = new TaskScheduler();
@@ -347,8 +338,8 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
 
         prepareHandlerForResponse(handler);
         SocketChannelContext context = mock(SocketChannelContext.class);
-        HttpWriteOperation writeOperation = new HttpWriteOperation(context, httpResponse, mock(BiConsumer.class));
-        handler.writeToBytes(writeOperation);
+        HttpWriteOperation writeOperation0 = new HttpWriteOperation(context, emptyGetResponse(0), mock(BiConsumer.class));
+        ((ChannelPromise) handler.writeToBytes(writeOperation0).get(0).getListener()).setSuccess();
 
         taskScheduler.pollTask(timeValue.getNanos() + 1).run();
         // There was a read. Do not close.
@@ -361,18 +352,28 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         // There was a read. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
-        handler.writeToBytes(writeOperation);
+        HttpWriteOperation writeOperation1 = new HttpWriteOperation(context, emptyGetResponse(1), mock(BiConsumer.class));
+        ((ChannelPromise) handler.writeToBytes(writeOperation1).get(0).getListener()).setSuccess();
 
         taskScheduler.pollTask(timeValue.getNanos() + 5).run();
         // There has not been a read, however there is still an inflight request. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
-        handler.writeToBytes(writeOperation);
+        HttpWriteOperation writeOperation2 = new HttpWriteOperation(context, emptyGetResponse(2), mock(BiConsumer.class));
+        ((ChannelPromise) handler.writeToBytes(writeOperation2).get(0).getListener()).setSuccess();
 
         taskScheduler.pollTask(timeValue.getNanos() + 7).run();
         // No reads and no inflight requests, close
         verify(transport, times(1)).onException(eq(channel), any(HttpReadTimeoutException.class));
         assertNull(taskScheduler.pollTask(timeValue.getNanos() + 9));
+    }
+
+    private static NioHttpResponse emptyGetResponse(int sequenceNumber) {
+        DefaultFullHttpRequest nettyRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
+        NioHttpRequest nioHttpRequest = new NioHttpRequest(nettyRequest, sequenceNumber);
+        NioHttpResponse httpResponse = nioHttpRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
+        httpResponse.addHeader(HttpHeaderNames.CONTENT_LENGTH.toString(), "0");
+        return httpResponse;
     }
 
     private FullHttpResponse executeCorsRequest(final Settings settings, final String originValue, final String host) throws IOException {

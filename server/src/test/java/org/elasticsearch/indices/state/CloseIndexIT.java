@@ -377,6 +377,9 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Ensures that if a replica of a closed index does not have the same content as the primary, then a file-based recovery will occur.
+     */
     public void testRecoverExistingReplica() throws Exception {
         final String indexName = "test-recover-existing-replica";
         internalCluster().ensureAtLeastNumDataNodes(2);

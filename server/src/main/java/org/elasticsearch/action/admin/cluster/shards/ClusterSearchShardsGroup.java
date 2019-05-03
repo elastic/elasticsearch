@@ -22,43 +22,24 @@ package org.elasticsearch.action.admin.cluster.shards;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-public class ClusterSearchShardsGroup implements Streamable, ToXContentObject {
+public class ClusterSearchShardsGroup implements Writeable, ToXContentObject {
 
-    private ShardId shardId;
-    private ShardRouting[] shards;
-
-    private ClusterSearchShardsGroup() {
-
-    }
+    private final ShardId shardId;
+    private final ShardRouting[] shards;
 
     public ClusterSearchShardsGroup(ShardId shardId, ShardRouting[] shards) {
         this.shardId = shardId;
         this.shards = shards;
     }
 
-    static ClusterSearchShardsGroup readSearchShardsGroupResponse(StreamInput in) throws IOException {
-        ClusterSearchShardsGroup response = new ClusterSearchShardsGroup();
-        response.readFrom(in);
-        return response;
-    }
-
-    public ShardId getShardId() {
-        return shardId;
-    }
-
-    public ShardRouting[] getShards() {
-        return shards;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    ClusterSearchShardsGroup(StreamInput in) throws IOException {
         shardId = ShardId.readShardId(in);
         shards = new ShardRouting[in.readVInt()];
         for (int i = 0; i < shards.length; i++) {
@@ -73,6 +54,14 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContentObject {
         for (ShardRouting shardRouting : shards) {
             shardRouting.writeToThin(out);
         }
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
+    public ShardRouting[] getShards() {
+        return shards;
     }
 
     @Override

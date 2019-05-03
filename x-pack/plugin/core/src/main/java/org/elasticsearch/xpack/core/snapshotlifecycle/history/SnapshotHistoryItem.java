@@ -29,6 +29,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 
+/**
+ * Represents the record of a Snapshot Lifecycle Management action, so that it
+ * can be indexed in a history index or recorded to a log in a structured way
+ */
 public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     static final ParseField TIMESTAMP = new ParseField("@timestamp");
     static final ParseField POLICY_ID = new ParseField("policy");

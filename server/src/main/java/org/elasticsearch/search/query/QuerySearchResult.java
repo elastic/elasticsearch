@@ -286,7 +286,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (hasAggs = in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
-        if (in.getVersion().before(Version.V_7_1_0)) {
+        if (in.getVersion().before(Version.V_7_2_0)) {
             List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()
                 .map(a -> (SiblingPipelineAggregator) a).collect(Collectors.toList());
             if (hasAggs && pipelineAggregators.isEmpty() == false) {
@@ -334,7 +334,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeBoolean(true);
             aggregations.writeTo(out);
         }
-        if (out.getVersion().before(Version.V_7_1_0)) {
+        if (out.getVersion().before(Version.V_7_2_0)) {
             //Earlier versions expect sibling pipeline aggs separately as they used to be set to QuerySearchResult directly,
             //while later versions expect them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
             //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1 on.

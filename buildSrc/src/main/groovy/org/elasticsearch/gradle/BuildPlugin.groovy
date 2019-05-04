@@ -39,6 +39,8 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
 import org.gradle.api.execution.TaskExecutionGraph
@@ -580,6 +582,16 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
+        project.getRepositories().all { repository ->
+            if (repository instanceof MavenArtifactRepository) {
+                final MavenArtifactRepository maven = (MavenArtifactRepository) repository
+                assertRepositoryURIUsesHttps(project, maven.getUrl())
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(project, uri) }
+            } else if (repository instanceof IvyArtifactRepository) {
+                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
+                assertRepositoryURIUsesHttps(project, ivy.getUrl())
+            }
+        }
         RepositoryHandler repos = project.repositories
         if (System.getProperty("repos.mavenLocal") != null) {
             // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
@@ -614,6 +626,12 @@ class BuildPlugin implements Plugin<Project> {
                 name 'lucene-snapshots'
                 url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
+        }
+    }
+
+    private static void assertRepositoryURIUsesHttps(final Project project, final URI uri) {
+        if (uri != null && uri.toURL().getProtocol().equals("http")) {
+            throw new GradleException("repository on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
         }
     }
 

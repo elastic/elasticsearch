@@ -1,0 +1,3 @@
+apply plugin: 'base'
+
+assemble.dependsOn ":distribution:docker:buildDockerBuildContext"

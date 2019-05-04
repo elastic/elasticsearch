@@ -54,7 +54,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
 
     public void testMultipleReaderWriter() throws Exception {
         int concurrency = randomIntBetween(2, 8);
-        TestRun testRun = createTestRun(1, 1, 1, 1, between(1, 1024));
+        TestRun testRun = createTestRun(0, 0, 0, 0, between(1, 1024));
         ShardFollowNodeTask task = createShardFollowTask(concurrency, testRun);
         startAndAssertAndStopTask(task, testRun);
     }
@@ -183,9 +183,9 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
                         final long globalCheckpoint = tracker.getCheckpoint();
                         final long maxSeqNo = tracker.getMaxSeqNo();
                         handler.accept(new ShardChangesAction.Response(
-                                1L,
-                                1L,
-                                1L,
+                                0L,
+                                0L,
+                                0L,
                                 globalCheckpoint,
                                 maxSeqNo,
                                 randomNonNegativeLong(),

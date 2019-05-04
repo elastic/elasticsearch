@@ -220,7 +220,7 @@ The API returns the following results:
           "write_buffer_operation_count" : 64,
           "follower_mapping_version" : 4,
           "follower_settings_version" : 2,
-          "follower_settings_version" : 8,
+          "follower_aliases_version" : 8,
           "total_read_time_millis" : 32768,
           "total_read_remote_exec_time_millis" : 16384,
           "successful_read_requests" : 32,

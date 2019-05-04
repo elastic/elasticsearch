@@ -214,7 +214,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             }
         }
         if (indexLevelBlocks.isEmpty()) {
-            if(!globalLevelBlocks.isEmpty()){
+            if(globalLevelBlocks.isEmpty() == false){
                 return new ClusterBlockException(globalLevelBlocks);
             }
             return null;
@@ -230,7 +230,8 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
      */
 
     public ClusterBlockException indicesAllowReleaseResources(String[] indices) {
-        Set<ClusterBlock> globalBlocks = global(ClusterBlockLevel.METADATA_WRITE);
+        Set<ClusterBlock> globalBlocks = global(ClusterBlockLevel.METADATA_WRITE).stream()
+            .filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false).collect(toSet());
         Map<String, Set<ClusterBlock>> indexLevelBlocks = new HashMap<>();
         for (String index : indices) {
             Set<ClusterBlock> blocks = Sets.union(globalBlocks, blocksForIndex(ClusterBlockLevel.METADATA_WRITE, index))
@@ -240,8 +241,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             }
         }
         if (indexLevelBlocks.isEmpty()) {
-            if(!globalBlocks.stream()
-                .filter(clusterBlock -> clusterBlock.isAllowReleaseResources() == false).collect(toSet()).isEmpty()){
+            if(globalBlocks.isEmpty() == false){
                 return new ClusterBlockException(globalBlocks);
             }
             return null;

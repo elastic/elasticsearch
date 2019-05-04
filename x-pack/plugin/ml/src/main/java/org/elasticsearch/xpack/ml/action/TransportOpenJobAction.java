@@ -139,7 +139,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                                                                             boolean isMemoryTrackerRecentlyRefreshed,
                                                                             Logger logger) {
         // TODO: remove in 8.0.0
-        boolean allNodesHaveDynamicMaxWorkers = clusterState.getNodes().getMinNodeVersion().onOrAfter(Version.V_7_1_0);
+        boolean allNodesHaveDynamicMaxWorkers = clusterState.getNodes().getMinNodeVersion().onOrAfter(Version.V_7_2_0);
 
         // Try to allocate jobs according to memory usage, but if that's not possible (maybe due to a mixed version cluster or maybe
         // because of some weird OS problem) then fall back to the old mechanism of only considering numbers of assigned jobs

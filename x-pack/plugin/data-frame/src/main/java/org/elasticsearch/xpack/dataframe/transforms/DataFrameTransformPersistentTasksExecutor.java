@@ -11,7 +11,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -32,9 +36,12 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
+import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -68,6 +75,34 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     }
 
     @Override
+    public PersistentTasksCustomMetaData.Assignment getAssignment(DataFrameTransform params, ClusterState clusterState) {
+        List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState);
+        if (unavailableIndices.size() != 0) {
+            String reason = "Not starting data frame transform [" + params.getId() + "], " +
+                "because not all primary shards are active for the following indices [" +
+                String.join(",", unavailableIndices) + "]";
+            logger.debug(reason);
+            return new PersistentTasksCustomMetaData.Assignment(null, reason);
+        }
+        return super.getAssignment(params, clusterState);
+    }
+
+    static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState) {
+        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        String[] indices = resolver.concreteIndexNames(clusterState,
+            IndicesOptions.lenientExpandOpen(),
+            DataFrameInternalIndex.INDEX_TEMPLATE_PATTERN + "*");
+        List<String> unavailableIndices = new ArrayList<>(indices.length);
+        for (String index : indices) {
+            IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+                unavailableIndices.add(index);
+            }
+        }
+        return unavailableIndices;
+    }
+
+    @Override
     protected void nodeOperation(AllocatedPersistentTask task, @Nullable DataFrameTransform params, PersistentTaskState state) {
         final String transformId = params.getId();
         final DataFrameTransformTask buildTask = (DataFrameTransformTask) task;
@@ -79,7 +114,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             new DataFrameTransformTask.ClientDataFrameIndexerBuilder()
                 .setAuditor(auditor)
                 .setClient(client)
-                .setIndexerState(transformState == null ? IndexerState.STOPPED : transformState.getIndexerState())
+                .setIndexerState(currentIndexerState(transformState))
                 .setInitialPosition(transformState == null ? null : transformState.getPosition())
                 // If the state is `null` that means this is a "first run". We can safely assume the
                 // task will attempt to gather the initial progress information
@@ -147,6 +182,26 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         );
         // <0> Get the transform config
         transformsConfigManager.getTransformConfiguration(transformId, getTransformConfigListener);
+    }
+
+    private static IndexerState currentIndexerState(DataFrameTransformState previousState) {
+        if (previousState == null) {
+            return IndexerState.STOPPED;
+        }
+        switch(previousState.getIndexerState()){
+            // If it is STARTED or INDEXING we want to make sure we revert to started
+            // Otherwise, the internal indexer will never get scheduled and execute
+            case STARTED:
+            case INDEXING:
+                return IndexerState.STARTED;
+            // If we are STOPPED, STOPPING, or ABORTING and just started executing on this node,
+            //  then it is safe to say we should be STOPPED
+            case STOPPED:
+            case STOPPING:
+            case ABORTING:
+            default:
+                return IndexerState.STOPPED;
+        }
     }
 
     private void markAsFailed(DataFrameTransformTask task, String reason) {

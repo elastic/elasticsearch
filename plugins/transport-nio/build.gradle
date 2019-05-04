@@ -120,6 +120,7 @@ thirdPartyAudit {
         'io.netty.internal.tcnative.Library',
         'io.netty.internal.tcnative.SSL',
         'io.netty.internal.tcnative.SSLContext',
+        'io.netty.internal.tcnative.SSLPrivateKeyMethod',
         'io.netty.internal.tcnative.CertificateCallback',
         'io.netty.internal.tcnative.CertificateVerifier',
         'io.netty.internal.tcnative.SessionTicketKey',

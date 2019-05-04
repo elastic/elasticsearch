@@ -49,25 +49,13 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
 
     @Override
     protected IntervalQueryBuilder doCreateTestQueryBuilder() {
-        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource());
-    }
-
-    @Override
-    public void testUnknownField() throws IOException {
-        super.testUnknownField();
+        return new IntervalQueryBuilder(STRING_FIELD_NAME, createRandomSource(0));
     }
 
     private static final String[] filters = new String[]{
         "containing", "contained_by", "not_containing", "not_contained_by",
         "overlapping", "not_overlapping", "before", "after"
     };
-
-    private IntervalsSourceProvider.IntervalFilter createRandomFilter() {
-        if (randomInt(20) > 18) {
-            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(), randomFrom(filters));
-        }
-        return null;
-    }
 
     private static final String MASKED_FIELD = "masked_field";
     private static final String NO_POSITIONS_FIELD = "no_positions_field";
@@ -88,40 +76,54 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
-    private IntervalsSourceProvider createRandomSource() {
-        String useField = rarely() ? MASKED_FIELD : null;
+    private IntervalsSourceProvider createRandomSource(int depth) {
+        if (depth > 3) {
+            return createRandomMatch(depth + 1);
+        }
         switch (randomInt(20)) {
             case 0:
             case 1:
                 int orCount = randomInt(4) + 1;
                 List<IntervalsSourceProvider> orSources = new ArrayList<>();
                 for (int i = 0; i < orCount; i++) {
-                    orSources.add(createRandomSource());
+                    orSources.add(createRandomSource(depth + 1));
                 }
-                return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter());
+                return new IntervalsSourceProvider.Disjunction(orSources, createRandomFilter(depth + 1));
             case 2:
             case 3:
                 int count = randomInt(5) + 1;
                 List<IntervalsSourceProvider> subSources = new ArrayList<>();
                 for (int i = 0; i < count; i++) {
-                    subSources.add(createRandomSource());
+                    subSources.add(createRandomSource(depth + 1));
                 }
                 boolean ordered = randomBoolean();
                 int maxGaps = randomInt(5) - 1;
-                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter();
+                IntervalsSourceProvider.IntervalFilter filter = createRandomFilter(depth + 1);
                 return new IntervalsSourceProvider.Combine(subSources, ordered, maxGaps, filter);
             default:
-                int wordCount = randomInt(4) + 1;
-                List<String> words = new ArrayList<>();
-                for (int i = 0; i < wordCount; i++) {
-                    words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
-                }
-                String text = String.join(" ", words);
-                boolean mOrdered = randomBoolean();
-                int maxMGaps = randomInt(5) - 1;
-                String analyzer = randomFrom("simple", "keyword", "whitespace");
-                return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(), useField);
+                return createRandomMatch(depth + 1);
         }
+    }
+
+    private IntervalsSourceProvider.IntervalFilter createRandomFilter(int depth) {
+        if (depth < 3 && randomInt(20) > 18) {
+            return new IntervalsSourceProvider.IntervalFilter(createRandomSource(depth + 1), randomFrom(filters));
+        }
+        return null;
+    }
+
+    private IntervalsSourceProvider createRandomMatch(int depth) {
+        String useField = rarely() ? MASKED_FIELD : null;
+        int wordCount = randomInt(4) + 1;
+        List<String> words = new ArrayList<>();
+        for (int i = 0; i < wordCount; i++) {
+            words.add(randomRealisticUnicodeOfLengthBetween(4, 20));
+        }
+        String text = String.join(" ", words);
+        boolean mOrdered = randomBoolean();
+        int maxMGaps = randomInt(5) - 1;
+        String analyzer = randomFrom("simple", "keyword", "whitespace");
+        return new IntervalsSourceProvider.Match(text, maxMGaps, mOrdered, analyzer, createRandomFilter(depth + 1), useField);
     }
 
     @Override
@@ -382,12 +384,5 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         assertEquals(expected, q);
 
     }
-
-    @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41402")
-    public void testMustRewrite() throws IOException {
-        super.testMustRewrite();
-    }
-
 
 }

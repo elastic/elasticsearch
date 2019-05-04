@@ -444,11 +444,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private final DataFrameTransformsConfigManager transformsConfigManager;
         private final DataFrameTransformsCheckpointService transformsCheckpointService;
         private final String transformId;
-        private final DataFrameAuditor auditor;
         private final DataFrameTransformTask transformTask;
-        private final Map<String, String> fieldMappings;
-        private final DataFrameTransformConfig transformConfig;
-        private volatile DataFrameTransformProgress progress;
         private volatile DataFrameIndexerTransformStats previouslyPersistedStats = null;
         private final AtomicInteger failureCount;
         // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
@@ -470,19 +466,18 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                     .threadPool
                     .executor(ThreadPool.Names.GENERIC),
                 ExceptionsHelper.requireNonNull(auditor, "auditor"),
+                transformConfig,
+                fieldMappings,
                 ExceptionsHelper.requireNonNull(initialState, "initialState"),
                 initialPosition,
-                initialStats == null ? new DataFrameIndexerTransformStats(transformId) : initialStats);
+                initialStats == null ? new DataFrameIndexerTransformStats(transformId) : initialStats,
+                transformProgress);
             this.transformId = ExceptionsHelper.requireNonNull(transformId, "transformId");
             this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
             this.transformsCheckpointService = ExceptionsHelper.requireNonNull(transformsCheckpointService,
                 "transformsCheckpointService");
             this.client = ExceptionsHelper.requireNonNull(client, "client");
-            this.auditor = auditor;
-            this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
             this.transformTask = parentTask;
-            this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
-            this.progress = transformProgress;
             this.failureCount = new AtomicInteger(0);
         }
 
@@ -508,21 +503,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             } else {
                 super.onStart(now, listener);
             }
-        }
-
-        @Override
-        protected DataFrameTransformConfig getConfig() {
-            return transformConfig;
-        }
-
-        @Override
-        protected Map<String, String> getFieldMappings() {
-            return fieldMappings;
-        }
-
-        @Override
-        protected DataFrameTransformProgress getProgress() {
-            return progress;
         }
 
         @Override

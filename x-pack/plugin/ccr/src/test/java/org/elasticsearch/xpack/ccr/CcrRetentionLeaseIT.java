@@ -922,6 +922,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         }
     }
 
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/39850")
     public void testForgetFollower() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";

@@ -874,6 +874,7 @@ public class RequestConvertersTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
 
         int nbItems = randomIntBetween(10, 100);
+        DocWriteRequest<?>[] requests = new DocWriteRequest<?>[nbItems];
         for (int i = 0; i < nbItems; i++) {
             String index = randomAlphaOfLength(5);
             String id = randomAlphaOfLength(5);
@@ -913,8 +914,9 @@ public class RequestConvertersTests extends ESTestCase {
                 docWriteRequest.setIfSeqNo(randomNonNegativeLong());
                 docWriteRequest.setIfPrimaryTerm(randomLongBetween(1, 200));
             }
-            bulkRequest.add(docWriteRequest);
+            requests[i] = docWriteRequest;
         }
+        bulkRequest.add(requests);
 
         Request request = RequestConverters.bulk(bulkRequest);
         assertEquals("/_bulk", request.getEndpoint());

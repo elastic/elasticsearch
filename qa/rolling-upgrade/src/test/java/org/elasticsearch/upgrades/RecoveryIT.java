@@ -443,7 +443,12 @@ public class RecoveryIT extends AbstractRollingTestCase {
             ensureIndexAssignedToNodeIds(index,
                 Sets.newHashSet("upgraded-node-0", "upgraded-node-2").stream().map(this::getNodeIdByName).collect(Collectors.toSet()));
             ensureGreen(index);
-            assertPeerRecoveredFiles("peer recovery must ignore syncId when seq_nos mismatched", index, "upgraded-node-2", greaterThan(0));
+            if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_6_0_0)) {
+                assertPeerRecoveredFiles("peer recovery with syncId should not copy files", index, "upgraded-node-2", equalTo(0));
+            } else {
+                assertPeerRecoveredFiles("peer recovery must ignore syncId when sequence numbers in index commit mismatched",
+                    index, "upgraded-node-2", greaterThan(0));
+            }
             assertDocCountOnAllCopies(index, 10 + moreDocs);
         }
     }
@@ -453,10 +458,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(1, 2));
-            if (getNodeId(version -> version.before(Version.V_6_0_0)) != null) {
-                // If we are upgrading from 5.x, disable rebalancing to prevent the primary from relocating to 6.x node
-                // while replicas are still on 5.x. The relocating scenario is tested in testRecoveryWithSyncIdVerifySeqNoStats
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+            if (UPGRADE_FROM_VERSION.before(Version.V_6_0_0)) {
+                // If we are upgrading from 5.x, we need to disable rebalancing to prevent the primary from relocating to 6.x node
+                // while replicas are still on 5.x node. The relocating scenario is tested in testRecoveryWithSyncIdVerifySeqNoStats
                 // where peer recovery ignores syncId and performs a file-based recovery.
                 settings.put("index.routing.rebalance.enable", "none");
             }
@@ -507,8 +512,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
             if (Objects.equals(XContentMapValues.extractValue("type", shard), "PEER")) {
                 if (Objects.equals(XContentMapValues.extractValue("target.name", shard), targetNode)) {
                     Integer recoveredFileSize = (Integer) XContentMapValues.extractValue("index.files.recovered", shard);
-                    assertThat(reason + " target node [" + targetNode + "] recovery stats [" + recoveryStats + "]" +
-                        " indices stats [" + EntityUtils.toString(indicesStats.getEntity()) + "]", recoveredFileSize, sizeMatcher);
+                    assertThat(reason + " ;target node [" + targetNode + "]; recovery stats [" + recoveryStats + "]; " +
+                        "indices stats [" + EntityUtils.toString(indicesStats.getEntity()) + "]", recoveredFileSize, sizeMatcher);
                 }
             }
         }
@@ -521,7 +526,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         Node[] upgradedNodes = client().getNodes().stream()
             .filter(node -> Version.fromString(node.getVersion()).onOrAfter(Version.V_6_0_0)).toArray(Node[]::new);
         if (upgradedNodes.length == 0) {
-            assert CLUSTER_TYPE == ClusterType.OLD : CLUSTER_TYPE;
+            assert CLUSTER_TYPE == ClusterType.OLD && UPGRADE_FROM_VERSION.before(Version.V_6_0_0) : CLUSTER_TYPE;
             return;
         }
         RestClientBuilder clientBuilder = RestClient.builder(upgradedNodes);

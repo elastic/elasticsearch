@@ -582,7 +582,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
-        project.getRepositories().whenObjectAdded { repository ->
+        project.getRepositories().all { repository ->
             if (repository instanceof MavenArtifactRepository) {
                 final MavenArtifactRepository maven = (MavenArtifactRepository) repository
                 assertRepositoryURIUsesHttps(project, maven.getUrl())
@@ -631,7 +631,7 @@ class BuildPlugin implements Plugin<Project> {
 
     private static void assertRepositoryURIUsesHttps(final Project project, final URI uri) {
         if (uri != null && uri.toURL().getProtocol().equals("http")) {
-            throw new GradleException("repository on project [" + project.name + "] is using http for artifacts on [" + uri.toURL() + "]")
+            throw new GradleException("repository on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
         }
     }
 

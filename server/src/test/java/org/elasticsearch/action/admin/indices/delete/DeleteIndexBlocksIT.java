@@ -39,7 +39,6 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             assertBlocked(client().admin().indices().prepareDelete("test"), MetaData.CLUSTER_READ_ONLY_BLOCK);
         } finally {
             setClusterReadOnly(false);
-            assertAcked(client().admin().indices().prepareDelete("test").get());
         }
     }
 
@@ -55,8 +54,7 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
             assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
                 IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertBlocked(client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("index.number_of_replicas", 2)),
-                IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+                    .setSettings(Settings.builder().put("index.number_of_replicas", 2)), IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
             assertSearchHits(client().prepareSearch().get(), "1");
             assertAcked(client().admin().indices().prepareDelete("test"));
         } finally {
@@ -76,9 +74,8 @@ public class DeleteIndexBlocksIT extends ESIntegTestCase {
                 client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar").get());
             assertEquals("index [test] blocked by: [FORBIDDEN/12/index read-only / allow delete (api)];", e.getMessage());
         } finally {
-            Settings settings = Settings.builder().putNull(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE).build();
-            assertAcked(client().admin().indices().prepareUpdateSettings("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).
-                setSettings(settings).get());
+            assertAcked(client().admin().indices().prepareUpdateSettings("test")
+                .setSettings(Settings.builder().putNull(IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE).build()).get());
         }
     }
 

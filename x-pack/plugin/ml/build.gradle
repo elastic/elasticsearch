@@ -9,13 +9,26 @@ esplugin {
     extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 
+
+repositories {
+    ivy {
+        name "prelert-artifacts"
+        url "https://prelert-artifacts.s3.amazonaws.com"
+        metadataSources {
+            // no repository metadata, look directly for the artifact
+            artifact()
+        }
+        patternLayout {
+            artifact "maven/org/elasticsearch/ml/ml-cpp/[revision]/ml-cpp-[revision].[ext]"
+        }
+    }
+}
+
 configurations {
     nativeBundle {
         resolutionStrategy.dependencySubstitution {
             if (findProject(':ml-cpp') != null) {
                 substitute module("org.elasticsearch.ml:ml-cpp") with project(":ml-cpp")
-            } else {
-                substitute module("org.elasticsearch.ml:ml-cpp") with project("${project.path}:cpp-snapshot")
             }
         }
     }

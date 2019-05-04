@@ -99,7 +99,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public BulkRequest add(DocWriteRequest<?>... requests) {
         for (DocWriteRequest<?> request : requests) {
-            add(request, null);
+            add(request);
         }
         return this;
     }

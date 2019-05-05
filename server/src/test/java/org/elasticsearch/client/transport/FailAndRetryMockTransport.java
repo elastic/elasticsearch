@@ -34,7 +34,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -214,7 +214,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-            requestHandlers = CollectionUtils.concatenateEntryToImmutableMap(requestHandlers, reg.getAction(), reg);
+            requestHandlers = Maps.concatenateEntryToImmutableMap(requestHandlers, reg.getAction(), reg);
         }
     }
     @Override

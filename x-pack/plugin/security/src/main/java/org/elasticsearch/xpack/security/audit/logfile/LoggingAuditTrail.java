@@ -21,7 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
@@ -979,8 +979,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             for (final String policyName : settings.getGroups(FILTER_POLICY_PREFIX, true).keySet()) {
                 entries.add(entry(policyName, new EventFilterPolicy(policyName, settings)));
             }
-            // noinspection unchecked
-            policyMap = Map.ofEntries(entries.toArray(Map.Entry[]::new));
+            policyMap = Maps.ofEntries(entries);
             // precompute predicate
             predicate = buildIgnorePredicate(policyMap);
         }
@@ -990,7 +989,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         private synchronized void set(String policyName, EventFilterPolicy eventFilterPolicy) {
-            policyMap = CollectionUtils.concatenateEntryToImmutableMap(policyMap, policyName, eventFilterPolicy);
+            policyMap = Maps.concatenateEntryToImmutableMap(policyMap, policyName, eventFilterPolicy);
             // precompute predicate
             predicate = buildIgnorePredicate(policyMap);
         }

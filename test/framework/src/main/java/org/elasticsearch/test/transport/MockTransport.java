@@ -36,7 +36,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectionManager;
@@ -248,7 +248,7 @@ public class MockTransport implements Transport, LifecycleComponent {
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-            requestHandlers = CollectionUtils.concatenateEntryToImmutableMap(requestHandlers, reg.getAction(), reg);
+            requestHandlers = Maps.concatenateEntryToImmutableMap(requestHandlers, reg.getAction(), reg);
         }
     }
 

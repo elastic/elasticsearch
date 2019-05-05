@@ -22,7 +22,7 @@ package org.elasticsearch.index.search.stats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -138,7 +138,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                 stats = groupsStats.get(group);
                 if (stats == null) {
                     stats = new StatsHolder();
-                    groupsStats = CollectionUtils.concatenateEntryToImmutableMap(groupsStats, group, stats);
+                    groupsStats = Maps.concatenateEntryToImmutableMap(groupsStats, group, stats);
                 }
             }
         }

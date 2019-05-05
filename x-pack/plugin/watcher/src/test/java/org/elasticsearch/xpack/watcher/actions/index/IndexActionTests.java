@@ -19,6 +19,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -217,8 +218,7 @@ public class IndexActionTests extends ESTestCase {
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
-        @SuppressWarnings("unchecked") final WatchExecutionContext ctx =
-                WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple(Map.ofEntries(entries.toArray(Map.Entry[]::new))));
+        final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple(Maps.ofEntries(entries)));
 
         ArgumentCaptor<IndexRequest> captor = ArgumentCaptor.forClass(IndexRequest.class);
         PlainActionFuture<IndexResponse> listener = PlainActionFuture.newFuture();

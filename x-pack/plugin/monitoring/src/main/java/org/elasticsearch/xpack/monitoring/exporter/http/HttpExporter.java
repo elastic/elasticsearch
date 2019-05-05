@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -570,8 +571,7 @@ public class HttpExporter extends Exporter {
         // widdle down the response to just what we care to check
         entries.add(entry("filter_path", "errors,items.*.error"));
 
-        // noinspection unchecked
-        return Map.ofEntries(entries.toArray(Map.Entry[]::new));
+        return Maps.ofEntries(entries);
     }
 
     /**

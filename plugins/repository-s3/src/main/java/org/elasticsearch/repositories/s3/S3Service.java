@@ -34,7 +34,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -70,8 +70,7 @@ class S3Service implements Closeable {
         // shutdown all unused clients
         // others will shutdown on their respective release
         releaseCachedClients();
-        // noinspection unchecked
-        this.staticClientSettings = Map.ofEntries(clientsSettings.entrySet().toArray(Map.Entry[]::new));
+        this.staticClientSettings = Maps.ofEntries(clientsSettings.entrySet());
         derivedClientSettings = emptyMap();
         assert this.staticClientSettings.containsKey("default") : "always at least have 'default'";
         // clients are built lazily by {@link client}
@@ -96,7 +95,7 @@ class S3Service implements Closeable {
             }
             final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings));
             clientReference.incRef();
-            clientsCache = CollectionUtils.concatenateEntryToImmutableMap(clientsCache, clientSettings, clientReference);
+            clientsCache = Maps.concatenateEntryToImmutableMap(clientsCache, clientSettings, clientReference);
             return clientReference;
         }
     }
@@ -126,10 +125,10 @@ class S3Service implements Closeable {
                 }
                 final S3ClientSettings newSettings = staticSettings.refine(repositoryMetaData);
                 derivedClientSettings =
-                        CollectionUtils.concatenateEntryToImmutableMap(
+                        Maps.concatenateEntryToImmutableMap(
                                 derivedClientSettings,
                                 staticSettings,
-                                CollectionUtils.concatenateEntryToImmutableMap(derivedSettings, repositoryMetaData, newSettings));
+                                Maps.concatenateEntryToImmutableMap(derivedSettings, repositoryMetaData, newSettings));
                 return newSettings;
             }
         }

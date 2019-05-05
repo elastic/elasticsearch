@@ -42,6 +42,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -205,8 +206,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     break;
                 }
             }
-            // noinspection unchecked
-            return Map.ofEntries(entries.toArray(Map.Entry[]::new));
+            return Maps.ofEntries(entries);
         } catch (final AmazonClientException e) {
             throw new IOException("Exception when listing blobs by prefix [" + blobNamePrefix + "]", e);
         }

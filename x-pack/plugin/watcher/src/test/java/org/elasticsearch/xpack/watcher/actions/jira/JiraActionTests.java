@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -233,8 +234,7 @@ public class JiraActionTests extends ESTestCase {
         JiraService service = mock(JiraService.class);
         when(service.getAccount(eq("account"))).thenReturn(account);
 
-        @SuppressWarnings("unchecked") JiraAction action =
-                new JiraAction("account", Map.ofEntries(entries.toArray(Map.Entry[]::new)), null);
+        JiraAction action = new JiraAction("account", Maps.ofEntries(entries), null);
         ExecutableJiraAction executable = new ExecutableJiraAction(action, logger, service, new ModelTextTemplateEngine(model));
 
         Map<String, Object> data = new HashMap<>();

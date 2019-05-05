@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -197,7 +197,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 IndexMetaData indexMetaData,
                 List<IndexEventListener> buildInIndexListener) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
-            indices = CollectionUtils.concatenateEntryToImmutableMap(indices, indexMetaData.getIndexUUID(), indexService);
+            indices = Maps.concatenateEntryToImmutableMap(indices, indexMetaData.getIndexUUID(), indexService);
             return indexService;
         }
 
@@ -298,7 +298,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         public synchronized MockIndexShard createShard(ShardRouting routing) throws IOException {
             failRandomly();
             MockIndexShard shard = new MockIndexShard(routing, indexSettings.getIndexMetaData().primaryTerm(routing.shardId().id()));
-            shards = CollectionUtils.concatenateEntryToImmutableMap(shards, routing.id(), shard);
+            shards = Maps.concatenateEntryToImmutableMap(shards, routing.id(), shard);
             return shard;
         }
 

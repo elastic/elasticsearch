@@ -238,6 +238,9 @@ repositories {
   // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
   ivy {
     url "https://download.oracle.com"
+    metadataSources {
+      artifact()
+    }
     patternLayout {
       artifact "java/GA/jdk${jdkMajor}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
     }
@@ -245,6 +248,9 @@ repositories {
   // current pattern since 12.0.1
   ivy {
     url "https://download.oracle.com"
+    metadataSources {
+      artifact()
+    }
     patternLayout {
       artifact "java/GA/jdk${jdkVersion}/${hash}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
     }

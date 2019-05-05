@@ -38,6 +38,9 @@ repositories {
     // the Wildfly distribution is not available via a repository, so we fake an Ivy repository on top of the download site
     ivy {
         url "https://download.jboss.org"
+        metadataSources {
+            artifact()
+        }
         patternLayout {
             artifact 'wildfly/[revision]/[module]-[revision].[ext]'
         }

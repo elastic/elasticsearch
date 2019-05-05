@@ -20,12 +20,12 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.IntroSorter;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 
@@ -43,6 +43,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.RandomAccess;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static java.util.Map.entry;
 
 /** Collections-related utility methods. */
 public class CollectionUtils {
@@ -280,6 +284,35 @@ public class CollectionUtils {
             }
             return list;
         }
+    }
+
+    /**
+     * Concatenates an entry to an immutable map.
+     *
+     * @param map   the immutable map to concatenate the entry to
+     * @param key   the key of the new entry
+     * @param value the value of the entry
+     * @param <K>   the type of the keys in the map
+     * @param <V>   the type of the values in the map
+     * @return an immutable map that contains the items from the specified map and the concatenated entry
+     */
+    public static <K, V> Map<K, V> concatenateEntryToImmutableMap(final Map<K, V> map, final K key, final V value) {
+        Objects.requireNonNull(map);
+        Objects.requireNonNull(key);
+        Objects.requireNonNull(value);
+        if (Assertions.ENABLED) {
+            boolean immutable;
+            try {
+                map.put(key, value);
+                immutable = false;
+            } catch (final UnsupportedOperationException e) {
+                immutable = true;
+            }
+            assert immutable : "expected an immutable map but was [" + map.getClass() + "]";
+        }
+        assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
+        return Stream.concat(map.entrySet().stream(), Stream.of(entry(key, value)))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public static <E> ArrayList<E> arrayAsArrayList(E... elements) {

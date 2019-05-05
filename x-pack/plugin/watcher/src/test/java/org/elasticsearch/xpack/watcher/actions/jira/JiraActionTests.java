@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.actions.jira;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -35,11 +34,13 @@ import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static java.util.Map.entry;
 import static org.elasticsearch.common.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
@@ -185,33 +186,33 @@ public class JiraActionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         final Map<String, Object> model = new HashMap<>();
-        final MapBuilder<String, Object> actionFields = MapBuilder.newMapBuilder();
+        final var entries = new ArrayList<Map.Entry<String, Object>>();
 
         String summary = randomAlphaOfLength(15);
-        actionFields.put("summary", "{{ctx.summary}}");
+        entries.add(entry("summary", "{{ctx.summary}}"));
         model.put("{{ctx.summary}}", summary);
 
         String projectId = randomAlphaOfLength(10);
-        actionFields.put("project", singletonMap("id", "{{ctx.project_id}}"));
+        entries.add(entry("project", singletonMap("id", "{{ctx.project_id}}")));
         model.put("{{ctx.project_id}}", projectId);
 
         String description = null;
         if (randomBoolean()) {
             description = randomAlphaOfLength(50);
-            actionFields.put("description", description);
+            entries.add(entry("description", description));
         }
 
         String issueType = null;
         if (randomBoolean()) {
             issueType = randomFrom("Bug", "Test", "Task", "Epic");
-            actionFields.put("issuetype", singletonMap("name", issueType));
+            entries.add(entry("issuetype", Map.of("name", issueType)));
         }
 
         String watchId = null;
         if (randomBoolean()) {
             watchId = "jira_watch_" + randomInt();
             model.put("{{" + Variables.WATCH_ID + "}}", watchId);
-            actionFields.put("customfield_0", "{{watch_id}}");
+            entries.add(entry("customfield_0", "{{watch_id}}"));
         }
 
         HttpClient httpClient = mock(HttpClient.class);
@@ -232,7 +233,8 @@ public class JiraActionTests extends ESTestCase {
         JiraService service = mock(JiraService.class);
         when(service.getAccount(eq("account"))).thenReturn(account);
 
-        JiraAction action = new JiraAction("account", actionFields.immutableMap(), null);
+        @SuppressWarnings("unchecked") JiraAction action =
+                new JiraAction("account", Map.ofEntries(entries.toArray(Map.Entry[]::new)), null);
         ExecutableJiraAction executable = new ExecutableJiraAction(action, logger, service, new ModelTextTemplateEngine(model));
 
         Map<String, Object> data = new HashMap<>();

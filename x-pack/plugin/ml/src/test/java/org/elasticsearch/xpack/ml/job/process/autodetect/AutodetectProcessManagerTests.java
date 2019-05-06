@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
+import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -121,6 +122,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private Auditor auditor;
     private ClusterState clusterState;
     private ClusterService clusterService;
+    private NativeStorageProvider nativeStorageProvider;
 
     private DataCounts dataCounts = new DataCounts("foo");
     private ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("foo").build();
@@ -159,6 +161,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         clusterState = mock(ClusterState.class);
         when(clusterState.getMetaData()).thenReturn(metaData);
         when(clusterState.metaData()).thenReturn(metaData);
+        nativeStorageProvider = mock(NativeStorageProvider.class);
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -685,9 +688,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     private AutodetectProcessManager createManager(Settings settings) {
         return new AutodetectProcessManager(environment, settings,
-            client, threadPool, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister,
-            autodetectFactory, normalizerFactory,
-            new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService);
+            client, threadPool, new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService, jobManager, jobResultsProvider,
+            jobResultsPersister, jobDataCountsPersister, autodetectFactory, normalizerFactory, nativeStorageProvider);
     }
     private AutodetectProcessManager createSpyManagerAndCallProcessData(String jobId) {
         AutodetectProcessManager manager = createSpyManager();

@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -38,7 +40,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Request;
-import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction.Response;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -51,11 +52,16 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigMa
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class TransportPutDataFrameTransformAction
-        extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, PutDataFrameTransformAction.Response> {
+        extends TransportMasterNodeAction<PutDataFrameTransformAction.Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutDataFrameTransformAction.class);
 
@@ -69,8 +75,8 @@ public class TransportPutDataFrameTransformAction
                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                                 ClusterService clusterService, XPackLicenseState licenseState,
                                                 DataFrameTransformsConfigManager dataFrameTransformsConfigManager, Client client) {
-        super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                PutDataFrameTransformAction.Request::new);
+        super(PutDataFrameTransformAction.NAME, transportService, clusterService, threadPool, actionFilters,
+                PutDataFrameTransformAction.Request::new, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
         this.dataFrameTransformsConfigManager = dataFrameTransformsConfigManager;
@@ -84,12 +90,13 @@ public class TransportPutDataFrameTransformAction
     }
 
     @Override
-    protected PutDataFrameTransformAction.Response newResponse() {
-        return new PutDataFrameTransformAction.Response();
+    protected AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState clusterState, ActionListener<Response> listener) throws Exception {
+    protected void masterOperation(Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener)
+            throws Exception {
 
         if (!licenseState.isDataFrameAllowed()) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.DATA_FRAME));
@@ -113,14 +120,54 @@ public class TransportPutDataFrameTransformAction
                     DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_TRANSFORM_EXISTS, transformId)));
             return;
         }
-
+        final String destIndex = config.getDestination().getIndex();
+        Set<String> concreteSourceIndexNames = new HashSet<>();
         for(String src : config.getSource().getIndex()) {
-            if (indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src).length == 0) {
+            String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src);
+            if (concreteNames.length == 0) {
                 listener.onFailure(new ElasticsearchStatusException(
                     DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
                     RestStatus.BAD_REQUEST));
                 return;
             }
+            if (Regex.simpleMatch(src, destIndex)) {
+                listener.onFailure(new ElasticsearchStatusException(
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE, destIndex, src),
+                    RestStatus.BAD_REQUEST
+                ));
+                return;
+            }
+            concreteSourceIndexNames.addAll(Arrays.asList(concreteNames));
+        }
+
+        if (concreteSourceIndexNames.contains(destIndex)) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
+                    destIndex,
+                    Strings.arrayToCommaDelimitedString(config.getSource().getIndex())),
+                RestStatus.BAD_REQUEST
+            ));
+            return;
+        }
+
+        final String[] concreteDest =
+            indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destIndex);
+
+        if (concreteDest.length > 1 || Regex.isSimpleMatchPattern(destIndex)) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_SINGLE_INDEX, destIndex),
+                RestStatus.BAD_REQUEST
+            ));
+            return;
+        }
+        if (concreteDest.length > 0 && concreteSourceIndexNames.contains(concreteDest[0])) {
+            listener.onFailure(new ElasticsearchStatusException(
+                DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_DEST_IN_SOURCE,
+                    concreteDest[0],
+                    Strings.arrayToCommaDelimitedString(concreteSourceIndexNames.toArray(new String[0]))),
+                RestStatus.BAD_REQUEST
+            ));
+            return;
         }
 
         // Early check to verify that the user can create the destination index and can read from the source
@@ -130,18 +177,16 @@ public class TransportPutDataFrameTransformAction
                 .indices(config.getSource().getIndex())
                 .privileges("read")
                 .build();
-            String[] destPrivileges = new String[3];
-            destPrivileges[0] = "read";
-            destPrivileges[1] = "index";
+            List<String> destPrivileges = new ArrayList<>(3);
+            destPrivileges.add("read");
+            destPrivileges.add("index");
             // If the destination index does not exist, we can assume that we may have to create it on start.
             // We should check that the creating user has the privileges to create the index.
-            if (indexNameExpressionResolver.concreteIndexNames(clusterState,
-                IndicesOptions.lenientExpandOpen(),
-                config.getDestination().getIndex()).length == 0) {
-                destPrivileges[2] = "create_index";
+            if (concreteDest.length == 0) {
+                destPrivileges.add("create_index");
             }
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                .indices(config.getDestination().getIndex())
+                .indices(destIndex)
                 .privileges(destPrivileges)
                 .build();
 
@@ -150,7 +195,6 @@ public class TransportPutDataFrameTransformAction
             privRequest.username(username);
             privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
             privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
-
             ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
                 r -> handlePrivsResponse(username, config, r, listener),
                 listener::onFailure);
@@ -169,7 +213,7 @@ public class TransportPutDataFrameTransformAction
     private void handlePrivsResponse(String username,
                                      DataFrameTransformConfig config,
                                      HasPrivilegesResponse privilegesResponse,
-                                     ActionListener<Response> listener) throws IOException {
+                                     ActionListener<AcknowledgedResponse> listener) throws IOException {
         if (privilegesResponse.isCompleteMatch()) {
             putDataFrame(config, listener);
         } else {
@@ -187,16 +231,14 @@ public class TransportPutDataFrameTransformAction
         }
     }
 
-    private void putDataFrame(DataFrameTransformConfig config, ActionListener<Response> listener) {
+    private void putDataFrame(DataFrameTransformConfig config, ActionListener<AcknowledgedResponse> listener) {
 
-        final Pivot pivot = new Pivot(config.getSource().getIndex(),
-            config.getSource().getQueryConfig().getQuery(),
-            config.getPivotConfig());
+        final Pivot pivot = new Pivot(config.getPivotConfig());
 
 
         // <5> Return the listener, or clean up destination index on failure.
         ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(
-            putTransformConfigurationResult -> listener.onResponse(new Response(true)),
+            putTransformConfigurationResult -> listener.onResponse(new AcknowledgedResponse(true)),
             listener::onFailure
         );
 
@@ -209,6 +251,6 @@ public class TransportPutDataFrameTransformAction
         );
 
         // <1> Validate our pivot
-        pivot.validate(client, pivotValidationListener);
+        pivot.validate(client, config.getSource(), pivotValidationListener);
     }
 }

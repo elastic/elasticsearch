@@ -27,6 +27,7 @@ import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileCopyDetails;
 import org.gradle.api.file.FileTree;
@@ -36,21 +37,14 @@ import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
-
-    private static final Pattern JDK_VERSION = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)");
-
-    private List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("linux", "windows", "darwin"));
 
     @Override
     public void apply(Project project) {
@@ -98,16 +92,27 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         String jdkVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String jdkMajor = jdkVersionMatcher.group(1);
         String jdkBuild = jdkVersionMatcher.group(3);
+        String hash = jdkVersionMatcher.group(4);
 
         // add fake ivy repo for jdk url
         String repoName = "jdk_repo_" + version;
         if (rootProject.getRepositories().findByName(repoName) == null) {
+            // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
             rootProject.getRepositories().ivy(ivyRepo -> {
                 ivyRepo.setName(repoName);
                 ivyRepo.setUrl("https://download.java.net");
-                ivyRepo.patternLayout(layout -> {
-                    layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]");
-                });
+                ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+                ivyRepo.patternLayout(layout ->
+                    layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
+                ivyRepo.content(content -> content.includeGroup("jdk"));
+            });
+            // current pattern since 12.0.1
+            rootProject.getRepositories().ivy(ivyRepo -> {
+                ivyRepo.setName(repoName + "_with_hash");
+                ivyRepo.setUrl("https://download.java.net");
+                ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+                ivyRepo.patternLayout(layout -> layout.artifact(
+                    "java/GA/jdk" + jdkVersion + "/" + hash + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
                 ivyRepo.content(content -> content.includeGroup("jdk"));
             });
         }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.dataframe.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -17,12 +16,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -48,26 +49,44 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     protected final DataFrameAuditor auditor;
 
+    protected final DataFrameTransformConfig transformConfig;
+    protected volatile DataFrameTransformProgress progress;
+    private final Map<String, String> fieldMappings;
+
     private Pivot pivot;
     private int pageSize = 0;
 
     public DataFrameIndexer(Executor executor,
                             DataFrameAuditor auditor,
+                            DataFrameTransformConfig transformConfig,
+                            Map<String, String> fieldMappings,
                             AtomicReference<IndexerState> initialState,
                             Map<String, Object> initialPosition,
-                            DataFrameIndexerTransformStats jobStats) {
+                            DataFrameIndexerTransformStats jobStats,
+                            DataFrameTransformProgress transformProgress) {
         super(executor, initialState, initialPosition, jobStats);
         this.auditor = Objects.requireNonNull(auditor);
+        this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
+        this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
+        this.progress = transformProgress;
     }
-
-    protected abstract DataFrameTransformConfig getConfig();
-
-    protected abstract Map<String, String> getFieldMappings();
 
     protected abstract void failIndexer(String message);
 
     public int getPageSize() {
         return pageSize;
+    }
+
+    public DataFrameTransformConfig getConfig() {
+        return transformConfig;
+    }
+
+    public Map<String, String> getFieldMappings() {
+        return fieldMappings;
+    }
+
+    public DataFrameTransformProgress getProgress() {
+        return progress;
     }
 
     /**
@@ -78,8 +97,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     @Override
     protected void onStart(long now, ActionListener<Void> listener) {
         try {
-            QueryBuilder queryBuilder = getConfig().getSource().getQueryConfig().getQuery();
-            pivot = new Pivot(getConfig().getSource().getIndex(), queryBuilder, getConfig().getPivotConfig());
+            pivot = new Pivot(getConfig().getPivotConfig());
 
             // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
             if (pageSize == 0) {
@@ -87,7 +105,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
             }
 
             // if run for the 1st time, create checkpoint
-            if (getPosition() == null) {
+            if (initialRun()) {
                 createCheckpoint(listener);
             } else {
                 listener.onResponse(null);
@@ -95,6 +113,10 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    protected boolean initialRun() {
+        return getPosition() == null;
     }
 
     @Override
@@ -106,8 +128,20 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     @Override
     protected IterationResult<Map<String, Object>> doProcess(SearchResponse searchResponse) {
         final CompositeAggregation agg = searchResponse.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-        return new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()), agg.afterKey(),
-                agg.getBuckets().isEmpty());
+
+        // we reached the end
+        if (agg.getBuckets().isEmpty()) {
+            return new IterationResult<>(Collections.emptyList(), null, true);
+        }
+
+        long docsBeforeProcess = getStats().getNumDocuments();
+        IterationResult<Map<String, Object>> result = new IterationResult<>(processBucketsToIndexRequests(agg).collect(Collectors.toList()),
+            agg.afterKey(),
+            agg.getBuckets().isEmpty());
+        if (progress != null) {
+            progress.docsProcessed(getStats().getNumDocuments() - docsBeforeProcess);
+        }
+        return result;
     }
 
     /*
@@ -151,7 +185,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
 
     @Override
     protected SearchRequest buildSearchRequest() {
-        return pivot.buildSearchRequest(getPosition(), pageSize);
+        return pivot.buildSearchRequest(getConfig().getSource(), getPosition(), pageSize);
     }
 
     /**
@@ -200,14 +234,14 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
      */
     private static CircuitBreakingException getCircuitBreakingException(Exception e) {
         // circuit breaking exceptions are at the bottom
-        Throwable unwrappedThrowable = ExceptionsHelper.unwrapCause(e);
+        Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(e);
 
         if (unwrappedThrowable instanceof CircuitBreakingException) {
             return (CircuitBreakingException) unwrappedThrowable;
         } else if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
             SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) e;
             for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
-                Throwable unwrappedShardFailure = ExceptionsHelper.unwrapCause(shardFailure.getCause());
+                Throwable unwrappedShardFailure = org.elasticsearch.ExceptionsHelper.unwrapCause(shardFailure.getCause());
 
                 if (unwrappedShardFailure instanceof CircuitBreakingException) {
                     return (CircuitBreakingException) unwrappedShardFailure;

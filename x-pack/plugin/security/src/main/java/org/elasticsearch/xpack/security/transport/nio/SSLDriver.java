@@ -33,7 +33,9 @@ import java.util.function.IntFunction;
  * decrypted and placed into the application buffer passed as an argument. Otherwise, it will be consumed
  * internally and advance the SSL/TLS close or handshake process.
  *
- * Producing writes for a channel is more complicated. TODO: Add info
+ * When the handshake begins, handshake data is read from the wire, or the channel close initiated, internal
+ * bytes that need to be written will be produced. The bytes will be placed in the outbound buffer for
+ * flushing to a channel.
  *
  * The method {@link #readyForApplicationData()} can be called to determine if the driver is ready to consume
  * application data. If the driver indicates it is ready for application writes,
@@ -254,22 +256,19 @@ public class SSLDriver implements AutoCloseable {
         }
     }
 
-    // There are three potential modes for the driver to be in - HANDSHAKE, APPLICATION, or CLOSE. HANDSHAKE
-    // is the initial mode. During this mode data that is read and written will be related to the TLS
-    // handshake process. Application related data cannot be encrypted until the handshake is complete. From
-    // HANDSHAKE mode the driver can transition to APPLICATION (if the handshake is successful) or CLOSE (if
-    // an error occurs or we initiate a close). In APPLICATION mode data read from the channel will be
-    // decrypted and placed into the buffer passed as an argument to the read call. Additionally, application
-    // writes will be accepted and encrypted into the outbound write buffer. APPLICATION mode will proceed
-    // until we receive a request for renegotiation (currently unsupported) or the CLOSE mode begins. CLOSE
-    // mode can begin if we receive a CLOSE_NOTIFY message from the peer or if initiateClose is called. In
-    // CLOSE mode we attempt to both send and receive an SSL CLOSE_NOTIFY message. The exception to this is
-    // when we enter CLOSE mode from HANDSHAKE mode. In this scenario we only need to send the alert to the
-    // peer and then close the channel. Some SSL/TLS implementations do not properly adhere to the full
-    // two-direction close_notify process. Additionally, in newer TLS specifications it is not required to
-    // wait to receive close_notify. However, we will make our best attempt to both send and receive as it is
-    // expected by the java SSLEngine (it throws an exception if close_notify has not been received when
-    // inbound is closed).
+    // There are two potential modes for the driver to be in - REGULAR or CLOSE. REGULAR is the initial mode.
+    // During this mode the initial data that is read and written will be related to the TLS handshake
+    // process. Application related data cannot be encrypted until the handshake is complete. Once the
+    // handshake is complete data read from the channel will be decrypted and placed into the buffer passed
+    // as an argument to the read call. Additionally, application writes will be accepted and encrypted into
+    // the outbound write buffer. REGULAR mode will proceed until CLOSE mode begins. CLOSE mode can begin if
+    // we receive a CLOSE_NOTIFY message from the peer or if initiateClose is called. In CLOSE mode we attempt
+    // to both send and receive an SSL CLOSE_NOTIFY message. The exception to this is when we enter CLOSE mode
+    // during a handshake. In this scenario we only need to send the alert to the peer and then close the
+    // channel. Some SSL/TLS implementations do not properly adhere to the full two-direction close_notify
+    // process. Additionally, in newer TLS specifications it is not required to wait to receive close_notify.
+    // However, we will make our best attempt to both send and receive as it is expected by the java SSLEngine
+    // (it throws an exception if close_notify has not been received when inbound is closed).
 
     private interface Mode {
 

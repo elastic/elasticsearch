@@ -81,6 +81,7 @@ public class SSLDriverTests extends ESTestCase {
         SSLEngine serverEngine = sslContext.createSSLEngine();
         SSLEngine clientEngine = sslContext.createSSLEngine();
 
+        // Lock the protocol to 1.2 as 1.3 does not support renegotiation
         String[] serverProtocols = {"TLSv1.2"};
         serverEngine.setEnabledProtocols(serverProtocols);
         String[] clientProtocols = {"TLSv1.2"};
@@ -153,6 +154,7 @@ public class SSLDriverTests extends ESTestCase {
         SSLContext sslContext = getSSLContext();
         SSLEngine clientEngine = sslContext.createSSLEngine();
         SSLEngine serverEngine = sslContext.createSSLEngine();
+
         String[] serverProtocols = {"TLSv1.2"};
         serverEngine.setEnabledProtocols(serverProtocols);
         String[] clientProtocols = {"TLSv1.1"};
@@ -207,9 +209,18 @@ public class SSLDriverTests extends ESTestCase {
 
         assertTrue(clientDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
         sendHandshakeMessages(clientDriver, serverDriver);
-        sendHandshakeMessages(serverDriver, clientDriver);
 
-        assertFalse(clientDriver.readyForApplicationData());
+        // Sometimes send server messages before closing
+        if (randomBoolean()) {
+            sendHandshakeMessages(serverDriver, clientDriver);
+
+            if ("TLSv1.3".equals(clientDriver.getSSLEngine().getEnabledProtocols()[0])) {
+                assertTrue(clientDriver.readyForApplicationData());
+            } else {
+                assertFalse(clientDriver.readyForApplicationData());
+            }
+        }
+
         assertFalse(serverDriver.readyForApplicationData());
 
         serverDriver.initiateClose();
@@ -281,7 +292,7 @@ public class SSLDriverTests extends ESTestCase {
             (certPath))));
         KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
             (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
-        sslContext = SSLContext.getInstance("TLSv1.2");
+        sslContext = SSLContext.getInstance(randomFrom("TLSv1.2", "TLSv1.3"));
         sslContext.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
         return sslContext;
     }
@@ -330,17 +341,30 @@ public class SSLDriverTests extends ESTestCase {
 
         sendHandshakeMessages(serverDriver, clientDriver);
 
-        assertFalse(clientDriver.readyForApplicationData());
-        assertFalse(serverDriver.readyForApplicationData());
+        if ("TLSv1.3".equals(clientDriver.getSSLEngine().getEnabledProtocols()[0])) {
+            assertTrue(clientDriver.readyForApplicationData());
+            assertFalse(serverDriver.readyForApplicationData());
 
-        sendHandshakeMessages(clientDriver, serverDriver);
+            sendHandshakeMessages(clientDriver, serverDriver);
 
-        assertFalse(clientDriver.readyForApplicationData());
+            assertTrue(clientDriver.readyForApplicationData());
+            assertTrue(serverDriver.readyForApplicationData());
+        } else {
+            assertFalse(clientDriver.readyForApplicationData());
+            assertFalse(serverDriver.readyForApplicationData());
 
-        sendHandshakeMessages(serverDriver, clientDriver);
+            sendHandshakeMessages(clientDriver, serverDriver);
 
-        assertTrue(clientDriver.readyForApplicationData());
-        assertTrue(serverDriver.readyForApplicationData());
+            assertFalse(clientDriver.readyForApplicationData());
+            assertTrue(serverDriver.readyForApplicationData());
+
+            sendHandshakeMessages(serverDriver, clientDriver);
+
+            assertTrue(clientDriver.readyForApplicationData());
+            assertTrue(serverDriver.readyForApplicationData());
+        }
+
+
     }
 
     private void sendHandshakeMessages(SSLDriver sendDriver, SSLDriver receiveDriver) throws IOException {

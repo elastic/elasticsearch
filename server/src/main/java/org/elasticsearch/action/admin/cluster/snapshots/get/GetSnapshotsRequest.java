@@ -38,6 +38,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
+    public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_8_0_0;
 
     private String[] repositories;
 
@@ -72,7 +73,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public GetSnapshotsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             repositories = in.readStringArray();
         } else {
             repositories = new String[]{in.readString()};
@@ -85,7 +86,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             out.writeStringArray(repositories);
         } else {
             out.writeString(repositories[0]);

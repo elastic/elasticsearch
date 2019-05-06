@@ -282,7 +282,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      */
     public SnapshotInfo(final StreamInput in) throws IOException {
         snapshotId = new SnapshotId(in);
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             repository = in.readString();
         } else {
             repository = null;
@@ -693,7 +693,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         snapshotId.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             out.writeString(repository);
         }
         out.writeVInt(indices.size());

@@ -133,9 +133,8 @@ public interface Repository extends LifecycleComponent {
      * @param includeGlobalState include cluster global state
      * @return snapshot description
      */
-    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure,
-                                  int totalShards, List<SnapshotShardFailure> shardFailures, long repositoryStateId,
-                                  boolean includeGlobalState);
+    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+                                  List<SnapshotShardFailure> shardFailures, long repositoryStateId, boolean includeGlobalState);
 
     /**
      * Deletes snapshot

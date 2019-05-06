@@ -21,8 +21,6 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
-import java.util.Map;
-
 public interface DataFrameAnalysis extends ToXContentObject {
 
     String getName();

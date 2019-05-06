@@ -98,6 +98,30 @@ an error message would be returned, mentioning that *'foo'* is of data type *key
 which does not match the expected data type *integer* (based on result *10*).
 ===============================
 
+[[sql-functions-conditional-case-groupby-custom-buckets]]
+===== Conditional bucketing
+
+CASE can be used as a GROUP BY key in a query to facilitate custom bucketing
+and assign descriptive names to those buckets. If, for example, the values
+for a key are too many or, simply, ranges of those values are more
+interesting than every single value, CASE can create custom buckets as in the
+following example:
+
+[source, sql]
+SELECT count(*) AS count,
+  CASE WHEN NVL(languages, 0) = 0 THEN 'zero'
+    WHEN languages = 1 THEN 'one'
+    WHEN languages = 2 THEN 'bilingual'
+    WHEN languages = 3 THEN 'trilingual'
+    ELSE 'multilingual'
+  END as lang_skills
+FROM employees
+GROUP BY lang_skills
+ORDER BY lang_skills;
+
+With this query, one can create normal grouping buckets for values _0, 1, 2, 3_ with
+descriptive names, and every value _>= 4_ falls into the _multilingual_ bucket.
+
 [[sql-functions-conditional-coalesce]]
 ==== `COALESCE`
 

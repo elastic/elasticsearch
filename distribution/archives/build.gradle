@@ -327,13 +327,9 @@ configure(subprojects.findAll { it.name == 'integ-test-zip' }) {
     inputs.properties(project(':distribution').restTestExpansions)
     MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
   }
-}
 
-/*****************************************************************************
- *                              Maven config                                 *
- *****************************************************************************/
-configure(subprojects.findAll { it.name.contains('zip') }) {
-  // only zip distributions go to maven
+
+  // The integ-test-distribution is published to maven
   BuildPlugin.configurePomGeneration(project)
   apply plugin: 'nebula.info-scm'
   apply plugin: 'nebula.maven-base-publish'
@@ -379,3 +375,4 @@ configure(subprojects.findAll { it.name.contains('zip') }) {
     }
   }
 }
+

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
@@ -23,14 +24,20 @@ class EnrichPolicyExecutor {
     private final ThreadPool threadPool;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LongSupplier nowSupplier;
+    private final int fetchSize;
 
-    EnrichPolicyExecutor(ClusterService clusterService, Client client, ThreadPool threadPool,
-                                IndexNameExpressionResolver indexNameExpressionResolver, LongSupplier nowSupplier) {
+    EnrichPolicyExecutor(Settings settings,
+                         ClusterService clusterService,
+                         Client client,
+                         ThreadPool threadPool,
+                         IndexNameExpressionResolver indexNameExpressionResolver,
+                         LongSupplier nowSupplier) {
         this.clusterService = clusterService;
         this.client = client;
         this.threadPool = threadPool;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.nowSupplier = nowSupplier;
+        this.fetchSize = EnrichPlugin.ENRICH_FETCH_SIZE_SETTING.get(settings);
     }
 
     public void runPolicy(String policyId, ActionListener<PolicyExecutionResult> listener) {
@@ -44,8 +51,8 @@ class EnrichPolicyExecutor {
     }
 
     public void runPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
-        EnrichPolicyRunner runnable =
-            new EnrichPolicyRunner(policyName, policy, listener, clusterService, client, indexNameExpressionResolver, nowSupplier);
+        EnrichPolicyRunner runnable = new EnrichPolicyRunner(policyName, policy, listener, clusterService, client,
+            indexNameExpressionResolver, nowSupplier, fetchSize);
         threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
     }
 }

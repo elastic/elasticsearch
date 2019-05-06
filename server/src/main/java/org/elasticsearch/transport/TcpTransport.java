@@ -322,13 +322,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (NetworkUtils.SUPPORTS_V6) {
             local.add("[::1]"); // may get ports appended!
         }
-        return combineHostsAndPorts(local, defaultPortRange());
-    }
-
-    static List<String> combineHostsAndPorts(List<String> hosts, int[] ports) {
-        return hosts.stream()
+        return local.stream()
             .flatMap(
-                address -> Arrays.stream(ports)
+                address -> Arrays.stream(defaultPortRange())
                     .limit(LIMIT_LOCAL_PORTS_COUNT)
                     .mapToObj(port -> address + ":" + port)
             )

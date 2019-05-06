@@ -19,16 +19,25 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
-import java.util.List;
-import java.util.stream.IntStream;
+import java.net.InetSocketAddress;
+import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 /** Unit tests for {@link TcpTransport} */
@@ -87,16 +96,84 @@ public class TcpTransportTests extends ESTestCase {
         );
     }
 
-    public void testCombinesHostsAndPorts() {
-        List<String> actualAddresses = TcpTransport.combineHostsAndPorts(
-            List.of("[::1]", "127.0.0.1"),
-            IntStream.range(9300, 9401).toArray()
-        );
-        List<String> expectedAddresses = List.of(
+    public void testDefaultSeedAddressesWithDefaultPort() {
+        testDefaultSeedAddresses(Settings.EMPTY, containsInAnyOrder(
             "[::1]:9300", "[::1]:9301", "[::1]:9302", "[::1]:9303", "[::1]:9304", "[::1]:9305",
-            "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302", "127.0.0.1:9303", "127.0.0.1:9304", "127.0.0.1:9305"
-        );
-        assertEquals(expectedAddresses, actualAddresses);
+            "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302", "127.0.0.1:9303", "127.0.0.1:9304", "127.0.0.1:9305"));
+    }
+
+    public void testDefaultSeedAddressesWithNonstandardGlobalPortRange() {
+        testDefaultSeedAddresses(Settings.builder().put(TransportSettings.PORT.getKey(), "9500-9600").build(), containsInAnyOrder(
+            "[::1]:9500", "[::1]:9501", "[::1]:9502", "[::1]:9503", "[::1]:9504", "[::1]:9505",
+            "127.0.0.1:9500", "127.0.0.1:9501", "127.0.0.1:9502", "127.0.0.1:9503", "127.0.0.1:9504", "127.0.0.1:9505"));
+    }
+
+    public void testDefaultSeedAddressesWithSmallGlobalPortRange() {
+        testDefaultSeedAddresses(Settings.builder().put(TransportSettings.PORT.getKey(), "9300-9302").build(), containsInAnyOrder(
+            "[::1]:9300", "[::1]:9301", "[::1]:9302",
+            "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302"));
+    }
+
+    public void testDefaultSeedAddressesWithNonstandardProfilePortRange() {
+        testDefaultSeedAddresses(Settings.builder()
+                .put(TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(), "9500-9600")
+                .build(),
+            containsInAnyOrder(
+                "[::1]:9500", "[::1]:9501", "[::1]:9502", "[::1]:9503", "[::1]:9504", "[::1]:9505",
+                "127.0.0.1:9500", "127.0.0.1:9501", "127.0.0.1:9502", "127.0.0.1:9503", "127.0.0.1:9504", "127.0.0.1:9505"));
+    }
+
+    public void testDefaultSeedAddressesWithSmallProfilePortRange() {
+        testDefaultSeedAddresses(Settings.builder()
+                .put(TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(), "9300-9302")
+                .build(),
+            containsInAnyOrder(
+                "[::1]:9300", "[::1]:9301", "[::1]:9302",
+                "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302"));
+    }
+
+    public void testDefaultSeedAddressesPrefersProfileSettingToGlobalSetting() {
+        testDefaultSeedAddresses(Settings.builder()
+                .put(TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(), "9300-9302")
+                .put(TransportSettings.PORT.getKey(), "9500-9600")
+                .build(),
+            containsInAnyOrder(
+                "[::1]:9300", "[::1]:9301", "[::1]:9302",
+                "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302"));
+    }
+
+    public void testDefaultSeedAddressesWithNonstandardSinglePort() {
+        testDefaultSeedAddresses(Settings.builder().put(TransportSettings.PORT.getKey(), "9500").build(),
+            containsInAnyOrder("[::1]:9500", "127.0.0.1:9500"));
+    }
+
+    private void testDefaultSeedAddresses(final Settings settings, Matcher<Iterable<? extends String>> seedAddressesMatcher) {
+        final TestThreadPool testThreadPool = new TestThreadPool("test");
+        try {
+            final TcpTransport tcpTransport = new TcpTransport(settings, Version.CURRENT, testThreadPool,
+                new MockPageCacheRecycler(settings),
+                new NoneCircuitBreakerService(), writableRegistry(), new NetworkService(Collections.emptyList())) {
+
+                @Override
+                protected TcpServerChannel bind(String name, InetSocketAddress address) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                protected TcpChannel initiateChannel(DiscoveryNode node) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                protected void stopInternal() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+
+            assertThat(tcpTransport.getDefaultSeedAddresses(), seedAddressesMatcher);
+        } finally {
+            testThreadPool.shutdown();
+        }
     }
 
     public void testDecodeWithIncompleteHeader() throws IOException {

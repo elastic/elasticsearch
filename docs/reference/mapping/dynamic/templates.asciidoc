@@ -286,6 +286,7 @@ PUT my_index
 --------------------------------------------------
 // CONSOLE
 
+[[text-only-mappings-strings]]
 ===== `text`-only mappings for strings
 
 On the contrary to the previous example, if the only thing that you care about

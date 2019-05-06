@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[ilm-stop]]
 === Stop {ilm} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Stop {ilm}</titleabbrev>
 ++++

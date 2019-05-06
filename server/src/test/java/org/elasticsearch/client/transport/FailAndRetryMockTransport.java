@@ -28,13 +28,13 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -214,7 +214,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+            requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
         }
     }
     @Override

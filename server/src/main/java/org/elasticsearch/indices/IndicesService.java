@@ -63,6 +63,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
@@ -155,7 +156,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.META_DATA_VERIFICATION;
@@ -518,7 +518,7 @@ public class IndicesService extends AbstractLifecycleComponent
         boolean success = false;
         try {
             indexService.getIndexEventListener().afterIndexCreated(indexService);
-            indices = newMapBuilder(indices).put(index.getUUID(), indexService).immutableMap();
+            indices = Maps.copyMapWithAddedEntry(indices, index.getUUID(), indexService);
             success = true;
             return indexService;
         } finally {

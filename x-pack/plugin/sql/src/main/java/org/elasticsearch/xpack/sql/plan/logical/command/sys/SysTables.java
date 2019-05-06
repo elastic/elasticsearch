@@ -103,7 +103,7 @@ public class SysTables extends Command {
                 // send only the types, everything else is made of empty strings
                 // NB: since the types are sent in SQL, frozen doesn't have to be taken into account since
                 // it's just another BASE TABLE
-                Set<IndexType> typeSet = IndexType.VALID_WO_FROZEN;
+                Set<IndexType> typeSet = IndexType.VALID_REGULAR;
                 for (IndexType type : typeSet) {
                     Object[] enumeration = new Object[10];
                     enumeration[3] = type.toSql();
@@ -133,7 +133,7 @@ public class SysTables extends Command {
 
         // initialize types for name resolution
         if (tableTypes == null) {
-            tableTypes = includeFrozen ? IndexType.VALID : IndexType.VALID_WO_FROZEN;
+            tableTypes = includeFrozen ? IndexType.VALID_INCLUDE_FROZEN : IndexType.VALID_REGULAR;
         } else {
             if (includeFrozen && tableTypes.contains(IndexType.FROZEN_INDEX) == false) {
                 tableTypes.add(IndexType.FROZEN_INDEX);

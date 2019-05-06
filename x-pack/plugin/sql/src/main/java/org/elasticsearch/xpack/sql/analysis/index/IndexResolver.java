@@ -72,8 +72,8 @@ public class IndexResolver {
         public static final String SQL_TABLE = "TABLE";
         public static final String SQL_VIEW = "VIEW";
 
-        public static final EnumSet<IndexType> VALID = EnumSet.of(STANDARD_INDEX, ALIAS, FROZEN_INDEX);
-        public static final EnumSet<IndexType> VALID_WO_FROZEN = EnumSet.of(STANDARD_INDEX, ALIAS);
+        public static final EnumSet<IndexType> VALID_INCLUDE_FROZEN = EnumSet.of(STANDARD_INDEX, ALIAS, FROZEN_INDEX);
+        public static final EnumSet<IndexType> VALID_REGULAR = EnumSet.of(STANDARD_INDEX, ALIAS);
         public static final EnumSet<IndexType> INDICES_ONLY = EnumSet.of(STANDARD_INDEX, FROZEN_INDEX);
 
         private final String toSql;

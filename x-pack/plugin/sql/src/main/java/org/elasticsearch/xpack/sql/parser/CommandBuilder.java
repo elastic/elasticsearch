@@ -158,10 +158,10 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
                     switch (value.toUpperCase(Locale.ROOT)) {
                         case IndexType.SQL_TABLE:
                             legacyTableType = true;
-                            types.addAll(IndexType.INDICES_ONLY);
+                            types.add(IndexType.STANDARD_INDEX);
                             break;
                         case IndexType.SQL_BASE_TABLE:
-                            types.addAll(IndexType.INDICES_ONLY);
+                            types.add(IndexType.STANDARD_INDEX);
                             break;
                         case IndexType.SQL_VIEW:
                             types.add(IndexType.ALIAS);

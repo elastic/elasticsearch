@@ -206,11 +206,9 @@ setup:
 ---
 "Test typed keys parameter for date_histogram aggregation and max_bucket pipeline aggregation":
   - skip:
-      version: " - 7.1.99" #TODO change this after backport
+      version: " - 7.1.99"
       reason:  "calendar_interval added in 7.2"
   - do:
-      warnings:
-          - 'The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.'
       search:
         rest_total_hits_as_int: true
         typed_keys: true

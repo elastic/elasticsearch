@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
@@ -130,7 +131,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             failure -> logger.error("Failed to start task ["+ transformId +"] in node operation", failure)
         );
 
-        // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
+        // <4> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
         ActionListener<DataFrameIndexerTransformStats> transformStatsActionListener = ActionListener.wrap(
@@ -149,11 +150,34 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             }
         );
 
+        // <3> set the in progress checkpoint for the indexer, get the in progress checkpoint
+        ActionListener<DataFrameTransformCheckpoint> getTransformCheckpointListener = ActionListener.wrap(
+            cp -> {
+                indexerBuilder.setInProgressOrLastCheckpoint(cp);
+                transformsConfigManager.getTransformStats(transformId, transformStatsActionListener);
+            },
+            error -> {
+                String msg = DataFrameMessages.getMessage(DataFrameMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
+                logger.error(msg, error);
+                markAsFailed(buildTask, msg);
+            }
+        );
+
         // <2> set fieldmappings for the indexer, get the previous stats (if they exist)
         ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(
             fieldMappings -> {
                 indexerBuilder.setFieldMappings(fieldMappings);
-                transformsConfigManager.getTransformStats(transformId, transformStatsActionListener);
+
+                long inProgressCheckpoint = transformState == null ? 0L :
+                    Math.max(transformState.getCheckpoint(), transformState.getInProgressCheckpoint());
+
+                logger.debug("Restore in progress or last checkpoint: {}", inProgressCheckpoint);
+
+                if (inProgressCheckpoint == 0) {
+                    getTransformCheckpointListener.onResponse(DataFrameTransformCheckpoint.EMPTY);
+                } else {
+                    transformsConfigManager.getTransformCheckpoint(transformId, inProgressCheckpoint, getTransformCheckpointListener);
+                }
             },
             error -> {
                 String msg = DataFrameMessages.getMessage(DataFrameMessages.DATA_FRAME_UNABLE_TO_GATHER_FIELD_MAPPINGS,
@@ -238,7 +262,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
     static SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
-            return now + 1000; // to be fixed, hardcode something
+            return now + 10000; // to be fixed, hardcode something
         };
     }
 

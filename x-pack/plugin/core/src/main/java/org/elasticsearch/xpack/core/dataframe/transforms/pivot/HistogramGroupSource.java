@@ -11,8 +11,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -98,5 +100,11 @@ public class HistogramGroupSource extends SingleGroupSource {
     @Override
     public int hashCode() {
         return Objects.hash(field, interval);
+    }
+
+    @Override
+    public QueryBuilder getFilterQuery(List<String> changedBuckets) {
+        // histograms are simple and cheap, so we skip this optimization
+        return null;
     }
 }

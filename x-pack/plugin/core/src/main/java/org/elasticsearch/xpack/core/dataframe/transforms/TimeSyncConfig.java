@@ -136,12 +136,12 @@ public class TimeSyncConfig  implements SyncConfig {
     }
 
     @Override
-    public QueryBuilder getBoundaryQuery(DataFrameTransformCheckpoint checkpoint) {
-        return new RangeQueryBuilder(field).lt(checkpoint.getTimeUpperBound()).format("epoch_millis");
+    public QueryBuilder getRangeQuery(DataFrameTransformCheckpoint newCheckpoint) {
+        return new RangeQueryBuilder(field).lt(newCheckpoint.getTimeUpperBound()).format("epoch_millis");
     }
 
     @Override
-    public QueryBuilder getChangesQuery(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint) {
+    public QueryBuilder getRangeQuery(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint) {
         return new RangeQueryBuilder(field).gte(oldCheckpoint.getTimeUpperBound()).lt(newCheckpoint.getTimeUpperBound())
                 .format("epoch_millis");
     }

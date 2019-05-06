@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTask
 import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
@@ -44,6 +46,8 @@ import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigMa
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -272,9 +276,16 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
         //  for now no rerun, so only trigger if checkpoint == 0
-        if (currentCheckpoint.get() == 0 && event.getJobName().equals(SCHEDULE_NAME + "_" + transform.getId())) {
-            logger.debug("Data frame indexer [{}] schedule has triggered, state: [{}]", event.getJobName(), getIndexer().getState());
-            getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
+        if (event.getJobName().equals(SCHEDULE_NAME + "_" + transform.getId())) {
+            logger.info("Data frame indexer [{}] schedule has triggered, state: [{}]", event.getJobName(), getIndexer().getState());
+
+            if (currentCheckpoint.get() == 0 ) {
+                logger.debug("Trigger initial run");
+                getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
+            } else if (getIndexer().isContinuous() && getIndexer().sourceHasChanged()) {
+                logger.debug("Source has changed, triggering new indexer run");
+                getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
+            }
         }
     }
 
@@ -363,6 +374,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         private IndexerState indexerState = IndexerState.STOPPED;
         private Map<String, Object> initialPosition;
         private DataFrameTransformProgress progress;
+        private DataFrameTransformCheckpoint inProgressOrLastCheckpoint;
 
         ClientDataFrameIndexer build(DataFrameTransformTask parentTask) {
             return new ClientDataFrameIndexer(this.transformId,
@@ -376,6 +388,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 this.transformConfig,
                 this.fieldMappings,
                 this.progress,
+                this.inProgressOrLastCheckpoint,
                 parentTask);
         }
 
@@ -437,6 +450,11 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             this.progress = progress;
             return this;
         }
+
+        ClientDataFrameIndexerBuilder setInProgressOrLastCheckpoint(DataFrameTransformCheckpoint inProgressOrLastCheckpoint) {
+            this.inProgressOrLastCheckpoint = inProgressOrLastCheckpoint;
+            return this;
+        }
     }
 
     static class ClientDataFrameIndexer extends DataFrameIndexer {
@@ -461,6 +479,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                DataFrameTransformConfig transformConfig,
                                Map<String, String> fieldMappings,
                                DataFrameTransformProgress transformProgress,
+                               DataFrameTransformCheckpoint inProgressOrLastCheckpoint,
                                DataFrameTransformTask parentTask) {
             super(ExceptionsHelper.requireNonNull(parentTask, "parentTask")
                     .threadPool
@@ -471,7 +490,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 ExceptionsHelper.requireNonNull(initialState, "initialState"),
                 initialPosition,
                 initialStats == null ? new DataFrameIndexerTransformStats(transformId) : initialStats,
-                transformProgress);
+                transformProgress,
+                inProgressOrLastCheckpoint);
             this.transformId = ExceptionsHelper.requireNonNull(transformId, "transformId");
             this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
             this.transformsCheckpointService = ExceptionsHelper.requireNonNull(transformsCheckpointService,
@@ -620,19 +640,55 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         @Override
-        protected void createCheckpoint(ActionListener<Void> listener) {
+        protected void createCheckpoint(ActionListener<DataFrameTransformCheckpoint> listener) {
             transformsCheckpointService.getCheckpoint(transformConfig,
                 transformTask.currentCheckpoint.get() + 1,
                 ActionListener.wrap(
                     checkpoint -> transformsConfigManager.putTransformCheckpoint(checkpoint,
                         ActionListener.wrap(
-                            putCheckPointResponse -> listener.onResponse(null),
+                            putCheckPointResponse -> listener.onResponse(checkpoint),
                             createCheckpointException ->
                                 listener.onFailure(new RuntimeException("Failed to create checkpoint", createCheckpointException))
                     )),
                     getCheckPointException ->
                         listener.onFailure(new RuntimeException("Failed to retrieve checkpoint", getCheckPointException))
             ));
+        }
+
+        @Override
+        public boolean sourceHasChanged() {
+            if (getState() == IndexerState.INDEXING) {
+                logger.trace("Indexer is still running, ignore");
+                return false;
+            }
+
+            CountDownLatch latch = new CountDownLatch(1);
+
+            SetOnce<Boolean> changed = new SetOnce<>();
+            transformsCheckpointService.getCheckpoint(transformConfig, new LatchedActionListener<>(ActionListener.wrap(
+                    cp -> {
+                        long behind = DataFrameTransformCheckpoint.getBehind(inProgressOrLastCheckpoint, cp);
+                        if (behind > 0) {
+                            logger.debug("Detected changes, dest is {} operations behind the source", behind);
+                            changed.set(true);
+                        } else {
+                            changed.set(false);
+                        }
+                    }, e -> {
+                        changed.set(false);
+                        logger.error("failure in update check", e);
+                    }), latch));
+
+            try {
+                if (latch.await(5, TimeUnit.SECONDS)) {
+                    logger.trace("Change detected:" + changed.get());
+                    return changed.get();
+                }
+            } catch (InterruptedException e) {
+                logger.error("Failed to check for update", e);
+            }
+
+            return false;
         }
 
         private boolean isIrrecoverableFailure(Exception e) {

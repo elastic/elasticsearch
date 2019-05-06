@@ -711,7 +711,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             version = in.readLong();
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
                 aliasesVersion = in.readVLong();
             } else {
                 aliasesVersion = 1;
@@ -738,7 +738,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             out.writeLong(version);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
                 out.writeVLong(aliasesVersion);
             }
             out.writeByte(state.id);
@@ -776,7 +776,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             builder.aliasesVersion(in.readVLong());
         }
         builder.setRoutingNumShards(in.readInt());
@@ -818,7 +818,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         out.writeLong(version);
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeVLong(aliasesVersion);
         }
         out.writeInt(routingNumShards);
@@ -1414,8 +1414,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_6_5_0)) {
                 assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_7_1_0)) {
-                assert aliasesVersion : "aliases version should be present for indices created on or after 7.1.0";
+            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_7_2_0)) {
+                assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";
             }
             return builder.build();
         }

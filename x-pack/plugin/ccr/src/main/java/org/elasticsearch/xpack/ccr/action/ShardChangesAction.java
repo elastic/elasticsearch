@@ -146,7 +146,7 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
             super.readFrom(in);
             fromSeqNo = in.readVLong();
             maxOperationCount = in.readVInt();
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             expectedHistoryUUID = in.readString();
             pollTimeout = in.readTimeValue();
             maxBatchSize = new ByteSizeValue(in);

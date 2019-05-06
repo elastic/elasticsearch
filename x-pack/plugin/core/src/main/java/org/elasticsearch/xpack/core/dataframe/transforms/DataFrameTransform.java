@@ -47,7 +47,7 @@ public class DataFrameTransform extends AbstractDiffable<DataFrameTransform> imp
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_7_1_0;
+        return Version.V_7_2_0;
     }
 
     @Override

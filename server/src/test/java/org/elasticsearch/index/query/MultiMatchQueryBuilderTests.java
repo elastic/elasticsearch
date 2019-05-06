@@ -43,7 +43,6 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,10 +59,15 @@ import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
-
+public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatchQueryBuilder> {
     private static final String MISSING_WILDCARD_FIELD_NAME = "missing_*";
     private static final String MISSING_FIELD_NAME = "missing";
+
+    @Override
+    protected boolean isCacheable(MultiMatchQueryBuilder queryBuilder) {
+        return queryBuilder.fuzziness() != null
+                || isCacheable(queryBuilder.fields().keySet(), queryBuilder.value().toString());
+    }
 
     @Override
     protected MultiMatchQueryBuilder doCreateTestQueryBuilder() {
@@ -172,14 +176,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .or(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class))
                 .or(instanceOf(BlendedTermQuery.class)));
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41847")
-    // TODO #41847: This method is only overridden to allow muting this test. Please remove this override again after fixing it.
-    @Override
-    public void testToQuery() throws IOException {
-        super.testToQuery();
-    }
-
 
     public void testIllegaArguments() {
         expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder(null, "field"));

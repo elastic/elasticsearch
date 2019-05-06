@@ -24,10 +24,18 @@ import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<CompositeAggregationBuilder> {
+/**
+ * Duplicates the tests from {@link CompositeAggregationBuilderTests}, except using the deprecated
+ * interval on date histo.  Separated to make testing the warnings easier.
+ *
+ * Can be removed in when the legacy interval options are gone
+ */
+public class LegacyIntervalCompositeAggBuilderTests extends BaseAggregationTestCase<CompositeAggregationBuilder> {
+
     private DateHistogramValuesSourceBuilder randomDateHistogramSourceBuilder() {
         DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10));
         if (randomBoolean()) {
@@ -36,11 +44,10 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             histo.script(new Script(randomAlphaOfLengthBetween(10, 20)));
         }
         if (randomBoolean()) {
-            histo.calendarInterval(randomFrom(DateHistogramInterval.days(1),
+            histo.dateHistogramInterval(randomFrom(DateHistogramInterval.days(1),
                 DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)));
         } else {
-            histo.fixedInterval(randomFrom(new DateHistogramInterval(randomNonNegativeLong() + "ms"),
-                DateHistogramInterval.days(10), DateHistogramInterval.hours(10)));
+            histo.interval(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             histo.timeZone(randomZone());
@@ -83,6 +90,8 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
     protected CompositeAggregationBuilder createTestAggregatorBuilder() {
         int numSources = randomIntBetween(1, 10);
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
+        // ensure we add at least one date histo
+        sources.add(randomDateHistogramSourceBuilder());
         for (int i = 0; i < numSources; i++) {
             int type = randomIntBetween(0, 2);
             switch (type) {
@@ -100,5 +109,47 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             }
         }
         return new CompositeAggregationBuilder(randomAlphaOfLength(10), sources);
+    }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    @Override
+    public void testFromXContentMulti() throws IOException {
+        super.testFromXContentMulti();
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    @Override
+    public void testSerializationMulti() throws IOException {
+        super.testSerializationMulti();
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    @Override
+    public void testToString() throws IOException {
+        super.testToString();
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    @Override
+    public void testSerialization() throws IOException {
+        super.testSerialization();
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    @Override
+    public void testEqualsAndHashcode() throws IOException {
+        super.testEqualsAndHashcode();
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    @Override
+    public void testShallowCopy() {
+        super.testShallowCopy();
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 }

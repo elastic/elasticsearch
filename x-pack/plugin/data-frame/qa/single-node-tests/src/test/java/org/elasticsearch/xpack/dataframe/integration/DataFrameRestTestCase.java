@@ -176,10 +176,13 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         startDataframeTransform(transformId, force, null);
     }
 
-    protected void startDataframeTransform(String transformId, boolean force, String authHeader) throws IOException {
+    protected void startDataframeTransform(String transformId, boolean force, String authHeader, String... warnings) throws IOException {
         // start the transform
         final Request startTransformRequest = createRequestWithAuth("POST", DATAFRAME_ENDPOINT + transformId + "/_start", authHeader);
         startTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
+        if (warnings.length > 0) {
+            startTransformRequest.setOptions(expectWarnings(warnings));
+        }
         Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
         assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
     }
@@ -198,8 +201,13 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
     }
 
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex, String authHeader) throws Exception {
+        startAndWaitForTransform(transformId, dataFrameIndex, authHeader, new String[0]);
+    }
+
+    protected void startAndWaitForTransform(String transformId, String dataFrameIndex,
+                                            String authHeader, String... warnings) throws Exception {
         // start the transform
-        startDataframeTransform(transformId, false, authHeader);
+        startDataframeTransform(transformId, false, authHeader, warnings);
         assertTrue(indexExists(dataFrameIndex));
         // wait until the dataframe has been created and all data is available
         waitForDataFrameCheckpoint(transformId);

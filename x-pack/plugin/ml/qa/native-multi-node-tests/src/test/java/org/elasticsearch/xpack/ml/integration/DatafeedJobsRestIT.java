@@ -391,7 +391,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             + "    \"groups\" : {\n"
             + "      \"date_histogram\": {\n"
             + "        \"field\": \"time stamp\",\n"
-            + "        \"interval\": \"2m\",\n"
+            + "        \"fixed_interval\": \"2m\",\n"
             + "        \"delay\": \"7d\"\n"
             + "      },\n"
             + "      \"terms\": {\n"
@@ -412,7 +412,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createRollupRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
             + "\"aggregations\":{"
             + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
             + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
@@ -524,7 +524,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"1h\"},"
+        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"calendar_interval\":\"1h\"},"
                 + "\"aggregations\":{"
                 + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
                 + "\"airline\":{\"terms\":{\"field\":\"airline\",\"size\":10},"
@@ -564,7 +564,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String datafeedId = "datafeed-" + jobId;
         String aggregations =
                  "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
-                    + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"interval\":\"60s\"},"
+                    + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"fixed_interval\":\"60s\"},"
                         + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
                             + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
                             + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
@@ -610,7 +610,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String datafeedId = "datafeed-" + jobId;
         String aggregations =
                 "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
-                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"interval\":\"5s\"},"
+                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"fixed_interval\":\"5s\"},"
                         + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
                         + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
                         + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
@@ -652,7 +652,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String datafeedId = "datafeed-" + jobId;
         String aggregations =
                 "{\"hostname\": {\"terms\" : {\"field\": \"host.keyword\", \"size\":10},"
-                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"interval\":\"5s\"},"
+                        + "\"aggs\": {\"buckets\": {\"date_histogram\":{\"field\":\"timestamp\",\"fixed_interval\":\"5s\"},"
                         + "\"aggs\": {\"timestamp\":{\"max\":{\"field\":\"timestamp\"}},"
                         + "\"bytes-delta\":{\"derivative\":{\"buckets_path\":\"avg_bytes_out\"}},"
                         + "\"avg_bytes_out\":{\"avg\":{\"field\":\"network_bytes_out\"}} }}}}}";
@@ -706,7 +706,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"15m\"},"
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"15m\"},"
                 + "\"aggregations\":{"
                     + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
                     + "\"airlines\":{\"terms\":{\"field\":\"airline.keyword\",\"size\":10}},"
@@ -759,7 +759,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             + "    \"groups\" : {\n"
             + "      \"date_histogram\": {\n"
             + "        \"field\": \"time stamp\",\n"
-            + "        \"interval\": \"2m\",\n"
+            + "        \"fixed_interval\": \"2m\",\n"
             + "        \"delay\": \"7d\"\n"
             + "      },\n"
             + "      \"terms\": {\n"
@@ -797,7 +797,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(refreshRollupIndex);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
             + "\"aggregations\":{"
             + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
             + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
@@ -844,7 +844,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             + "    \"groups\" : {\n"
             + "      \"date_histogram\": {\n"
             + "        \"field\": \"time stamp\",\n"
-            + "        \"interval\": \"2m\",\n"
+            + "        \"fixed_interval\": \"2m\",\n"
             + "        \"delay\": \"7d\"\n"
             + "      },\n"
             + "      \"terms\": {\n"
@@ -865,7 +865,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createRollupRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":3600000},"
+        String aggregations = "{\"buckets\":{\"date_histogram\":{\"field\":\"time stamp\",\"fixed_interval\":\"3600000ms\"},"
             + "\"aggregations\":{"
             + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
             + "\"responsetime\":{\"avg\":{\"field\":\"responsetime\"}}}}}";
@@ -914,7 +914,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest(createJobRequest);
 
         String datafeedId = "datafeed-" + jobId;
-        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"interval\":\"1h\"},"
+        String aggregations = "{\"time stamp\":{\"date_histogram\":{\"field\":\"time stamp\",\"calendar_interval\":\"1h\"},"
             + "\"aggregations\":{"
             + "\"time stamp\":{\"max\":{\"field\":\"time stamp\"}},"
             + "\"airlineFilter\":{\"filter\":{\"term\": {\"airline\":\"AAA\"}},"

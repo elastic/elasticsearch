@@ -46,7 +46,7 @@ POST /_search
         "my_date_histo":{                <1>
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -148,7 +148,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -207,7 +207,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -250,7 +250,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -293,7 +293,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -338,7 +338,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -390,7 +390,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -436,7 +436,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -488,7 +488,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -546,7 +546,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{
@@ -612,7 +612,7 @@ POST /_search
         "my_date_histo":{
             "date_histogram":{
                 "field":"date",
-                "interval":"1M"
+                "calendar_interval":"1M"
             },
             "aggs":{
                 "the_sum":{

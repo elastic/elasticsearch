@@ -28,7 +28,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -135,7 +135,34 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
+                time_zone: "UTC"
+
+  - length: { aggregations.histo.buckets: 4 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2017-01-01T05:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.1.key_as_string: "2017-01-01T06:00:00.000Z" }
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+  - match: { aggregations.histo.buckets.2.key_as_string: "2017-01-01T07:00:00.000Z" }
+  - match: { aggregations.histo.buckets.2.doc_count: 10 }
+  - match: { aggregations.histo.buckets.3.key_as_string: "2017-01-01T08:00:00.000Z" }
+  - match: { aggregations.histo.buckets.3.doc_count: 20 }
+
+---
+"Basic Search with rest_total_hits_as_int":
+  - skip:
+      version: " - 6.5.99"
+      reason: rest_total_hits_as_int was introduced in 6.6.0
+  - do:
+      rollup.rollup_search:
+        index: "foo_rollup"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "1h"
                 time_zone: "UTC"
 
   - length: { aggregations.histo.buckets: 4 }
@@ -160,7 +187,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
                 format: "yyyy-MM-dd"
 
@@ -218,7 +245,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -254,7 +281,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -291,7 +318,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -396,7 +423,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -434,7 +461,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -542,7 +569,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -579,7 +606,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1d"
+                "calendar_interval": "1d"
               },
               "terms": {
                 "fields": ["partition"]
@@ -686,7 +713,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:
@@ -718,7 +745,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
 
   - length: { aggregations.histo.buckets: 4 }
@@ -761,7 +788,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -785,7 +812,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
 
 
@@ -806,7 +833,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
 
   - length: { aggregations.histo.buckets: 4 }
@@ -849,7 +876,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "timestamp",
-                "interval": "1h"
+                "calendar_interval": "1h"
               },
               "terms": {
                 "fields": ["partition"]
@@ -878,7 +905,7 @@ setup:
              histo:
                date_histogram:
                  field: "timestamp"
-                 interval: "1h"
+                 calendar_interval: "1h"
                  time_zone: "UTC"
 
 ---
@@ -984,7 +1011,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "5m"
+                fixed_interval: "5m"
                 time_zone: "America/Edmonton"
               aggs:
                 the_max:
@@ -1011,7 +1038,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "5m"
+                fixed_interval: "5m"
                 time_zone: "Canada/Mountain"
               aggs:
                 the_max:
@@ -1137,7 +1164,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "5m"
+                fixed_interval: "5m"
                 time_zone: "America/Edmonton"
               aggs:
                 the_max:
@@ -1165,7 +1192,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "5m"
+                fixed_interval: "5m"
                 time_zone: "Canada/Mountain"
               aggs:
                 the_max:
@@ -1197,7 +1224,7 @@ setup:
             histo:
               date_histogram:
                 field: "timestamp"
-                interval: "1h"
+                calendar_interval: "1h"
                 time_zone: "UTC"
               aggs:
                 the_max:

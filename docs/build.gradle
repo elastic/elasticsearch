@@ -614,7 +614,7 @@ buildRestTests.setups['sensor_rollup_job'] = '''
                 "groups" : {
                   "date_histogram": {
                     "field": "timestamp",
-                    "interval": "1h",
+                    "fixed_interval": "1h",
                     "delay": "7d"
                   },
                   "terms": {
@@ -683,7 +683,7 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 "groups" : {
                   "date_histogram": {
                     "field": "timestamp",
-                    "interval": "1h",
+                    "fixed_interval": "1h",
                     "delay": "7d"
                   },
                   "terms": {
@@ -800,7 +800,7 @@ buildRestTests.setups['sensor_prefab_data'] = '''
                     date_histogram:
                       delay: "7d"
                       field: "timestamp"
-                      interval: "60m"
+                      fixed_interval: "60m"
                       time_zone: "UTC"
                     terms:
                       fields:

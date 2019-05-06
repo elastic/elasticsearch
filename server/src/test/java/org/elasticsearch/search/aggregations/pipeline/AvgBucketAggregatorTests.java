@@ -84,7 +84,7 @@ public class AvgBucketAggregatorTests extends AggregatorTestCase {
 
         AvgAggregationBuilder avgBuilder = new AvgAggregationBuilder("foo").field(VALUE_FIELD);
         DateHistogramAggregationBuilder histo = new DateHistogramAggregationBuilder("histo")
-            .dateHistogramInterval(DateHistogramInterval.YEAR)
+            .calendarInterval(DateHistogramInterval.YEAR)
             .field(DATE_FIELD)
             .subAggregation(new AvgAggregationBuilder("foo").field(VALUE_FIELD));
 

@@ -109,7 +109,7 @@ SearchResponse sr = client.prepareSearch()
     .addAggregation(
             AggregationBuilders.dateHistogram("agg2")
                     .field("birth")
-                    .dateHistogramInterval(DateHistogramInterval.YEAR)
+                    .calendarInterval(DateHistogramInterval.YEAR)
     )
     .get();
 

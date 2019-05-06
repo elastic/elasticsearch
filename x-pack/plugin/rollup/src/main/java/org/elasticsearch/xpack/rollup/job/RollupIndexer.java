@@ -222,7 +222,13 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         final String dateHistogramField = dateHistogram.getField();
         final String dateHistogramName = RollupField.formatIndexerAggName(dateHistogramField, DateHistogramAggregationBuilder.NAME);
         final DateHistogramValuesSourceBuilder dateHistogramBuilder = new DateHistogramValuesSourceBuilder(dateHistogramName);
-        dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+        if (dateHistogram instanceof DateHistogramGroupConfig.FixedInterval) {
+            dateHistogramBuilder.fixedInterval(dateHistogram.getInterval());
+        } else if (dateHistogram instanceof DateHistogramGroupConfig.CalendarInterval) {
+            dateHistogramBuilder.calendarInterval(dateHistogram.getInterval());
+        } else {
+            dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+        }
         dateHistogramBuilder.field(dateHistogramField);
         dateHistogramBuilder.timeZone(ZoneId.of(dateHistogram.getTimeZone()));
         return Collections.singletonList(dateHistogramBuilder);

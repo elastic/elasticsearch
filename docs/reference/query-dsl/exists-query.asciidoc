@@ -37,11 +37,12 @@ than `null` or `[]`. These values can include:
 
 [[find-docs-null-values]]
 ===== Find documents with null values
-To find documents that contain `null` or `[]` in a provided field, use
-the `must_not` <<query-dsl-bool-query, boolean query>> with the `exists` query.
+To find documents that contain only `null` values or `[]` in a provided field,
+use the `must_not` <<query-dsl-bool-query, boolean query>> with the `exists`
+query.
 
-The following search returns documents that contain `null` or `[]` in
-the `user` field.
+The following search returns documents that contain only `null` values or `[]`
+in the `user` field.
 
 [source,js]
 ----

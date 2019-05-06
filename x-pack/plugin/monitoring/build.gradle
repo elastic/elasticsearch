@@ -45,10 +45,6 @@ dependencyLicenses {
     mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
 }
 
-run {
-    plugin xpackModule('core')
-}
-
 // xpack modules are installed in real clusters as the meta plugin, so
 // installing them as individual plugins for integ tests doesn't make sense,
 // so we disable integ tests

@@ -59,10 +59,6 @@ dependencyLicenses {
     ignoreSha 'x-pack-core'
 }
 
-run {
-    plugin xpackModule('core')
-}
-
 testingConventions.naming {
     IT {
         baseClass "org.elasticsearch.xpack.CcrIntegTestCase"

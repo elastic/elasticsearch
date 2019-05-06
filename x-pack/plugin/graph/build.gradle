@@ -24,8 +24,4 @@ gradle.projectsEvaluated {
             .each { check.dependsOn it.check }
 }
 
-run {
-    plugin xpackModule('core')
-}
-
 integTest.enabled = false

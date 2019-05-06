@@ -29,6 +29,3 @@ gradle.projectsEvaluated {
 
 integTest.enabled = false
 
-run {
-    plugin xpackModule('core')
-}

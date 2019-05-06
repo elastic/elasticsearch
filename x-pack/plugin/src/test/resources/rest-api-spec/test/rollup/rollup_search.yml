@@ -884,8 +884,8 @@ setup:
 ---
 "Obsolete Timezone":
   - skip:
-        version: " - 7.0.99"
-        reason: "IANA TZ deprecations in 7.1"
+        version: " - 7.1.99"
+        reason: "IANA TZ deprecations in 7.2"
         features: "warnings"
   - do:
       indices.create:
@@ -1032,8 +1032,8 @@ setup:
 ---
 "Obsolete BWC Timezone":
   - skip:
-        version: " - 7.0.99"
-        reason: "IANA TZ deprecations in 7.1"
+        version: " - 7.1.99"
+        reason: "IANA TZ deprecations in 7.2"
   - do:
       indices.create:
         index: tz_rollup

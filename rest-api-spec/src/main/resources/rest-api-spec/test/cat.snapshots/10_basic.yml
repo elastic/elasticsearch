@@ -1,5 +1,9 @@
 ---
 "Help":
+  - skip:
+      version: " - 7.2.99"
+      reason: PR https://github.com/elastic/elasticsearch/pull/41799 not yet backported
+
   - do:
       cat.snapshots:
         help: true
@@ -22,6 +26,9 @@
                $/
 ---
 "Test cat snapshots output":
+  - skip:
+      version: " - 7.2.99"
+      reason: PR https://github.com/elastic/elasticsearch/pull/41799 not yet backported
 
   - do:
       snapshot.create_repository:

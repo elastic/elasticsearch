@@ -56,9 +56,6 @@ integTestCluster {
   extraConfigFile 'hunspell/en_US/en_US.dic', '../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic'
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
-
-  // TODO: remove this for 7.0, this exists to allow the doc examples in 6.x to continue using the defaults
-  systemProperty 'es.scripting.update.ctx_in_params', 'false'
 }
 
 // build the cluster with all plugins
@@ -617,7 +614,7 @@ buildRestTests.setups['sensor_rollup_job'] = '''
                 "groups" : {
                   "date_histogram": {
                     "field": "timestamp",
-                    "interval": "1h",
+                    "fixed_interval": "1h",
                     "delay": "7d"
                   },
                   "terms": {
@@ -686,7 +683,7 @@ buildRestTests.setups['sensor_started_rollup_job'] = '''
                 "groups" : {
                   "date_histogram": {
                     "field": "timestamp",
-                    "interval": "1h",
+                    "fixed_interval": "1h",
                     "delay": "7d"
                   },
                   "terms": {
@@ -803,7 +800,7 @@ buildRestTests.setups['sensor_prefab_data'] = '''
                     date_histogram:
                       delay: "7d"
                       field: "timestamp"
-                      interval: "60m"
+                      fixed_interval: "60m"
                       time_zone: "UTC"
                     terms:
                       fields:

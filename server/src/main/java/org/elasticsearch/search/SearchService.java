@@ -1096,17 +1096,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         private boolean canMatch;
 
         public CanMatchResponse(StreamInput in) throws IOException {
+            super(in);
             this.canMatch = in.readBoolean();
         }
 
         public CanMatchResponse(boolean canMatch) {
             this.canMatch = canMatch;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            canMatch = in.readBoolean();
         }
 
         @Override

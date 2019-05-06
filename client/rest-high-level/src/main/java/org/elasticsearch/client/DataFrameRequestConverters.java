@@ -62,7 +62,7 @@ final class DataFrameRequestConverters {
             request.addParameter(PageParams.FROM.getPreferredName(), getRequest.getPageParams().getFrom().toString());
         }
         if (getRequest.getPageParams() != null && getRequest.getPageParams().getSize() != null) {
-            request.addParameter("size", getRequest.getPageParams().getSize().toString());
+            request.addParameter(PageParams.SIZE.getPreferredName(), getRequest.getPageParams().getSize().toString());
         }
         return request;
     }
@@ -126,7 +126,7 @@ final class DataFrameRequestConverters {
             request.addParameter(PageParams.FROM.getPreferredName(), statsRequest.getPageParams().getFrom().toString());
         }
         if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getSize() != null) {
-            request.addParameter("size", statsRequest.getPageParams().getSize().toString());
+            request.addParameter(PageParams.SIZE.getPreferredName(), statsRequest.getPageParams().getSize().toString());
         }
         return request;
     }

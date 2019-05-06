@@ -182,7 +182,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *  {@link #dateHistogramInterval()} wins.
      *
      *  @deprecated use {@link #fixedInterval(DateHistogramInterval)} or {@link #calendarInterval(DateHistogramInterval)} instead
-     *  @since 7.1.0
+     *  @since 7.2.0
      */
     @Deprecated
     public DateHistogramAggregationBuilder interval(long interval) {
@@ -201,7 +201,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *  {@link #dateHistogramInterval()} wins.
      *
      *  @deprecated use {@link #fixedInterval(DateHistogramInterval)} or {@link #calendarInterval(DateHistogramInterval)} instead
-     *  @since 7.1.0
+     *  @since 7.2.0
      */
     @Deprecated
     public DateHistogramAggregationBuilder dateHistogramInterval(DateHistogramInterval interval) {

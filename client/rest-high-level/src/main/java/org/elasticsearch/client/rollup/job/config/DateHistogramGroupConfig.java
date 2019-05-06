@@ -177,7 +177,7 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
      * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
      * or {@link DateHistogramGroupConfig.FixedInterval} instead
      *
-     * @since 7.1.0
+     * @since 7.2.0
      */
     @Deprecated
     public DateHistogramGroupConfig(final String field, final DateHistogramInterval interval) {
@@ -200,7 +200,7 @@ public class DateHistogramGroupConfig implements Validatable, ToXContentObject {
      * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
      * or {@link DateHistogramGroupConfig.FixedInterval} instead
      *
-     * @since 7.1.0
+     * @since 7.2.0
      */
     @Deprecated
     public DateHistogramGroupConfig(final String field,

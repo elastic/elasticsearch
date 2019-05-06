@@ -126,7 +126,7 @@ public class DateHistogramValuesSourceBuilder
      * then the {@link #dateHistogramInterval()} wins.
      *
      * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.1.0
+     * @since 7.2.0
      **/
     @Deprecated
     public DateHistogramValuesSourceBuilder interval(long interval) {
@@ -144,7 +144,7 @@ public class DateHistogramValuesSourceBuilder
 
     /**
      * @deprecated Use {@link #calendarInterval(DateHistogramInterval)} or {@link #fixedInterval(DateHistogramInterval)} instead
-     * @since 7.1.0
+     * @since 7.2.0
      */
     @Deprecated
     public DateHistogramValuesSourceBuilder dateHistogramInterval(DateHistogramInterval interval) {

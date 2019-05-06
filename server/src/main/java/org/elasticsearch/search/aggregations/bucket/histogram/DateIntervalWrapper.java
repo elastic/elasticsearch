@@ -150,7 +150,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      *
      *  @deprecated use {@link DateHistogramAggregationBuilder#fixedInterval(DateHistogramInterval)}
      *              or {@link DateHistogramAggregationBuilder#calendarInterval(DateHistogramInterval)} instead
-     *  @since 7.1.0
+     *  @since 7.2.0
      */
     @Deprecated
     public void interval(long interval) {
@@ -178,7 +178,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      *
      *  @deprecated use {@link DateIntervalWrapper#fixedInterval(DateHistogramInterval)}
      *              or {@link DateIntervalWrapper#calendarInterval(DateHistogramInterval)} instead
-     *  @since 7.1.0
+     *  @since 7.2.0
      */
     @Deprecated
     public void dateHistogramInterval(DateHistogramInterval dateHistogramInterval) {

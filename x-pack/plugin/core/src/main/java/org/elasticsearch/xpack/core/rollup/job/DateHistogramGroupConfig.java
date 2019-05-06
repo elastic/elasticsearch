@@ -187,7 +187,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
      * or {@link DateHistogramGroupConfig.FixedInterval} instead
      *
-     * @since 7.1.0
+     * @since 7.2.0
      */
     @Deprecated
     public DateHistogramGroupConfig(final String field, final DateHistogramInterval interval) {
@@ -210,7 +210,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
      * or {@link DateHistogramGroupConfig.FixedInterval} instead
      *
-     * @since 7.1.0
+     * @since 7.2.0
      */
     @Deprecated
     public DateHistogramGroupConfig(final String field,
@@ -241,7 +241,7 @@ public class DateHistogramGroupConfig implements Writeable, ToXContentObject {
      * @deprecated Build a DateHistoConfig using {@link DateHistogramGroupConfig.CalendarInterval}
      * or {@link DateHistogramGroupConfig.FixedInterval} instead
      *
-     * @since 7.1.0
+     * @since 7.2.0
      */
     @Deprecated
     DateHistogramGroupConfig(final StreamInput in) throws IOException {

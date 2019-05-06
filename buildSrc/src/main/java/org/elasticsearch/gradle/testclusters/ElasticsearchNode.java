@@ -276,7 +276,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         Path distroArtifact = artifactsExtractDir
             .resolve(distribution.getGroup())
-            .resolve(distribution.getArtifactName() + "-" + getVersion());
+            .resolve("elasticsearch-" + getVersion());
 
         if (Files.exists(distroArtifact) == false) {
             throw new TestClustersException("Can not start " + this + ", missing: " + distroArtifact);

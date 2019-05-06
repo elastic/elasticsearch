@@ -105,6 +105,14 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         );
     }
 
+    public void testReleased() {
+        BuildResult result = getTestClustersRunner("testReleased").build();
+        assertTaskSuccessful(result, ":testReleased");
+        assertStartedAndStoppedOnce(result, "releasedVersionDefault-1");
+        assertStartedAndStoppedOnce(result, "releasedVersionOSS-1");
+        assertStartedAndStoppedOnce(result, "releasedVersionIntegTest-1");
+    }
+
     public void testIncremental() {
         BuildResult result = getTestClustersRunner("clean", ":user1").build();
         assertTaskSuccessful(result, ":user1");

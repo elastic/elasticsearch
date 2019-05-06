@@ -209,7 +209,7 @@ PUT my_index/_doc/1
 Note that the `path_match` and `path_unmatch` parameters match on object paths
 in addition to leaf fields. As an example, indexing the following document will
 result in an error because the `path_match` setting also matches the object
-field `name.title`:
+field `name.title`, which can't be mapped as text:
 
 [source,js]
 --------------------------------------------------

@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
@@ -147,6 +148,24 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertThat(request.getEndpoint(), equalTo("/_data_frame/transforms/foo/_stats"));
+
+        assertFalse(request.getParameters().containsKey("from"));
+        assertFalse(request.getParameters().containsKey("size"));
+
+        getStatsRequest.setPageParams(new PageParams(0, null));
+        request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
+        assertEquals("0", request.getParameters().get("from"));
+        assertEquals(null, request.getParameters().get("size"));
+
+        getStatsRequest.setPageParams(new PageParams(null, 50));
+        request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
+        assertEquals(null, request.getParameters().get("from"));
+        assertEquals("50", request.getParameters().get("size"));
+
+        getStatsRequest.setPageParams(new PageParams(0, 10));
+        request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
+        assertEquals("0", request.getParameters().get("from"));
+        assertEquals("10", request.getParameters().get("size"));
     }
 
     public void testGetDataFrameTransform() {
@@ -159,8 +178,17 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
         assertFalse(request.getParameters().containsKey("from"));
         assertFalse(request.getParameters().containsKey("size"));
 
-        getRequest.setFrom(0);
-        getRequest.setSize(10);
+        getRequest.setPageParams(new PageParams(0, null));
+        request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+        assertEquals("0", request.getParameters().get("from"));
+        assertEquals(null, request.getParameters().get("size"));
+
+        getRequest.setPageParams(new PageParams(null, 50));
+        request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
+        assertEquals(null, request.getParameters().get("from"));
+        assertEquals("50", request.getParameters().get("size"));
+
+        getRequest.setPageParams(new PageParams(0, 10));
         request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
         assertEquals("0", request.getParameters().get("from"));
         assertEquals("10", request.getParameters().get("size"));

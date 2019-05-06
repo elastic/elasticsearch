@@ -5,15 +5,15 @@ plugins {
 
 String fakeJdkVersion = Objects.requireNonNull(System.getProperty('tests.jdk_version'))
 jdks {
-    linux_jdk {
+    linux {
         version = fakeJdkVersion
         platform = "linux"
     }
-    darwin_jdk {
+    darwin {
         version = fakeJdkVersion
         platform = "darwin"
     }
-    windows_jdk {
+    windows {
         version = fakeJdkVersion
         platform = "windows"
     }
@@ -22,20 +22,20 @@ jdks {
 task getLinuxJdk {
     dependsOn jdks.linux_jdk
     doLast {
-        println "JDK HOME: " + jdks.linux_jdk.homeDir
+        println "JDK HOME: " + jdks.linux.homeDir
     }
 }
 
 task getDarwinJdk {
     dependsOn jdks.darwin_jdk
     doLast {
-        println "JDK HOME: " + jdks.darwin_jdk.homeDir
+        println "JDK HOME: " + jdks.darwin.homeDir
     }
 }
 
 task getWindowsJdk {
     dependsOn jdks.windows_jdk
     doLast {
-        println "JDK HOME: " + jdks.windows_jdk.homeDir
+        println "JDK HOME: " + jdks.windows.homeDir
     }
 }

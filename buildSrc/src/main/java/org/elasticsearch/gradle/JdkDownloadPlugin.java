@@ -29,7 +29,6 @@ import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.file.CopySpec;
-import org.gradle.api.file.FileCopyDetails;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RelativePath;
 import org.gradle.api.tasks.Copy;
@@ -100,7 +99,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
             rootProject.getRepositories().ivy(ivyRepo -> {
                 ivyRepo.setName(repoName);
-                ivyRepo.setUrl("https://download.java.net");
+                ivyRepo.setUrl("https://download.oracle.com");
                 ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
                 ivyRepo.patternLayout(layout ->
                     layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
@@ -109,7 +108,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
             // current pattern since 12.0.1
             rootProject.getRepositories().ivy(ivyRepo -> {
                 ivyRepo.setName(repoName + "_with_hash");
-                ivyRepo.setUrl("https://download.java.net");
+                ivyRepo.setUrl("https://download.oracle.com");
                 ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
                 ivyRepo.patternLayout(layout -> layout.artifact(
                     "java/GA/jdk" + jdkVersion + "/" + hash + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
@@ -131,10 +130,11 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         rootProject.getDependencies().add(configName("openjdk", version, platform), jdkDep);
 
         // add task for extraction
+        // TODO: look into doing this as an artifact transform, which are cacheable starting in gradle 5.3
         int rootNdx = platform.equals("darwin") ? 2 : 1;
         Action<CopySpec> removeRootDir = copy -> {
             // remove extra unnecessary directory levels
-            copy.eachFile((FileCopyDetails details) -> {
+            copy.eachFile(details -> {
                 String[] pathSegments = details.getRelativePath().getSegments();
                 String[] newPathSegments = Arrays.copyOfRange(pathSegments, rootNdx, pathSegments.length);
                 details.setRelativePath(new RelativePath(true, newPathSegments));

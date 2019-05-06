@@ -33,7 +33,7 @@ import java.util.regex.Pattern;
 
 public class Jdk implements Buildable {
 
-    static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)@([a-f0-9]{32})?")
+    static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)@([a-f0-9]{32})?");
     private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("linux", "windows", "darwin"));
 
     private final String name;
@@ -82,7 +82,7 @@ public class Jdk implements Buildable {
         return configuration;
     }
 
-    public FileCollection getFiles() {
+    public FileCollection getFileCollection() {
         return configuration;
     }
 

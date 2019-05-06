@@ -152,6 +152,17 @@ field.
 +
 --
 
+////
+
+[source,js]
+----
+POST my_index/_refresh
+----
+// CONSOLE
+// TEST[continued]
+
+////
+
 [source,js]
 ----
 GET my_index/_search?pretty

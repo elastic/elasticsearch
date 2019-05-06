@@ -63,7 +63,8 @@ setup:
             "pivot": {
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
-            }
+            },
+            "description": "yaml test transform on airline-data"
           }
   - match: { acknowledged: true }
 
@@ -91,6 +92,7 @@ setup:
   - is_true: transforms.0.source.query.match_all
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+  - match: { transforms.0.description: "yaml test transform on airline-data" }
 
   - do:
       data_frame.get_data_frame_transform:
@@ -98,6 +100,7 @@ setup:
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform" }
   - match: { transforms.1.id: "airline-transform-dos" }
+  - is_false: transforms.1.description
 
   - do:
       data_frame.get_data_frame_transform:

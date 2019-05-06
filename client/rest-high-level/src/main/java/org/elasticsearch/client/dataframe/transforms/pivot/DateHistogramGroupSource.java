@@ -20,6 +20,7 @@
 package org.elasticsearch.client.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -34,30 +35,41 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
+/**
+ * A grouping via a date histogram aggregation referencing a timefield
+ */
 public class DateHistogramGroupSource extends SingleGroupSource implements ToXContentObject {
 
     private static final ParseField TIME_ZONE = new ParseField("time_zone");
     private static final ParseField FORMAT = new ParseField("format");
 
     private static final ConstructingObjectParser<DateHistogramGroupSource, Void> PARSER =
-            new ConstructingObjectParser<>("date_histogram_group_source", true, (args) -> new DateHistogramGroupSource((String) args[0]));
+            new ConstructingObjectParser<>("date_histogram_group_source",
+                true,
+                (args) -> {
+                   String field = (String)args[0];
+                   long interval = 0;
+                   DateHistogramInterval dateHistogramInterval = null;
+                   if (args[1] instanceof Long) {
+                       interval = (Long)args[1];
+                   } else {
+                       dateHistogramInterval = (DateHistogramInterval) args[1];
+                   }
+                   ZoneId zoneId = (ZoneId) args[2];
+                   String format = (String) args[3];
+                   return new DateHistogramGroupSource(field, interval, dateHistogramInterval, format, zoneId);
+                });
 
     static {
         PARSER.declareString(optionalConstructorArg(), FIELD);
-        PARSER.declareField((histogram, interval) -> {
-            if (interval instanceof Long) {
-                histogram.setInterval((long) interval);
-            } else {
-                histogram.setDateHistogramInterval((DateHistogramInterval) interval);
-            }
-        }, p -> {
+        PARSER.declareField(optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
                 return p.longValue();
             } else {
                 return new DateHistogramInterval(p.text());
             }
         }, HistogramGroupSource.INTERVAL, ObjectParser.ValueType.LONG);
-        PARSER.declareField(DateHistogramGroupSource::setTimeZone, p -> {
+        PARSER.declareField(optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
                 return ZoneId.of(p.text());
             } else {
@@ -65,20 +77,24 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
             }
         }, TIME_ZONE, ObjectParser.ValueType.LONG);
 
-        PARSER.declareString(DateHistogramGroupSource::setFormat, FORMAT);
+        PARSER.declareString(optionalConstructorArg(), FORMAT);
     }
 
     public static DateHistogramGroupSource fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    private long interval = 0;
-    private DateHistogramInterval dateHistogramInterval;
-    private String format;
-    private ZoneId timeZone;
+    private final long interval;
+    private final DateHistogramInterval dateHistogramInterval;
+    private final String format;
+    private final ZoneId timeZone;
 
-    public DateHistogramGroupSource(String field) {
+    DateHistogramGroupSource(String field, long interval, DateHistogramInterval dateHistogramInterval, String format, ZoneId timeZone) {
         super(field);
+        this.interval = interval;
+        this.dateHistogramInterval = dateHistogramInterval;
+        this.format = format;
+        this.timeZone = timeZone;
     }
 
     @Override
@@ -90,38 +106,16 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         return interval;
     }
 
-    public void setInterval(long interval) {
-        if (interval < 1) {
-            throw new IllegalArgumentException("[interval] must be greater than or equal to 1.");
-        }
-        this.interval = interval;
-    }
-
     public DateHistogramInterval getDateHistogramInterval() {
         return dateHistogramInterval;
-    }
-
-    public void setDateHistogramInterval(DateHistogramInterval dateHistogramInterval) {
-        if (dateHistogramInterval == null) {
-            throw new IllegalArgumentException("[dateHistogramInterval] must not be null");
-        }
-        this.dateHistogramInterval = dateHistogramInterval;
     }
 
     public String getFormat() {
         return format;
     }
 
-    public void setFormat(String format) {
-        this.format = format;
-    }
-
     public ZoneId getTimeZone() {
         return timeZone;
-    }
-
-    public void setTimeZone(ZoneId timeZone) {
-        this.timeZone = timeZone;
     }
 
     @Override
@@ -167,5 +161,89 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
     @Override
     public int hashCode() {
         return Objects.hash(field, interval, dateHistogramInterval, timeZone, format);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+
+        private String field;
+        private long interval = 0;
+        private DateHistogramInterval dateHistogramInterval;
+        private String format;
+        private ZoneId timeZone;
+
+        /**
+         * The field with which to construct the date histogram grouping
+         * @param field The field name
+         * @return The {@link Builder} with the field set.
+         */
+        public Builder setField(String field) {
+            this.field = field;
+            return this;
+        }
+
+        /**
+         * Set the interval for the DateHistogram grouping
+         * @param interval the time interval in milliseconds
+         * @return the {@link Builder} with the interval set.
+         */
+        public Builder setInterval(long interval) {
+            if (interval < 1) {
+                throw new IllegalArgumentException("[interval] must be greater than or equal to 1.");
+            }
+            this.interval = interval;
+            return this;
+        }
+
+        /**
+         * Set the interval for the DateHistogram grouping
+         * @param timeValue The time value to use as the interval
+         * @return the {@link Builder} with the interval set.
+         */
+        public Builder setInterval(TimeValue timeValue) {
+            return setInterval(timeValue.getMillis());
+        }
+
+        /**
+         * Sets the interval of the DateHistogram grouping
+         *
+         * If this DateHistogramInterval is set, it supersedes the #{@link DateHistogramGroupSource#getInterval()}
+         * @param dateHistogramInterval the DateHistogramInterval to set
+         * @return The {@link Builder} with the dateHistogramInterval set.
+         */
+        public Builder setDateHistgramInterval(DateHistogramInterval dateHistogramInterval) {
+            if (dateHistogramInterval == null) {
+                throw new IllegalArgumentException("[dateHistogramInterval] must not be null");
+            }
+            this.dateHistogramInterval = dateHistogramInterval;
+            return this;
+        }
+
+        /**
+         * Set the optional String formatting for the time interval.
+         * @param format The format of the output for the time interval key
+         * @return The {@link Builder} with the format set.
+         */
+        public Builder setFormat(String format) {
+            this.format = format;
+            return this;
+        }
+
+        /**
+         * Sets the time zone to use for this aggregation
+         * @param timeZone The zoneId for the timeZone
+         * @return The {@link Builder} with the timeZone set.
+         */
+        public Builder setTimeZone(ZoneId timeZone) {
+            this.timeZone = timeZone;
+            return this;
+        }
+
+        public DateHistogramGroupSource build() {
+            return new DateHistogramGroupSource(field, interval, dateHistogramInterval, format, timeZone);
+        }
     }
 }

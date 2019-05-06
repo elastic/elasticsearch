@@ -56,9 +56,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -757,17 +755,16 @@ public class TransportService extends AbstractLifecycleComponent implements Tran
     /**
      * A set of all valid action prefixes.
      */
-    public static final Set<String> VALID_ACTION_PREFIXES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        "indices:admin",
-        "indices:monitor",
-        "indices:data/write",
-        "indices:data/read",
-        "indices:internal",
-        "cluster:admin",
-        "cluster:monitor",
-        "cluster:internal",
-        "internal:"
-        )));
+    public static final Set<String> VALID_ACTION_PREFIXES = Set.of(
+            "indices:admin",
+            "indices:monitor",
+            "indices:data/write",
+            "indices:data/read",
+            "indices:internal",
+            "cluster:admin",
+            "cluster:monitor",
+            "cluster:internal",
+            "internal:");
 
     private void validateActionName(String actionName) {
         // TODO we should makes this a hard validation and throw an exception but we need a good way to add backwards layer

@@ -91,6 +91,7 @@ become meaningless. Elasticsearch makes it easy to check how many documents
 have malformed fields by using `exist` or `term` queries on the special
 <<mapping-ignored-field,`_ignored`>> field.
 
+[[json-object-limits]]
 ==== Limits for JSON Objects
 You can't use `ignore_malformed` with the following datatypes:
 

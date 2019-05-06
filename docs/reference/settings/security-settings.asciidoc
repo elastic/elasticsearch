@@ -1484,10 +1484,15 @@ through the list of URLs will continue until a successful connection is made.
 [[ssl-tls-settings]]
 ==== Default values for TLS/SSL settings
 In general, the values below represent the default values for the various TLS
-settings. For more information, see
+settings.
+The prefixes for these settings are based on the context in which they are
+used (e.g. `xpack.security.authc.realms.ldap.corp_ldap.ssl.verification_mode`
+or `xpack.security.transport.ssl.supported_protocols`).
+
+For more information, see
 {stack-ov}/encrypting-communications.html[Encrypting communications].
 
-`ssl.supported_protocols`::
+`*.ssl.supported_protocols`::
 Supported protocols with versions. Valid protocols: `SSLv2Hello`,
 `SSLv3`, `TLSv1`, `TLSv1.1`, `TLSv1.2`, `TLSv1.3`. Defaults to `TLSv1.3,TLSv1.2,TLSv1.1` if
 the JVM supports TLSv1.3, otherwise `TLSv1.2,TLSv1.1`.
@@ -1497,7 +1502,7 @@ NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hell
 or `SSLv3`. See <<fips-140-compliance>>.
 --
 
-`ssl.client_authentication`::
+`*.ssl.client_authentication`::
 Controls the server's behavior in regard to requesting a certificate
 from client connections. Valid values are `required`, `optional`, and `none`.
 `required` forces a client to present a certificate, while `optional`
@@ -1505,7 +1510,7 @@ requests a client certificate but the client is not required to present one.
 Defaults to `required`, except for HTTP, which defaults to `none`. See
  <<http-tls-ssl-settings>>.
 
-`ssl.verification_mode`::
+`*.ssl.verification_mode`::
 Controls the verification of certificates. Valid values are:
 - `full`, which verifies that the provided certificate is signed by a trusted
        authority (CA) and also verifies that the server's hostname (or IP
@@ -1520,7 +1525,7 @@ Controls the verification of certificates. Valid values are:
 +
 The default value is `full`.
 
-`ssl.cipher_suites`::
+`*.ssl.cipher_suites`::
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256`,
 `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`, `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`, `TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA`,

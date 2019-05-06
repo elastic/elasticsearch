@@ -32,7 +32,7 @@ import static java.util.Map.entry;
 public class Maps {
 
     /**
-     * Concatenates an entry to an immutable map.
+     * Concatenates an entry to an immutable map. This method expects there is not already a mapping for the specified key in the map.
      *
      * @param map   the immutable map to concatenate the entry to
      * @param key   the key of the new entry
@@ -45,6 +45,32 @@ public class Maps {
         Objects.requireNonNull(map);
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
+        assertImmutableMap(map, key, value);
+        assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
+        return Stream.concat(map.entrySet().stream(), Stream.of(entry(key, value)))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    /**
+     * Adds a new entry to or replaces an existing entry in an immutable map.
+     *
+     * @param map   the immutable map to add to or replace in
+     * @param key   the key of the new entry
+     * @param value the value of the new entry
+     * @param <K>   the type of the keys in the map
+     * @param <V>   the type of the values in the map
+     * @return an immutable map that contains the items from the specified map and a mapping from the specified key to the specified value
+     */
+    public static <K, V> Map<K, V> addOrReplaceEntryInImmutableMap(final Map<K, V> map, final K key, final V value) {
+        Objects.requireNonNull(map);
+        Objects.requireNonNull(key);
+        Objects.requireNonNull(value);
+        assertImmutableMap(map, key, value);
+        return Stream.concat(map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false), Stream.of(entry(key, value)))
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private static <K, V> void assertImmutableMap(final Map<K, V> map, final K key, final V value) {
         if (Assertions.ENABLED) {
             boolean immutable;
             try {
@@ -55,9 +81,6 @@ public class Maps {
             }
             assert immutable : "expected an immutable map but was [" + map.getClass() + "]";
         }
-        assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
-        return Stream.concat(map.entrySet().stream(), Stream.of(entry(key, value)))
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**

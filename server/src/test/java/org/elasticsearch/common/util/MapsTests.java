@@ -52,6 +52,44 @@ public class MapsTests extends ESTestCase {
                 Stream.concat(entries.stream(), Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList()));
     }
 
+    public void testAddEntryInImmutableMap() {
+        final var numberOfEntries = randomIntBetween(0, 32);
+        final var entries = new ArrayList<Map.Entry<String, String>>(numberOfEntries);
+        final var keys = new HashSet<String>();
+        for (int i = 0; i < numberOfEntries; i++) {
+            final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
+            keys.add(key);
+            entries.add(entry(key, randomAlphaOfLength(16)));
+        }
+        final Map<String, String> map = Maps.ofEntries(entries);
+        final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
+        final String value = randomAlphaOfLength(16);
+        final Map<String, String> add = Maps.addOrReplaceEntryInImmutableMap(map, key, value);
+        assertMapEntriesAndImmutability(
+                add,
+                Stream.concat(entries.stream(), Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList()));
+    }
+
+    public void testReplaceEntryInImmutableMap() {
+        final var numberOfEntries = randomIntBetween(1, 32);
+        final var entries = new ArrayList<Map.Entry<String, String>>(numberOfEntries);
+        final var keys = new HashSet<String>();
+        for (int i = 0; i < numberOfEntries; i++) {
+            final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
+            keys.add(key);
+            entries.add(entry(key, randomAlphaOfLength(16)));
+        }
+        final Map<String, String> map = Maps.ofEntries(entries);
+        final String key = randomFrom(map.keySet());
+        final String value = randomAlphaOfLength(16);
+        final Map<String, String> replaced = Maps.addOrReplaceEntryInImmutableMap(map, key, value);
+        assertMapEntriesAndImmutability(
+                replaced,
+                Stream.concat(
+                        entries.stream().filter(e -> key.equals(e.getKey()) == false),
+                        Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList()));
+    }
+
     public void testOfEntries() {
         final var numberOfEntries = randomIntBetween(0, 32);
         final var entries = new ArrayList<Map.Entry<String, String>>(numberOfEntries);

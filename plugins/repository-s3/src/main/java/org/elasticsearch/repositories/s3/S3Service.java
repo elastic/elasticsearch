@@ -125,7 +125,7 @@ class S3Service implements Closeable {
                 }
                 final S3ClientSettings newSettings = staticSettings.refine(repositoryMetaData);
                 derivedClientSettings =
-                        Maps.concatenateEntryToImmutableMap(
+                        Maps.addOrReplaceEntryInImmutableMap(
                                 derivedClientSettings,
                                 staticSettings,
                                 Maps.concatenateEntryToImmutableMap(derivedSettings, repositoryMetaData, newSettings));

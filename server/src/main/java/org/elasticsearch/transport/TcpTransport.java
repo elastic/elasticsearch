@@ -471,7 +471,12 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     private int[] defaultPortRange() {
-        return new PortsRange(settings.get("transport.profiles.default.port", TransportSettings.PORT.get(settings))).ports();
+        return new PortsRange(
+            settings.get(
+                TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(),
+                TransportSettings.PORT.get(settings)
+            )
+        ).ports();
     }
 
     // this code is a take on guava's HostAndPort, like a HostAndPortRange

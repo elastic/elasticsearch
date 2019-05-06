@@ -81,11 +81,10 @@ public class TcpTransportTests extends ESTestCase {
     }
 
     public void testRejectsPortRanges() {
-        IllegalArgumentException expected = expectThrows(
-            IllegalArgumentException.class,
+        expectThrows(
+            NumberFormatException.class,
             () -> TcpTransport.parse("[::1]:100-200", 1000)
         );
-        assertTrue(expected.getMessage().contains("Port ranges are not supported"));
     }
 
     public void testCombinesHostsAndPorts() {

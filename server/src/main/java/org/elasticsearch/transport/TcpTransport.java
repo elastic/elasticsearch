@@ -521,11 +521,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (portString == null || portString.isEmpty()) {
             port = defaultPort;
         } else {
-            int[] ports = new PortsRange(portString).ports();
-            if (ports.length > 1) {
-                throw new IllegalArgumentException("Port ranges are not supported");
-            }
-            port = ports[0];
+            port = Integer.parseInt(portString);
         }
 
         return Arrays.stream(InetAddress.getAllByName(host))

@@ -249,25 +249,20 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
     }
 
     private Function<Runnable, WrappedRunnable> fastWrapper() {
-        return (runnable) -> {
-            return new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100));
-        };
+        return (runnable) -> new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(100), false);
     }
 
     private Function<Runnable, WrappedRunnable> slowWrapper() {
-        return (runnable) -> {
-            return new SettableTimedRunnable(TimeUnit.MINUTES.toNanos(2));
-        };
+        return (runnable) -> new SettableTimedRunnable(TimeUnit.MINUTES.toNanos(2), false);
     }
 
     /**
      * The returned function outputs a WrappedRunnabled that simulates the case
-     * where {@link TimedRunnable#getTotalExecutionNanos()} returns -1.
+     * where {@link TimedRunnable#getTotalExecutionNanos()} returns -1 because
+     * the job failed or was rejected before it finished.
      */
     private Function<Runnable, WrappedRunnable> exceptionalWrapper() {
-        return (runnable) -> {
-            return new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(-1));
-        };
+        return (runnable) -> new SettableTimedRunnable(TimeUnit.NANOSECONDS.toNanos(-1), true);
     }
 
     /** Execute a blank task {@code times} times for the executor */
@@ -280,10 +275,12 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
 
     public class SettableTimedRunnable extends TimedRunnable {
         private final long timeTaken;
+        private final boolean testFailedOrRejected;
 
-        public SettableTimedRunnable(long timeTaken) {
+        public SettableTimedRunnable(long timeTaken, boolean failedOrRejected) {
             super(() -> {});
             this.timeTaken = timeTaken;
+            this.testFailedOrRejected = failedOrRejected;
         }
 
         @Override
@@ -294,6 +291,11 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         @Override
         public long getTotalExecutionNanos() {
             return timeTaken;
+        }
+
+        @Override
+        public boolean getFailedOrRejected() {
+            return testFailedOrRejected;
         }
     }
 }

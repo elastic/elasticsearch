@@ -1000,8 +1000,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     blobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs {} during finalization",
-                        snapshotId, shardId, blobNames), e);
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs during finalization",
+                        snapshotId, shardId), e);
                     throw e;
                 }
 
@@ -1016,8 +1016,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     blobContainer.deleteBlobsIgnoringIfNotExists(indexBlobs);
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs {} during finalization",
-                        snapshotId, shardId, indexBlobs), e);
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs during finalization",
+                        snapshotId, shardId), e);
                     throw e;
                 }
 
@@ -1029,8 +1029,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     blobContainer.deleteBlobsIgnoringIfNotExists(orphanedBlobs);
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs {} during finalization",
-                        snapshotId, shardId, orphanedBlobs), e);
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs during finalization",
+                        snapshotId, shardId), e);
                 }
             } catch (IOException e) {
                 String message = "Failed to finalize " + reason + " with shard index [" + currentIndexGen + "]";

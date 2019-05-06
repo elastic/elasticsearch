@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.security.rest.action;
+package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * Rest action to get one or more API keys information.
  */
-public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
+public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
 
     public RestGetApiKeyAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);

@@ -23,10 +23,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetection> {
 
@@ -53,8 +51,9 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
     }
 
     public void testGetParams_GivenDefaults() {
-        OutlierDetection outlierDetection = OutlierDetection.builder().build();
-        assertThat(outlierDetection.getParams().isEmpty(), is(true));
+        OutlierDetection outlierDetection = OutlierDetection.createDefault();
+        assertNull(outlierDetection.getNNeighbors());
+        assertNull(outlierDetection.getMethod());
     }
 
     public void testGetParams_GivenExplicitValues() {
@@ -63,11 +62,7 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
                 .setNNeighbors(42)
                 .setMethod(OutlierDetection.Method.LDOF)
                 .build();
-
-        Map<String, Object> params = outlierDetection.getParams();
-
-        assertThat(params.size(), equalTo(2));
-        assertThat(params.get(OutlierDetection.N_NEIGHBORS.getPreferredName()), equalTo(42));
-        assertThat(params.get(OutlierDetection.METHOD.getPreferredName()), equalTo(OutlierDetection.Method.LDOF));
+        assertThat(outlierDetection.getNNeighbors(), equalTo(42));
+        assertThat(outlierDetection.getMethod(), equalTo(OutlierDetection.Method.LDOF));
     }
 }

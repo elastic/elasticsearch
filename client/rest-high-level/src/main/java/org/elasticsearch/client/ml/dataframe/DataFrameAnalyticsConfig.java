@@ -169,6 +169,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         private FetchSourceContext analyzedFields;
         private ByteSizeValue modelMemoryLimit;
 
+        private Builder() {}
+
         public Builder setId(String id) {
             this.id = Objects.requireNonNull(id);
             return this;

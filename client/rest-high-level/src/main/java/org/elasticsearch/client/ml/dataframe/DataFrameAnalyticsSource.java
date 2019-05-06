@@ -102,6 +102,8 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
         private String index;
         private QueryConfig queryConfig;
 
+        private Builder() {}
+
         public Builder setIndex(String index) {
             this.index = index;
             return this;

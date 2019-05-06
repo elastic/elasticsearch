@@ -26,6 +26,4 @@ import java.util.Map;
 public interface DataFrameAnalysis extends ToXContentObject {
 
     String getName();
-
-    Map<String, Object> getParams();
 }

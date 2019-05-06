@@ -27,9 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 public class OutlierDetection implements DataFrameAnalysis {
@@ -38,7 +36,7 @@ public class OutlierDetection implements DataFrameAnalysis {
         return PARSER.apply(parser, null).build();
     }
 
-    public static OutlierDetection getDefaultInstance() {
+    public static OutlierDetection createDefault() {
         return builder().build();
     }
 
@@ -84,16 +82,12 @@ public class OutlierDetection implements DataFrameAnalysis {
         return NAME.getPreferredName();
     }
 
-    @Override
-    public Map<String, Object> getParams() {
-        Map<String, Object> params = new HashMap<>();
-        if (nNeighbors != null) {
-            params.put(N_NEIGHBORS.getPreferredName(), nNeighbors);
-        }
-        if (method != null) {
-            params.put(METHOD.getPreferredName(), method);
-        }
-        return params;
+    public Integer getNNeighbors() {
+        return nNeighbors;
+    }
+
+    public Method getMethod() {
+        return method;
     }
 
     @Override
@@ -146,6 +140,8 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         private Integer nNeighbors;
         private Method method;
+
+        private Builder() {}
 
         public Builder setNNeighbors(Integer nNeighbors) {
             this.nNeighbors = nNeighbors;

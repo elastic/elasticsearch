@@ -104,6 +104,8 @@ public class DataFrameAnalyticsDest implements ToXContentObject {
         private String index;
         private String resultsField;
 
+        private Builder() {}
+
         public Builder setIndex(String index) {
             this.index = index;
             return this;

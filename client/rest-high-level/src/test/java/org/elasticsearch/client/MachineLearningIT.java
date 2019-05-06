@@ -1202,7 +1202,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("put-test-dest-index")
                 .build())
-            .setAnalysis(OutlierDetection.getDefaultInstance())
+            .setAnalysis(OutlierDetection.createDefault())
             .build();
 
         PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
@@ -1229,7 +1229,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("get-test-dest-index")
                 .build())
-            .setAnalysis(OutlierDetection.getDefaultInstance())
+            .setAnalysis(OutlierDetection.createDefault())
             .build();
 
         PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
@@ -1258,7 +1258,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
                 .setDest(DataFrameAnalyticsDest.builder()
                     .setIndex("get-test-dest-index")
                     .build())
-                .setAnalysis(OutlierDetection.getDefaultInstance())
+                .setAnalysis(OutlierDetection.createDefault())
                 .build();
 
             PutDataFrameAnalyticsResponse putDataFrameAnalyticsResponse = execute(
@@ -1327,7 +1327,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex(destIndex)
                 .build())
-            .setAnalysis(OutlierDetection.getDefaultInstance())
+            .setAnalysis(OutlierDetection.createDefault())
             .build();
 
         execute(
@@ -1367,7 +1367,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex(destIndex)
                 .build())
-            .setAnalysis(OutlierDetection.getDefaultInstance())
+            .setAnalysis(OutlierDetection.createDefault())
             .build();
 
         execute(
@@ -1407,7 +1407,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             .setDest(DataFrameAnalyticsDest.builder()
                 .setIndex("delete-test-dest-index")
                 .build())
-            .setAnalysis(OutlierDetection.getDefaultInstance())
+            .setAnalysis(OutlierDetection.createDefault())
             .build();
 
         GetDataFrameAnalyticsResponse getDataFrameAnalyticsResponse = execute(

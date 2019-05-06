@@ -314,7 +314,6 @@ Closure commonDebConfig(boolean oss, boolean jdk) {
     packageGroup 'web'
 
     // versions found on oldest supported distro, centos-6
-    // nocommit: why are bash and libc only required for deb?
     requires('bash', '4.1', GREATER | EQUAL)
     requires('lsb-base', '4', GREATER | EQUAL)
     requires 'libc6'

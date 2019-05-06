@@ -192,6 +192,7 @@ abstract class DataFrameIntegTestCase extends ESIntegTestCase {
         return new DataFrameTransformConfig(id,
             new SourceConfig(sourceIndices, createQueryConfig(queryBuilder)),
             new DestConfig(destinationIndex),
+            null,
             Collections.emptyMap(),
             createPivotConfig(groups, aggregations),
             "Test data frame transform config id: " + id);

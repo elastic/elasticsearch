@@ -135,6 +135,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
             sourceConfig,
             destConfig,
             null,
+            null,
             pivotConfig,
             null);
 
@@ -154,6 +155,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
         config = new DataFrameTransformConfig("get_progress_transform",
             sourceConfig,
             destConfig,
+            null,
             null,
             pivotConfig,
             null);

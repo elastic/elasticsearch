@@ -25,8 +25,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
-
 import org.junit.Before;
+
 import java.io.IOException;
 
 import static java.util.Collections.emptyList;
@@ -59,7 +59,7 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
 
     public void testParseEmpty() throws IOException {
         UpdateByQueryRequest request = action.buildRequest(new FakeRestRequest.Builder(new NamedXContentRegistry(emptyList())).build());
-        assertEquals(AbstractBulkByScrollRequest.SIZE_ALL_MATCHES, request.getSize());
+        assertEquals(AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES, request.getMaxDocs());
         assertEquals(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE, request.getSearchRequest().source().size());
     }
 }

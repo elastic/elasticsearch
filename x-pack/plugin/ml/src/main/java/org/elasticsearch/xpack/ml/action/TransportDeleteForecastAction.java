@@ -197,7 +197,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     private DeleteByQueryRequest buildDeleteByQuery(String jobId, List<String> forecastsToDelete) {
         DeleteByQueryRequest request = new DeleteByQueryRequest()
             .setAbortOnVersionConflict(false) //since these documents are not updated, a conflict just means it was deleted previously
-            .setSize(MAX_FORECAST_TO_SEARCH)
+            .setMaxDocs(MAX_FORECAST_TO_SEARCH)
             .setSlices(5);
 
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));

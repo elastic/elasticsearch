@@ -102,7 +102,7 @@
         id:      1
         body:    { "text": "test" }
   - do:
-      catch: /\[size\] parameter cannot be negative, found \[-4\]/
+      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
       reindex:
         body:
           source:
@@ -110,6 +110,49 @@
           dest:
             index: dest
           size: -4
+
+---
+"invalid max_docs fails":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+          max_docs: -4
+
+---
+"both max_docs and size fails":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:   test
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /\[max_docs\] set to two different values \[4\] and \[5\]/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+          size: 4
+          max_docs: 5
 
 ---
 "requests_per_second cannot be an empty string":

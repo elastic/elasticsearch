@@ -322,8 +322,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
         {
             // Other fields
-            if (getSize() != -1 || getSize() > 0) {
-                builder.field("size", getSize());
+            if (getMaxDocs() != -1 || getMaxDocs() > 0) {
+                builder.field("max_docs", getMaxDocs());
             }
             if (getScript() != null) {
                 builder.field("script", getScript());

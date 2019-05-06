@@ -121,7 +121,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
               new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("source_index")
                 .filter(QueryBuilders.termQuery("level", "awesome"))
-                .size(1000)
+                .maxDocs(1000)
                 .script(new Script(ScriptType.INLINE,
                     "ctx._source.awesome = 'absolutely'",
                     "painless",
@@ -144,7 +144,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             UpdateByQueryRequestBuilder updateByQuery =
                new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
             updateByQuery.source("source_index")
-                .size(100)
+                .maxDocs(100)
                 .source()
                 .addSort("cat", SortOrder.DESC);
             BulkByScrollResponse response = updateByQuery.get();

@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;

@@ -31,7 +31,8 @@ public class GeoProcessor implements Processor {
         ASWKT(GeoShape::toString),
         GEOMETRY_TYPE(GeoShape::getGeometryType),
         X(GeoShape::getX),
-        Y(GeoShape::getY);
+        Y(GeoShape::getY),
+        Z(GeoShape::getZ);
 
         private final Function<Object, Object> apply;
 

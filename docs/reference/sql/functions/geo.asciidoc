@@ -24,7 +24,7 @@ ST_AsWKT(geometry<1>)
 
 .Description:
 
-Returns the WKT representation of the `geometry`. The return type is string.
+Returns the WKT representation of the `geometry`.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -43,13 +43,13 @@ ST_WKTToSQL(string<1>)
 
 *Input*:
 
-<1> string geometry
+<1> string WKT representation of geometry
 
-*Output*: WKT string
+*Output*: geometry
 
 .Description:
 
-Returns the geometry from WKT representation. The return type is geometry.
+Returns the geometry from WKT representation.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -77,8 +77,6 @@ ST_GeometryType(geometry<1>)
 
 Returns the type of the `geometry` such as POINT, MULTIPOINT, LINESTRING, MULTILINESTRING, POLYGON, MULTIPOLYGON, GEOMETRYCOLLECTION, ENVELOPE or CIRCLE.
 
-The return type is string.
-
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/geo.csv-spec[geometrytype]
@@ -102,7 +100,6 @@ ST_X(geometry<1>)
 .Description:
 
 Returns the longitude of the first point in the geometry.
-The return type is double.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
@@ -127,11 +124,34 @@ ST_Y(geometry<1>)
 .Description:
 
 Returns the the latitude of the first point in the geometry.
-The return type is double.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/geo.csv-spec[y]
+--------------------------------------------------
+
+[[sql-functions-geo-st-z]]
+===== `ST_Z`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+ST_Z(geometry<1>)
+--------------------------------------------------
+
+*Input*:
+
+<1> geometry
+
+*Output*: double
+
+.Description:
+
+Returns the altitude of the first point in the geometry.
+
+["source","sql",subs="attributes,macros"]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/geo.csv-spec[z]
 --------------------------------------------------
 
 [[sql-functions-geo-st-distance]]
@@ -152,7 +172,7 @@ ST_Distance(geometry<1>, geometry<2>)
 
 .Description:
 
-Returns the distance between geometries in meters. Both geometries have to be points. The return type is double.
+Returns the distance between geometries in meters. Both geometries have to be points.
 
 ["source","sql",subs="attributes,macros"]
 --------------------------------------------------

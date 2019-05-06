@@ -142,6 +142,7 @@ ST_GEOMFROMTEXT  |SCALAR
 ST_WKTTOSQL      |SCALAR
 ST_X             |SCALAR
 ST_Y             |SCALAR
+ST_Z             |SCALAR
 SCORE            |SCORE
 ;
 

@@ -68,3 +68,12 @@ SELECT ST_Y(ST_WKTToSQL('POINT (10 20)')) y;
 20.0
 // end::y
 ;
+
+selectZ
+// tag::z
+SELECT ST_Z(ST_WKTToSQL('POINT (10 20 30)')) z;
+
+      z:d
+30.0
+// end::z
+;

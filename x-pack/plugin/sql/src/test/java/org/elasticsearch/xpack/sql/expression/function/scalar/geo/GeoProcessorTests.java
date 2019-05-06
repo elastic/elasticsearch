@@ -54,11 +54,15 @@ public class GeoProcessorTests extends AbstractWireSerializingTestCase<GeoProces
     }
 
 
-    public void testApplyGetXY() throws Exception {
+    public void testApplyGetXYZ() throws Exception {
         assertEquals(10.0, new GeoProcessor(GeoOperation.X).process(new GeoShape(10, 20)));
         assertEquals(20.0, new GeoProcessor(GeoOperation.Y).process(new GeoShape(10, 20)));
+        assertNull(new GeoProcessor(GeoOperation.Z).process(new GeoShape(10, 20)));
         assertEquals(10.0, new GeoProcessor(GeoOperation.X).process(new GeoShape("POINT (10 20)")));
         assertEquals(20.0, new GeoProcessor(GeoOperation.Y).process(new GeoShape("POINT (10 20)")));
+        assertEquals(10.0, new GeoProcessor(GeoOperation.X).process(new GeoShape("POINT (10 20 30)")));
+        assertEquals(20.0, new GeoProcessor(GeoOperation.Y).process(new GeoShape("POINT (10 20 30)")));
+        assertEquals(30.0, new GeoProcessor(GeoOperation.Z).process(new GeoShape("POINT (10 20 30)")));
         assertEquals(2.0, new GeoProcessor(GeoOperation.X).process(new GeoShape("multipoint (2.0 1.0)")));
         assertEquals(1.0, new GeoProcessor(GeoOperation.Y).process(new GeoShape("multipoint (2.0 1.0)")));
         assertEquals(3.0, new GeoProcessor(GeoOperation.X).process(new GeoShape("LINESTRING (3.0 1.0, 4.0 2.0)")));
@@ -77,9 +81,12 @@ public class GeoProcessorTests extends AbstractWireSerializingTestCase<GeoProces
             new GeoShape("geometrycollection (point (20.0 10.0),point (1.0 2.0))")));
     }
 
-    public void testApplyGetXYToPolygons() throws Exception {
+    public void testApplyGetXYZToPolygons() throws Exception {
         assertEquals(3.0, new GeoProcessor(GeoOperation.X).process(new GeoShape("polygon ((3.0 1.0, 4.0 2.0, 4.0 3.0, 3.0 1.0))")));
         assertEquals(1.0, new GeoProcessor(GeoOperation.Y).process(new GeoShape("polygon ((3.0 1.0, 4.0 2.0, 4.0 3.0, 3.0 1.0))")));
+        assertNull(new GeoProcessor(GeoOperation.Z).process(new GeoShape("polygon ((3.0 1.0, 4.0 2.0, 4.0 3.0, 3.0 1.0))")));
+        assertEquals(5.0, new GeoProcessor(GeoOperation.Z).process(
+            new GeoShape("polygon ((3.0 1.0 5.0, 4.0 2.0 6.0, 4.0 3.0 7.0, 3.0 1.0 5.0))")));
         assertEquals(3.0, new GeoProcessor(GeoOperation.X).process(new GeoShape("multipolygon (((3.0 1.0, 4.0 2.0, 4.0 3.0, 3.0 1.0)))")));
         assertEquals(1.0, new GeoProcessor(GeoOperation.Y).process(new GeoShape("multipolygon (((3.0 1.0, 4.0 2.0, 4.0 3.0, 3.0 1.0)))")));
     }

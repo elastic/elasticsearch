@@ -155,7 +155,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   GeoShape stWktToSql(String)
   Double   stX(Object)
   Double   stY(Object)
-
+  Double   stZ(Object)
 
 #
 # Casting

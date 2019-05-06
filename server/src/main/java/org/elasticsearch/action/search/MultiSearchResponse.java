@@ -104,8 +104,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         @Override
         public void readFrom(StreamInput in) throws IOException {
             if (in.readBoolean()) {
-                this.response = new SearchResponse();
-                response.readFrom(in);
+                this.response = new SearchResponse(in);
             } else {
                 exception = in.readException();
             }

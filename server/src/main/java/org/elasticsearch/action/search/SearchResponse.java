@@ -85,6 +85,26 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     public SearchResponse() {
     }
 
+    public SearchResponse(StreamInput in) throws IOException {
+        super(in);
+        internalResponse = new InternalSearchResponse(in);
+        totalShards = in.readVInt();
+        successfulShards = in.readVInt();
+        int size = in.readVInt();
+        if (size == 0) {
+            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        } else {
+            shardFailures = new ShardSearchFailure[size];
+            for (int i = 0; i < shardFailures.length; i++) {
+                shardFailures[i] = readShardSearchFailure(in);
+            }
+        }
+        clusters = new Clusters(in);
+        scrollId = in.readOptionalString();
+        tookInMillis = in.readVLong();
+        skippedShards = in.readVInt();
+    }
+
     public SearchResponse(SearchResponseSections internalResponse, String scrollId, int totalShards, int successfulShards,
                           int skippedShards, long tookInMillis, ShardSearchFailure[] shardFailures, Clusters clusters) {
         this.internalResponse = internalResponse;
@@ -355,24 +375,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        internalResponse = new InternalSearchResponse(in);
-        totalShards = in.readVInt();
-        successfulShards = in.readVInt();
-        int size = in.readVInt();
-        if (size == 0) {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-        } else {
-            shardFailures = new ShardSearchFailure[size];
-            for (int i = 0; i < shardFailures.length; i++) {
-                shardFailures[i] = readShardSearchFailure(in);
-            }
-        }
-        clusters = new Clusters(in);
-        scrollId = in.readOptionalString();
-        tookInMillis = in.readVLong();
-        skippedShards = in.readVInt();
+    public void readFrom(StreamInput in) {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

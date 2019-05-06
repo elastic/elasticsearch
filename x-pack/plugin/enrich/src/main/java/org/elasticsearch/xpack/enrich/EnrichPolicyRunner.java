@@ -49,8 +49,6 @@ public class EnrichPolicyRunner implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
-    private static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
-
     private final String policyName;
     private final EnrichPolicy policy;
     private final ActionListener<PolicyExecutionResult> listener;
@@ -121,10 +119,6 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private String getEnrichIndexBase(final String policyName) {
-        return ENRICH_INDEX_NAME_BASE + policyName;
-    }
-
     private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
         // Currently the only supported policy type is EnrichPolicy.EXACT_MATCH_TYPE, which is a keyword type
         String keyType;
@@ -160,7 +154,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void prepareAndCreateEnrichIndex() {
         long nowTimestamp = nowSupplier.getAsLong();
-        String enrichIndexName = getEnrichIndexBase(policyName) + "-" + nowTimestamp;
+        String enrichIndexName = policy.getBaseName(policyName) + "-" + nowTimestamp;
         Settings enrichIndexSettings = Settings.builder()
             .put("index.auto_expand_replicas", "0-all")
             .build();
@@ -234,7 +228,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void updateEnrichPolicyAlias(final String destinationIndexName) {
-        String enrichIndexBase = getEnrichIndexBase(policyName);
+        String enrichIndexBase = policy.getBaseName(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterService.state(), aliasRequest);

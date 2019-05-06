@@ -66,7 +66,7 @@ final class ExactMatchProcessor extends AbstractProcessor {
         }
 
         // TODO: re-use the engine searcher between enriching documents from the same write request
-        try (Engine.Searcher engineSearcher = searchProvider.apply(policy.getAliasName(policyName))) {
+        try (Engine.Searcher engineSearcher = searchProvider.apply(policy.getBaseName(policyName))) {
             if (engineSearcher.getDirectoryReader().leaves().size() == 0) {
                 return ingestDocument;
             } else if (engineSearcher.getDirectoryReader().leaves().size() != 1) {

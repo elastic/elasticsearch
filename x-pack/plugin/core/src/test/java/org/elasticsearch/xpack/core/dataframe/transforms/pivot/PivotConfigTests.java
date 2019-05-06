@@ -13,6 +13,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.dataframe.transforms.AbstractSerializingDataFrameTestCase;
 
 import java.io.IOException;
+import java.util.List;
+
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<PivotConfig> {
 
@@ -103,7 +106,7 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
         assertFalse(pivotConfig.isValid());
     }
 
-    public void testMissingGroupBy() throws IOException {
+    public void testMissingGroupBy() {
         String pivot = "{"
                 + " \"aggs\": {"
                 + "   \"avg\": {"
@@ -114,7 +117,7 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
 
-    public void testDoubleAggs() throws IOException {
+    public void testDoubleAggs() {
         String pivot = "{"
                 + " \"group_by\": {"
                 + "   \"id\": {"
@@ -134,6 +137,74 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
                 + "}";
 
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
+    }
+
+    public void testAggNameValidations() throws IOException {
+        String pivotAggs = "{"
+            + " \"group_by\": {"
+            + "   \"user\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"user.avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } }";
+        PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
+        assertTrue(pivotConfig.isValid());
+        List<String> fieldValidation = pivotConfig.aggFieldValidation();
+        assertFalse(fieldValidation.isEmpty());
+        assertThat(fieldValidation.get(0), equalTo("field [user] cannot be both an object and a field"));
+
+        pivotAggs = "{"
+            + " \"group_by\": {"
+            + "   \"user\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"user\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } }";
+        pivotConfig = createPivotConfigFromString(pivotAggs, true);
+        assertTrue(pivotConfig.isValid());
+        fieldValidation = pivotConfig.aggFieldValidation();
+        assertFalse(fieldValidation.isEmpty());
+        assertThat(fieldValidation.get(0), equalTo("duplicate field [user] detected"));
+
+        pivotAggs = "{"
+            + " \"group_by\": {"
+            + "   \"user\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } }";
+        pivotConfig = createPivotConfigFromString(pivotAggs, true);
+        assertTrue(pivotConfig.isValid());
+        fieldValidation = pivotConfig.aggFieldValidation();
+        assertTrue(fieldValidation.isEmpty());
+
+        pivotAggs = "{"
+            + " \"group_by\": {"
+            + "   \"user.id.field\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg.field.value\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } }";
+        pivotConfig = createPivotConfigFromString(pivotAggs, true);
+        assertTrue(pivotConfig.isValid());
+        fieldValidation = pivotConfig.aggFieldValidation();
+        assertTrue(fieldValidation.isEmpty());
     }
 
     private PivotConfig createPivotConfigFromString(String json, boolean lenient) throws IOException {

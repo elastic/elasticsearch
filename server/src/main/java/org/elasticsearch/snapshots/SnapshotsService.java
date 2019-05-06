@@ -552,7 +552,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 try {
                     repositoriesService.repository(snapshot.snapshot().getRepository())
                                        .finalizeSnapshot(snapshot.snapshot().getSnapshotId(),
-                                               snapshot.snapshot().getRepository(),
                                                snapshot.indices(),
                                                snapshot.startTime(),
                                                ExceptionsHelper.detailedMessage(exception),
@@ -983,7 +982,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 SnapshotInfo snapshotInfo = repository.finalizeSnapshot(
                     snapshot.getSnapshotId(),
-                        entry.snapshot().getRepository(),
                         entry.indices(),
                         entry.startTime(),
                         failure,

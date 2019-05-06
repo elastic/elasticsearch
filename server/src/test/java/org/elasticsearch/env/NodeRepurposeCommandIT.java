@@ -82,10 +82,10 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         );
 
         logger.info("--> Repurposing node 1");
-        executeRepurposeCommandForOrdinal(noMasterNoDataSettingsForDataNode, indexUUID, 1);
+        executeRepurposeCommand(noMasterNoDataSettingsForDataNode, indexUUID, 1);
 
         ElasticsearchException lockedException = expectThrows(ElasticsearchException.class,
-            () -> executeRepurposeCommandForOrdinal(noMasterNoDataSettingsForMasterNode, indexUUID, 1)
+            () -> executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, indexUUID, 1)
         );
 
         assertThat(lockedException.getMessage(), containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
@@ -101,7 +101,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(s -> true);
         internalCluster().stopRandomNode(s -> true);
 
-        executeRepurposeCommandForOrdinal(noMasterNoDataSettingsForMasterNode, indexUUID, 0);
+        executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, indexUUID, 0);
 
         // by restarting as master and data node, we can check that the index definition was really deleted and also that the tool
         // does not mess things up so much that the nodes cannot boot as master or data node any longer.
@@ -114,8 +114,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         assertFalse(indexExists(indexName));
     }
 
-    private void executeRepurposeCommandForOrdinal(Settings settings, String indexUUID,
-                                                   int expectedShardCount) throws Exception {
+    private void executeRepurposeCommand(Settings settings, String indexUUID, int expectedShardCount) throws Exception {
         boolean verbose = randomBoolean();
         Settings settingsWithPath = Settings.builder().put(internalCluster().getDefaultSettings()).put(settings).build();
         int expectedIndexCount = TestEnvironment.newEnvironment(settingsWithPath).dataFiles().length;

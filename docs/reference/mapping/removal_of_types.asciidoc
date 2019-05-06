@@ -270,7 +270,8 @@ Elasticsearch 7.x::
 * Specifying types in requests is deprecated. For instance, indexing a
   document no longer requires a document `type`.  The new index APIs
   are `PUT {index}/_doc/{id}` in case of explicit ids and `POST {index}/_doc`
-  for auto-generated ids.
+  for auto-generated ids. Note that in 7.0, `_doc` is a permanent part of the
+  path, and represents the endpoint name rather than the document type.
 
 * The `include_type_name` parameter in the index creation, index template,
   and mapping APIs will default to `false`. Setting the parameter at all will
@@ -553,6 +554,10 @@ GET index/_doc/1
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+NOTE: In 7.0, `_doc` represents the endpoint name instead of the document type.
+The `_doc` component is a permanent part of the path for the document `index`,
+`get`, and `delete` APIs going forward, and will not be removed in 8.0.
 
 For API paths that contain both a type and endpoint name like `_update`,
 in 7.0 the endpoint will immediately follow the index name:

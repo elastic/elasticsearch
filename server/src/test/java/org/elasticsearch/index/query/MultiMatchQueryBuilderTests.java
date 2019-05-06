@@ -173,6 +173,14 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .or(instanceOf(BlendedTermQuery.class)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41847")
+    // TODO #41847: This method is only overridden to allow muting this test. Please remove this override again after fixing it.
+    @Override
+    public void testToQuery() throws IOException {
+        super.testToQuery();
+    }
+
+
     public void testIllegaArguments() {
         expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder(null, "field"));
         expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", (String[]) null));

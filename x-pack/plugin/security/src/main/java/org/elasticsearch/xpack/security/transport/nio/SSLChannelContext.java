@@ -9,17 +9,17 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
-import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ReadWriteHandler;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.WriteOperation;
 
 import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
+import java.util.LinkedList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -34,40 +34,53 @@ import java.util.function.Predicate;
 public final class SSLChannelContext extends SocketChannelContext {
 
     private static final long CLOSE_TIMEOUT_NANOS = new TimeValue(10, TimeUnit.SECONDS).nanos();
-    private static final Runnable DEFAULT_TIMEOUT_CANCELLER = () -> {};
+    private static final Runnable DEFAULT_TIMEOUT_CANCELLER = () -> {
+    };
 
     private final SSLDriver sslDriver;
-    private final SSLOutboundBuffer outboundBuffer;
-    private FlushOperation encryptedFlush;
+    private final InboundChannelBuffer networkReadBuffer;
+    private final LinkedList<FlushOperation> encryptedFlushes = new LinkedList<>();
     private Runnable closeTimeoutCanceller = DEFAULT_TIMEOUT_CANCELLER;
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer) {
-        this(channel, selector, exceptionHandler, sslDriver, readWriteHandler, channelBuffer, ALWAYS_ALLOW_CHANNEL);
+                      ReadWriteHandler readWriteHandler, InboundChannelBuffer applicationBuffer) {
+        this(channel, selector, exceptionHandler, sslDriver, readWriteHandler, InboundChannelBuffer.allocatingInstance(),
+            applicationBuffer, ALWAYS_ALLOW_CHANNEL);
     }
 
     SSLChannelContext(NioSocketChannel channel, NioSelector selector, Consumer<Exception> exceptionHandler, SSLDriver sslDriver,
-                      ReadWriteHandler readWriteHandler, InboundChannelBuffer channelBuffer,
+                      ReadWriteHandler readWriteHandler, InboundChannelBuffer networkReadBuffer, InboundChannelBuffer channelBuffer,
                       Predicate<NioSocketChannel> allowChannelPredicate) {
         super(channel, selector, exceptionHandler, readWriteHandler, channelBuffer, allowChannelPredicate);
         this.sslDriver = sslDriver;
-        // TODO: When the bytes are actually recycled, we need to test that they are released on context close
-        this.outboundBuffer = new SSLOutboundBuffer((n) -> new Page(ByteBuffer.allocate(n)));
+        this.networkReadBuffer = networkReadBuffer;
     }
 
     @Override
     public void register() throws IOException {
         super.register();
         sslDriver.init();
+        SSLOutboundBuffer outboundBuffer = sslDriver.getOutboundBuffer();
+        if (outboundBuffer.hasEncryptedBytesToFlush()) {
+            encryptedFlushes.addLast(outboundBuffer.buildNetworkFlushOperation());
+        }
     }
 
     @Override
     public void queueWriteOperation(WriteOperation writeOperation) {
         getSelector().assertOnSelectorThread();
         if (writeOperation instanceof CloseNotifyOperation) {
-            sslDriver.initiateClose();
-            long relativeNanos = CLOSE_TIMEOUT_NANOS + System.nanoTime();
-            closeTimeoutCanceller = getSelector().getTaskScheduler().scheduleAtRelativeTime(this::channelCloseTimeout, relativeNanos);
+            try {
+                sslDriver.initiateClose();
+                SSLOutboundBuffer outboundBuffer = sslDriver.getOutboundBuffer();
+                if (outboundBuffer.hasEncryptedBytesToFlush()) {
+                    encryptedFlushes.addLast(outboundBuffer.buildNetworkFlushOperation());
+                }
+                long relativeNanos = CLOSE_TIMEOUT_NANOS + System.nanoTime();
+                closeTimeoutCanceller = getSelector().getTaskScheduler().scheduleAtRelativeTime(this::channelCloseTimeout, relativeNanos);
+            } catch (SSLException e) {
+                handleException(e);
+            }
         } else {
             super.queueWriteOperation(writeOperation);
         }
@@ -89,37 +102,25 @@ public final class SSLChannelContext extends SocketChannelContext {
         }
 
         // If the driver is ready for application writes, we can attempt to proceed with any queued writes.
-        if (sslDriver.readyForApplicationWrites()) {
-            FlushOperation unencryptedFlush;
-            while (pendingChannelFlush() == false && (unencryptedFlush = getPendingFlush()) != null) {
-                if (unencryptedFlush.isFullyFlushed()) {
-                    currentFlushOperationComplete();
-                } else {
-                    try {
-                        // Attempt to encrypt application write data. The encrypted data ends up in the
-                        // outbound write buffer.
-                        sslDriver.write(unencryptedFlush, outboundBuffer);
-                        if (outboundBuffer.hasEncryptedBytesToFlush() == false) {
-                            break;
-                        }
-                        encryptedFlush = outboundBuffer.buildNetworkFlushOperation();
-                        // Flush the write buffer to the channel
-                        flushEncryptedOperation();
-                    } catch (IOException e) {
-                        currentFlushOperationFailed(e);
-                        throw e;
+        FlushOperation unencryptedFlush;
+        while (pendingChannelFlush() == false && (unencryptedFlush = getPendingFlush()) != null) {
+            if (unencryptedFlush.isFullyFlushed()) {
+                currentFlushOperationComplete();
+            } else {
+                try {
+                    // Attempt to encrypt application write data. The encrypted data ends up in the
+                    // outbound write buffer.
+                    sslDriver.write(unencryptedFlush);
+                    SSLOutboundBuffer outboundBuffer = sslDriver.getOutboundBuffer();
+                    if (outboundBuffer.hasEncryptedBytesToFlush() == false) {
+                        break;
                     }
-                }
-            }
-        } else {
-            // We are not ready for application writes, check if the driver has non-application writes. We
-            // only want to continue producing new writes if the outbound write buffer is fully flushed.
-            while (pendingChannelFlush() == false && sslDriver.needsNonApplicationWrite()) {
-                sslDriver.nonApplicationWrite(outboundBuffer);
-                // If non-application writes were produced, flush the outbound write buffer.
-                if (outboundBuffer.hasEncryptedBytesToFlush()) {
-                    encryptedFlush = outboundBuffer.buildNetworkFlushOperation();
+                    encryptedFlushes.addLast(outboundBuffer.buildNetworkFlushOperation());
+                    // Flush the write buffer to the channel
                     flushEncryptedOperation();
+                } catch (IOException e) {
+                    currentFlushOperationFailed(e);
+                    throw e;
                 }
             }
         }
@@ -127,14 +128,14 @@ public final class SSLChannelContext extends SocketChannelContext {
 
     private void flushEncryptedOperation() throws IOException {
         try {
+            FlushOperation encryptedFlush = encryptedFlushes.getFirst();
             flushToChannel(encryptedFlush);
             if (encryptedFlush.isFullyFlushed()) {
                 getSelector().executeListener(encryptedFlush.getListener(), null);
-                encryptedFlush = null;
+                encryptedFlushes.removeFirst();
             }
         } catch (IOException e) {
-            getSelector().executeFailedListener(encryptedFlush.getListener(), e);
-            encryptedFlush = null;
+            getSelector().executeFailedListener(encryptedFlushes.removeFirst().getListener(), e);
             throw e;
         }
     }
@@ -142,10 +143,10 @@ public final class SSLChannelContext extends SocketChannelContext {
     @Override
     public boolean readyForFlush() {
         getSelector().assertOnSelectorThread();
-        if (sslDriver.readyForApplicationWrites()) {
+        if (sslDriver.readyForApplicationData()) {
             return pendingChannelFlush() || super.readyForFlush();
         } else {
-            return pendingChannelFlush() || sslDriver.needsNonApplicationWrite();
+            return pendingChannelFlush();
         }
     }
 
@@ -155,14 +156,19 @@ public final class SSLChannelContext extends SocketChannelContext {
         if (closeNow()) {
             return bytesRead;
         }
-        bytesRead = readFromChannel(sslDriver.getNetworkReadBuffer());
+        bytesRead = readFromChannel(networkReadBuffer);
         if (bytesRead == 0) {
             return bytesRead;
         }
 
-        sslDriver.read(channelBuffer);
+        sslDriver.read(networkReadBuffer, channelBuffer);
 
         handleReadBytes();
+        // It is possible that a read call produced non-application bytes to flush
+        SSLOutboundBuffer outboundBuffer = sslDriver.getOutboundBuffer();
+        if (outboundBuffer.hasEncryptedBytesToFlush()) {
+            encryptedFlushes.addLast(outboundBuffer.buildNetworkFlushOperation());
+        }
 
         return bytesRead;
     }
@@ -190,10 +196,11 @@ public final class SSLChannelContext extends SocketChannelContext {
         getSelector().assertOnSelectorThread();
         if (channel.isOpen()) {
             closeTimeoutCanceller.run();
-            if (encryptedFlush != null) {
+            for (FlushOperation encryptedFlush : encryptedFlushes) {
                 getSelector().executeFailedListener(encryptedFlush.getListener(), new ClosedChannelException());
             }
-            IOUtils.close(super::closeFromSelector, outboundBuffer::close, sslDriver::close);
+            encryptedFlushes.clear();
+            IOUtils.close(super::closeFromSelector, networkReadBuffer::close, sslDriver::close);
         }
     }
 
@@ -208,7 +215,7 @@ public final class SSLChannelContext extends SocketChannelContext {
     }
 
     private boolean pendingChannelFlush() {
-        return encryptedFlush != null;
+        return encryptedFlushes.isEmpty() == false;
     }
 
     private static class CloseNotifyOperation implements WriteOperation {

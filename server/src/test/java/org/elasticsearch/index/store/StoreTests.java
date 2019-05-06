@@ -825,10 +825,7 @@ public class StoreTests extends ESTestCase {
         Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
         storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
         storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
-        Map<String, String> commitUserData = new HashMap<>();
-        commitUserData.put("userdata_1", "test");
-        commitUserData.put("userdata_2", "test");
-        return new Store.MetadataSnapshot(unmodifiableMap(storeFileMetaDataMap), unmodifiableMap(commitUserData), 0);
+        return new Store.MetadataSnapshot(unmodifiableMap(storeFileMetaDataMap), Map.of("userdata_1", "test", "userdata_2", "test"), 0);
     }
 
     public void testUserDataRead() throws IOException {

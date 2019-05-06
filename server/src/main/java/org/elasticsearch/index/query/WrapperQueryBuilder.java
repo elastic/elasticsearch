@@ -45,8 +45,8 @@ import java.util.Arrays;
  * <pre>
  * <code>
  *      BoolQueryBuilder bool = new BoolQueryBuilder();
- *      bool.must(new WrapperQueryBuilder("{\"term\": {\"field\":\"value\"}}");
- *      bool.must(new TermQueryBuilder("field2","value2");
+ *      bool.must(new WrapperQueryBuilder("{\"term\": {\"field\":\"value\"}}"));
+ *      bool.must(new TermQueryBuilder("field2","value2"));
  * </code>
  * </pre>
  */

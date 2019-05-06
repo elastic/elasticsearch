@@ -20,21 +20,21 @@ jdks {
 }
 
 task getLinuxJdk {
-    dependsOn jdks.linux_jdk
+    dependsOn jdks.linux
     doLast {
         println "JDK HOME: " + jdks.linux.homeDir
     }
 }
 
 task getDarwinJdk {
-    dependsOn jdks.darwin_jdk
+    dependsOn jdks.darwin
     doLast {
         println "JDK HOME: " + jdks.darwin.homeDir
     }
 }
 
 task getWindowsJdk {
-    dependsOn jdks.windows_jdk
+    dependsOn jdks.windows
     doLast {
         println "JDK HOME: " + jdks.windows.homeDir
     }

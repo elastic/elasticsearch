@@ -155,7 +155,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 stats = typesStats.get(type);
                 if (stats == null) {
                     stats = new StatsHolder();
-                    typesStats = Maps.concatenateEntryToImmutableMap(typesStats, type, stats);
+                    typesStats = Maps.copyMapWithAddedEntry(typesStats, type, stats);
                 }
             }
         }

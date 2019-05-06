@@ -46,7 +46,7 @@ public class MapsTests extends ESTestCase {
         final Map<String, String> map = Maps.ofEntries(entries);
         final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
         final String value = randomAlphaOfLength(16);
-        final Map<String, String> concatenation = Maps.concatenateEntryToImmutableMap(map, key, value);
+        final Map<String, String> concatenation = Maps.copyMapWithAddedEntry(map, key, value);
         assertMapEntriesAndImmutability(
                 concatenation,
                 Stream.concat(entries.stream(), Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList()));
@@ -64,7 +64,7 @@ public class MapsTests extends ESTestCase {
         final Map<String, String> map = Maps.ofEntries(entries);
         final String key = randomValueOtherThanMany(keys::contains, () -> randomAlphaOfLength(16));
         final String value = randomAlphaOfLength(16);
-        final Map<String, String> add = Maps.addOrReplaceEntryInImmutableMap(map, key, value);
+        final Map<String, String> add = Maps.copyMayWithAddedOrReplacedEntry(map, key, value);
         assertMapEntriesAndImmutability(
                 add,
                 Stream.concat(entries.stream(), Stream.of(entry(key, value))).collect(Collectors.toUnmodifiableList()));
@@ -82,7 +82,7 @@ public class MapsTests extends ESTestCase {
         final Map<String, String> map = Maps.ofEntries(entries);
         final String key = randomFrom(map.keySet());
         final String value = randomAlphaOfLength(16);
-        final Map<String, String> replaced = Maps.addOrReplaceEntryInImmutableMap(map, key, value);
+        final Map<String, String> replaced = Maps.copyMayWithAddedOrReplacedEntry(map, key, value);
         assertMapEntriesAndImmutability(
                 replaced,
                 Stream.concat(

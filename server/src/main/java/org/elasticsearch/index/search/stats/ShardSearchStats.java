@@ -138,7 +138,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                 stats = groupsStats.get(group);
                 if (stats == null) {
                     stats = new StatsHolder();
-                    groupsStats = Maps.concatenateEntryToImmutableMap(groupsStats, group, stats);
+                    groupsStats = Maps.copyMapWithAddedEntry(groupsStats, group, stats);
                 }
             }
         }

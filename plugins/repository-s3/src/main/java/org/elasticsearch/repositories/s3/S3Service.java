@@ -95,7 +95,7 @@ class S3Service implements Closeable {
             }
             final AmazonS3Reference clientReference = new AmazonS3Reference(buildClient(clientSettings));
             clientReference.incRef();
-            clientsCache = Maps.concatenateEntryToImmutableMap(clientsCache, clientSettings, clientReference);
+            clientsCache = Maps.copyMapWithAddedEntry(clientsCache, clientSettings, clientReference);
             return clientReference;
         }
     }
@@ -125,10 +125,10 @@ class S3Service implements Closeable {
                 }
                 final S3ClientSettings newSettings = staticSettings.refine(repositoryMetaData);
                 derivedClientSettings =
-                        Maps.addOrReplaceEntryInImmutableMap(
+                        Maps.copyMayWithAddedOrReplacedEntry(
                                 derivedClientSettings,
                                 staticSettings,
-                                Maps.concatenateEntryToImmutableMap(derivedSettings, repositoryMetaData, newSettings));
+                                Maps.copyMapWithAddedEntry(derivedSettings, repositoryMetaData, newSettings));
                 return newSettings;
             }
         }

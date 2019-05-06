@@ -571,7 +571,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 List<ShardRouting> to = collectAttributeShards(key, nodes, from);
 
                 shardRoutings = new AttributesRoutings(to, Collections.unmodifiableList(from));
-                activeShardsByAttributes = Maps.concatenateEntryToImmutableMap(activeShardsByAttributes, key, shardRoutings);
+                activeShardsByAttributes = Maps.copyMapWithAddedEntry(activeShardsByAttributes, key, shardRoutings);
             }
         }
         return shardRoutings;
@@ -585,7 +585,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 List<ShardRouting> to = collectAttributeShards(key, nodes, from);
                 shardRoutings = new AttributesRoutings(to, Collections.unmodifiableList(from));
                 initializingShardsByAttributes =
-                        Maps.concatenateEntryToImmutableMap(initializingShardsByAttributes, key, shardRoutings);
+                        Maps.copyMapWithAddedEntry(initializingShardsByAttributes, key, shardRoutings);
             }
         }
         return shardRoutings;

@@ -214,7 +214,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-            requestHandlers = Maps.concatenateEntryToImmutableMap(requestHandlers, reg.getAction(), reg);
+            requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
         }
     }
     @Override

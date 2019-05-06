@@ -36,18 +36,20 @@ private static String taskName(final String prefix, final boolean oss, final Str
   return "${prefix}${oss ? 'Oss' : ''}${suffix}"
 }
 
-CopySpec dockerBuildContext(final boolean oss, final boolean local) {
-  copySpec {
-    into('bin') {
-      from 'src/docker/bin'
-    }
+project.ext {
+  dockerBuildContext = { boolean oss, boolean local ->
+    copySpec {
+      into('bin') {
+        from project.projectDir.toPath().resolve("src/docker/bin")
+      }
 
-    into('config') {
-      from 'src/docker/config'
-    }
+      into('config') {
+        from project.projectDir.toPath().resolve("src/docker/config")
+      }
 
-    from('src/docker/Dockerfile') {
-      MavenFilteringHack.filter(it, expansions(oss, local))
+      from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
+        MavenFilteringHack.filter(it, expansions(oss, local))
+      }
     }
   }
 }
@@ -107,25 +109,6 @@ void addBuildDockerImage(final boolean oss) {
     args dockerArgs.toArray()
   }
   BuildPlugin.requireDocker(buildDockerImageTask)
-}
-
-Closure commonDockerBuildContextConfig(final boolean oss) {
-  return {
-    extension = 'tar.gz'
-    compression = Compression.GZIP
-    archiveClassifier = "docker-build-context"
-    destinationDir = file("${oss ? "oss-" : ""}docker-build-context/build/distributions")
-    archiveBaseName = "elasticsearch${oss ? "-oss" : ""}"
-    with dockerBuildContext(oss, false)
-  }
-}
-
-task buildDockerBuildContext(type: Tar) {
-  configure(commonDockerBuildContextConfig(false))
-}
-
-task buildOssDockerBuildContext(type: Tar) {
-  configure(commonDockerBuildContextConfig(true))
 }
 
 for (final boolean oss : [false, true]) {

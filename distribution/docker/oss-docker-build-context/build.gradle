@@ -1,3 +1,11 @@
 apply plugin: 'base'
 
-assemble.dependsOn ":distribution:docker:buildOssDockerBuildContext"
+task buildOssDockerBuildContext(type: Tar) {
+    extension = 'tar.gz'
+    compression = Compression.GZIP
+    archiveClassifier = "docker-build-context"
+    archiveBaseName = "elasticsearch-oss"
+    with dockerBuildContext(true, false)
+}
+
+assemble.dependsOn buildOssDockerBuildContext

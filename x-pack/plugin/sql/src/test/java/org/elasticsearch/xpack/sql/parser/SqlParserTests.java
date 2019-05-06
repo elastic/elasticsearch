@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import com.google.common.base.Joiner;
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
@@ -18,19 +17,10 @@ import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredi
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanExpressionContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryPrimaryDefaultContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.QueryTermContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StatementDefaultContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
-import org.elasticsearch.xpack.sql.plan.logical.With;
 
 import java.util.ArrayList;
 import java.util.List;

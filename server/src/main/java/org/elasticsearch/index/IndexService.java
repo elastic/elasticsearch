@@ -428,7 +428,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
-            shards = Maps.concatenateEntryToImmutableMap(shards, shardId.id(), indexShard);
+            shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
             success = true;
             return indexShard;
         } catch (ShardLockObtainFailedException e) {

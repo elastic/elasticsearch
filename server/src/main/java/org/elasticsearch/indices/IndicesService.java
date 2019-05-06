@@ -518,7 +518,7 @@ public class IndicesService extends AbstractLifecycleComponent
         boolean success = false;
         try {
             indexService.getIndexEventListener().afterIndexCreated(indexService);
-            indices = Maps.concatenateEntryToImmutableMap(indices, index.getUUID(), indexService);
+            indices = Maps.copyMapWithAddedEntry(indices, index.getUUID(), indexService);
             success = true;
             return indexService;
         } finally {

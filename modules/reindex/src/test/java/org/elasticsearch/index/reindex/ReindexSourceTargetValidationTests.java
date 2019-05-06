@@ -131,13 +131,13 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
         return index(name, null, aliases);
     }
 
-    private static IndexMetaData index(String name, @Nullable Boolean firstAliasWriteIndex, String... aliases) {
+    private static IndexMetaData index(String name, @Nullable Boolean writeIndex, String... aliases) {
         IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(Settings.builder()
                 .put("index.version.created", Version.CURRENT.id)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1));
         for (String alias: aliases) {
-            builder.putAlias(AliasMetaData.builder(alias).writeIndex(firstAliasWriteIndex).build());
+            builder.putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex).build());
         }
         return builder.build();
     }

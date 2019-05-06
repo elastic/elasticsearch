@@ -17,8 +17,6 @@ allprojects { all ->
                 url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision
             }
         }
-
-        jcenter()
     }
 
     if (project == rootProject || project.name == "alpha" || project.name == "bravo") {
@@ -58,12 +56,38 @@ testClusters {
         javaHome = file(System.getProperty('java.home'))
         numberOfNodes = 3
     }
+    releasedVersionDefault {
+        version = "7.0.0"
+        distribution = 'DEFAULT'
+        javaHome = file(System.getProperty('java.home'))
+    }
+    releasedVersionOSS {
+        version = "7.0.0"
+        distribution = 'OSS'
+        javaHome = file(System.getProperty('java.home'))
+    }
+    releasedVersionIntegTest {
+        version = "7.0.0"
+        distribution = 'INTEG_TEST'
+        javaHome = file(System.getProperty('java.home'))
+    }
 }
 
 task multiNode {
     useCluster testClusters.multiNode
     doFirst {
         println "$path: Cluster running @ ${testClusters.multiNode.httpSocketURI}"
+    }
+}
+
+task testReleased {
+    useCluster testClusters.releasedVersionDefault
+    useCluster testClusters.releasedVersionOSS
+    useCluster testClusters.releasedVersionIntegTest
+    doFirst {
+        println "$path: Cluster running @ ${testClusters.releasedVersionDefault.httpSocketURI}"
+        println "$path: Cluster running @ ${testClusters.releasedVersionOSS.httpSocketURI}"
+        println "$path: Cluster running @ ${testClusters.releasedVersionIntegTest.httpSocketURI}"
     }
 }
 

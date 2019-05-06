@@ -91,7 +91,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         String jdkVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
         String jdkMajor = jdkVersionMatcher.group(1);
         String jdkBuild = jdkVersionMatcher.group(3);
-        String hash = jdkVersionMatcher.group(4);
+        String hash = jdkVersionMatcher.group(5);
 
         // add fake ivy repo for jdk url
         String repoName = "jdk_repo_" + version;

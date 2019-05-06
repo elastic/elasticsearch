@@ -22,18 +22,19 @@ package org.elasticsearch.gradle;
 import org.gradle.api.Buildable;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.regex.Pattern;
 
-public class Jdk implements Buildable {
+public class Jdk implements Buildable, Iterable<File> {
 
-    static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)@([a-f0-9]{32})?");
+    static final Pattern VERSION_PATTERN = Pattern.compile("(\\d+)(\\.\\d+\\.\\d+)?\\+(\\d+)(@([a-f0-9]{32}))?");
     private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(Arrays.asList("linux", "windows", "darwin"));
 
     private final String name;
@@ -82,17 +83,9 @@ public class Jdk implements Buildable {
         return configuration;
     }
 
-    public FileCollection getFileCollection() {
-        return configuration;
-    }
-
-    public Object getHomeDir() {
-        return new Object() {
-            @Override
-            public String toString() {
-                return configuration.getSingleFile().toString();
-            }
-        };
+    @Override
+    public String toString() {
+        return configuration.getSingleFile().toString();
     }
 
     @Override
@@ -110,5 +103,10 @@ public class Jdk implements Buildable {
         }
         version.finalizeValue();
         platform.finalizeValue();
+    }
+
+    @Override
+    public Iterator<File> iterator() {
+        return configuration.iterator();
     }
 }

@@ -57,6 +57,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.equalTo;
@@ -104,6 +105,14 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)));
         xContentRegistry = new NamedXContentRegistry(entries);
         registry = new SnapshotLifecycleTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+    }
+
+    public void testDisabledDoesNotAddTemplates() {
+        Settings settings = Settings.builder().put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
+        SnapshotLifecycleTemplateRegistry disabledRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
+            client, xContentRegistry);
+        assertThat(disabledRegistry.getTemplateConfigs(), hasSize(0));
+        assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() {

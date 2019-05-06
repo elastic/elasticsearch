@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 
 /**
  * Manages the index template and associated ILM policy for the Snapshot
@@ -53,18 +54,27 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         "/slm-history-ilm-policy.json"
     );
 
+    private final boolean slmHistoryEnabled;
+
     public SnapshotLifecycleTemplateRegistry(Settings nodeSettings, ClusterService clusterService, ThreadPool threadPool, Client client,
                                              NamedXContentRegistry xContentRegistry) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
+        slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
     @Override
     protected List<IndexTemplateConfig> getTemplateConfigs() {
+        if (slmHistoryEnabled == false) {
+            return Collections.emptyList();
+        }
         return Collections.singletonList(TEMPLATE_SLM_HISTORY);
     }
 
     @Override
     protected List<LifecyclePolicyConfig> getPolicyConfigs() {
+        if (slmHistoryEnabled == false) {
+            return Collections.emptyList();
+        }
         return Collections.singletonList(SLM_HISTORY_POLICY);
     }
 

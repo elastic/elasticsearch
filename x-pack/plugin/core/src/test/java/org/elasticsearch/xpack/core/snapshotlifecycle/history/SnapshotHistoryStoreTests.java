@@ -24,10 +24,12 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore.getHistoryIndexNameForTime;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.notNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -52,7 +54,21 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         registry = mock(SnapshotLifecycleTemplateRegistry.class);
 
-        historyStore = new SnapshotHistoryStore(registry, client, ZoneOffset.UTC, clusterService);
+        historyStore = new SnapshotHistoryStore(settings, client, ZoneOffset.UTC, clusterService, registry);
+    }
+
+    public void testNoActionIfDisabled() {
+        Settings settings = Settings.builder().put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
+        SnapshotHistoryStore disabledHistoryStore = new SnapshotHistoryStore(settings, client, ZoneOffset.UTC, clusterService, registry);
+        String policyId = randomAlphaOfLength(5);
+        SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(policyId);
+        final long timestamp = randomNonNegativeLong();
+        SnapshotLifecyclePolicy.ResolverContext context = new SnapshotLifecyclePolicy.ResolverContext(timestamp);
+        String snapshotId = policy.generateSnapshotName(context);
+        SnapshotHistoryItem record = SnapshotHistoryItem.successRecord(timestamp, policy, snapshotId);
+
+        disabledHistoryStore.putAsync(record);
+        verify(client, times(0)).index(any(), any());
     }
 
     @SuppressWarnings("unchecked")

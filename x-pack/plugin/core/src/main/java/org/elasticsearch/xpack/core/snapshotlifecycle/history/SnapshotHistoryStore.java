@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,6 +28,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 
 /**
@@ -43,12 +45,13 @@ public class SnapshotHistoryStore implements ClusterStateListener {
     private final Client client;
     private final ZoneId timeZone;
     private final AtomicBoolean readyToIndex = new AtomicBoolean(false);
+    private final boolean slmHistoryEnabled;
 
-    public SnapshotHistoryStore(SnapshotLifecycleTemplateRegistry registry, Client client, ZoneId timeZone,
-                                ClusterService clusterService) {
+    public SnapshotHistoryStore(Settings nodeSettings, Client client, ZoneId timeZone, ClusterService clusterService, SnapshotLifecycleTemplateRegistry registry) {
         this.registry = registry;
         this.client = client;
         this.timeZone = timeZone;
+        slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
         clusterService.addListener(this);
     }
 
@@ -58,6 +61,11 @@ public class SnapshotHistoryStore implements ClusterStateListener {
      * @param item The entry to index
      */
     public void putAsync(SnapshotHistoryItem item) {
+        if (slmHistoryEnabled == false) {
+            logger.trace("not recording snapshot history item because [{}] is [false]: [{}]",
+                SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), item);
+            return;
+        }
         final ZonedDateTime dateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(item.getTimestamp()), timeZone);
         final String index = getHistoryIndexNameForTime(dateTime);
         logger.trace("about to index snapshot history item in index [{}]: [{}]", index, item);

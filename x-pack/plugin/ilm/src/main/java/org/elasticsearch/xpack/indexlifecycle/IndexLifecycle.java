@@ -146,7 +146,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING,
             LifecycleSettings.LIFECYCLE_NAME_SETTING,
             LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING,
-            RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING);
+            RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING,
+            LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING);
     }
 
     @Override
@@ -161,7 +162,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 getClock(), System::currentTimeMillis, xContentRegistry));
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
             client, xContentRegistry);
-        snapshotHistoryStore.set(new SnapshotHistoryStore(templateRegistry, client, getClock().getZone(), clusterService));
+        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, client, getClock().getZone(), clusterService, templateRegistry));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
             () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
         return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotHistoryStore.get());

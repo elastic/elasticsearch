@@ -102,3 +102,18 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+---
+"Test preview with non-existing source index":
+  - do:
+      catch: /Source index \[does_not_exist\] does not exist/
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": ["airline-data", "does_not_exist"] },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }

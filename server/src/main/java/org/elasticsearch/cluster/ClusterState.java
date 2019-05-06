@@ -65,8 +65,10 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.StreamSupport;
 
 /**
  * Represents the current state of the cluster.
@@ -313,6 +315,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             sb.append(": v[").append(indexMetaData.getVersion())
                     .append("], mv[").append(indexMetaData.getMappingVersion())
                     .append("], sv[").append(indexMetaData.getSettingsVersion())
+                    .append("], av[").append(indexMetaData.getAliasesVersion())
                     .append("]\n");
             for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
                 sb.append(TAB).append(TAB).append(shard).append(": ");
@@ -700,7 +703,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         public Builder putCustom(String type, Custom custom) {
-            customs.put(type, custom);
+            customs.put(type, Objects.requireNonNull(custom, type));
             return this;
         }
 
@@ -710,6 +713,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+            StreamSupport.stream(customs.spliterator(), false).forEach(cursor -> Objects.requireNonNull(cursor.value, cursor.key));
             this.customs.putAll(customs);
             return this;
         }

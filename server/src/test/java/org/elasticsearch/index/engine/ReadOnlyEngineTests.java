@@ -44,7 +44,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             int numDocs = scaledRandomIntBetween(10, 1000);
             final SeqNoStats lastSeqNoStats;
-            final List<DocIdSeqNoAndTerm> lastDocIds;
+            final List<DocIdSeqNoAndSource> lastDocIds;
             try (InternalEngine engine = createEngine(config)) {
                 Engine.Get get = null;
                 for (int i = 0; i < numDocs; i++) {
@@ -92,7 +92,6 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             // Close and reopen the main engine
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
-                recoveringEngine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                 recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
@@ -224,7 +223,6 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
                 final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
-                readOnlyEngine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                 readOnlyEngine.recoverFromTranslog(translogHandler, randomNonNegativeLong());
 
                 assertThat(translogHandler.appliedOperations(), equalTo(0L));

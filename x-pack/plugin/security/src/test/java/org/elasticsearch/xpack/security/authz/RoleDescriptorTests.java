@@ -213,8 +213,8 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("not_supported"));
     }
 
-    public void testSerialization() throws Exception {
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, null);
+    public void testSerializationForCurrentVersion() throws Exception {
+        final Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(version);

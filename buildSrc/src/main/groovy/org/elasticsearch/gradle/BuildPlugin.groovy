@@ -39,6 +39,8 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.credentials.HttpHeaderCredentials
 import org.gradle.api.execution.TaskActionListener
 import org.gradle.api.execution.TaskExecutionGraph
@@ -61,6 +63,9 @@ import org.gradle.util.GradleVersion
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.regex.Matcher
 
 /**
@@ -127,13 +132,6 @@ class BuildPlugin implements Plugin<Project> {
             String runtimeJavaHome = findRuntimeJavaHome(compilerJavaHome)
             File gradleJavaHome = Jvm.current().javaHome
 
-            final Map<Integer, String> javaVersions = [:]
-            for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
-                if(System.getenv(getJavaHomeEnvVarName(version.toString())) != null) {
-                    javaVersions.put(version, findJavaHome(version.toString()));
-                }
-            }
-
             String javaVendor = System.getProperty('java.vendor')
             String gradleJavaVersion = System.getProperty('java.version')
             String gradleJavaVersionDetails = "${javaVendor} ${gradleJavaVersion}" +
@@ -153,8 +151,12 @@ class BuildPlugin implements Plugin<Project> {
                 runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, runtimeJavaHome))
             }
 
-            String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
-            boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
+            boolean inFipsJvm = false
+            if (new File(runtimeJavaHome).canonicalPath != gradleJavaHome.canonicalPath) {
+                // We don't expect Gradle to be running in a FIPS JVM
+                String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
+                inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
+            }
 
             // Build debugging info
             println '======================================='
@@ -190,24 +192,49 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException(message)
             }
 
-            for (final Map.Entry<Integer, String> javaVersionEntry : javaVersions.entrySet()) {
-                final String javaHome = javaVersionEntry.getValue()
-                if (javaHome == null) {
-                    continue
+            final Map<Integer, String> javaVersions = [:]
+            for (int version = 8; version <= Integer.parseInt(minimumCompilerVersion.majorVersion); version++) {
+                if(System.getenv(getJavaHomeEnvVarName(version.toString())) != null) {
+                    javaVersions.put(version, findJavaHome(version.toString()));
                 }
-                JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
-                final JavaVersion expectedJavaVersionEnum
-                final int version = javaVersionEntry.getKey()
-                if (version < 9) {
-                    expectedJavaVersionEnum = JavaVersion.toVersion("1." + version)
-                } else {
-                    expectedJavaVersionEnum = JavaVersion.toVersion(Integer.toString(version))
+            }
+
+            final int numberOfPhysicalCores = numberOfPhysicalCores(project.rootProject)
+            if (javaVersions.isEmpty() == false) {
+
+                ExecutorService exec = Executors.newFixedThreadPool(numberOfPhysicalCores)
+                Set<Future<Void>> results = new HashSet<>()
+
+                javaVersions.entrySet().stream()
+                        .filter { it.getValue() != null }
+                        .forEach { javaVersionEntry ->
+                    results.add(exec.submit {
+                        final String javaHome = javaVersionEntry.getValue()
+                        final int version = javaVersionEntry.getKey()
+                        if (project.file(javaHome).exists() == false) {
+                            throw new GradleException("Invalid JAVA${version}_HOME=${javaHome} location does not exist")
+                        }
+
+                        JavaVersion javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
+                        final JavaVersion expectedJavaVersionEnum = version < 9 ?
+                                JavaVersion.toVersion("1." + version) :
+                                JavaVersion.toVersion(Integer.toString(version))
+
+                        if (javaVersionEnum != expectedJavaVersionEnum) {
+                            final String message =
+                                    "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
+                                            " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
+                            throw new GradleException(message)
+                        }
+                    })
                 }
-                if (javaVersionEnum != expectedJavaVersionEnum) {
-                    final String message =
-                            "the environment variable JAVA" + version + "_HOME must be set to a JDK installation directory for Java" +
-                                    " ${expectedJavaVersionEnum} but is [${javaHome}] corresponding to [${javaVersionEnum}]"
-                    throw new GradleException(message)
+
+                project.gradle.taskGraph.whenReady {
+                    try {
+                        results.forEach { it.get() }
+                    } finally {
+                        exec.shutdown();
+                    }
                 }
             }
 
@@ -223,7 +250,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.inFipsJvm = inFipsJvm
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
             project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
-            project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
+            project.rootProject.ext.defaultParallel = numberOfPhysicalCores
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -555,6 +582,16 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
+        project.getRepositories().all { repository ->
+            if (repository instanceof MavenArtifactRepository) {
+                final MavenArtifactRepository maven = (MavenArtifactRepository) repository
+                assertRepositoryURIUsesHttps(project, maven.getUrl())
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(project, uri) }
+            } else if (repository instanceof IvyArtifactRepository) {
+                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
+                assertRepositoryURIUsesHttps(project, ivy.getUrl())
+            }
+        }
         RepositoryHandler repos = project.repositories
         if (System.getProperty("repos.mavenLocal") != null) {
             // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
@@ -589,6 +626,12 @@ class BuildPlugin implements Plugin<Project> {
                 name 'lucene-snapshots'
                 url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
+        }
+    }
+
+    private static void assertRepositoryURIUsesHttps(final Project project, final URI uri) {
+        if (uri != null && uri.toURL().getProtocol().equals("http")) {
+            throw new GradleException("repository on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
         }
     }
 
@@ -972,12 +1015,6 @@ class BuildPlugin implements Plugin<Project> {
                 // TODO: remove this once ctx isn't added to update script params in 7.0
                 systemProperty 'es.scripting.update.ctx_in_params', 'false'
 
-                // Set the system keystore/truststore password if we're running tests in a FIPS-140 JVM
-                if (project.inFipsJvm) {
-                    systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                    systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-                }
-
                 testLogging {
                     showExceptions = true
                     showCauses = true
@@ -995,7 +1032,7 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static int findDefaultParallel(Project project) {
+    private static int numberOfPhysicalCores(Project project) {
         if (project.file("/proc/cpuinfo").exists()) {
             // Count physical cores on any Linux distro ( don't count hyper-threading )
             Map<String, Integer> socketToCore = [:]
@@ -1008,7 +1045,7 @@ class BuildPlugin implements Plugin<Project> {
                     if (name == "physical id") {
                         currentID = value
                     }
-                    // Number  of cores not including hyper-threading
+                    // number of cores not including hyper-threading
                     if (name == "cpu cores") {
                         assert currentID.isEmpty() == false
                         socketToCore[currentID] = Integer.valueOf(value)
@@ -1026,8 +1063,11 @@ class BuildPlugin implements Plugin<Project> {
                 standardOutput = stdout
             }
             return Integer.parseInt(stdout.toString('UTF-8').trim())
+        } else {
+            // guess that it is half the number of processors (which is wrong on systems that do not have simultaneous multi-threading)
+            // TODO: implement this on Windows
+            return Runtime.getRuntime().availableProcessors() / 2
         }
-        return Runtime.getRuntime().availableProcessors() / 2
     }
 
     private static configurePrecommit(Project project) {

@@ -30,32 +30,9 @@ public abstract class SingleGroupSource implements ToXContentObject {
     protected static final ParseField FIELD = new ParseField("field");
 
     public enum Type {
-        TERMS(0),
-        HISTOGRAM(1),
-        DATE_HISTOGRAM(2);
-
-        private final byte id;
-
-        Type(int id) {
-            this.id = (byte) id;
-        }
-
-        public byte getId() {
-            return id;
-        }
-
-        public static Type fromId(byte id) {
-            switch (id) {
-                case 0:
-                    return TERMS;
-                case 1:
-                    return HISTOGRAM;
-                case 2:
-                    return DATE_HISTOGRAM;
-                default:
-                    throw new IllegalArgumentException("unknown type");
-            }
-        }
+        TERMS,
+        HISTOGRAM,
+        DATE_HISTOGRAM;
 
         public String value() {
             return name().toLowerCase(Locale.ROOT);

@@ -6,7 +6,9 @@
 package org.elasticsearch.xpack.security.transport.nio;
 
 import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.nio.FlushOperation;
 import org.elasticsearch.nio.InboundChannelBuffer;
+import org.elasticsearch.nio.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
@@ -24,15 +26,16 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 
 public class SSLDriverTests extends ESTestCase {
 
-    private final Supplier<InboundChannelBuffer.Page> pageSupplier =
-            () -> new InboundChannelBuffer.Page(ByteBuffer.allocate(1 << 14), () -> {});
-    private InboundChannelBuffer serverBuffer = new InboundChannelBuffer(pageSupplier);
-    private InboundChannelBuffer clientBuffer = new InboundChannelBuffer(pageSupplier);
-    private InboundChannelBuffer genericBuffer = new InboundChannelBuffer(pageSupplier);
+    private final IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), () -> {});
+
+    private final InboundChannelBuffer networkReadBuffer = new InboundChannelBuffer(pageAllocator);
+    private final InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
+    private final AtomicInteger openPages = new AtomicInteger(0);
 
     public void testPingPongAndClose() throws Exception {
         SSLContext sslContext = getSSLContext();
@@ -43,17 +46,34 @@ public class SSLDriverTests extends ESTestCase {
         handshake(clientDriver, serverDriver);
 
         ByteBuffer[] buffers = {ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8))};
-        sendAppData(clientDriver, serverDriver, buffers);
-        serverDriver.read(serverBuffer);
-        assertEquals(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)), serverBuffer.sliceBuffersTo(4)[0]);
+        sendAppData(clientDriver, buffers);
+        serverDriver.read(networkReadBuffer, applicationBuffer);
+        assertEquals(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)), applicationBuffer.sliceBuffersTo(4)[0]);
+        applicationBuffer.release(4);
 
         ByteBuffer[] buffers2 = {ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8))};
-        sendAppData(serverDriver, clientDriver, buffers2);
-        clientDriver.read(clientBuffer);
-        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), clientBuffer.sliceBuffersTo(4)[0]);
+        sendAppData(serverDriver, buffers2);
+        clientDriver.read(networkReadBuffer, applicationBuffer);
+        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), applicationBuffer.sliceBuffersTo(4)[0]);
+        applicationBuffer.release(4);
 
         assertFalse(clientDriver.needsNonApplicationWrite());
         normalClose(clientDriver, serverDriver);
+    }
+
+    public void testDataStoredInOutboundBufferIsClosed() throws Exception {
+        SSLContext sslContext = getSSLContext();
+
+        SSLDriver clientDriver = getDriver(sslContext.createSSLEngine(), true);
+        SSLDriver serverDriver = getDriver(sslContext.createSSLEngine(), false);
+
+        handshake(clientDriver, serverDriver);
+
+        ByteBuffer[] buffers = {ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8))};
+        serverDriver.write(new FlushOperation(buffers, (v, e) -> {}));
+
+        expectThrows(SSLException.class, serverDriver::close);
+        assertEquals(0, openPages.get());
     }
 
     public void testRenegotiate() throws Exception {
@@ -72,9 +92,10 @@ public class SSLDriverTests extends ESTestCase {
         handshake(clientDriver, serverDriver);
 
         ByteBuffer[] buffers = {ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8))};
-        sendAppData(clientDriver, serverDriver, buffers);
-        serverDriver.read(serverBuffer);
-        assertEquals(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)), serverBuffer.sliceBuffersTo(4)[0]);
+        sendAppData(clientDriver, buffers);
+        serverDriver.read(networkReadBuffer, applicationBuffer);
+        assertEquals(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)), applicationBuffer.sliceBuffersTo(4)[0]);
+        applicationBuffer.release(4);
 
         clientDriver.renegotiate();
         assertTrue(clientDriver.isHandshaking());
@@ -82,17 +103,20 @@ public class SSLDriverTests extends ESTestCase {
 
         // This tests that the client driver can still receive data based on the prior handshake
         ByteBuffer[] buffers2 = {ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8))};
-        sendAppData(serverDriver, clientDriver, buffers2);
-        clientDriver.read(clientBuffer);
-        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), clientBuffer.sliceBuffersTo(4)[0]);
+        sendAppData(serverDriver, buffers2);
+        clientDriver.read(networkReadBuffer, applicationBuffer);
+        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), applicationBuffer.sliceBuffersTo(4)[0]);
+        applicationBuffer.release(4);
 
         handshake(clientDriver, serverDriver, true);
-        sendAppData(clientDriver, serverDriver, buffers);
-        serverDriver.read(serverBuffer);
-        assertEquals(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)), serverBuffer.sliceBuffersTo(4)[0]);
-        sendAppData(serverDriver, clientDriver, buffers2);
-        clientDriver.read(clientBuffer);
-        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), clientBuffer.sliceBuffersTo(4)[0]);
+        sendAppData(clientDriver, buffers);
+        serverDriver.read(networkReadBuffer, applicationBuffer);
+        assertEquals(ByteBuffer.wrap("ping".getBytes(StandardCharsets.UTF_8)), applicationBuffer.sliceBuffersTo(4)[0]);
+        applicationBuffer.release(4);
+        sendAppData(serverDriver, buffers2);
+        clientDriver.read(networkReadBuffer, applicationBuffer);
+        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), applicationBuffer.sliceBuffersTo(4)[0]);
+        applicationBuffer.release(4);
 
         normalClose(clientDriver, serverDriver);
     }
@@ -107,18 +131,22 @@ public class SSLDriverTests extends ESTestCase {
 
         ByteBuffer buffer = ByteBuffer.allocate(1 << 15);
         for (int i = 0; i < (1 << 15); ++i) {
-            buffer.put((byte) i);
+            buffer.put((byte) (i % 127));
         }
+        buffer.flip();
         ByteBuffer[] buffers = {buffer};
-        sendAppData(clientDriver, serverDriver, buffers);
-        serverDriver.read(serverBuffer);
-        assertEquals(16384, serverBuffer.sliceBuffersFrom(0)[0].limit());
-        assertEquals(16384, serverBuffer.sliceBuffersFrom(0)[1].limit());
+        sendAppData(clientDriver, buffers);
+        serverDriver.read(networkReadBuffer, applicationBuffer);
+        ByteBuffer[] buffers1 = applicationBuffer.sliceBuffersFrom(0);
+        assertEquals((byte) (16383 % 127), buffers1[0].get(16383));
+        assertEquals((byte) (32767 % 127), buffers1[1].get(16383));
+        applicationBuffer.release(1 << 15);
 
         ByteBuffer[] buffers2 = {ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8))};
-        sendAppData(serverDriver, clientDriver, buffers2);
-        clientDriver.read(clientBuffer);
-        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), clientBuffer.sliceBuffersTo(4)[0]);
+        sendAppData(serverDriver, buffers2);
+        clientDriver.read(networkReadBuffer, applicationBuffer);
+        assertEquals(ByteBuffer.wrap("pong".getBytes(StandardCharsets.UTF_8)), applicationBuffer.sliceBuffersTo(4)[0]);
+        applicationBuffer.release(4);
 
         assertFalse(clientDriver.needsNonApplicationWrite());
         normalClose(clientDriver, serverDriver);
@@ -141,10 +169,6 @@ public class SSLDriverTests extends ESTestCase {
         boolean expectedMessage = oldExpected.equals(sslException.getMessage()) || jdk11Expected.equals(sslException.getMessage());
         assertTrue("Unexpected exception message: " + sslException.getMessage(), expectedMessage);
 
-        // In JDK11 we need an non-application write
-        if (serverDriver.needsNonApplicationWrite()) {
-            serverDriver.nonApplicationWrite();
-        }
         // Prior to JDK11 we still need to send a close alert
         if (serverDriver.isClosed() == false) {
             failedCloseAlert(serverDriver, clientDriver, Arrays.asList("Received fatal alert: protocol_version",
@@ -166,10 +190,7 @@ public class SSLDriverTests extends ESTestCase {
         SSLDriver serverDriver = getDriver(serverEngine, false);
 
         expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
-        // In JDK11 we need an non-application write
-        if (serverDriver.needsNonApplicationWrite()) {
-            serverDriver.nonApplicationWrite();
-        }
+
         // Prior to JDK11 we still need to send a close alert
         if (serverDriver.isClosed() == false) {
             List<String> messages = Arrays.asList("Received fatal alert: handshake_failure",
@@ -187,12 +208,10 @@ public class SSLDriverTests extends ESTestCase {
         clientDriver.init();
         serverDriver.init();
 
-        assertTrue(clientDriver.needsNonApplicationWrite());
+        assertTrue(clientDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
         assertFalse(serverDriver.needsNonApplicationWrite());
         sendHandshakeMessages(clientDriver, serverDriver);
         sendHandshakeMessages(serverDriver, clientDriver);
-
-        sendData(clientDriver, serverDriver);
 
         assertTrue(clientDriver.isHandshaking());
         assertTrue(serverDriver.isHandshaking());
@@ -201,16 +220,16 @@ public class SSLDriverTests extends ESTestCase {
         serverDriver.initiateClose();
         assertTrue(serverDriver.needsNonApplicationWrite());
         assertFalse(serverDriver.isClosed());
-        sendNonApplicationWrites(serverDriver, clientDriver);
+        sendNonApplicationWrites(serverDriver);
         // We are immediately fully closed due to SSLEngine inconsistency
         assertTrue(serverDriver.isClosed());
-        // This should not throw exception yet as the SSLEngine will not UNWRAP data while attempting to WRAP
-        clientDriver.read(clientBuffer);
-        sendNonApplicationWrites(clientDriver, serverDriver);
-        clientDriver.read(clientBuffer);
-        sendNonApplicationWrites(clientDriver, serverDriver);
-        serverDriver.read(serverBuffer);
+
+        SSLException sslException = expectThrows(SSLException.class, () -> clientDriver.read(networkReadBuffer, applicationBuffer));
+        assertEquals("Received close_notify during handshake", sslException.getMessage());
+        sendNonApplicationWrites(clientDriver);
         assertTrue(clientDriver.isClosed());
+
+        serverDriver.read(networkReadBuffer, applicationBuffer);
     }
 
     public void testCloseDuringHandshakePreJDK11() throws Exception {
@@ -227,8 +246,6 @@ public class SSLDriverTests extends ESTestCase {
         sendHandshakeMessages(clientDriver, serverDriver);
         sendHandshakeMessages(serverDriver, clientDriver);
 
-        sendData(clientDriver, serverDriver);
-
         assertTrue(clientDriver.isHandshaking());
         assertTrue(serverDriver.isHandshaking());
 
@@ -236,17 +253,17 @@ public class SSLDriverTests extends ESTestCase {
         serverDriver.initiateClose();
         assertTrue(serverDriver.needsNonApplicationWrite());
         assertFalse(serverDriver.isClosed());
-        sendNonApplicationWrites(serverDriver, clientDriver);
+        sendNonApplicationWrites(serverDriver);
         // We are immediately fully closed due to SSLEngine inconsistency
         assertTrue(serverDriver.isClosed());
         // This should not throw exception yet as the SSLEngine will not UNWRAP data while attempting to WRAP
-        clientDriver.read(clientBuffer);
-        sendNonApplicationWrites(clientDriver, serverDriver);
-        SSLException sslException = expectThrows(SSLException.class, () -> clientDriver.read(clientBuffer));
+        clientDriver.read(networkReadBuffer, applicationBuffer);
+        sendNonApplicationWrites(clientDriver);
+        SSLException sslException = expectThrows(SSLException.class, () -> clientDriver.read(networkReadBuffer, applicationBuffer));
         assertEquals("Received close_notify during handshake", sslException.getMessage());
         assertTrue(clientDriver.needsNonApplicationWrite());
-        sendNonApplicationWrites(clientDriver, serverDriver);
-        serverDriver.read(serverBuffer);
+        sendNonApplicationWrites(clientDriver);
+        serverDriver.read(networkReadBuffer, applicationBuffer);
         assertTrue(clientDriver.isClosed());
     }
 
@@ -254,11 +271,11 @@ public class SSLDriverTests extends ESTestCase {
         assertTrue(sendDriver.needsNonApplicationWrite());
         assertFalse(sendDriver.isClosed());
 
-        sendNonApplicationWrites(sendDriver, receiveDriver);
+        sendNonApplicationWrites(sendDriver);
         assertTrue(sendDriver.isClosed());
         sendDriver.close();
 
-        SSLException sslException = expectThrows(SSLException.class, () -> receiveDriver.read(genericBuffer));
+        SSLException sslException = expectThrows(SSLException.class, () -> receiveDriver.read(networkReadBuffer, applicationBuffer));
         assertTrue("Expected one of the following exception messages: " + messages + ". Found: " + sslException.getMessage(),
             messages.stream().anyMatch(m -> sslException.getMessage().equals(m)));
         if (receiveDriver.needsNonApplicationWrite() == false) {
@@ -287,31 +304,32 @@ public class SSLDriverTests extends ESTestCase {
         sendDriver.initiateClose();
         assertFalse(sendDriver.readyForApplicationWrites());
         assertTrue(sendDriver.needsNonApplicationWrite());
-        sendNonApplicationWrites(sendDriver, receiveDriver);
+        sendNonApplicationWrites(sendDriver);
         assertFalse(sendDriver.isClosed());
 
-        receiveDriver.read(genericBuffer);
+        receiveDriver.read(networkReadBuffer, applicationBuffer);
         assertFalse(receiveDriver.isClosed());
 
         assertFalse(receiveDriver.readyForApplicationWrites());
         assertTrue(receiveDriver.needsNonApplicationWrite());
-        sendNonApplicationWrites(receiveDriver, sendDriver);
+        sendNonApplicationWrites(receiveDriver);
         assertTrue(receiveDriver.isClosed());
 
-        sendDriver.read(genericBuffer);
+        sendDriver.read(networkReadBuffer, applicationBuffer);
         assertTrue(sendDriver.isClosed());
 
         sendDriver.close();
         receiveDriver.close();
+        assertEquals(0, openPages.get());
     }
 
-    private void sendNonApplicationWrites(SSLDriver sendDriver, SSLDriver receiveDriver) throws SSLException {
-        while (sendDriver.needsNonApplicationWrite() || sendDriver.hasFlushPending()) {
-            if (sendDriver.hasFlushPending() == false) {
+    private void sendNonApplicationWrites(SSLDriver sendDriver) throws SSLException {
+        SSLOutboundBuffer outboundBuffer = sendDriver.getOutboundBuffer();
+        while (sendDriver.needsNonApplicationWrite() || outboundBuffer.hasEncryptedBytesToFlush()) {
+            if (outboundBuffer.hasEncryptedBytesToFlush()) {
+                sendData(outboundBuffer.buildNetworkFlushOperation());
+            } else {
                 sendDriver.nonApplicationWrite();
-            }
-            if (sendDriver.hasFlushPending()) {
-                sendData(sendDriver, receiveDriver, true);
             }
         }
     }
@@ -326,7 +344,7 @@ public class SSLDriverTests extends ESTestCase {
             serverDriver.init();
         }
 
-        assertTrue(clientDriver.needsNonApplicationWrite() || clientDriver.hasFlushPending());
+        assertTrue(clientDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
         assertFalse(serverDriver.needsNonApplicationWrite());
         sendHandshakeMessages(clientDriver, serverDriver);
 
@@ -341,7 +359,6 @@ public class SSLDriverTests extends ESTestCase {
         sendHandshakeMessages(clientDriver, serverDriver);
 
         assertTrue(clientDriver.isHandshaking());
-        assertTrue(serverDriver.isHandshaking());
 
         sendHandshakeMessages(serverDriver, clientDriver);
 
@@ -350,61 +367,63 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     private void sendHandshakeMessages(SSLDriver sendDriver, SSLDriver receiveDriver) throws IOException {
-        assertTrue(sendDriver.needsNonApplicationWrite() || sendDriver.hasFlushPending());
+        assertTrue(sendDriver.needsNonApplicationWrite() || sendDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
 
-        while (sendDriver.needsNonApplicationWrite() || sendDriver.hasFlushPending()) {
-            if (sendDriver.hasFlushPending() == false) {
+        SSLOutboundBuffer outboundBuffer = sendDriver.getOutboundBuffer();
+
+        while (sendDriver.needsNonApplicationWrite() || outboundBuffer.hasEncryptedBytesToFlush()) {
+            if (outboundBuffer.hasEncryptedBytesToFlush()) {
+                sendData(outboundBuffer.buildNetworkFlushOperation());
+                receiveDriver.read(networkReadBuffer, applicationBuffer);
+            } else {
                 sendDriver.nonApplicationWrite();
-            }
-            if (sendDriver.isHandshaking()) {
-                assertTrue(sendDriver.hasFlushPending());
-                sendData(sendDriver, receiveDriver);
-                assertFalse(sendDriver.hasFlushPending());
-                receiveDriver.read(genericBuffer);
             }
         }
         if (receiveDriver.isHandshaking()) {
-            assertTrue(receiveDriver.needsNonApplicationWrite() || receiveDriver.hasFlushPending());
+            assertTrue(receiveDriver.needsNonApplicationWrite() || receiveDriver.getOutboundBuffer().hasEncryptedBytesToFlush());
         }
     }
 
-    private void sendAppData(SSLDriver sendDriver, SSLDriver receiveDriver, ByteBuffer[] message) throws IOException {
-
+    private void sendAppData(SSLDriver sendDriver, ByteBuffer[] message) throws IOException {
         assertFalse(sendDriver.needsNonApplicationWrite());
 
-        int bytesToEncrypt = Arrays.stream(message).mapToInt(Buffer::remaining).sum();
+        FlushOperation flushOperation = new FlushOperation(message, (r, l) -> {});
 
-        int bytesEncrypted = 0;
-        while (bytesToEncrypt > bytesEncrypted) {
-            bytesEncrypted += sendDriver.applicationWrite(message);
-            sendData(sendDriver, receiveDriver);
+        while (flushOperation.isFullyFlushed() == false) {
+            sendDriver.write(flushOperation);
         }
+        sendData(sendDriver.getOutboundBuffer().buildNetworkFlushOperation());
     }
 
-    private void sendData(SSLDriver sendDriver, SSLDriver receiveDriver) {
-        sendData(sendDriver, receiveDriver, randomBoolean());
-    }
+    private void sendData(FlushOperation flushOperation) {
+        ByteBuffer[] writeBuffers = flushOperation.getBuffersToWrite();
+        int bytesToCopy = Arrays.stream(writeBuffers).mapToInt(Buffer::remaining).sum();
+        networkReadBuffer.ensureCapacity(bytesToCopy + networkReadBuffer.getIndex());
+        ByteBuffer[] byteBuffers = networkReadBuffer.sliceBuffersFrom(0);
+        assert  writeBuffers.length > 0 : "No write buffers";
 
-    private void sendData(SSLDriver sendDriver, SSLDriver receiveDriver, boolean partial) {
-        ByteBuffer writeBuffer = sendDriver.getNetworkWriteBuffer();
-        ByteBuffer readBuffer = receiveDriver.getNetworkReadBuffer();
-        if (partial) {
-            int initialLimit = writeBuffer.limit();
-            int bytesToWrite = writeBuffer.remaining() / (randomInt(2) + 2);
-            writeBuffer.limit(writeBuffer.position() + bytesToWrite);
+        int r = 0;
+        while (flushOperation.isFullyFlushed() == false) {
+            ByteBuffer readBuffer = byteBuffers[r];
+            ByteBuffer writeBuffer = flushOperation.getBuffersToWrite()[0];
+            int toWrite = Math.min(writeBuffer.remaining(), readBuffer.remaining());
+            writeBuffer.limit(writeBuffer.position() + toWrite);
             readBuffer.put(writeBuffer);
-            writeBuffer.limit(initialLimit);
-            assertTrue(sendDriver.hasFlushPending());
-            readBuffer.put(writeBuffer);
-            assertFalse(sendDriver.hasFlushPending());
-
-        } else {
-            readBuffer.put(writeBuffer);
-            assertFalse(sendDriver.hasFlushPending());
+            flushOperation.incrementIndex(toWrite);
+            if (readBuffer.remaining() == 0) {
+                r++;
+            }
         }
+        networkReadBuffer.incrementIndex(bytesToCopy);
+
+        assertTrue(flushOperation.isFullyFlushed());
+        flushOperation.getListener().accept(null, null);
     }
 
     private SSLDriver getDriver(SSLEngine engine, boolean isClient) {
-        return new SSLDriver(engine, isClient);
+        return new SSLDriver(engine, (n) -> {
+            openPages.incrementAndGet();
+            return new Page(ByteBuffer.allocate(n), openPages::decrementAndGet);
+        }, isClient);
     }
 }

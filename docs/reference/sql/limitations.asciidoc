@@ -4,6 +4,46 @@
 == SQL Limitations
 
 [float]
+[[large-parsing-trees]]
+=== Large queries may throw `ParsingExpection`
+
+{es-sql} uses https://www.antlr.org/[`ANTLR`] to create https://en.wikipedia.org/wiki/Abstract_syntax_tree[abstract syntax trees]
+from a query as a first step before its analysis, planning and execution. As a consequence certain types of queries or
+expressions inside them can generate abstract syntax trees of large depth which will exhaust the JVM's stack and will
+trigger a `StackOverflowException`. {es-sql}'s parser will handle the `StackOverflowException` and throw a user facing
+`ParsingException` with a descriptive error message. Below you can find some examples of queries that could trigger
+this.
+
+- Large arithmetic operator expressions
+[source, sql]
+--------------------------------------------------
+a + b + c + d + e + f + ...
+--------------------------------------------------
+as those are parsed into an abstract syntax tree as:
+[source, sql]
+--------------------------------------------------
+(...((((a + b) + c) + d) + e) + f) + ...
+--------------------------------------------------
+
+- Large logical operator expressions
+[source, sql]
+--------------------------------------------------
+a OR b OR c OR d OR e OR f OR ...
+--------------------------------------------------
+as those are parsed into an abstract syntax tree as:
+[source, sql]
+--------------------------------------------------
+(...((((a OR b) OR c) OR d) OR e) OR f) + ...
+--------------------------------------------------
+
+- Large number of nested sub-selects
+[source, sql]
+--------------------------------------------------
+SELECT a, b, ... FROM (SELECT a, b... FROM (SELECT * FROM ( ...
+--------------------------------------------------
+
+
+[float]
 [[sys-columns-describe-table-nested-fields]]
 === Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
 

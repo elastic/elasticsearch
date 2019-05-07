@@ -110,7 +110,7 @@ public class DateFormatters {
         .appendLiteral(':')
         .appendValue(SECOND_OF_MINUTE, 2, 2, SignStyle.NOT_NEGATIVE)
         .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .optionalEnd()
         .optionalEnd()
         .optionalStart()

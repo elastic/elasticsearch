@@ -44,7 +44,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class DataFrameRequestConvertersTests extends ESTestCase {
 
@@ -154,18 +156,17 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         getStatsRequest.setPageParams(new PageParams(0, null));
         request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
-        assertEquals("0", request.getParameters().get("from"));
+        assertThat(request.getParameters(), hasEntry("from", "0"));
         assertEquals(null, request.getParameters().get("size"));
 
         getStatsRequest.setPageParams(new PageParams(null, 50));
         request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
         assertEquals(null, request.getParameters().get("from"));
-        assertEquals("50", request.getParameters().get("size"));
+        assertThat(request.getParameters(), hasEntry("size", "50"));
 
         getStatsRequest.setPageParams(new PageParams(0, 10));
         request = DataFrameRequestConverters.getDataFrameTransformStats(getStatsRequest);
-        assertEquals("0", request.getParameters().get("from"));
-        assertEquals("10", request.getParameters().get("size"));
+        assertThat(request.getParameters(), allOf(hasEntry("from", "0"), hasEntry("size", "10")));
     }
 
     public void testGetDataFrameTransform() {
@@ -180,18 +181,17 @@ public class DataFrameRequestConvertersTests extends ESTestCase {
 
         getRequest.setPageParams(new PageParams(0, null));
         request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
-        assertEquals("0", request.getParameters().get("from"));
+        assertThat(request.getParameters(), hasEntry("from", "0"));
         assertEquals(null, request.getParameters().get("size"));
 
         getRequest.setPageParams(new PageParams(null, 50));
         request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
         assertEquals(null, request.getParameters().get("from"));
-        assertEquals("50", request.getParameters().get("size"));
+        assertThat(request.getParameters(), hasEntry("size", "50"));
 
         getRequest.setPageParams(new PageParams(0, 10));
         request = DataFrameRequestConverters.getDataFrameTransform(getRequest);
-        assertEquals("0", request.getParameters().get("from"));
-        assertEquals("10", request.getParameters().get("size"));
+        assertThat(request.getParameters(), allOf(hasEntry("from", "0"), hasEntry("size", "10")));
     }
 
     public void testGetDataFrameTransform_givenMulitpleIds() {

@@ -586,7 +586,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // end::get-data-frame-transform-request
 
             // tag::get-data-frame-transform-request-options
-            request.setPageParams(new PageParams(0,100)); // <1>
+            request.setPageParams(new PageParams(0, 100)); // <1>
             // end::get-data-frame-transform-request-options
 
             // tag::get-data-frame-transform-execute

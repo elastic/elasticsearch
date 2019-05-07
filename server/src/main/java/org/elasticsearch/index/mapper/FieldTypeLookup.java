@@ -86,7 +86,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
 
             if (fieldMapper instanceof JsonFieldMapper) {
-                jsonMappers = fullNameToJsonMapper.copyAndPut(fieldName, (JsonFieldMapper) fieldMapper);
+                jsonMappers = jsonMappers.copyAndPut(fieldName, (JsonFieldMapper) fieldMapper);
             }
         }
 

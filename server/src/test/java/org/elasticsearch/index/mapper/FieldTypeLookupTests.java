@@ -167,6 +167,26 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(objectKey, keyedFieldType.key());
     }
 
+    public void testMultipleJsonFieldTypes() {
+        String field1 = "object1.object2.field";
+        String field2 = "object1.field";
+        String field3 = "object2.field";
+
+        JsonFieldMapper mapper1 = createJsonMapper(field1);
+        JsonFieldMapper mapper2 = createJsonMapper(field2);
+        JsonFieldMapper mapper3 = createJsonMapper(field3);
+
+        FieldTypeLookup lookup = new FieldTypeLookup()
+            .copyAndAddAll("type", newList(mapper1, mapper2), emptyList());
+        assertNotNull(lookup.get(field1 + ".some.key"));
+        assertNotNull(lookup.get(field2 + ".some.key"));
+
+        lookup = lookup.copyAndAddAll("type", newList(mapper3), emptyList());
+        assertNotNull(lookup.get(field1 + ".some.key"));
+        assertNotNull(lookup.get(field2 + ".some.key"));
+        assertNotNull(lookup.get(field3 + ".some.key"));
+    }
+
     public void testJsonFieldTypeWithAlias() {
         String fieldName = "object1.object2.field";
         JsonFieldMapper mapper = createJsonMapper(fieldName);

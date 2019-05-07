@@ -23,17 +23,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetection> {
 
     public static OutlierDetection randomOutlierDetection() {
-        return new OutlierDetection(
-            randomBoolean() ? null : randomIntBetween(1, 20),
-            randomBoolean() ? null : randomFrom(OutlierDetection.Method.values()));
+        return OutlierDetection.builder()
+            .setNNeighbors(randomBoolean() ? null : randomIntBetween(1, 20))
+            .setMethod(randomBoolean() ? null : randomFrom(OutlierDetection.Method.values()))
+            .build();
     }
 
     @Override
@@ -52,17 +51,18 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
     }
 
     public void testGetParams_GivenDefaults() {
-        OutlierDetection outlierDetection = new OutlierDetection();
-        assertThat(outlierDetection.getParams().isEmpty(), is(true));
+        OutlierDetection outlierDetection = OutlierDetection.createDefault();
+        assertNull(outlierDetection.getNNeighbors());
+        assertNull(outlierDetection.getMethod());
     }
 
     public void testGetParams_GivenExplicitValues() {
-        OutlierDetection outlierDetection = new OutlierDetection(42, OutlierDetection.Method.LDOF);
-
-        Map<String, Object> params = outlierDetection.getParams();
-
-        assertThat(params.size(), equalTo(2));
-        assertThat(params.get(OutlierDetection.N_NEIGHBORS.getPreferredName()), equalTo(42));
-        assertThat(params.get(OutlierDetection.METHOD.getPreferredName()), equalTo(OutlierDetection.Method.LDOF));
+        OutlierDetection outlierDetection =
+            OutlierDetection.builder()
+                .setNNeighbors(42)
+                .setMethod(OutlierDetection.Method.LDOF)
+                .build();
+        assertThat(outlierDetection.getNNeighbors(), equalTo(42));
+        assertThat(outlierDetection.getMethod(), equalTo(OutlierDetection.Method.LDOF));
     }
 }

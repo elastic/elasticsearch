@@ -21,8 +21,8 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -33,39 +33,37 @@ import java.util.Objects;
 public class DataFrameAnalyticsSource implements ToXContentObject {
 
     public static DataFrameAnalyticsSource fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return PARSER.apply(parser, null).build();
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     private static final ParseField INDEX = new ParseField("index");
     private static final ParseField QUERY = new ParseField("query");
 
-    private static ConstructingObjectParser<DataFrameAnalyticsSource, Void> PARSER =
-        new ConstructingObjectParser<>("data_frame_analytics_source", true,
-            (args) -> {
-                String index = (String) args[0];
-                QueryConfig queryConfig = (QueryConfig) args[1];
-                return new DataFrameAnalyticsSource(index, queryConfig);
-            });
+    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_source", true, Builder::new);
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p), QUERY);
+        PARSER.declareString(Builder::setIndex, INDEX);
+        PARSER.declareObject(Builder::setQueryConfig, (p, c) -> QueryConfig.fromXContent(p), QUERY);
     }
 
     private final String index;
     private final QueryConfig queryConfig;
 
-    public DataFrameAnalyticsSource(String index) {
-        this(index, null);
-    }
-
-    public DataFrameAnalyticsSource(String index, @Nullable QueryConfig queryConfig) {
+    private DataFrameAnalyticsSource(String index, @Nullable QueryConfig queryConfig) {
         this.index = Objects.requireNonNull(index);
         this.queryConfig = queryConfig;
     }
 
-    public DataFrameAnalyticsSource(DataFrameAnalyticsSource other) {
-        this(other.index, new QueryConfig(other.queryConfig));
+    public String getIndex() {
+        return index;
+    }
+
+    public QueryConfig getQueryConfig() {
+        return queryConfig;
     }
 
     @Override
@@ -96,17 +94,28 @@ public class DataFrameAnalyticsSource implements ToXContentObject {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(getClass())
-            .add("index", index)
-            .add("queryConfig", queryConfig)
-            .toString();
+        return Strings.toString(this);
     }
 
-    public String getIndex() {
-        return index;
-    }
+    public static class Builder {
 
-    public QueryConfig getQueryConfig() {
-        return queryConfig;
+        private String index;
+        private QueryConfig queryConfig;
+
+        private Builder() {}
+
+        public Builder setIndex(String index) {
+            this.index = index;
+            return this;
+        }
+
+        public Builder setQueryConfig(QueryConfig queryConfig) {
+            this.queryConfig = queryConfig;
+            return this;
+        }
+
+        public DataFrameAnalyticsSource build() {
+            return new DataFrameAnalyticsSource(index, queryConfig);
+        }
     }
 }

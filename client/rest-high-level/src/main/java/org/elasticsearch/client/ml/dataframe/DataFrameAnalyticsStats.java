@@ -46,8 +46,7 @@ public class DataFrameAnalyticsStats {
     static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
 
     private static final ConstructingObjectParser<DataFrameAnalyticsStats, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "data_frame_analytics_stats", true,
+        new ConstructingObjectParser<>("data_frame_analytics_stats", true,
             args -> new DataFrameAnalyticsStats(
                 (String) args[0],
                 (DataFrameAnalyticsState) args[1],

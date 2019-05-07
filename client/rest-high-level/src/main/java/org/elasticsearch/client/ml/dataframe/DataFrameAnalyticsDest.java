@@ -21,8 +21,8 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -35,39 +35,37 @@ import static java.util.Objects.requireNonNull;
 public class DataFrameAnalyticsDest implements ToXContentObject {
 
     public static DataFrameAnalyticsDest fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return PARSER.apply(parser, null).build();
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     private static final ParseField INDEX = new ParseField("index");
     private static final ParseField RESULTS_FIELD = new ParseField("results_field");
 
-    private static ConstructingObjectParser<DataFrameAnalyticsDest, Void> PARSER =
-        new ConstructingObjectParser<>("data_frame_analytics_dest", true,
-            (args) -> {
-                String index = (String) args[0];
-                String resultsField = (String) args[1];
-                return new DataFrameAnalyticsDest(index, resultsField);
-            });
+    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_dest", true, Builder::new);
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
+        PARSER.declareString(Builder::setIndex, INDEX);
+        PARSER.declareString(Builder::setResultsField, RESULTS_FIELD);
     }
 
     private final String index;
     private final String resultsField;
 
-    public DataFrameAnalyticsDest(String index) {
-        this(index, null);
-    }
-
-    public DataFrameAnalyticsDest(String index, @Nullable String resultsField) {
+    private DataFrameAnalyticsDest(String index, @Nullable String resultsField) {
         this.index = requireNonNull(index);
         this.resultsField = resultsField;
     }
 
-    public DataFrameAnalyticsDest(DataFrameAnalyticsDest other) {
-        this(other.index, other.resultsField);
+    public String getIndex() {
+        return index;
+    }
+
+    public String getResultsField() {
+        return resultsField;
     }
 
     @Override
@@ -92,23 +90,34 @@ public class DataFrameAnalyticsDest implements ToXContentObject {
     }
 
     @Override
-    public String toString() {
-        return new ToStringBuilder(getClass())
-            .add("index", index)
-            .add("resultsField", resultsField)
-            .toString();
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(index, resultsField);
     }
 
-    public String getIndex() {
-        return index;
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
-    public String getResultsField() {
-        return resultsField;
+    public static class Builder {
+
+        private String index;
+        private String resultsField;
+
+        private Builder() {}
+
+        public Builder setIndex(String index) {
+            this.index = index;
+            return this;
+        }
+
+        public Builder setResultsField(String resultsField) {
+            this.resultsField = resultsField;
+            return this;
+        }
+
+        public DataFrameAnalyticsDest build() {
+            return new DataFrameAnalyticsDest(index, resultsField);
+        }
     }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -43,10 +43,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     }
 
     public static Builder builder(String id) {
-        return new Builder(id);
+        return new Builder().setId(id);
     }
-
-    private static final String NAME = "data_frame_analytics_config";
 
     private static final ParseField ID = new ParseField("id");
     private static final ParseField SOURCE = new ParseField("source");
@@ -55,7 +53,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private static final ParseField ANALYZED_FIELDS = new ParseField("analyzed_fields");
     private static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
 
-    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, Builder::new);
+    private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>("data_frame_analytics_config", true, Builder::new);
 
     static {
         PARSER.declareString(Builder::setId, ID);
@@ -159,14 +157,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(getClass())
-            .add("id", id)
-            .add("source", source)
-            .add("dest", dest)
-            .add("analysis", analysis)
-            .add("analyzedFields", analyzedFields)
-            .add("modelMemoryLimit", modelMemoryLimit)
-            .toString();
+        return Strings.toString(this);
     }
 
     public static class Builder {
@@ -179,21 +170,6 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         private ByteSizeValue modelMemoryLimit;
 
         private Builder() {}
-
-        private Builder(String id) {
-            setId(id);
-        }
-
-        public Builder(DataFrameAnalyticsConfig config) {
-            this.id = config.id;
-            this.source = new DataFrameAnalyticsSource(config.source);
-            this.dest = new DataFrameAnalyticsDest(config.dest);
-            this.analysis = config.analysis;
-            if (config.analyzedFields != null) {
-                this.analyzedFields = new FetchSourceContext(true, config.analyzedFields.includes(), config.analyzedFields.excludes());
-            }
-            this.modelMemoryLimit = config.modelMemoryLimit;
-        }
 
         public Builder setId(String id) {
             this.id = Objects.requireNonNull(id);

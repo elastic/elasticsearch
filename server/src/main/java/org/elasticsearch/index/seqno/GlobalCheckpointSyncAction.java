@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -121,6 +122,26 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
             indexShard.getLastSyncedGlobalCheckpoint() < indexShard.getGlobalCheckpoint()) {
             indexShard.sync();
         }
+    }
+
+    @Override
+    protected ClusterBlockLevel globalBlockLevel() {
+        return null; // internal action - never block it
+    }
+
+    @Override
+    public ClusterBlockLevel indexBlockLevel() {
+        return null; // internal action - never block it
+    }
+
+    @Override
+    protected boolean resolveIndex() {
+        return false; // single index - don't resolve
+    }
+
+    @Override
+    protected boolean allowClosedIndices() {
+        return true; // it's okay to sync global checkpoints on closed indices
     }
 
     public static final class Request extends ReplicationRequest<Request> {

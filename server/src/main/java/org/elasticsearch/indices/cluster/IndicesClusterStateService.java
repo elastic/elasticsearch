@@ -600,8 +600,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         try {
-            final IndexMetaData indexMetaData = state.metaData().getIndexSafe(shardRouting.index());
-            final long primaryTerm = indexMetaData.primaryTerm(shardRouting.id());
+            final long primaryTerm = state.metaData().index(shardRouting.index()).primaryTerm(shardRouting.id());
             logger.debug("{} creating shard with primary term [{}]", shardRouting.shardId(), primaryTerm);
             RecoveryState recoveryState = new RecoveryState(shardRouting, nodes.getLocalNode(), sourceNode);
             indicesService.createShard(
@@ -611,7 +610,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     new RecoveryListener(shardRouting, primaryTerm),
                     repositoriesService,
                     failedShardHandler,
-                    indexMetaData.getState() == IndexMetaData.State.CLOSE ? shardId -> {} : globalCheckpointSyncer,
+                    globalCheckpointSyncer,
                     retentionLeaseSyncer);
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);

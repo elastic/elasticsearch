@@ -260,7 +260,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
      */
     public static class VerifyingClient extends NoOpClient {
 
-        private TriFunction<Action<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier;
+        private TriFunction<Action<?>, ActionRequest, ActionListener<?>, ActionResponse> verifier = (a,r,l) -> {
+            fail("verifier not set");
+            return null;
+        };
 
         VerifyingClient(ThreadPool threadPool) {
             super(threadPool);

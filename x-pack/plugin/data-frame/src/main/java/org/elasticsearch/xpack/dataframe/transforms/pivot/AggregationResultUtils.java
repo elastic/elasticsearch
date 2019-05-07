@@ -77,12 +77,12 @@ final class AggregationResultUtils {
                     //    gather the `value` type, otherwise utilize `getValueAsString` so we don't lose formatted outputs.
                     if (isNumericType(fieldType) ||
                         (aggResultSingleValue.getValueAsString().equals(String.valueOf(aggResultSingleValue.value())))) {
-                        document.put(aggName, aggResultSingleValue.value());
+                        updateDocument(document, aggName, aggResultSingleValue.value());
                     } else {
-                        document.put(aggName, aggResultSingleValue.getValueAsString());
+                        updateDocument(document, aggName, aggResultSingleValue.getValueAsString());
                     }
                 } else if (aggResult instanceof ScriptedMetric) {
-                    document.put(aggName, ((ScriptedMetric) aggResult).aggregation());
+                    updateDocument(document, aggName, ((ScriptedMetric) aggResult).aggregation());
                 } else {
                     // Execution should never reach this point!
                     // Creating transforms with unsupported aggregations shall not be possible
@@ -97,4 +97,35 @@ final class AggregationResultUtils {
         });
     }
 
+    @SuppressWarnings("unchecked")
+    static void updateDocument(Map<String, Object> document, String fieldName, Object value) {
+        String[] fieldTokens = fieldName.split("\\.");
+        Map<String, Object> internalMap = document;
+        for (int i = 0; i < fieldTokens.length; i++) {
+            String token = fieldTokens[i];
+            if (i == fieldTokens.length - 1) {
+                if (internalMap.containsKey(token)) {
+                    logger.error("duplicate key value pairs key {} old value {} duplicate value {}",
+                        token,
+                        internalMap.get(token),
+                        value);
+                    assert false;
+                }
+                internalMap.put(token, value);
+            } else {
+                if (internalMap.containsKey(token)) {
+                    if (internalMap.get(token) instanceof Map) {
+                        internalMap = (Map<String, Object>)internalMap.get(token);
+                    } else {
+                        logger.error("mixed object types of nested {} and non-nested fields {}", fieldName, token);
+                        assert false;
+                    }
+                } else {
+                    Map<String, Object> newMap = new HashMap<>();
+                    internalMap.put(token, newMap);
+                    internalMap = newMap;
+                }
+            }
+        }
+    }
 }

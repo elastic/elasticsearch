@@ -66,6 +66,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class AggregationResultUtilsTests extends ESTestCase {
 
@@ -734,6 +735,28 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         assertEquals(4, documentIdsSecondRun.size());
         assertEquals(documentIdsFirstRun, documentIdsSecondRun);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDocument() {
+        Map<String, Object> document = new HashMap<>();
+
+        AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
+        AggregationResultUtils.updateDocument(document, "foo.bar.baz2", 2000L);
+        AggregationResultUtils.updateDocument(document, "bar.field1", 1L);
+        AggregationResultUtils.updateDocument(document, "metric", 10L);
+
+        assertThat(document.get("metric"), equalTo(10L));
+
+        Map<String, Object> bar = (Map<String, Object>)document.get("bar");
+
+        assertThat(bar.get("field1"), equalTo(1L));
+
+        Map<String, Object> foo = (Map<String, Object>)document.get("foo");
+        Map<String, Object> foobar = (Map<String, Object>)foo.get("bar");
+
+        assertThat(foobar.get("baz"), equalTo(1000L));
+        assertThat(foobar.get("baz2"), equalTo(2000L));
     }
 
     private void executeTest(GroupConfig groups,

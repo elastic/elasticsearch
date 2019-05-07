@@ -157,10 +157,10 @@ public class ReadOnlyEngine extends Engine {
 
     protected final DirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
-        reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         }
+        reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
         return readerWrapperFunction.apply(reader);
     }
 

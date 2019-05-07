@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.0.99"
-      reason:  "Implemented in 7.1"
+      version: " - 7.1.99"
+      reason:  "Implemented in 7.2"
 
   - do:
       indices.create:

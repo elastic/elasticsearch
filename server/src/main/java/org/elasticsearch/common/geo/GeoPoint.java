@@ -28,12 +28,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.geo.utils.Geohash;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
-import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 import static org.elasticsearch.index.mapper.GeoPointFieldMapper.Names.IGNORE_Z_VALUE;
 
 public final class GeoPoint implements ToXContentFragment {
@@ -117,8 +116,8 @@ public final class GeoPoint implements ToXContentFragment {
 
 
     public GeoPoint resetFromIndexHash(long hash) {
-        lon = GeoHashUtils.decodeLongitude(hash);
-        lat = GeoHashUtils.decodeLatitude(hash);
+        lon = Geohash.decodeLongitude(hash);
+        lat = Geohash.decodeLatitude(hash);
         return this;
     }
 
@@ -143,11 +142,11 @@ public final class GeoPoint implements ToXContentFragment {
     public GeoPoint resetFromGeoHash(String geohash) {
         final long hash;
         try {
-            hash = mortonEncode(geohash);
+            hash = Geohash.mortonEncode(geohash);
         } catch (IllegalArgumentException ex) {
             throw new ElasticsearchParseException(ex.getMessage(), ex);
         }
-        return this.reset(GeoHashUtils.decodeLatitude(hash), GeoHashUtils.decodeLongitude(hash));
+        return this.reset(Geohash.decodeLatitude(hash), Geohash.decodeLongitude(hash));
     }
 
     public GeoPoint resetFromGeoHash(long geohashLong) {
@@ -172,11 +171,11 @@ public final class GeoPoint implements ToXContentFragment {
     }
 
     public String geohash() {
-        return stringEncode(lon, lat);
+        return Geohash.stringEncode(lon, lat);
     }
 
     public String getGeohash() {
-        return stringEncode(lon, lat);
+        return Geohash.stringEncode(lon, lat);
     }
 
     @Override
@@ -206,11 +205,6 @@ public final class GeoPoint implements ToXContentFragment {
     @Override
     public String toString() {
         return lat + ", " + lon;
-    }
-
-    public static GeoPoint parseFromLatLon(String latLon) {
-        GeoPoint point = new GeoPoint(latLon);
-        return point;
     }
 
     public static GeoPoint fromGeohash(String geohash) {

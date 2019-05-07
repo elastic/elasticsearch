@@ -73,9 +73,9 @@ public class EnrichPolicyRunner implements Runnable {
     public void run() {
         // Collect the source index information
         logger.info("Policy [{}]: Running enrich policy", policyName);
-        final String sourceIndexPattern = policy.getIndexPattern();
-        logger.debug("Policy [{}]: Checking source index [{}]", policyName, sourceIndexPattern);
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndexPattern);
+        final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
+        logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
+        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
         client.admin().indices().getIndex(getIndexRequest, new ActionListener<GetIndexResponse>() {
             @Override
             public void onResponse(GetIndexResponse getIndexResponse) {
@@ -108,7 +108,7 @@ public class EnrichPolicyRunner implements Runnable {
                 listener.onFailure(
                     new ElasticsearchException(
                         "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
-                        policyName, sourceIndex, policy.getIndexPattern()));
+                        policyName, sourceIndex, policy.getIndices()));
             }
             if (properties.contains(policy.getEnrichKey()) == false) {
                 listener.onFailure(
@@ -187,7 +187,7 @@ public class EnrichPolicyRunner implements Runnable {
         }
         ReindexRequest reindexRequest = new ReindexRequest()
             .setDestIndex(destinationIndexName)
-            .setSourceIndices(policy.getIndexPattern());
+            .setSourceIndices(policy.getIndices().toArray(new String[0]));
         reindexRequest.getSearchRequest().source(searchSourceBuilder);
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
         client.execute(ReindexAction.INSTANCE, reindexRequest, new ActionListener<BulkByScrollResponse>() {

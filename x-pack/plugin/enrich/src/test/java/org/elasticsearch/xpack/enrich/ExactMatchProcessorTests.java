@@ -53,8 +53,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(createEnrichDocument("eops.nl", "globalRank", 4567, "tldRank", 80, "tld", "nl"));
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key",
-                        Collections.emptyList(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null,
+                    Collections.singletonList("majestic_index"), "key", Collections.emptyList(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -101,8 +101,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(createEnrichDocument("eops.nl", "globalRank", 4567, "tldRank", 80, "tld", "nl"));
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key",
-                        Collections.emptyList(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("majestic_index"),
+                    "key", Collections.emptyList(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -133,8 +133,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(createEnrichDocument("eops.nl", "globalRank", 4567, "tldRank", 80, "tld", "nl"));
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key",
-                        Collections.emptyList(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("majestic_index"),
+                    "key", Collections.emptyList(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -161,8 +161,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
             try (IndexWriter indexWriter = new IndexWriter(directory, iwConfig)) {
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key",
-                        Collections.emptyList(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("majestic_index"),
+                    "key", Collections.emptyList(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -193,8 +193,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(document);
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key",
-                        Collections.emptyList(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("majestic_index"),
+                    "key", Collections.emptyList(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -224,8 +224,9 @@ public class ExactMatchProcessorTests extends ESTestCase {
     }
 
     public void testIgnoreKeyMissing() throws Exception {
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key",
-                Collections.emptyList(), "schedule");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("majestic_index"), "key",
+                Collections.emptyList(),
+            "schedule");
         Function<String, EnrichPolicy> policyLookup = policyName -> policy;
         {
             ExactMatchProcessor processor = new ExactMatchProcessor("_tag", policyLookup, indexExpression -> null, "_name", "domain",

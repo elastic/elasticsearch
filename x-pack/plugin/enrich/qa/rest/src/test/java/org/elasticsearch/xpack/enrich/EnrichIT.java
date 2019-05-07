@@ -41,7 +41,7 @@ public class EnrichIT extends ESRestTestCase {
     public void testBasicFlow() throws Exception {
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"index_pattern\": \"my-index*\", \"enrich_key\": \"host\", " +
+        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-index*\"], \"enrich_key\": \"host\", " +
             "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"], \"schedule\": \"0 5 * * *\"}");
         assertOK(client().performRequest(putPolicyRequest));
 

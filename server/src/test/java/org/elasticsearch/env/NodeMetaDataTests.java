@@ -38,6 +38,8 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class NodeMetaDataTests extends ESTestCase {
     private Version randomVersion() {
+        // VersionUtils.randomVersion() only returns known versions, which are necessarily no later than Version.CURRENT; however we want
+        // also to consider our behaviour with all versions, so occasionally pick up a truly random version.
         return rarely() ? Version.fromId(randomInt()) : VersionUtils.randomVersion(random());
     }
 

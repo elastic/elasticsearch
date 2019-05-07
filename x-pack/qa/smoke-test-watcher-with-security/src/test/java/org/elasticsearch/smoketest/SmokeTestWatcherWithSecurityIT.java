@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -89,7 +90,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     @After
     public void stopWatcher() throws Exception {
-        adminClient().performRequest(new Request("DELETE", "/my_test_index"));
 
         assertBusy(() -> {
             try {
@@ -117,6 +117,9 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 throw new AssertionError(e);
             }
         });
+
+        //must come after watcher is stopped
+        adminClient().performRequest(new Request("DELETE", "/my_test_index"));
     }
 
     @Override

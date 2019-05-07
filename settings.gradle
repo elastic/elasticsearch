@@ -29,6 +29,8 @@ List projects = [
   'distribution:archives:oss-no-jdk-linux-tar',
   'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
+  'distribution:docker:oss-docker-build-context',
+  'distribution:docker:docker-build-context',
   'distribution:packages:oss-deb',
   'distribution:packages:deb',
   'distribution:packages:oss-no-jdk-deb',

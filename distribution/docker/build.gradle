@@ -17,32 +17,15 @@ dependencies {
   ossDockerSource project(path: ":distribution:archives:oss-linux-tar")
 }
 
-ext.expansions = { oss ->
+ext.expansions = { oss, local ->
   final String classifier = 'linux-x86_64'            
   final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}-${classifier}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}-${classifier}.tar.gz"
   return [
     'elasticsearch'       : elasticsearch,
     'license'             : oss ? 'Apache-2.0' : 'Elastic License',
-    'source_elasticsearch': local() ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
+    'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
     'version'             : VersionProperties.elasticsearch
   ]
-}
-
-/*
- * We need to be able to render a Dockerfile that references the official artifacts on https://artifacts.elastic.co. For this, we use a
- * substitution in the Dockerfile template where we can either replace source_elasticsearch with a COPY from the Docker build context, or
- * a RUN curl command to retrieve the artifact from https://artifacts.elastic.co. The system property build.docker.source, which can be
- * either "local" (default) or "remote" controls which version of the Dockerfile is produced.
- */
-private static boolean local() {
-  final String buildDockerSource = System.getProperty("build.docker.source")
-  if (buildDockerSource == null || "local".equals(buildDockerSource)) {
-    return true
-  } else if ("remote".equals(buildDockerSource)) {
-    return false
-  } else {
-    throw new IllegalArgumentException("expected build.docker.source to be [local] or [remote] but was [" + buildDockerSource + "]")
-  }
 }
 
 private static String files(final boolean oss) {
@@ -53,39 +36,38 @@ private static String taskName(final String prefix, final boolean oss, final Str
   return "${prefix}${oss ? 'Oss' : ''}${suffix}"
 }
 
-void addCopyDockerContextTask(final boolean oss) {
-  task(taskName("copy", oss, "DockerContext"), type: Sync) {
-    into files(oss)
-
-    into('bin') {
-      from 'src/docker/bin'
-    }
-
-    into('config') {
-      from 'src/docker/config'
-    }
-
-    if (local()) {
-      if (oss) {
-        from configurations.ossDockerSource
-      } else {
-        from configurations.dockerSource
+project.ext {
+  dockerBuildContext = { boolean oss, boolean local ->
+    copySpec {
+      into('bin') {
+        from project.projectDir.toPath().resolve("src/docker/bin")
       }
 
-      from configurations.dockerPlugins
+      into('config') {
+        from project.projectDir.toPath().resolve("src/docker/config")
+      }
+
+      from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
+        MavenFilteringHack.filter(it, expansions(oss, local))
+      }
     }
   }
 }
 
-void addCopyDockerfileTask(final boolean oss) {
-  task(taskName("copy", oss, "Dockerfile"), type: Copy) {
-    dependsOn taskName("copy", oss, "DockerContext")
-    inputs.properties(expansions(oss)) // ensure task is run when ext.expansions is changed
+void addCopyDockerContextTask(final boolean oss) {
+  task(taskName("copy", oss, "DockerContext"), type: Sync) {
+    inputs.properties(expansions(oss, true))
     into files(oss)
 
-    from('src/docker/Dockerfile') {
-      MavenFilteringHack.filter(it, expansions(oss))
+    with dockerBuildContext(oss, true)
+
+    if (oss) {
+      from configurations.ossDockerSource
+    } else {
+      from configurations.dockerSource
     }
+
+    from configurations.dockerPlugins
   }
 }
 
@@ -104,7 +86,6 @@ check.dependsOn postProcessFixture
 void addBuildDockerImage(final boolean oss) {
   final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
     dependsOn taskName("copy", oss, "DockerContext")
-    dependsOn taskName("copy", oss, "Dockerfile")
     List<String> tags
     if (oss) {
       tags = [ 
@@ -132,7 +113,6 @@ void addBuildDockerImage(final boolean oss) {
 
 for (final boolean oss : [false, true]) {
   addCopyDockerContextTask(oss)
-  addCopyDockerfileTask(oss)
   addBuildDockerImage(oss)
 }
 

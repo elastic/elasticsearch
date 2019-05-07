@@ -211,6 +211,7 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
         });
     }
 
+    // This method should be called inside an assertBusy, it has no retry logic of its own
     private void assertHistoryIsPresent(String policyName, boolean success, String repository) throws IOException {
         final Request historySearchRequest = new Request("GET", ".slm-history*/_search");
         historySearchRequest.setJsonEntity("{\n" +
@@ -241,13 +242,20 @@ public class SnapshotLifecycleIT extends ESRestTestCase {
             "    }\n" +
             "  }\n" +
             "}");
-        Response historyResponse = client().performRequest(historySearchRequest);
-        Map<String, Object> historyResponseMap;
-        try (InputStream is = historyResponse.getEntity().getContent()) {
-            historyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+        Response historyResponse;
+        try {
+            historyResponse = client().performRequest(historySearchRequest);
+            Map<String, Object> historyResponseMap;
+            try (InputStream is = historyResponse.getEntity().getContent()) {
+                historyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            }
+            assertThat((int)((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value"),
+                greaterThanOrEqualTo(1));
+        } catch (ResponseException e) {
+            // Throw AssertionError instead of an exception if the search fails so that assertBusy works as expected
+            logger.error(e);
+            fail("failed to perform search:" + e.getMessage());
         }
-        assertThat((int)((Map<String, Object>) ((Map<String, Object>) historyResponseMap.get("hits")).get("total")).get("value"),
-            greaterThanOrEqualTo(1));
     }
 
     private void createSnapshotPolicy(String policyName, String snapshotNamePattern, String schedule, String repoId,

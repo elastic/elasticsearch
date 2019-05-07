@@ -181,7 +181,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("test").get(), 0);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/41030")
     public void testDelayedMappingPropagationOnPrimary() throws Exception {
         // Here we want to test that things go well if there is a first request
         // that adds mappings but before mappings are propagated to all nodes
@@ -274,7 +273,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/36813")
     public void testDelayedMappingPropagationOnReplica() throws Exception {
         // This is essentially the same thing as testDelayedMappingPropagationOnPrimary
         // but for replicas

@@ -1136,30 +1136,6 @@
     - match:  { tokens.10.token: ちた }
 
 ---
-"delimited_payload_filter_error":
-    - do:
-        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
-        indices.create:
-          index: test
-          body:
-            settings:
-              analysis:
-                filter:
-                  my_delimited_payload_filter:
-                    type: delimited_payload_filter
-                    delimiter: ^
-                    encoding: identity
-
-    # Test pre-configured token filter too:
-    - do:
-        catch: /\[delimited_payload_filter\] is not supported for new indices, use \[delimited_payload\] instead/
-        indices.analyze:
-          body:
-            text:      foo|5
-            tokenizer: keyword
-            filter:    [delimited_payload_filter]
-
----
 "delimited_payload":
     - do:
         indices.create:

@@ -21,7 +21,6 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
-import org.junit.Ignore;
 
 import java.util.Arrays;
 
@@ -160,7 +159,6 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         );
     }
 
-    @Ignore // https://github.com/elastic/elasticsearch/issues/41256
     public void testMultiNode() {
         BuildResult result = getTestClustersRunner(":multiNode").build();
         assertTaskSuccessful(result, ":multiNode");

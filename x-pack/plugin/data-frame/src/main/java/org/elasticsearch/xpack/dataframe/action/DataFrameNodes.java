@@ -15,7 +15,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class DataFrameNodes {
+public final class DataFrameNodes {
 
     private DataFrameNodes() {
     }

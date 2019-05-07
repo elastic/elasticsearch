@@ -96,7 +96,7 @@ public class OverwriteNodeVersionCommandTests extends ESTestCase {
         final Version nodeVersion = NodeMetaDataTests.tooNewVersion();
         NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(nodeId, nodeVersion), nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
-        mockTerminal.addTextInput("n\n");
+        mockTerminal.addTextInput(randomFrom("yy", "Yy", "n", "yes", "true", "N", "no"));
         final ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class, () ->
             new OverwriteNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment));
         assertThat(elasticsearchException.getMessage(), equalTo("aborted by user"));

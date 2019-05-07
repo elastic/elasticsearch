@@ -49,6 +49,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig.CalendarInterval;
+import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig.FixedInterval;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -94,7 +96,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     public void testSimpleDateHisto() throws Exception {
         String rollupIndex = randomAlphaOfLength(10);
         String field = "the_histo";
-        DateHistogramGroupConfig dateHistoConfig = new DateHistogramGroupConfig(field, new DateHistogramInterval("1ms"));
+        DateHistogramGroupConfig dateHistoConfig = new FixedInterval(field, new DateHistogramInterval("1ms"));
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig(dateHistoConfig), Collections.emptyList());
         final List<Map<String, Object>> dataset = new ArrayList<>();
         dataset.addAll(
@@ -138,7 +140,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     public void testDateHistoAndMetrics() throws Exception {
         String rollupIndex = randomAlphaOfLength(10);
         String field = "the_histo";
-        DateHistogramGroupConfig dateHistoConfig = new DateHistogramGroupConfig(field, new DateHistogramInterval("1h"));
+        DateHistogramGroupConfig dateHistoConfig = new CalendarInterval(field, new DateHistogramInterval("1h"));
         MetricConfig config = new MetricConfig("counter", Arrays.asList("avg", "sum", "max", "min"));
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig(dateHistoConfig), Collections.singletonList(config));
         final List<Map<String, Object>> dataset = new ArrayList<>();
@@ -261,7 +263,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         String rollupIndex = randomAlphaOfLengthBetween(5, 10);
         String field = "the_histo";
         DateHistogramGroupConfig dateHistoConfig =
-            new DateHistogramGroupConfig(field, new DateHistogramInterval("1m"), new DateHistogramInterval("1h"), null);
+            new FixedInterval(field, new DateHistogramInterval("1m"), new DateHistogramInterval("1h"), null);
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig(dateHistoConfig), Collections.emptyList());
         final List<Map<String, Object>> dataset = new ArrayList<>();
         long now = System.currentTimeMillis();
@@ -342,7 +344,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         String timeZone = DateTimeZone.forOffsetHours(-3).getID();
         String rollupIndex = randomAlphaOfLengthBetween(5, 10);
         String field = "the_histo";
-        DateHistogramGroupConfig dateHistoConfig =  new DateHistogramGroupConfig(field, new DateHistogramInterval("1d"), null, timeZone);
+        DateHistogramGroupConfig dateHistoConfig =  new CalendarInterval(field, new DateHistogramInterval("1d"), null, timeZone);
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig(dateHistoConfig), Collections.emptyList());
 
         executeTestCase(dataset, job, now, (resp) -> {
@@ -401,9 +403,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         String timestampField = "ts";
         String valueField = "the_avg";
 
-        String timeInterval = randomIntBetween(1, 10) + randomFrom("h", "m");
+        String timeInterval = randomIntBetween(2, 10) + randomFrom("h", "m");
         DateHistogramGroupConfig dateHistoConfig =
-            new DateHistogramGroupConfig(timestampField, new DateHistogramInterval(timeInterval));
+            new FixedInterval(timestampField, new DateHistogramInterval(timeInterval));
         MetricConfig metricConfig = new MetricConfig(valueField, Collections.singletonList("avg"));
         RollupJobConfig job = createJob(rollupIndex, new GroupConfig(dateHistoConfig), Collections.singletonList(metricConfig));
 

@@ -132,7 +132,7 @@ public class InternalAggregationsTests extends ESTestCase {
             aggregations.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(out.bytes().toBytesRef().bytes), registry)) {
                 in.setVersion(version);
-                InternalAggregations deserialized = InternalAggregations.readAggregations(in);
+                InternalAggregations deserialized = new InternalAggregations(in);
                 assertEquals(aggregations.aggregations, deserialized.aggregations);
                 if (aggregations.getTopLevelPipelineAggregators() == null) {
                     assertEquals(0, deserialized.getTopLevelPipelineAggregators().size());

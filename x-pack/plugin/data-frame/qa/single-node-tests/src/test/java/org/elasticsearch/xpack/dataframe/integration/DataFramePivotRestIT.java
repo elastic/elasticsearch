@@ -226,10 +226,14 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
+        createDataframeTransformRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
+            "use [fixed_interval] or [calendar_interval] in the future."));
+
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS,
+            "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
         assertTrue(indexExists(dataFrameIndex));
 
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -257,6 +261,9 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " } } } }"
             + "}";
         createPreviewRequest.setJsonEntity(config);
+        createPreviewRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
+            "use [fixed_interval] or [calendar_interval] in the future."));
+
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
         List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
         // preview is limited to 100
@@ -298,10 +305,13 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
+        createDataframeTransformRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
+            "use [fixed_interval] or [calendar_interval] in the future."));
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS,
+            "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
         assertTrue(indexExists(dataFrameIndex));
 
         // we expect 21 documents as there shall be 21 days worth of docs

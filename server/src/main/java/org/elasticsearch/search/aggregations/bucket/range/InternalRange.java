@@ -263,7 +263,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
                 ? in.readString()
                 : in.readOptionalString();
             ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(),
-                    InternalAggregations.readAggregations(in), keyed, format));
+                    new InternalAggregations(in), keyed, format));
         }
         this.ranges = ranges;
     }

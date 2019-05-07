@@ -125,11 +125,6 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
     }
 
     @Override
-    protected ClusterBlockLevel globalBlockLevel() {
-        return null; // internal action - never block it
-    }
-
-    @Override
     public ClusterBlockLevel indexBlockLevel() {
         return null; // internal action - never block it
     }

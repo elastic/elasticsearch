@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -99,6 +100,8 @@ public class TransportGetDataFrameTransformsStatsAction extends
     @Override
     protected void taskOperation(Request request, DataFrameTransformTask task, ActionListener<Response> listener) {
         // Little extra insurance, make sure we only return transforms that aren't cancelled
+        ClusterState state = clusterService.state();
+        String nodeId = state.nodes().getLocalNode().getId();
         if (task.isCancelled() == false) {
             transformsCheckpointService.getCheckpointStats(task.getTransformId(), task.getCheckpoint(), task.getInProgressCheckpoint(),
                     ActionListener.wrap(checkpointStats -> {
@@ -109,7 +112,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
                         Collections.singletonList(new DataFrameTransformStateAndStats(task.getTransformId(), task.getState(),
                                 task.getStats(), DataFrameTransformCheckpointingInfo.EMPTY)),
                         Collections.emptyList(),
-                        Collections.singletonList(new FailedNodeException("", "Failed to retrieve checkpointing info", e))));
+                        Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))));
             }));
         } else {
             listener.onResponse(new Response(Collections.emptyList()));

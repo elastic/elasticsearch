@@ -82,7 +82,9 @@ This will yield the following result:
                           "compute_max_score": 0,
                           "compute_max_score_count": 0,
                           "shallow_advance": 0,
-                          "shallow_advance_count": 0
+                          "shallow_advance_count": 0,
+                          "set_min_competitive_score": 0,
+                          "set_min_competitive_score_count": 0
                        },
                        "children": [
                           {
@@ -105,7 +107,9 @@ This will yield the following result:
                                 "compute_max_score": 0,
                                 "compute_max_score_count": 0,
                                 "shallow_advance": 0,
-                                "shallow_advance_count": 0
+                                "shallow_advance_count": 0,
+                                "set_min_competitive_score": 0,
+                                "set_min_competitive_score_count": 0
                              }
                           },
                           {
@@ -128,7 +132,9 @@ This will yield the following result:
                                 "compute_max_score": 0,
                                 "compute_max_score_count": 0,
                                 "shallow_advance": 0,
-                                "shallow_advance_count": 0
+                                "shallow_advance_count": 0,
+                                "set_min_competitive_score": 0,
+                                "set_min_competitive_score_count": 0
                              }
                           }
                        ]
@@ -237,6 +243,7 @@ sufficient to see that a particular component of a query is slow, and not necess
 the `advance` phase of that query is the cause, for example.
 =======================================
 
+[[query-section]]
 ==== `query` Section
 
 The `query` section contains detailed timing of the query tree executed by Lucene on a particular shard.
@@ -311,7 +318,9 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
    "compute_max_score": 0,
    "compute_max_score_count": 0,
    "shallow_advance": 0,
-   "shallow_advance_count": 0
+   "shallow_advance_count": 0,
+   "set_min_competitive_score": 0,
+   "set_min_competitive_score_count": 0
 }
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.$_path",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:some message:number",\n"time_in_nanos": $body.$_path,/]
@@ -391,6 +400,7 @@ The meaning of the stats are as follows:
     means the `nextDoc()` method was called on two different documents.  This can be used to help judge
     how selective queries are, by comparing counts between different query components.
 
+[[collectors-section]]
 ==== `collectors` Section
 
 The Collectors portion of the response shows high-level execution details. Lucene works by defining a "Collector"
@@ -477,7 +487,7 @@ For reference, the various collector reasons are:
     match_all query (which you will see added to the Query section) to collect your entire dataset
 
 
-
+[[rewrite-section]]
 ==== `rewrite` Section
 
 All queries in Lucene undergo a "rewriting" process.  A query (and its sub-queries) may be rewritten one or
@@ -575,7 +585,9 @@ And the response:
                               "compute_max_score": 0,
                               "compute_max_score_count": 0,
                               "shallow_advance": 0,
-                              "shallow_advance_count": 0
+                              "shallow_advance_count": 0,
+                              "set_min_competitive_score": 0,
+                              "set_min_competitive_score_count": 0
                            }
                         },
                         {
@@ -598,7 +610,9 @@ And the response:
                               "compute_max_score": 0,
                               "compute_max_score_count": 0,
                               "shallow_advance": 0,
-                              "shallow_advance_count": 0
+                              "shallow_advance_count": 0,
+                              "set_min_competitive_score": 0,
+                              "set_min_competitive_score_count": 0
                            }
                         }
                      ],
@@ -682,6 +696,7 @@ Hopefully this will be fixed in future iterations, but it is a tricky problem to
 [[search-profile-aggregations]]
 === Profiling Aggregations
 
+[[agg-section]]
 ==== `aggregations` Section
 
 

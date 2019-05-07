@@ -6,22 +6,19 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,17 +36,19 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
-    public static class Request extends BaseTasksRequest<Request> implements ToXContentFragment {
-        private String id;
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
+    }
+
+    public static class Request extends BaseTasksRequest<Request> {
+        private final String id;
 
         public Request(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
-        }
-
-        private Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -78,12 +77,6 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(DataFrameField.ID.getPreferredName(), id);
-            return builder;
-        }
-
-        @Override
         public int hashCode() {
             return Objects.hash(id);
         }
@@ -102,19 +95,13 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
         }
     }
 
-    public static class RequestBuilder
-            extends ActionRequestBuilder<DeleteDataFrameTransformAction.Request, DeleteDataFrameTransformAction.Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, DeleteDataFrameTransformAction action) {
-            super(client, action, new DeleteDataFrameTransformAction.Request());
-        }
-    }
-
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private boolean acknowledged;
+
+        private final boolean acknowledged;
+
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            acknowledged = in.readBoolean();
         }
 
         public Response(boolean acknowledged, List<TaskOperationFailure> taskFailures, List<FailedNodeException> nodeFailures) {
@@ -126,18 +113,8 @@ public class DeleteDataFrameTransformAction extends Action<DeleteDataFrameTransf
             this(acknowledged, Collections.emptyList(), Collections.emptyList());
         }
 
-        public Response() {
-            this(false, Collections.emptyList(), Collections.emptyList());
-        }
-
         public boolean isDeleted() {
             return acknowledged;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            acknowledged = in.readBoolean();
         }
 
         @Override

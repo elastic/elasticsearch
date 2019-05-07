@@ -46,7 +46,7 @@ public class MinBucketPipelineAggregationBuilder extends BucketMetricsPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         return new MinBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
     }
 

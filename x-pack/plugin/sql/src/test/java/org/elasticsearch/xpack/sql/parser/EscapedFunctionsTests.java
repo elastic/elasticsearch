@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
@@ -180,9 +179,9 @@ public class EscapedFunctionsTests extends ESTestCase {
                 ex.getMessage());
     }
 
-    public void testTimeLiteralUnsupported() {
-        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> timeLiteral("10:10:10"));
-        assertThat(ex.getMessage(), is("Time (only) literals are not supported; a date component is required as well"));
+    public void testTimeLiteral() {
+        Literal l = timeLiteral("12:23:56");
+        assertThat(l.dataType(), is(DataType.TIME));
     }
 
     public void testTimeLiteralValidation() {
@@ -227,6 +226,29 @@ public class EscapedFunctionsTests extends ESTestCase {
         assertEquals("line 1:8: Invalid GUID, too short", ex.getMessage());
     }
 
+    public void testCurrentTimestampAsEscapedExpression() {
+        Expression expr = parser.createExpression("{fn CURRENT_TIMESTAMP(2)}");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("{fn CURRENT_TIMESTAMP(2)}", ur.sourceText());
+        assertEquals(1, ur.children().size());
+    }
+
+    public void testCurrentDateAsEscapedExpression() {
+        Expression expr = parser.createExpression("{fn CURRENT_DATE()}");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("{fn CURRENT_DATE()}", ur.sourceText());
+        assertEquals(0, ur.children().size());
+    }
+
+    public void testCurrentTimeAsEscapedExpression() {
+        Expression expr = parser.createExpression("{fn CURRENT_TIME(2)}");
+        assertEquals(UnresolvedFunction.class, expr.getClass());
+        UnresolvedFunction ur = (UnresolvedFunction) expr;
+        assertEquals("{fn CURRENT_TIME(2)}", ur.sourceText());
+        assertEquals(1, ur.children().size());
+    }
 
     public void testLimit() {
         Limit limit = limit(10);

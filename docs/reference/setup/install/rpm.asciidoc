@@ -7,7 +7,7 @@ Elasticsearch on any RPM-based system such as OpenSuSE, SLES, Centos, Red Hat,
 and Oracle Enterprise.
 
 NOTE: RPM install is not supported on distributions with old versions of RPM,
-such as SLES 11 and CentOS 5.  Please see <<zip-targz>> instead.
+such as SLES 11 and CentOS 5.  Please see <<targz>> instead.
 
 include::license.asciidoc[]
 
@@ -15,9 +15,9 @@ The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page. Other versions can
 be found on the link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch requires Java 8 or later. Use the
-http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
-or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
+see the <<jvm-version, JVM version requirements>>
 
 [[rpm-key]]
 ==== Import the Elasticsearch PGP Key
@@ -160,6 +160,7 @@ include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]
 
+[[rpm-sysv-init-vs-systemd]]
 ==== SysV `init` vs `systemd`
 
 include::init-systemd.asciidoc[]

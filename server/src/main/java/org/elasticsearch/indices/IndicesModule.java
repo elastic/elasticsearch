@@ -49,6 +49,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -110,14 +111,14 @@ public class IndicesModule extends AbstractModule {
         );
     }
 
-    private Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
+    public static Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, Mapper.TypeParser> mappers = new LinkedHashMap<>();
 
         // builtin mappers
         for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
             mappers.put(type.typeName(), new NumberFieldMapper.TypeParser(type));
         }
-        for (RangeFieldMapper.RangeType type : RangeFieldMapper.RangeType.values()) {
+        for (RangeType type : RangeType.values()) {
             mappers.put(type.typeName(), new RangeFieldMapper.TypeParser(type));
         }
         mappers.put(BooleanFieldMapper.CONTENT_TYPE, new BooleanFieldMapper.TypeParser());
@@ -168,7 +169,7 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(builtInMetadataMappers);
     }
 
-    private static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
+    public static Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers(List<MapperPlugin> mapperPlugins) {
         Map<String, MetadataFieldMapper.TypeParser> metadataMappers = new LinkedHashMap<>();
 
         int i = 0;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -140,9 +139,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         trackScores = in.readBoolean();
         version = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            seqNoAndPrimaryTerm = in.readBoolean();
-        }
+        seqNoAndPrimaryTerm = in.readBoolean();
     }
 
     @Override
@@ -179,9 +176,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeBoolean(seqNoAndPrimaryTerm);
-        }
+        out.writeBoolean(seqNoAndPrimaryTerm);
     }
 
     /**

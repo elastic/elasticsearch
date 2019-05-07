@@ -1,0 +1,94 @@
+[role="xpack"]
+[testenv="basic"]
+[[put-data-frame-transform]]
+=== Create {dataframe-transforms} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Create {dataframe-transforms}</titleabbrev>
+++++
+
+Instantiates a {dataframe-transform}.
+
+
+==== Request
+
+`PUT _data_frame/transforms/<data_frame_transform_id>`
+
+//===== Description
+
+==== Path Parameters
+
+`data_frame_transform_id` (required)::
+  (string) Identifier for the {dataframe-transform}. This identifier can contain
+  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
+  must start and end with alphanumeric characters.
+
+
+==== Request Body
+
+`source`:: (object) The source configuration, consisting of `index` and optionally
+a `query`.
+
+`dest`:: (object) The destination configuration, consisting of `index`.
+
+`pivot`:: Defines the pivot function `group by` fields and the aggregation to
+reduce the data.
+
+`description`:: Optional free text description of the data frame transform
+
+
+//==== Authorization
+
+==== Examples
+
+The following example creates a {dataframe-transform} for the {kib} eCommerce
+sample data:
+
+[source,js]
+--------------------------------------------------
+PUT _data_frame/transforms/ecommerce_transform
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform"
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_price": {
+        "max": {
+          "field": "taxful_total_price"
+        }
+      }
+    }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:add sample kibana data]
+
+When the transform is created, you receive the following results:
+[source,js]
+----
+{
+  "acknowledged" : true
+}
+----
+// NOTCONSOLE

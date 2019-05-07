@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,16 +43,9 @@ public class TranslogStats implements Streamable, Writeable, ToXContentFragment 
     public TranslogStats(StreamInput in) throws IOException {
         numberOfOperations = in.readVInt();
         translogSizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            uncommittedOperations = in.readVInt();
-            uncommittedSizeInBytes = in.readVLong();
-        } else {
-            uncommittedOperations = numberOfOperations;
-            uncommittedSizeInBytes = translogSizeInBytes;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            earliestLastModifiedAge = in.readVLong();
-        }
+        uncommittedOperations = in.readVInt();
+        uncommittedSizeInBytes = in.readVLong();
+        earliestLastModifiedAge = in.readVLong();
     }
 
     public TranslogStats(int numberOfOperations, long translogSizeInBytes, int uncommittedOperations, long uncommittedSizeInBytes,
@@ -139,12 +131,8 @@ public class TranslogStats implements Streamable, Writeable, ToXContentFragment 
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(numberOfOperations);
         out.writeVLong(translogSizeInBytes);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeVInt(uncommittedOperations);
-            out.writeVLong(uncommittedSizeInBytes);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeVLong(earliestLastModifiedAge);
-        }
+        out.writeVInt(uncommittedOperations);
+        out.writeVLong(uncommittedSizeInBytes);
+        out.writeVLong(earliestLastModifiedAge);
     }
 }

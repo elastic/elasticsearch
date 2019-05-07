@@ -23,6 +23,7 @@ public class Configuration {
     private final String clientId;
     private final String username;
     private final String clusterName;
+    private final boolean multiValueFieldLeniency;
     private final ZonedDateTime now;
 
     @Nullable
@@ -30,7 +31,8 @@ public class Configuration {
 
     public Configuration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
                          Mode mode, String clientId,
-                         String username, String clusterName) {
+                         String username, String clusterName,
+                         boolean multiValueFieldLeniency) {
         this.zoneId = zi.normalized();
         this.pageSize = pageSize;
         this.requestTimeout = requestTimeout;
@@ -40,6 +42,7 @@ public class Configuration {
         this.clientId = clientId;
         this.username = username;
         this.clusterName = clusterName;
+        this.multiValueFieldLeniency = multiValueFieldLeniency;
         this.now = ZonedDateTime.now(zoneId);
     }
 
@@ -77,8 +80,12 @@ public class Configuration {
     public String clusterName() {
         return clusterName;
     }
-
+    
     public ZonedDateTime now() {
         return now;
+    }
+    
+    public boolean multiValueFieldLeniency() {
+        return multiValueFieldLeniency;
     }
 }

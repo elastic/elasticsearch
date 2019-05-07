@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -72,44 +71,19 @@ public class TermsLookup implements Writeable, ToXContentFragment {
      * Read from a stream.
      */
     public TermsLookup(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            type = in.readOptionalString();
-        } else {
-            // Before 7.0, the type parameter was always non-null and serialized as a (non-optional) string.
-            type = in.readString();
-        }
+        type = in.readOptionalString();
         id = in.readString();
         path = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            index = in.readString();
-        } else {
-            index = in.readOptionalString();
-            if (index == null) {
-                throw new IllegalStateException("index must not be null in a terms lookup");
-            }
-        }
+        index = in.readString();
         routing = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeOptionalString(type);
-        } else {
-            if (type == null) {
-                throw new IllegalArgumentException("Typeless [terms] lookup queries are not supported if any " +
-                    "node is running a version before 7.0.");
-
-            }
-            out.writeString(type);
-        }
+        out.writeOptionalString(type);
         out.writeString(id);
         out.writeString(path);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeString(index);
-        } else {
-            out.writeOptionalString(index);
-        }
+        out.writeString(index);
         out.writeOptionalString(routing);
     }
 

@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -36,13 +35,9 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -83,40 +78,10 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         SearchRequest searchRequest = createSearchRequest();
         Version version = VersionUtils.randomVersion(random());
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
-        if (version.before(Version.V_7_0_0)) {
-            assertTrue(deserializedRequest.isCcsMinimizeRoundtrips());
-        } else {
-            assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
-        }
-        if (version.before(Version.V_6_7_0)) {
-            assertNull(deserializedRequest.getLocalClusterAlias());
-            assertAbsoluteStartMillisIsCurrentTime(deserializedRequest);
-            assertTrue(deserializedRequest.isFinalReduce());
-        } else {
-            assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
-            assertEquals(searchRequest.getOrCreateAbsoluteStartMillis(), deserializedRequest.getOrCreateAbsoluteStartMillis());
-            assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
-        }
-    }
-
-    public void testReadFromPre6_7_0() throws IOException {
-        String msg = "AAEBBWluZGV4AAAAAQACAAAA/////w8AAAAAAAAA/////w8AAAAAAAACAAAAAAABAAMCBAUBAAKABACAAQIAAA==";
-        try (StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(msg))) {
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_6_4_0, VersionUtils.getPreviousVersion(Version.V_6_7_0)));
-            SearchRequest searchRequest = new SearchRequest(in);
-            assertArrayEquals(new String[]{"index"}, searchRequest.indices());
-            assertNull(searchRequest.getLocalClusterAlias());
-            assertAbsoluteStartMillisIsCurrentTime(searchRequest);
-            assertTrue(searchRequest.isCcsMinimizeRoundtrips());
-            assertTrue(searchRequest.isFinalReduce());
-        }
-    }
-
-    private static void assertAbsoluteStartMillisIsCurrentTime(SearchRequest searchRequest) {
-        long before = System.currentTimeMillis();
-        long absoluteStartMillis = searchRequest.getOrCreateAbsoluteStartMillis();
-        long after = System.currentTimeMillis();
-        assertThat(absoluteStartMillis, allOf(greaterThanOrEqualTo(before), lessThanOrEqualTo(after)));
+        assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
+        assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
+        assertEquals(searchRequest.getOrCreateAbsoluteStartMillis(), deserializedRequest.getOrCreateAbsoluteStartMillis());
+        assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
     }
 
     public void testIllegalArguments() {

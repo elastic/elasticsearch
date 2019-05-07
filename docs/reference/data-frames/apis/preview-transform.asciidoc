@@ -1,0 +1,84 @@
+[role="xpack"]
+[testenv="basic"]
+[[preview-data-frame-transform]]
+=== Preview {dataframe-transforms} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Preview {dataframe-transforms}</titleabbrev>
+++++
+
+Previews a {dataframe-transform}.
+
+
+==== Request
+
+`POST _data_frame/transforms/_preview`
+
+//==== Description
+//==== Path Parameters
+//==== Authorization
+
+==== Request Body
+
+`source`:: The source index or index pattern.
+
+`pivot`:: Defines the pivot function `group by` fields and the aggregation to
+reduce the data.
+
+
+==== Examples
+
+The following example obtains a preview of a {dataframe-transform} on the {kib}
+eCommerce sample data:
+
+[source,js]
+--------------------------------------------------
+POST _data_frame/transforms/_preview
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce"
+  },
+  "pivot": {
+    "group_by": {
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "max_price": {
+        "max": {
+          "field": "taxful_total_price"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:set up sample data]
+
+The data that is returned for this example is as follows:
+[source,js]
+----
+{
+  "preview" : [
+    {
+      "max_price" : 171.0,
+      "customer_id" : "10"
+    },
+    {
+      "max_price" : 233.0,
+      "customer_id" : "11"
+    },
+    {
+      "max_price" : 200.0,
+      "customer_id" : "12"
+    }
+    ...
+  ]
+}
+----
+// NOTCONSOLE

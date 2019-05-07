@@ -9,18 +9,17 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.action.util.PageParams;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
+import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -291,61 +290,22 @@ public class GetBucketsAction extends Action<GetBucketsAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private QueryPage<Bucket> buckets;
+    public static class Response extends AbstractGetResourcesResponse<Bucket> implements ToXContentObject {
 
         public Response() {
         }
 
         public Response(QueryPage<Bucket> buckets) {
-            this.buckets = buckets;
+            super(buckets);
         }
 
         public QueryPage<Bucket> getBuckets() {
-            return buckets;
+            return getResources();
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            buckets = new QueryPage<>(in, Bucket::new);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            buckets.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            buckets.doXContentBody(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(buckets);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Response other = (Response) obj;
-            return Objects.equals(buckets, other.buckets);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
+        protected Reader<Bucket> getReader() {
+            return Bucket::new;
         }
     }
 

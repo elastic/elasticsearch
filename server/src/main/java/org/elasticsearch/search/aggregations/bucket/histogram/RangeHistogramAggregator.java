@@ -24,7 +24,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -84,7 +84,7 @@ public class RangeHistogramAggregator extends BucketsAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        final RangeFieldMapper.RangeType rangeType = valuesSource.rangeType();
+        final RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

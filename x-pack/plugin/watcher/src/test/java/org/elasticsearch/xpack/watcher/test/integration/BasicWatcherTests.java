@@ -216,7 +216,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         testConditionSearch(templateRequest(searchSourceBuilder, "events"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39306")
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         assertAcked(client().admin().cluster().preparePutStoredScript()

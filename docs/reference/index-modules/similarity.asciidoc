@@ -92,22 +92,14 @@ from randomness] framework. This similarity has the following options:
 
 [horizontal]
 `basic_model`::
-    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelG.html[`be`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelD.html[`d`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelG.html[`g`],
+    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelG.html[`g`],
     {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIF.html[`if`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIn.html[`in`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIne.html[`ine`] and
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelP.html[`p`].
-
-`be`, `d` and `p` should be avoided in practice as they might return scores that
-are equal to 0 or infinite with terms that do not meet the expected random
-distribution.
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIn.html[`in`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/BasicModelIne.html[`ine`].
 
 `after_effect`::
-    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffect.NoAfterEffect.html[`no`],
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`b`] and
-    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectL.html[`l`].
+    Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`b`] and
+    {lucene-core-javadoc}/org/apache/lucene/search/similarities/AfterEffectB.html[`l`].
 
 `normalization`::
     Possible values: {lucene-core-javadoc}/org/apache/lucene/search/similarities/Normalization.NoNormalization.html[`no`],

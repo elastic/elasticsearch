@@ -89,6 +89,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -148,8 +149,8 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
-        return module.newIndexService(nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays, threadPool,
-                scriptService, null, indicesQueryCache, mapperRegistry,
+        return module.newIndexService(CREATE_INDEX, nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays,
+                threadPool, scriptService, null, indicesQueryCache, mapperRegistry,
                 new IndicesFieldDataCache(settings, listener), writableRegistry());
     }
 

@@ -42,7 +42,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
-import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -182,14 +182,14 @@ public abstract class ValuesSource {
             }
 
             public static class RangeFieldData extends FieldData {
-               private final RangeFieldMapper.RangeType rangeType;
+               private final RangeType rangeType;
 
-               public RangeFieldData (IndexFieldData<?> indexFieldData, RangeFieldMapper.RangeType rangeType) {
+               public RangeFieldData (IndexFieldData<?> indexFieldData, RangeType rangeType) {
                    super(indexFieldData);
                    this.rangeType = rangeType;
                }
 
-               public RangeFieldMapper.RangeType rangeType() { return rangeType; }
+               public RangeType rangeType() { return rangeType; }
             }
         }
 

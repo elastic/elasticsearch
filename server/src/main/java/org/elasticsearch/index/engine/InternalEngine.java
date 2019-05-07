@@ -47,7 +47,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
@@ -78,6 +77,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -87,6 +87,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -144,6 +145,10 @@ public class InternalEngine extends Engine {
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeqNoOfNonAppendOnlyOperations = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+    // max_seq_no_of_updates_or_deletes tracks the max seq_no of update or delete operations that have been processed in this engine.
+    // An index request is considered as an update if it overwrites existing documents with the same docId in the Lucene index.
+    // The value of this marker never goes backwards, and is tracked/updated differently on primary and replica.
+    private final AtomicLong maxSeqNoOfUpdatesOrDeletes;
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numIndexVersionsLookups = new CounterMetric();
     // Lucene operations since this engine was opened - not include operations from existing segments.
@@ -182,10 +187,10 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
             throttle = new IndexThrottle();
             try {
+                trimUnsafeCommits(engineConfig);
                 translog = openTranslog(engineConfig, translogDeletionPolicy, engineConfig.getGlobalCheckpointSupplier());
                 assert translog.getGeneration() != null;
                 this.translog = translog;
@@ -226,6 +231,7 @@ public class InternalEngine extends Engine {
                 () -> acquireSearcher("create_local_checkpoint_tracker", SearcherScope.INTERNAL), localCheckpointTrackerSupplier);
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getCheckpoint());
             this.internalSearcherManager.addListener(lastRefreshedCheckpointListener);
+            maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             success = true;
         } finally {
             if (success == false) {
@@ -403,7 +409,6 @@ public class InternalEngine extends Engine {
         flushLock.lock();
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
-            assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is uninitialized";
             if (pendingTranslogRecovery.get() == false) {
                 throw new IllegalStateException("Engine has already been recovered");
             }
@@ -616,13 +621,13 @@ public class InternalEngine extends Engine {
                         return GetResult.NOT_EXISTS;
                     }
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
-                        throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                        throw new VersionConflictEngineException(shardId, get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
                     if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
                         get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term
                         )) {
-                        throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                        throw new VersionConflictEngineException(shardId, get.id(),
                             get.getIfSeqNo(), get.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
                     }
                     if (get.isReadFromTranslog()) {
@@ -872,7 +877,7 @@ public class InternalEngine extends Engine {
 
                         final boolean toAppend = plan.indexIntoLucene && plan.useLuceneUpdateDocument == false;
                         if (toAppend == false) {
-                            advanceMaxSeqNoOfUpdatesOrDeletes(index.seqNo());
+                            advanceMaxSeqNoOfUpdatesOrDeletesOnPrimary(index.seqNo());
                         }
                     } else {
                         markSeqNoAsSeen(index.seqNo());
@@ -979,7 +984,6 @@ public class InternalEngine extends Engine {
 
     protected final IndexingStrategy planIndexingAsPrimary(Index index) throws IOException {
         assert index.origin() == Operation.Origin.PRIMARY : "planing as primary but origin isn't. got " + index.origin();
-        assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         final IndexingStrategy plan;
         // resolve an external operation into an internal one which is safe to replay
         if (canOptimizeAddDocument(index)) {
@@ -1004,13 +1008,13 @@ public class InternalEngine extends Engine {
                 currentNotFoundOrDeleted = versionValue.isDelete();
             }
             if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
-                final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.type(), index.id(),
+                final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.id(),
                     index.getIfSeqNo(), index.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
             } else if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
                 versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm()
             )) {
-                final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.type(), index.id(),
+                final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.id(),
                     index.getIfSeqNo(), index.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
             } else if (index.versionType().isVersionConflictForWrites(
@@ -1256,18 +1260,8 @@ public class InternalEngine extends Engine {
                         plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
                 }
             }
-            if (delete.origin().isFromTranslog() == false) {
-                final Translog.Location location;
-                if (deleteResult.getResultType() == Result.Type.SUCCESS) {
-                    location = translog.add(new Translog.Delete(delete, deleteResult));
-                } else if (deleteResult.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
-                    // if we have document failure, record it as a no-op in the translog and Lucene with the generated seq_no
-                    final NoOp noOp = new NoOp(deleteResult.getSeqNo(), delete.primaryTerm(), delete.origin(),
-                        delete.startTime(), deleteResult.getFailure().toString());
-                    location = innerNoOp(noOp).getTranslogLocation();
-                } else {
-                    location = null;
-                }
+            if (delete.origin().isFromTranslog() == false && deleteResult.getResultType() == Result.Type.SUCCESS) {
+                final Translog.Location location = translog.add(new Translog.Delete(delete, deleteResult));
                 deleteResult.setTranslogLocation(location);
             }
             localCheckpointTracker.markSeqNoAsCompleted(deleteResult.getSeqNo());
@@ -1275,7 +1269,7 @@ public class InternalEngine extends Engine {
             deleteResult.freeze();
         } catch (RuntimeException | IOException e) {
             try {
-                maybeFailEngine("index", e);
+                maybeFailEngine("delete", e);
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }
@@ -1330,7 +1324,6 @@ public class InternalEngine extends Engine {
 
     protected final DeletionStrategy planDeletionAsPrimary(Delete delete) throws IOException {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
-        assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         // resolve operation from external to internal
         final VersionValue versionValue = resolveDocVersion(delete, delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
         assert incrementVersionLookup();
@@ -1345,13 +1338,13 @@ public class InternalEngine extends Engine {
         }
         final DeletionStrategy plan;
         if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
-            final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.type(), delete.id(),
+            final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.id(),
                 delete.getIfSeqNo(), delete.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
         } else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
             versionValue.seqNo != delete.getIfSeqNo() || versionValue.term != delete.getIfPrimaryTerm()
         )) {
-            final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.type(), delete.id(),
+            final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.id(),
                 delete.getIfSeqNo(), delete.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
         } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
@@ -1395,12 +1388,9 @@ public class InternalEngine extends Engine {
                 plan.versionOfDeletion, getPrimaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
-                // there is no tragic event and such it must be a document level failure
-                return new DeleteResult(
-                        ex, plan.versionOfDeletion, delete.primaryTerm(), delete.seqNo(), plan.currentlyDeleted == false);
-            } else {
-                throw ex;
+                throw new AssertionError("delete operation should never fail at document level", ex);
             }
+            throw ex;
         }
     }
 
@@ -1697,6 +1687,11 @@ public class InternalEngine extends Engine {
     @Override
     public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
+        if (force && waitIfOngoing == false) {
+            assert false : "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing;
+            throw new IllegalArgumentException(
+                "wait_if_ongoing must be true for a force flush: force=" + force + " wait_if_ongoing=" + waitIfOngoing);
+        }
         final byte[] newCommitId;
         /*
          * Unfortunately the lock order is important here. We have to acquire the readlock first otherwise
@@ -2365,7 +2360,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(6);
+                final Map<String, String> commitData = new HashMap<>(8);
                 commitData.put(Translog.TRANSLOG_GENERATION_KEY, translogFileGeneration);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpointValue);
@@ -2564,6 +2559,10 @@ public class InternalEngine extends Engine {
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
         final long currentLocalCheckpoint = getLocalCheckpointTracker().getCheckpoint();
+        // avoid scanning translog if not necessary
+        if (startingSeqNo > currentLocalCheckpoint) {
+            return true;
+        }
         final LocalCheckpointTracker tracker = new LocalCheckpointTracker(startingSeqNo, startingSeqNo - 1);
         try (Translog.Snapshot snapshot = getTranslog().newSnapshotFromMinSeqNo(startingSeqNo)) {
             Translog.Operation operation;
@@ -2611,7 +2610,7 @@ public class InternalEngine extends Engine {
      * Gets the commit data from {@link IndexWriter} as a map.
      */
     private static Map<String, String> commitDataAsMap(final IndexWriter indexWriter) {
-        Map<String, String> commitData = new HashMap<>(6);
+        final Map<String, String> commitData = new HashMap<>(8);
         for (Map.Entry<String, String> entry : indexWriter.getLiveCommitData()) {
             commitData.put(entry.getKey(), entry.getValue());
         }
@@ -2724,13 +2723,22 @@ public class InternalEngine extends Engine {
         assert maxUnsafeAutoIdTimestamp.get() <= maxSeenAutoIdTimestamp.get();
     }
 
+    @Override
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return maxSeqNoOfUpdatesOrDeletes.get();
+    }
+
+    @Override
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+        if (maxSeqNoOfUpdatesOnPrimary == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            assert false : "max_seq_no_of_updates on primary is unassigned";
+            throw new IllegalArgumentException("max_seq_no_of_updates on primary is unassigned");
+        }
+        this.maxSeqNoOfUpdatesOrDeletes.updateAndGet(curr -> Math.max(curr, maxSeqNoOfUpdatesOnPrimary));
+    }
+
     private boolean assertMaxSeqNoOfUpdatesIsAdvanced(Term id, long seqNo, boolean allowDeleted, boolean relaxIfGapInSeqNo) {
         final long maxSeqNoOfUpdates = getMaxSeqNoOfUpdatesOrDeletes();
-        // If the primary is on an old version which does not replicate msu, we need to relax this assertion for that.
-        if (maxSeqNoOfUpdates == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            assert config().getIndexSettings().getIndexVersionCreated().before(Version.V_6_5_0);
-            return true;
-        }
         // We treat a delete on the tombstones on replicas as a regular document, then use updateDocument (not addDocument).
         if (allowDeleted) {
             final VersionValue versionValue = versionMap.getVersionForAssert(id.bytes());
@@ -2748,11 +2756,12 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    @Override
-    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
-        assert getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO :
-            "max_seq_no_of_updates is already initialized [" + getMaxSeqNoOfUpdatesOrDeletes() + "]";
-        final long maxSeqNo = SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo());
-        advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
+    private static void trimUnsafeCommits(EngineConfig engineConfig) throws IOException {
+        final Store store = engineConfig.getStore();
+        final String translogUUID = store.readLastCommittedSegmentsInfo().getUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final Path translogPath = engineConfig.getTranslogConfig().getTranslogPath();
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
+        final long minRetainedTranslogGen = Translog.readMinTranslogGeneration(translogPath, translogUUID);
+        store.trimUnsafeCommits(globalCheckpoint, minRetainedTranslogGen, engineConfig.getIndexSettings().getIndexVersionCreated());
     }
 }

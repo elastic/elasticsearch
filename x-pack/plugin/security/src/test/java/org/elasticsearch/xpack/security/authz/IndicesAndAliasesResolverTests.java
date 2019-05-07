@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -72,13 +71,14 @@ import org.joda.time.format.DateTimeFormat;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.contains;
@@ -104,7 +104,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private IndicesAndAliasesResolver defaultIndicesResolver;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private Map<String, RoleDescriptor> roleMap;
-    private FieldPermissionsCache fieldPermissionsCache;
 
     @Before
     public void setup() {
@@ -119,7 +118,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         indexNameExpressionResolver = new IndexNameExpressionResolver();
 
         final boolean withAlias = randomBoolean();
-        final String securityIndexName = SECURITY_INDEX_NAME + (withAlias ? "-" + randomAlphaOfLength(5) : "");
+        final String securityIndexName = SECURITY_MAIN_ALIAS + (withAlias ? "-" + randomAlphaOfLength(5) : "");
         MetaData metaData = MetaData.builder()
                 .put(indexBuilder("foo").putAlias(AliasMetaData.builder("foofoobar"))
                         .putAlias(AliasMetaData.builder("foounauthorized")).settings(settings))
@@ -138,13 +137,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put(indexBuilder("-index11").settings(settings))
                 .put(indexBuilder("-index20").settings(settings))
                 .put(indexBuilder("-index21").settings(settings))
+                .put(indexBuilder("logs-00001").putAlias(AliasMetaData.builder("logs-alias").writeIndex(false)).settings(settings))
+                .put(indexBuilder("logs-00002").putAlias(AliasMetaData.builder("logs-alias").writeIndex(false)).settings(settings))
+                .put(indexBuilder("logs-00003").putAlias(AliasMetaData.builder("logs-alias").writeIndex(true)).settings(settings))
                 .put(indexBuilder(securityIndexName).settings(settings)).build();
 
         if (withAlias) {
             metaData = SecurityTestUtils.addAliasToMetaData(metaData, securityIndexName);
         }
         this.metaData = metaData;
-        this.fieldPermissionsCache = new FieldPermissionsCache(settings);
 
         user = new User("user", "role");
         userDashIndices = new User("dash", "dash");
@@ -1220,14 +1221,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         {
             final List<String> authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_INDEX_NAME));
+            assertThat(indices, hasItem(SECURITY_MAIN_ALIAS));
         }
         {
             IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
-            aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_INDEX_NAME));
+            aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index(SECURITY_MAIN_ALIAS));
             final List<String> authorizedIndices = buildAuthorizedIndices(XPackSecurityUser.INSTANCE, IndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
-            assertThat(indices, hasItem(SecurityIndexManager.SECURITY_INDEX_NAME));
+            assertThat(indices, hasItem(SECURITY_MAIN_ALIAS));
         }
     }
 
@@ -1235,7 +1236,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest request = new SearchRequest();
         final List<String> authorizedIndices = buildAuthorizedIndices(XPackUser.INSTANCE, SearchAction.NAME);
         List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-        assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
+        assertThat(indices, not(hasItem(SECURITY_MAIN_ALIAS)));
     }
 
     public void testNonXPackUserAccessingSecurityIndex() {
@@ -1247,7 +1248,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             SearchRequest request = new SearchRequest();
             final List<String> authorizedIndices = buildAuthorizedIndices(allAccessUser, SearchAction.NAME);
             List<String> indices = resolveIndices(request, authorizedIndices).getLocal();
-            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
+            assertThat(indices, not(hasItem(SECURITY_MAIN_ALIAS)));
         }
 
         {
@@ -1255,7 +1256,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias1").index("*"));
             final List<String> authorizedIndices = buildAuthorizedIndices(allAccessUser, IndicesAliasesAction.NAME);
             List<String> indices = resolveIndices(aliasesRequest, authorizedIndices).getLocal();
-            assertThat(indices, not(hasItem(SecurityIndexManager.SECURITY_INDEX_NAME)));
+            assertThat(indices, not(hasItem(SECURITY_MAIN_ALIAS)));
         }
     }
 
@@ -1355,6 +1356,29 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
         putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
         assertEquals(index, putMappingIndexOrAlias);
+
+    }
+
+    public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsAliasNameForDynamicPutMappingRequestOnWriteIndex() {
+        String index = "logs-00003"; // write index
+        PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
+        List<String> authorizedIndices = Collections.singletonList("logs-alias");
+        assert metaData.getAliasAndIndexLookup().get("logs-alias").getIndices().size() == 3;
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
+        String message = "user is authorized to access `logs-alias` and the put mapping request is for a write index"
+                + "so this should have returned the alias name";
+        assertEquals(message, "logs-alias", putMappingIndexOrAlias);
+    }
+
+    public void testWhenAliasToMultipleIndicesAndUserIsAuthorizedUsingAliasReturnsIndexNameForDynamicPutMappingRequestOnReadIndex() {
+        String index = "logs-00002"; // read index
+        PutMappingRequest request = new PutMappingRequest(Strings.EMPTY_ARRAY).setConcreteIndex(new Index(index, UUIDs.base64UUID()));
+        List<String> authorizedIndices = Collections.singletonList("logs-alias");
+        assert metaData.getAliasAndIndexLookup().get("logs-alias").getIndices().size() == 3;
+        String putMappingIndexOrAlias = IndicesAndAliasesResolver.getPutMappingIndexOrAlias(request, authorizedIndices, metaData);
+        String message = "user is authorized to access `logs-alias` and the put mapping request is for a read index"
+                + "so this should have returned the concrete index as fallback";
+        assertEquals(message, index, putMappingIndexOrAlias);
     }
 
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?

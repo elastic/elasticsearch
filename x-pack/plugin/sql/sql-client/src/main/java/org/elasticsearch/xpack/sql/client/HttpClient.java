@@ -32,7 +32,6 @@ import java.io.InputStream;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.SQLException;
-import java.time.ZoneId;
 import java.util.Collections;
 import java.util.function.Function;
 
@@ -61,12 +60,18 @@ public class HttpClient {
         return get("/", MainResponse::fromXContent);
     }
 
-    public SqlQueryResponse queryInit(String query, int fetchSize) throws SQLException {
+    public SqlQueryResponse basicQuery(String query, int fetchSize) throws SQLException {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
-        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), null, ZoneId.of("Z"),
-            fetchSize, TimeValue.timeValueMillis(cfg.queryTimeout()), TimeValue.timeValueMillis(cfg.pageTimeout()),
-            false, new RequestInfo(Mode.CLI));
+        SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), Protocol.TIME_ZONE,
+                fetchSize, 
+                TimeValue.timeValueMillis(cfg.queryTimeout()), 
+                TimeValue.timeValueMillis(cfg.pageTimeout()),
+                null,
+                Boolean.FALSE,
+                null,
+                new RequestInfo(Mode.CLI),
+                false);
         return query(sqlRequest);
     }
 

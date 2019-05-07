@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.audit;
 
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -71,5 +72,14 @@ public interface AuditTrail {
 
     void runAsDenied(String requestId, Authentication authentication, RestRequest request,
                      AuthorizationInfo authorizationInfo);
+
+    /**
+     * This is a "workaround" method to log index "access_granted" and "access_denied" events for actions not tied to a
+     * {@code TransportMessage}, or when the connection is not 1:1, i.e. several audit events for an action associated with the same
+     * message. It is currently only used to audit the resolved index (alias) name for each {@code BulkItemRequest} comprised by a
+     * {@code BulkShardRequest}. We should strive to not use this and TODO refactor it out!
+     */
+    void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String indices,
+                                  String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo);
 
 }

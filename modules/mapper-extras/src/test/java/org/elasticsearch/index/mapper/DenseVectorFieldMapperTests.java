@@ -30,18 +30,19 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.hamcrest.Matchers;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collection;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+
 public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
+    private DocumentMapper mapper;
 
-   @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(MapperExtrasPlugin.class);
-    }
-
-    public void testDefaults() throws Exception {
+    @Before
+    public void setUpMapper() throws Exception {
         IndexService indexService =  createIndex("test-index");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         String mapping = Strings.toString(XContentFactory.jsonBuilder()
@@ -53,10 +54,15 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject()
             .endObject());
+        mapper = parser.parse("_doc", new CompressedXContent(mapping));
+    }
 
-        DocumentMapper mapper = parser.parse("_doc", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(MapperExtrasPlugin.class);
+    }
 
+    public void testDefaults() throws Exception {
         float[] expectedArray = {-12.1f, 100.7f, -4};
         ParsedDocument doc1 = mapper.parse(new SourceToParse("test-index", "_doc", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
@@ -66,7 +72,7 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             XContentType.JSON));
         IndexableField[] fields = doc1.rootDoc().getFields("my-dense-vector");
         assertEquals(1, fields.length);
-        assertThat(fields[0], Matchers.instanceOf(BinaryDocValuesField.class));
+        assertThat(fields[0], instanceOf(BinaryDocValuesField.class));
 
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = ((BinaryDocValuesField) fields[0]).binaryValue();
@@ -77,5 +83,23 @@ public class DenseVectorFieldMapperTests extends ESSingleNodeTestCase {
             decodedValues,
             0.001f
         );
+    }
+
+    public void testDimensionLimit() throws IOException {
+        float[] validVector = new float[DenseVectorFieldMapper.MAX_DIMS_COUNT];
+        BytesReference validDoc = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject()
+                .array("my-dense-vector", validVector)
+            .endObject());
+        mapper.parse(new SourceToParse("test-index", "_doc", "1", validDoc, XContentType.JSON));
+
+        float[] invalidVector = new float[DenseVectorFieldMapper.MAX_DIMS_COUNT + 1];
+        BytesReference invalidDoc = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject()
+                .array("my-dense-vector", invalidVector)
+                .endObject());
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(
+            new SourceToParse("test-index", "_doc", "1", invalidDoc, XContentType.JSON)));
+        assertThat(e.getDetailedMessage(), containsString("has exceeded the maximum allowed number of dimensions"));
     }
 }

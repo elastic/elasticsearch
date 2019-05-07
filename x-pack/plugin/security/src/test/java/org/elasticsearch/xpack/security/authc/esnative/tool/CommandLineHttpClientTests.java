@@ -27,6 +27,8 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
+import static org.hamcrest.Matchers.containsString;
+
 /**
  * This class tests {@link CommandLineHttpClient} For extensive tests related to
  * ssl settings can be found {@link SSLConfigurationSettingsTests}
@@ -61,6 +63,15 @@ public class CommandLineHttpClientTests extends ESTestCase {
         assertNotNull("Should have http response", httpResponse);
         assertEquals("Http status code does not match", 200, httpResponse.getHttpStatus());
         assertEquals("Http response body does not match", "complete", httpResponse.getResponseBody().get("test"));
+    }
+
+    public void testGetDefaultURLFailsWithHelpfulMessage() {
+        Settings settings = Settings.builder()
+            .put("network.host", "_ec2:privateIpv4_")
+            .build();
+        CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
+        assertThat(expectThrows(IllegalStateException.class, () -> client.getDefaultURL()).getMessage(),
+            containsString("unable to determine default URL from settings, please use the -u option to explicitly provide the url"));
     }
 
     private MockWebServer createMockWebServer() {

@@ -27,8 +27,8 @@ public class NoneRecycler<T> extends AbstractRecycler<T> {
     }
 
     @Override
-    public V<T> obtain(int sizing) {
-        return new NV<>(c.newInstance(sizing));
+    public V<T> obtain() {
+        return new NV<>(c.newInstance());
     }
 
     @Override

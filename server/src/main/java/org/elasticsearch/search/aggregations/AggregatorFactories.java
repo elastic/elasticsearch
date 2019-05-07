@@ -75,7 +75,7 @@ public class AggregatorFactories {
             final String aggregationName = parser.currentName();
             if (!validAggMatcher.reset(aggregationName).matches()) {
                 throw new ParsingException(parser.getTokenLocation(), "Invalid aggregation name [" + aggregationName
-                        + "]. Aggregation names must be alpha-numeric and can only contain '_' and '-'");
+                        + "]. Aggregation names can contain any character except '[', ']', and '>'");
             }
 
             token = parser.nextToken();
@@ -161,8 +161,7 @@ public class AggregatorFactories {
         }
     }
 
-    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0],
-            new ArrayList<PipelineAggregationBuilder>());
+    public static final AggregatorFactories EMPTY = new AggregatorFactories(new AggregatorFactory<?>[0], new ArrayList<>());
 
     private AggregatorFactory<?>[] factories;
     private List<PipelineAggregationBuilder> pipelineAggregatorFactories;
@@ -176,7 +175,7 @@ public class AggregatorFactories {
         this.pipelineAggregatorFactories = pipelineAggregators;
     }
 
-    public List<PipelineAggregator> createPipelineAggregators() throws IOException {
+    public List<PipelineAggregator> createPipelineAggregators() {
         List<PipelineAggregator> pipelineAggregators = new ArrayList<>(this.pipelineAggregatorFactories.size());
         for (PipelineAggregationBuilder factory : this.pipelineAggregatorFactories) {
             pipelineAggregators.add(factory.create());

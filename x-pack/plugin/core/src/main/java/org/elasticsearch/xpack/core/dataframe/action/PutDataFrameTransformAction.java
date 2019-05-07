@@ -10,8 +10,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -22,7 +20,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAction.Response> {
+public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
     public static final PutDataFrameTransformAction INSTANCE = new PutDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/put";
@@ -32,20 +30,21 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private DataFrameTransformConfig config;
+        private final DataFrameTransformConfig config;
 
         public Request(DataFrameTransformConfig config) {
-            this.setConfig(config);
+            this.config = config;
         }
 
-        public Request() {
-
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new DataFrameTransformConfig(in);
         }
 
         public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
@@ -64,16 +63,6 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
 
         public DataFrameTransformConfig getConfig() {
             return config;
-        }
-
-        public void setConfig(DataFrameTransformConfig config) {
-            this.config = config;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new DataFrameTransformConfig(in);
         }
 
         @Override
@@ -100,20 +89,4 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, PutDataFrameTransformAction action) {
-            super(client, action, new Request());
-        }
-    }
-
-    public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-    }
 }

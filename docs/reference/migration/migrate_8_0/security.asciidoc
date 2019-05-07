@@ -1,0 +1,27 @@
+[float]
+[[breaking_80_security_changes]]
+=== Security changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+// end::notable-breaking-changes[]
+
+[float]
+[[accept-default-password-removed]]
+==== The `accept_default_password` setting has been removed
+
+The `xpack.security.authc.accept_default_password` setting has not had any affect
+since the 6.0 release of {es}. It has been removed and cannot be used.
+
+[float]
+[[roles-index-cache-removed]]
+==== The `roles.index.cache.*` settings have been removed
+
+The `xpack.security.authz.store.roles.index.cache.max_size` and
+`xpack.security.authz.store.roles.index.cache.ttl` settings have
+been removed. These settings have been redundant and deprecated
+since the 5.2 release of {es}.
+

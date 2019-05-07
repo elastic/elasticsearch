@@ -19,10 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -60,11 +58,7 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            globalCheckpoint = in.readZLong();
-        } else {
-            globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
-        }
+        globalCheckpoint = in.readZLong();
     }
 
     @Override
@@ -72,9 +66,7 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeZLong(globalCheckpoint);
-        }
+        out.writeZLong(globalCheckpoint);
     }
 
 }

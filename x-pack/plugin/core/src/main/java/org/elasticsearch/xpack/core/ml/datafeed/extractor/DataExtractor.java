@@ -33,4 +33,9 @@ public interface DataExtractor {
      * Cancel the current search.
      */
     void cancel();
+
+    /**
+     * @return the end time to which this extractor will search
+     */
+    long getEndTime();
 }

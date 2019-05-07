@@ -1,0 +1,91 @@
+[role="xpack"]
+[testenv="basic"]
+[[get-data-frame-transform-stats]]
+=== Get {dataframe-transform} statistics API
+
+[subs="attributes"]
+++++
+<titleabbrev>Get {dataframe-transform} statistics</titleabbrev>
+++++
+
+Retrieves usage information for {dataframe-transforms}.
+
+
+==== Request
+
+
+`GET _data_frame/transforms/<data_frame_transform_id>/_stats`
+
+`GET _data_frame/transforms/<data_frame_transform_id>,<data_frame_transform_id>/_stats` +
+
+`GET _data_frame/transforms/_stats` +
+
+`GET _data_frame/transforms/_all/_stats` +
+
+`GET _data_frame/transforms/*/_stats` +
+
+//===== Description
+
+==== Path Parameters
+
+`data_frame_transform_id`::
+  (string) Identifier for the {dataframe-transform}. It can be a
+  {dataframe-transform} identifier or a wildcard expression. If you do not
+  specify one of these options, the API returns information for all
+  {dataframe-transforms}.
+
+
+==== Results
+
+The API returns the following information:
+
+`transforms`::
+  (array) An array of statistics objects for {dataframe-transforms}.
+
+//==== Authorization
+
+==== Examples
+
+The following example gets usage information for the `ecommerce_transform`
+{dataframe-transform}:
+
+[source,js]
+--------------------------------------------------
+GET _data_frame/transforms/ecommerce_transform/_stats
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:todo]
+
+The API returns the following results:
+[source,js]
+----
+{
+  "count" : 1,
+  "transforms" : [
+    {
+      "id" : "ecommerce_transform",
+      "state" : {
+        "indexer_state" : "started",
+        "task_state": "started",
+        "current_position" : {
+          "customer_id" : "9"
+        },
+        "generation" : 1
+      },
+      "stats" : {
+        "pages_processed" : 0,
+        "documents_processed" : 0,
+        "documents_indexed" : 0,
+        "trigger_count" : 0,
+        "index_time_in_ms" : 0,
+        "index_total" : 0,
+        "index_failures" : 0,
+        "search_time_in_ms" : 0,
+        "search_total" : 0,
+        "search_failures" : 0
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE

@@ -19,8 +19,10 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.transport.TransportRequest;
@@ -29,20 +31,48 @@ import java.io.IOException;
 
 public class RecoveryCleanFilesRequest extends TransportRequest {
 
-    private long recoveryId;
-    private ShardId shardId;
+    private final long recoveryId;
+    private final ShardId shardId;
+    private final Store.MetadataSnapshot snapshotFiles;
+    private final int totalTranslogOps;
+    private final long globalCheckpoint;
 
-    private Store.MetadataSnapshot snapshotFiles;
-    private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
-
-    public RecoveryCleanFilesRequest() {
-    }
-
-    RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Store.MetadataSnapshot snapshotFiles, int totalTranslogOps) {
+    RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Store.MetadataSnapshot snapshotFiles,
+                              int totalTranslogOps, long globalCheckpoint) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.snapshotFiles = snapshotFiles;
         this.totalTranslogOps = totalTranslogOps;
+        this.globalCheckpoint = globalCheckpoint;
+    }
+
+    RecoveryCleanFilesRequest(StreamInput in) throws IOException {
+        super(in);
+        recoveryId = in.readLong();
+        shardId = ShardId.readShardId(in);
+        snapshotFiles = new Store.MetadataSnapshot(in);
+        totalTranslogOps = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            globalCheckpoint = in.readZLong();
+        } else {
+            globalCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeLong(recoveryId);
+        shardId.writeTo(out);
+        snapshotFiles.writeTo(out);
+        out.writeVInt(totalTranslogOps);
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            out.writeZLong(globalCheckpoint);
+        }
+    }
+
+    public Store.MetadataSnapshot sourceMetaSnapshot() {
+        return snapshotFiles;
     }
 
     public long recoveryId() {
@@ -53,29 +83,11 @@ public class RecoveryCleanFilesRequest extends TransportRequest {
         return shardId;
     }
 
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
-        snapshotFiles = new Store.MetadataSnapshot(in);
-        totalTranslogOps = in.readVInt();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeLong(recoveryId);
-        shardId.writeTo(out);
-        snapshotFiles.writeTo(out);
-        out.writeVInt(totalTranslogOps);
-    }
-
-    public Store.MetadataSnapshot sourceMetaSnapshot() {
-        return snapshotFiles;
-    }
-
     public int totalTranslogOps() {
         return totalTranslogOps;
+    }
+
+    public long getGlobalCheckpoint() {
+        return globalCheckpoint;
     }
 }

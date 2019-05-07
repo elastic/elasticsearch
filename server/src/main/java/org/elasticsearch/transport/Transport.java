@@ -30,7 +30,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -53,9 +52,7 @@ public interface Transport extends LifecycleComponent {
      */
     RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action);
 
-    void addMessageListener(TransportMessageListener listener);
-
-    boolean removeMessageListener(TransportMessageListener listener);
+    void setMessageListener(TransportMessageListener listener);
 
     /**
      * The address the transport is bound on.

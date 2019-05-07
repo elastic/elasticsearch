@@ -37,10 +37,11 @@ import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
-import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioSelector;
+import org.elasticsearch.nio.NioSelectorGroup;
 import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
+import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -60,7 +61,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -75,7 +76,7 @@ public class MockNioTransport extends TcpTransport {
     public MockNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
                             PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                             CircuitBreakerService circuitBreakerService) {
-        super("mock-nio", settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
     }
 
     @Override
@@ -191,9 +192,13 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public MockSocketChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             MockSocketChannel nioChannel = new MockSocketChannel(isClient == false, profileName, channel);
-            Supplier<InboundChannelBuffer.Page> pageSupplier = () -> {
-                Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
-                return new InboundChannelBuffer.Page(ByteBuffer.wrap(bytes.v()), bytes::close);
+            IntFunction<Page> pageSupplier = (length) -> {
+                if (length > PageCacheRecycler.BYTE_PAGE_SIZE) {
+                    return new Page(ByteBuffer.allocate(length), () -> {});
+                } else {
+                    Recycler.V<byte[]> bytes = pageCacheRecycler.bytePage(false);
+                    return new Page(ByteBuffer.wrap(bytes.v(), 0, length), bytes::close);
+                }
             };
             MockTcpReadWriteHandler readWriteHandler = new MockTcpReadWriteHandler(nioChannel, MockNioTransport.this);
             BytesChannelContext context = new BytesChannelContext(nioChannel, selector, (e) -> exceptionCaught(nioChannel, e),
@@ -215,7 +220,7 @@ public class MockNioTransport extends TcpTransport {
 
         @Override
         public MockServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel) throws IOException {
-            MockServerChannel nioServerChannel = new MockServerChannel(profileName, channel);
+            MockServerChannel nioServerChannel = new MockServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> logger.error(() ->
                 new ParameterizedMessage("exception from server channel caught on transport layer [{}]", channel), e);
             ServerChannelContext context = new ServerChannelContext(nioServerChannel, this, selector, MockNioTransport.this::acceptChannel,
@@ -244,21 +249,13 @@ public class MockNioTransport extends TcpTransport {
 
     private static class MockServerChannel extends NioServerSocketChannel implements TcpServerChannel {
 
-        private final String profile;
-
-        MockServerChannel(String profile, ServerSocketChannel channel) {
+        MockServerChannel(ServerSocketChannel channel) {
             super(channel);
-            this.profile = profile;
         }
 
         @Override
         public void close() {
             getContext().closeChannel();
-        }
-
-        @Override
-        public String getProfile() {
-            return profile;
         }
 
         @Override

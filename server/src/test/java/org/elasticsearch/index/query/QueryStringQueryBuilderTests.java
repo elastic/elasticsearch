@@ -62,7 +62,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
@@ -84,7 +83,12 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
+public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStringQueryBuilder> {
+    @Override
+    protected boolean isCacheable(QueryStringQueryBuilder queryBuilder) {
+        return queryBuilder.fuzziness() != null
+                || isCacheable(queryBuilder.fields().keySet(), queryBuilder.queryString());
+    }
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
@@ -808,7 +812,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testFuzzyNumeric() throws Exception {
-        QueryStringQueryBuilder query = queryStringQuery("12~0.2").defaultField(INT_FIELD_NAME);
+        QueryStringQueryBuilder query = queryStringQuery("12~1.0").defaultField(INT_FIELD_NAME);
         QueryShardContext context = createShardContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> query.toQuery(context));
@@ -1210,13 +1214,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("unmapped_field")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new BooleanQuery.Builder().build(), query);
+        assertEquals(new MatchNoDocsQuery(), query);
 
         // Unmapped prefix field
         query = new QueryStringQueryBuilder("unmapped_field:hello")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new BooleanQuery.Builder().build(), query);
+        assertEquals(new MatchNoDocsQuery(), query);
 
         // Unmapped fields
         query = new QueryStringQueryBuilder("hello")
@@ -1224,7 +1228,32 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field("unmapped_field")
             .field("another_field")
             .toQuery(createShardContext());
-        assertEquals(new BooleanQuery.Builder().build(), query);
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        // Multi block
+        query = new QueryStringQueryBuilder("first unmapped:second")
+            .field(STRING_FIELD_NAME)
+            .field("unmapped")
+            .field("another_unmapped")
+            .defaultOperator(Operator.AND)
+            .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "first")), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .build();
+        assertEquals(expected, query);
+
+        query = new SimpleQueryStringBuilder("first unknown:second")
+            .field("unmapped")
+            .field("another_unmapped")
+            .defaultOperator(Operator.AND)
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .build();
+        assertEquals(expected, query);
+
     }
 
     public void testDefaultField() throws Exception {

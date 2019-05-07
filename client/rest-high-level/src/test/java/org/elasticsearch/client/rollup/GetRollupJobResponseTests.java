@@ -19,13 +19,14 @@
 
 package org.elasticsearch.client.rollup;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.client.rollup.GetRollupJobResponse.IndexerState;
+import org.elasticsearch.client.core.IndexerJobStats;
+import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.JobWrapper;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupIndexerJobStats;
 import org.elasticsearch.client.rollup.GetRollupJobResponse.RollupJobStatus;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ public class GetRollupJobResponseTests extends ESTestCase {
                 this::createTestInstance,
                 this::toXContent,
                 GetRollupJobResponse::fromXContent)
-                .supportsUnknownFields(true)
+                .supportsUnknownFields(false)
                 .randomFieldsExcludeFilter(field ->
                         field.endsWith("status.current_position"))
                 .test();
@@ -73,10 +74,7 @@ public class GetRollupJobResponseTests extends ESTestCase {
         while (currentPosition.size() < positions) {
             currentPosition.put(randomAlphaOfLength(2), randomAlphaOfLength(2));
         }
-        return new RollupJobStatus(
-            randomFrom(IndexerState.values()),
-            currentPosition,
-            randomBoolean());
+        return new RollupJobStatus(randomFrom(IndexerState.values()), currentPosition);
     }
 
     private void toXContent(GetRollupJobResponse response, XContentBuilder builder) throws IOException {
@@ -107,22 +105,21 @@ public class GetRollupJobResponseTests extends ESTestCase {
         if (status.getCurrentPosition() != null) {
             builder.field(GetRollupJobResponse.CURRENT_POSITION.getPreferredName(), status.getCurrentPosition());
         }
-        builder.field(GetRollupJobResponse.UPGRADED_DOC_ID.getPreferredName(), status.getUpgradedDocumentId());
         builder.endObject();
     }
 
     public void toXContent(RollupIndexerJobStats stats, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field(GetRollupJobResponse.NUM_PAGES.getPreferredName(), stats.getNumPages());
-        builder.field(GetRollupJobResponse.NUM_INPUT_DOCUMENTS.getPreferredName(), stats.getNumDocuments());
-        builder.field(GetRollupJobResponse.NUM_OUTPUT_DOCUMENTS.getPreferredName(), stats.getOutputDocuments());
-        builder.field(GetRollupJobResponse.NUM_INVOCATIONS.getPreferredName(), stats.getNumInvocations());
-        builder.field(GetRollupJobResponse.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
-        builder.field(GetRollupJobResponse.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
-        builder.field(GetRollupJobResponse.INDEX_FAILURES.getPreferredName(), stats.getIndexFailures());
-        builder.field(GetRollupJobResponse.SEARCH_TIME_IN_MS.getPreferredName(), stats.getSearchTime());
-        builder.field(GetRollupJobResponse.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
-        builder.field(GetRollupJobResponse.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
+        builder.field(IndexerJobStats.NUM_PAGES.getPreferredName(), stats.getNumPages());
+        builder.field(IndexerJobStats.NUM_INPUT_DOCUMENTS.getPreferredName(), stats.getNumDocuments());
+        builder.field(GetRollupJobResponse.ROLLUPS_INDEXED.getPreferredName(), stats.getOutputDocuments());
+        builder.field(IndexerJobStats.NUM_INVOCATIONS.getPreferredName(), stats.getNumInvocations());
+        builder.field(IndexerJobStats.INDEX_TIME_IN_MS.getPreferredName(), stats.getIndexTime());
+        builder.field(IndexerJobStats.INDEX_TOTAL.getPreferredName(), stats.getIndexTotal());
+        builder.field(IndexerJobStats.INDEX_FAILURES.getPreferredName(), stats.getIndexFailures());
+        builder.field(IndexerJobStats.SEARCH_TIME_IN_MS.getPreferredName(), stats.getSearchTime());
+        builder.field(IndexerJobStats.SEARCH_TOTAL.getPreferredName(), stats.getSearchTotal());
+        builder.field(IndexerJobStats.SEARCH_FAILURES.getPreferredName(), stats.getSearchFailures());
         builder.endObject();
     }
 

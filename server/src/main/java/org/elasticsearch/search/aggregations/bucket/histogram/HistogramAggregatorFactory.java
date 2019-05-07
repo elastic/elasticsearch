@@ -69,7 +69,7 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             return createAggregator((ValuesSource.Numeric) valuesSource, parent, pipelineAggregators, metaData);
         }
         else if (valuesSource instanceof ValuesSource.Bytes.FieldData.RangeFieldData) {
-            return createAggregator((ValuesSource.Bytes) valuesSource, parent, pipelineAggregators, metaData);
+            return createAggregator((ValuesSource.Bytes.FieldData.RangeFieldData) valuesSource, parent, pipelineAggregators, metaData);
         }
         else {
             throw new IllegalArgumentException("Expected one of [Numeric, RangeFieldData] values source, found ["
@@ -80,12 +80,12 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
 
-        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, valuesSource,
-                config.format(), context, parent, pipelineAggregators, metaData);
+        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+                                              valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
     }
 
-    private Aggregator createAggregator(ValuesSource.Bytes valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-                                        Map<String, Object> metaData) throws IOException {
+    private Aggregator createAggregator(ValuesSource.Bytes.FieldData.RangeFieldData valuesSource, Aggregator parent,
+                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, valuesSource,
             config.format(), context, parent, pipelineAggregators, metaData);

@@ -44,6 +44,14 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.dataframe.DataFrameFeatureSetUsage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
+import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsAction;
+import org.elasticsearch.xpack.core.dataframe.action.GetDataFrameTransformsStatsAction;
+import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.PutDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformAction;
+import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
+import org.elasticsearch.xpack.core.dataframe.action.StopDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
@@ -57,9 +65,9 @@ import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleFeatureSetUsage
 import org.elasticsearch.xpack.core.indexlifecycle.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
 import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ReadOnlyAction;
 import org.elasticsearch.xpack.core.indexlifecycle.RolloverAction;
+import org.elasticsearch.xpack.core.indexlifecycle.SetPriorityAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ShrinkAction;
 import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.indexlifecycle.UnfollowAction;
@@ -363,7 +371,16 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 RemoveIndexLifecyclePolicyAction.INSTANCE,
                 MoveToStepAction.INSTANCE,
                 RetryAction.INSTANCE,
-                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE
+                TransportFreezeIndexAction.FreezeIndexAction.INSTANCE,
+                // Data Frame
+                PutDataFrameTransformAction.INSTANCE,
+                StartDataFrameTransformAction.INSTANCE,
+                StartDataFrameTransformTaskAction.INSTANCE,
+                StopDataFrameTransformAction.INSTANCE,
+                DeleteDataFrameTransformAction.INSTANCE,
+                GetDataFrameTransformsAction.INSTANCE,
+                GetDataFrameTransformsStatsAction.INSTANCE,
+                PreviewDataFrameTransformAction.INSTANCE
         );
     }
 

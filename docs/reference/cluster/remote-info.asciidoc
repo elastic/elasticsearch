@@ -33,4 +33,4 @@ the configured remote cluster alias.
 
 `skip_unavailable`::
     Whether the remote cluster is skipped in case it is searched through
-    a cross cluster search request but none of its nodes are available.
+    a {ccs} request but none of its nodes are available.

@@ -179,7 +179,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         return new MovFnPipelineAggregator(name, bucketsPathString, script, window, formatter(), gapPolicy, metaData);
     }
 

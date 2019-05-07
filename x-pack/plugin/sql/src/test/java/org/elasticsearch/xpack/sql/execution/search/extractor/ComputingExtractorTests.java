@@ -29,6 +29,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class ComputingExtractorTests extends AbstractWireSerializingTestCase<ComputingExtractor> {
     public static ComputingExtractor randomComputingExtractor() {
@@ -70,7 +71,7 @@ public class ComputingExtractorTests extends AbstractWireSerializingTestCase<Com
     public void testGet() {
         String fieldName = randomAlphaOfLength(5);
         ChainingProcessor extractor = new ChainingProcessor(
-            new HitExtractorProcessor(new FieldHitExtractor(fieldName, null, true)),
+            new HitExtractorProcessor(new FieldHitExtractor(fieldName, null, UTC, true, false)),
             new MathProcessor(MathOperation.LOG));
 
         int times = between(1, 1000);

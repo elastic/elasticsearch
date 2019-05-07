@@ -78,6 +78,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -358,7 +359,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     // We need to recover the replica async to release the main thread for the following task to fill missing
                     // operations between the local checkpoint and max_seq_no which the recovering replica is waiting for.
                     recoveryFuture = group.asyncRecoverReplica(newReplica,
-                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, recoveryListener, l -> {}) {});
+                        (shard, sourceNode) -> new RecoveryTarget(shard, sourceNode, recoveryListener) {});
                 }
             }
             if (recoveryFuture != null) {
@@ -618,7 +619,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
         for (IndexShard followingShard : follower) {
             if (assertMaxSeqNoOfUpdatesOrDeletes) {
-                assertThat(followingShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
+                assertThat(followingShard.getMaxSeqNoOfUpdatesOrDeletes(),
+                    greaterThanOrEqualTo(leader.getPrimary().getMaxSeqNoOfUpdatesOrDeletes()));
             }
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
                 .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
@@ -641,20 +643,22 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardOperationsRequest request) throws Exception {
-            final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
-            final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
-            try (Releasable ignored = permitFuture.get()) {
-                ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
-                    request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
-            }
-            return new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful) {
-                @Override
-                public void respond(ActionListener<BulkShardOperationsResponse> listener) {
-                    ccrResult.respond(listener);
+        protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
+            ActionListener.completeWith(listener, () -> {
+                final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
+                primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
+                final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
+                try (Releasable ignored = permitFuture.get()) {
+                    ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
+                        request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
                 }
-            };
+                return new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful) {
+                    @Override
+                    public void respond(ActionListener<BulkShardOperationsResponse> listener) {
+                        ccrResult.respond(listener);
+                    }
+                };
+            });
         }
 
         @Override

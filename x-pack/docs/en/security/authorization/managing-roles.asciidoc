@@ -186,7 +186,7 @@ see <<custom-roles-authorization, Customizing Roles and Authorization>>.
 === Role management UI
 
 You can manage users and roles easily in {kib}. To
-manage roles, log in to {kib} and go to *Management / Elasticsearch / Roles*. 
+manage roles, log in to {kib} and go to *Management / Security / Roles*. 
 
 [float]
 [[roles-management-api]]

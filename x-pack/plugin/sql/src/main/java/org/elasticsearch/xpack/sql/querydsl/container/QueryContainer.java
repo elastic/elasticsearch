@@ -287,16 +287,12 @@ public class QueryContainer {
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
-        // Find the nested query for this field. If there isn't one then create it
-        List<FieldExtraction> nestedRefs = new ArrayList<>();
-
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
                 attr.nestedParent().name(), name, attr.field().getDataType().format(), attr.field().isAggregatable());
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(),
                 attr.field().isAggregatable(), attr.parent().name());
-        nestedRefs.add(nestedFieldRef);
 
         return new Tuple<>(new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits),
                 nestedFieldRef);

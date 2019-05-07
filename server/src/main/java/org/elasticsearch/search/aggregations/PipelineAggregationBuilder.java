@@ -24,7 +24,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
@@ -76,7 +75,7 @@ public abstract class PipelineAggregationBuilder implements NamedWriteable, Base
      *
      * @return The created aggregator
      */
-    protected abstract PipelineAggregator create() throws IOException;
+    protected abstract PipelineAggregator create();
 
     /** Associate metadata with this {@link PipelineAggregationBuilder}. */
     @Override

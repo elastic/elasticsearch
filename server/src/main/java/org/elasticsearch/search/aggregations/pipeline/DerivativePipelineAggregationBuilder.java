@@ -129,7 +129,7 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         DocValueFormat formatter;
         if (format != null) {
             formatter = new DocValueFormat.Decimal(format);

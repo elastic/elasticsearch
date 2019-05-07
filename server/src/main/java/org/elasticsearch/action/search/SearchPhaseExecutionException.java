@@ -140,9 +140,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         builder.startArray();
         ShardOperationFailedException[] failures = ExceptionsHelper.groupBy(shardFailures);
         for (ShardOperationFailedException failure : failures) {
-            builder.startObject();
             failure.toXContent(builder, params);
-            builder.endObject();
         }
         builder.endArray();
     }

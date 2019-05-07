@@ -13,10 +13,6 @@
   - match: { acknowledged: true }
 
   - do:
-      cluster.state:
-        metric: [ master_node ]
-
-  - do:
       cluster.allocation_explain:
         body: { "index": "test", "shard": 0, "primary": true }
 
@@ -38,10 +34,6 @@
         body: { "settings": { "index.number_of_shards": 1, "index.number_of_replicas": 9 } }
 
   - do:
-      cluster.state:
-        metric: [ master_node ]
-
-  - do:
       cluster.allocation_explain:
         include_disk_info: true
 
@@ -58,8 +50,8 @@
 ---
 "Cluster shard allocation explanation test with a closed index":
   - skip:
-      version: " - 7.0.99"
-      reason: closed indices are replicated starting version 7.1.0
+      version: " - 7.1.99"
+      reason: closed indices are replicated starting version 7.2.0
 
   - do:
       indices.create:

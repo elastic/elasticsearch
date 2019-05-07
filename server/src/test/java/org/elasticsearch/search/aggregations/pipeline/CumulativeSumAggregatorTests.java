@@ -85,7 +85,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
-        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
         aggBuilder.subAggregation(new AvgAggregationBuilder("the_avg").field(VALUE_FIELD));
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_avg"));
 
@@ -108,7 +108,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
-        aggBuilder.dateHistogramInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
+        aggBuilder.calendarInterval(DateHistogramInterval.DAY).field(HISTO_FIELD);
         aggBuilder.subAggregation(new AvgAggregationBuilder("the_avg").field(VALUE_FIELD));
         aggBuilder.subAggregation(new DerivativePipelineAggregationBuilder("the_deriv", "the_avg"));
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_deriv"));
@@ -149,6 +149,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
                 sum += 1.0;
             }
         });
+        assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
     public void testDocCount() throws IOException {

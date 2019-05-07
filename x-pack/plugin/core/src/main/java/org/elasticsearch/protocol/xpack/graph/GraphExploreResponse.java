@@ -168,9 +168,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContentOb
         builder.startArray(FAILURES.getPreferredName());
         if (shardFailures != null) {
             for (ShardOperationFailedException shardFailure : shardFailures) {
-                builder.startObject();
                 shardFailure.toXContent(builder, params);
-                builder.endObject();
             }
         }
         builder.endArray();

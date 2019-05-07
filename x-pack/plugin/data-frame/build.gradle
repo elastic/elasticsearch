@@ -8,18 +8,11 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-compileJava.options.compilerArgs << "-Xlint:-rawtypes"
-compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
-
 dependencies {
     compileOnly "org.elasticsearch:elasticsearch:${version}"
 
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
-
-run {
-    plugin xpackModule('core')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

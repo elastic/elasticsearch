@@ -12,19 +12,25 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
 public abstract class AbstractSerializingDataFrameTestCase<T extends ToXContent & Writeable>
         extends AbstractSerializingTestCase<T> {
+
+    protected static Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
+            Collections.singletonMap(DataFrameField.FOR_INTERNAL_STORAGE, "true"));
 
     /**
      * Test case that ensures aggregation named objects are registered

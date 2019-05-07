@@ -27,6 +27,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,8 +67,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_INDEX_FORMAT;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -129,7 +130,7 @@ public class SecurityTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
-        return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class));
+        return security.createComponents(client, threadPool, clusterService, mock(ResourceWatcherService.class), mock(ScriptService.class));
     }
 
     private static <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -270,19 +271,6 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    public void testJoinValidatorForLicenseDeserialization() throws Exception {
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
-            VersionUtils.randomVersionBetween(random(), null, Version.V_6_3_0));
-        MetaData.Builder builder = MetaData.builder();
-        License license = TestUtils.generateSignedLicense(null,
-            randomIntBetween(License.VERSION_CRYPTO_ALGORITHMS, License.VERSION_CURRENT), -1, TimeValue.timeValueHours(24));
-        TestUtils.putLicense(builder, license);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> new Security.ValidateLicenseCanBeDeserialized().accept(node, state));
-        assertThat(e.getMessage(), containsString("cannot deserialize the license format"));
-    }
-
     public void testJoinValidatorForFIPSLicense() throws Exception {
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(),
             VersionUtils.randomVersionBetween(random(), null, Version.CURRENT));
@@ -308,8 +296,8 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME)
-            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT - 1))
+        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
+            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT - 1))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_6_1_0);
@@ -328,8 +316,8 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        int indexFormat = randomBoolean() ? INTERNAL_INDEX_FORMAT : INTERNAL_INDEX_FORMAT - 1;
-        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME)
+        int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
+        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
@@ -347,8 +335,8 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(joinValidator);
         Version version = randomBoolean() ? Version.CURRENT : Version.V_6_1_0;
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME)
-            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_INDEX_FORMAT))
+        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
+            .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);

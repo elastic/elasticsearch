@@ -43,10 +43,12 @@ import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.ByteBufferIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
@@ -823,10 +825,7 @@ public class StoreTests extends ESTestCase {
         Map<String, StoreFileMetaData> storeFileMetaDataMap = new HashMap<>();
         storeFileMetaDataMap.put(storeFileMetaData1.name(), storeFileMetaData1);
         storeFileMetaDataMap.put(storeFileMetaData2.name(), storeFileMetaData2);
-        Map<String, String> commitUserData = new HashMap<>();
-        commitUserData.put("userdata_1", "test");
-        commitUserData.put("userdata_2", "test");
-        return new Store.MetadataSnapshot(unmodifiableMap(storeFileMetaDataMap), unmodifiableMap(commitUserData), 0);
+        return new Store.MetadataSnapshot(unmodifiableMap(storeFileMetaDataMap), Map.of("userdata_1", "test", "userdata_2", "test"), 0);
     }
 
     public void testUserDataRead() throws IOException {
@@ -1120,6 +1119,18 @@ public class StoreTests extends ESTestCase {
                 assertTrue(input instanceof ByteBufferIndexInput);
                 assertTrue(input.clone() instanceof ByteBufferIndexInput);
                 assertTrue(input.slice("foo", 1, 1) instanceof ByteBufferIndexInput);
+            }
+        }
+    }
+
+    public void testGetPendingFiles() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final String testfile = "testfile";
+        try (Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId))) {
+            store.directory().createOutput(testfile, IOContext.DEFAULT).close();
+            try (IndexInput input = store.directory().openInput(testfile, IOContext.DEFAULT)) {
+                store.directory().deleteFile(testfile);
+                assertEquals(FilterDirectory.unwrap(store.directory()).getPendingDeletions(), store.directory().getPendingDeletions());
             }
         }
     }

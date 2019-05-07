@@ -29,11 +29,6 @@ abstract class AbstractRecycler<T> implements Recycler<T> {
     }
 
     @Override
-    public V<T> obtain() {
-        return obtain(-1);
-    }
-
-    @Override
     public void close() {
         // no-op by default
     }

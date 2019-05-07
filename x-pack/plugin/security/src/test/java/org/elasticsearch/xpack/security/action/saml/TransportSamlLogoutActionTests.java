@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -202,8 +203,10 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
 
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, securityIndex, clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
@@ -239,7 +242,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
                 new SamlNameId(NameID.TRANSIENT, nameId, null, null, null), session);
 
         final PlainActionFuture<Tuple<UserToken, String>> future = new PlainActionFuture<>();
-        tokenService.createUserToken(authentication, authentication, future, tokenMetaData, true);
+        tokenService.createOAuth2Tokens(authentication, authentication, tokenMetaData, true, future);
         final UserToken userToken = future.actionGet().v1();
         mockGetTokenFromId(userToken, false, client);
         final String tokenString = tokenService.getAccessTokenAsString(userToken);

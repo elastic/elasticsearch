@@ -1,0 +1,67 @@
+[role="xpack"]
+[testenv="basic"]
+[[stop-data-frame-transform]]
+=== Stop {dataframe-transforms} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Stop {dataframe-transforms}</titleabbrev>
+++++
+
+Stops one or more {dataframe-transforms}.
+
+==== Request
+
+`POST _data_frame/transforms/<data_frame_transform_id>/_stop` +
+
+`POST _data_frame/transforms/<data_frame_transform_id1>,<data_frame_transform_id2>/_stop` +
+
+`POST _data_frame/transforms/_all/_stop`
+
+
+==== Description
+You can stop multiple {dataframe-transforms} in a single API request by using a
+comma-separated list of {dataframe-transforms} or a wildcard expression.
+All {dataframe-transforms} can be stopped by using `_all` or `*` as the `<data_frame_transform_id>`.
+
+==== Path Parameters
+
+`data_frame_transform_id` (required)::
+  (string) Identifier for the {dataframe-transform}. This identifier can contain
+  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
+  must start and end with alphanumeric characters.
+
+==== Query Parameters
+
+`wait_for_completion`::
+  (boolean) If set to true, causes the API to block until the indexer state completely stops. If set to false, the API returns immediately and the indexer will be stopped asynchronously in the background. Defaults to `false`.
+
+ `timeout`::
+   (time value) If `wait_for_completion=true`, the API blocks for (at maximum)
+   the specified duration while waiting for the job to stop. If more than
+   `timeout` time has passed, the API throws a timeout exception. Even if a
+   timeout exception is thrown, the stop request is still processing and
+   eventually moves the job to `STOPPED`. The timeout simply means the API call itself timed out while waiting for the status change. Defaults to `30s`
+    
+//==== Request Body
+//==== Authorization
+
+==== Examples
+
+The following example stops the `ecommerce_transform` {dataframe-transform}:
+
+[source,js]
+--------------------------------------------------
+POST _data_frame/transforms/ecommerce_transform/_stop
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:set up kibana samples]
+
+When the {dataframe-transform} stops, you receive the following results:
+[source,js]
+----
+{
+  "stopped" : true
+}
+----
+// TESTRESPONSE

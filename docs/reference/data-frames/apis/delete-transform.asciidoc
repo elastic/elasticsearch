@@ -1,0 +1,45 @@
+[role="xpack"]
+[testenv="basic"]
+[[delete-data-frame-transform]]
+=== Delete {dataframe-transforms} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Delete {dataframe-transforms}</titleabbrev>
+++++
+
+Deletes an existing {dataframe-transform}.
+
+
+==== Request
+
+`DELETE _data_frame/transforms/<data_frame_transform_id>`
+
+//==== Description
+
+==== Path Parameters
+
+`data_frame_transform_id` (required)::
+  (string) Identifier for the {dataframe-transform}.
+
+//===== Authorization
+
+==== Examples
+
+The following example deletes the `ecommerce_transform` {dataframe-transform}:
+
+[source,js]
+--------------------------------------------------
+DELETE _data_frame/transforms/ecommerce_transform
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:setup kibana sample data]
+
+When the {dataframe-transform} is deleted, you receive the following results:
+[source,js]
+----
+{
+  "acknowledged" : true
+}
+----
+// TESTRESPONSE

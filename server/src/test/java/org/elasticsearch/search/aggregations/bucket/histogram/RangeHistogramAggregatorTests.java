@@ -29,6 +29,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
+import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -37,7 +38,7 @@ import java.util.Collections;
 public class RangeHistogramAggregatorTests extends AggregatorTestCase {
         public void testDoubleRanges() throws Exception {
 
-        RangeFieldMapper.RangeType rangeType = RangeFieldMapper.RangeType.DOUBLE;
+        RangeType rangeType = RangeType.DOUBLE;
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();

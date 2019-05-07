@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -450,7 +451,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         }
 
         logger.trace("connecting to nodes of cluster state with version {}", newClusterState.version());
-        nodeConnectionsService.connectToNodes(newClusterState.nodes());
+        connectToNodesAndWait(newClusterState);
 
         // nothing to do until we actually recover from the gateway or any other block indicates we need to disable persistency
         if (clusterChangedEvent.state().blocks().disableStatePersistence() == false && clusterChangedEvent.metaDataChanged()) {
@@ -468,6 +469,18 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         state.set(newClusterState);
 
         callClusterStateListeners(clusterChangedEvent);
+    }
+
+    protected void connectToNodesAndWait(ClusterState newClusterState) {
+        // can't wait for an ActionFuture on the cluster applier thread, but we do want to block the thread here, so use a CountDownLatch.
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        nodeConnectionsService.connectToNodes(newClusterState.nodes(), countDownLatch::countDown);
+        try {
+            countDownLatch.await();
+        } catch (InterruptedException e) {
+            logger.debug("interrupted while connecting to nodes, continuing", e);
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void callClusterStateAppliers(ClusterChangedEvent clusterChangedEvent) {

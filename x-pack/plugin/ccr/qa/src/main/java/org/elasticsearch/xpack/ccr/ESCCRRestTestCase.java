@@ -120,13 +120,13 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         Map<String, ?> response = toMap(client.performRequest(request));
 
         int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
-        assertThat(numDocs, equalTo(expectedNumDocs));
+        assertThat(index, numDocs, equalTo(expectedNumDocs));
 
         List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", response);
         assertThat(hits.size(), equalTo(expectedNumDocs));
         for (int i = 0; i < expectedNumDocs; i++) {
             int value = (int) XContentMapValues.extractValue("_source.field", (Map<?, ?>) hits.get(i));
-            assertThat(i, equalTo(value));
+            assertThat(index, i, equalTo(value));
         }
     }
 
@@ -205,15 +205,19 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 
-    protected static void ensureYellow(String index) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + index);
+    protected static void ensureYellow(final String index) throws IOException {
+        ensureYellow(index, adminClient());
+    }
+
+    protected static void ensureYellow(final String index, final RestClient client) throws IOException {
+        final Request request = new Request("GET", "/_cluster/health/" + index);
         request.addParameter("wait_for_status", "yellow");
         request.addParameter("wait_for_active_shards", "1");
         request.addParameter("wait_for_no_relocating_shards", "true");
         request.addParameter("wait_for_no_initializing_shards", "true");
-        request.addParameter("timeout", "70s");
+        request.addParameter("timeout", "5s");
         request.addParameter("level", "shards");
-        adminClient().performRequest(request);
+        client.performRequest(request);
     }
 
     protected int countCcrNodeTasks() throws IOException {

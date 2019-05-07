@@ -99,7 +99,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             "buildscript {\n" +
                 "    repositories {\n" +
                 "        maven {\n" +
-                "            name = \"local-test\"\n" +
+                "            name = \"test\"\n" +
                 "            url = '" + getLocalTestRepoPath() + "'\n" +
                 "        }\n" +
                 "    }\n" +
@@ -125,7 +125,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         writeBuildScript("\n" +
                 "repositories {\n" +
                 "  maven {\n" +
-                "    name \"local-test\"\n" +
+                "    name \"test\"\n" +
                 "    url \"" + getLocalTestRepoPath()  + "\"\n" +
                 "  }\n" +
                 "  flatDir {\n" +

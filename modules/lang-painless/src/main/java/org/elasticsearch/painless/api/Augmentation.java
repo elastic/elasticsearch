@@ -516,7 +516,7 @@ public class Augmentation {
      */
     public static String[] splitOnToken(String receiver, String token, int limit) {
         // Check if it's even possible to perform a split
-        if (receiver == null || token == null || receiver.length() < token.length()) {
+        if (receiver == null || receiver.length() == 0 || token == null || token.length() == 0 || receiver.length() < token.length()) {
             return new String[] { receiver };
         }
 

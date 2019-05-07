@@ -22,16 +22,11 @@ package org.elasticsearch.env;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;

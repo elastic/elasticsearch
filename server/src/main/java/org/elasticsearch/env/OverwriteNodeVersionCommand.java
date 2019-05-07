@@ -19,7 +19,6 @@
 package org.elasticsearch.env;
 
 import joptsimple.OptionParser;
-import joptsimple.OptionSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -34,7 +33,7 @@ import java.util.Arrays;
 public class OverwriteNodeVersionCommand extends ElasticsearchNodeCommand {
     private static final Logger logger = LogManager.getLogger(OverwriteNodeVersionCommand.class);
 
-    static final String TOO_NEW_MESSAGE =
+    private static final String TOO_NEW_MESSAGE =
         DELIMITER +
             "\n" +
             "This data path was last written by Elasticsearch version [V_NEW] and may no\n" +
@@ -49,7 +48,7 @@ public class OverwriteNodeVersionCommand extends ElasticsearchNodeCommand {
             "\n" +
             "Do you want to proceed?\n";
 
-    static final String TOO_OLD_MESSAGE =
+    private static final String TOO_OLD_MESSAGE =
         DELIMITER +
             "\n" +
             "This data path was last written by Elasticsearch version [V_OLD] which may be\n" +

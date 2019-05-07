@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.core.IndexerState;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
@@ -217,8 +218,7 @@ public class DataFrameTransformIT extends ESRestHighLevelClientTestCase {
         assertThat(getResponse.getTransformConfigurations(), hasSize(2));
         assertEquals(transform, getResponse.getTransformConfigurations().get(1));
 
-        getRequest.setFrom(0);
-        getRequest.setSize(1);
+        getRequest.setPageParams(new PageParams(0,1));
         getResponse = execute(getRequest, client::getDataFrameTransform,
                 client::getDataFrameTransformAsync);
         assertNull(getResponse.getInvalidTransforms());

@@ -343,6 +343,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (e != null) {
             throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
         }
+        assert failedBlobs.isEmpty();
     }
 
     private static String buildKey(String keyPath, String s) {

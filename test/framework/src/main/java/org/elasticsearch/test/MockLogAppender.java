@@ -159,7 +159,7 @@ public class MockLogAppender extends AbstractAppender {
 
     }
 
-    public static class PatternSeenEventExcpectation implements LoggingExpectation {
+    public static class PatternSeenEventExpectation implements LoggingExpectation {
 
         protected final String name;
         protected final String logger;
@@ -167,7 +167,7 @@ public class MockLogAppender extends AbstractAppender {
         protected final String pattern;
         volatile boolean saw;
 
-        public PatternSeenEventExcpectation(String name, String logger, Level level, String pattern) {
+        public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
             this.logger = logger;
             this.level = level;

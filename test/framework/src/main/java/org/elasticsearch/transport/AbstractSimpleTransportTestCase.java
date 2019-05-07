@@ -1053,19 +1053,19 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             final String requestSent = ".*\\[internal:test].*sent to.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation requestSentExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "sent request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestSent);
             final String requestReceived = ".*\\[internal:test].*received request.*";
             final MockLogAppender.LoggingExpectation requestReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "received request", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, requestReceived);
             final String responseSent = ".*\\[internal:test].*sent response.*";
             final MockLogAppender.LoggingExpectation responseSentExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "sent response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseSent);
             final String responseReceived = ".*\\[internal:test].*received response from.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation responseReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "received response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, responseReceived);
 
             appender.addExpectation(requestSentExpectation);
@@ -1080,12 +1080,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             final String errorResponseSent = ".*\\[internal:testError].*sent error response.*";
             final MockLogAppender.LoggingExpectation errorResponseSentExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "sent error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseSent);
 
             final String errorResponseReceived = ".*\\[internal:testError].*received response from.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation errorResponseReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "received error response", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, errorResponseReceived);
 
             appender.addExpectation(errorResponseSentExpectation);
@@ -1101,7 +1101,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     "not seen request sent", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenSent);
             final String notSeenReceived = ".*\\[internal:testNotSeen].*received request.*";
             final MockLogAppender.LoggingExpectation notSeenReceivedExpectation =
-                new MockLogAppender.PatternSeenEventExcpectation(
+                new MockLogAppender.PatternSeenEventExpectation(
                     "not seen request received", "org.elasticsearch.transport.TransportService.tracer", Level.TRACE, notSeenReceived);
 
             appender.addExpectation(notSeenSentExpectation);

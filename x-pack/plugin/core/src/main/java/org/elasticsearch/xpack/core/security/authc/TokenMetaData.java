@@ -93,7 +93,7 @@ public final class TokenMetaData extends AbstractNamedDiffable<ClusterState.Cust
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_0_0;
+        return Version.CURRENT.minimumIndexCompatibilityVersion();
     }
 
     @Override

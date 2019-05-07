@@ -233,7 +233,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, true, false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
-        when(mockNodeInfo.getVersion()).thenReturn(Version.V_7_0_0);
+        when(mockNodeInfo.getVersion()).thenReturn(Version.CURRENT.minimumIndexCompatibilityVersion());
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
         final TransportInfo mockTransportInfo = mock(TransportInfo.class);

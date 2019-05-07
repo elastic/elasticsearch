@@ -19,14 +19,25 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
+import java.net.InetSocketAddress;
+import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 /** Unit tests for {@link TcpTransport} */
@@ -34,50 +45,26 @@ public class TcpTransportTests extends ESTestCase {
 
     /** Test ipv4 host with a default port works */
     public void testParseV4DefaultPort() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1", 1234);
         assertEquals(1, addresses.length);
 
         assertEquals("127.0.0.1", addresses[0].getAddress());
         assertEquals(1234, addresses[0].getPort());
-    }
-
-    /** Test ipv4 host with a default port range works */
-    public void testParseV4DefaultRange() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1", "1234-1235", Integer.MAX_VALUE);
-        assertEquals(2, addresses.length);
-
-        assertEquals("127.0.0.1", addresses[0].getAddress());
-        assertEquals(1234, addresses[0].getPort());
-
-        assertEquals("127.0.0.1", addresses[1].getAddress());
-        assertEquals(1235, addresses[1].getPort());
     }
 
     /** Test ipv4 host with port works */
     public void testParseV4WithPort() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1:2345", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1:2345", 1234);
         assertEquals(1, addresses.length);
 
         assertEquals("127.0.0.1", addresses[0].getAddress());
         assertEquals(2345, addresses[0].getPort());
-    }
-
-    /** Test ipv4 host with port range works */
-    public void testParseV4WithPortRange() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("127.0.0.1:2345-2346", "1234", Integer.MAX_VALUE);
-        assertEquals(2, addresses.length);
-
-        assertEquals("127.0.0.1", addresses[0].getAddress());
-        assertEquals(2345, addresses[0].getPort());
-
-        assertEquals("127.0.0.1", addresses[1].getAddress());
-        assertEquals(2346, addresses[1].getPort());
     }
 
     /** Test unbracketed ipv6 hosts in configuration fail. Leave no ambiguity */
     public void testParseV6UnBracketed() throws Exception {
         try {
-            TcpTransport.parse("::1", "1234", Integer.MAX_VALUE);
+            TcpTransport.parse("::1", 1234);
             fail("should have gotten exception");
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains("must be bracketed"));
@@ -86,53 +73,107 @@ public class TcpTransportTests extends ESTestCase {
 
     /** Test ipv6 host with a default port works */
     public void testParseV6DefaultPort() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("[::1]", 1234);
         assertEquals(1, addresses.length);
 
         assertEquals("::1", addresses[0].getAddress());
         assertEquals(1234, addresses[0].getPort());
-    }
-
-    /** Test ipv6 host with a default port range works */
-    public void testParseV6DefaultRange() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]", "1234-1235", Integer.MAX_VALUE);
-        assertEquals(2, addresses.length);
-
-        assertEquals("::1", addresses[0].getAddress());
-        assertEquals(1234, addresses[0].getPort());
-
-        assertEquals("::1", addresses[1].getAddress());
-        assertEquals(1235, addresses[1].getPort());
     }
 
     /** Test ipv6 host with port works */
     public void testParseV6WithPort() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]:2345", "1234", Integer.MAX_VALUE);
+        TransportAddress[] addresses = TcpTransport.parse("[::1]:2345", 1234);
         assertEquals(1, addresses.length);
 
         assertEquals("::1", addresses[0].getAddress());
         assertEquals(2345, addresses[0].getPort());
     }
 
-    /** Test ipv6 host with port range works */
-    public void testParseV6WithPortRange() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]:2345-2346", "1234", Integer.MAX_VALUE);
-        assertEquals(2, addresses.length);
-
-        assertEquals("::1", addresses[0].getAddress());
-        assertEquals(2345, addresses[0].getPort());
-
-        assertEquals("::1", addresses[1].getAddress());
-        assertEquals(2346, addresses[1].getPort());
+    public void testRejectsPortRanges() {
+        expectThrows(
+            NumberFormatException.class,
+            () -> TcpTransport.parse("[::1]:100-200", 1000)
+        );
     }
 
-    /** Test per-address limit */
-    public void testAddressLimit() throws Exception {
-        TransportAddress[] addresses = TcpTransport.parse("[::1]:100-200", "1000", 3);
-        assertEquals(3, addresses.length);
-        assertEquals(100, addresses[0].getPort());
-        assertEquals(101, addresses[1].getPort());
-        assertEquals(102, addresses[2].getPort());
+    public void testDefaultSeedAddressesWithDefaultPort() {
+        testDefaultSeedAddresses(Settings.EMPTY, containsInAnyOrder(
+            "[::1]:9300", "[::1]:9301", "[::1]:9302", "[::1]:9303", "[::1]:9304", "[::1]:9305",
+            "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302", "127.0.0.1:9303", "127.0.0.1:9304", "127.0.0.1:9305"));
+    }
+
+    public void testDefaultSeedAddressesWithNonstandardGlobalPortRange() {
+        testDefaultSeedAddresses(Settings.builder().put(TransportSettings.PORT.getKey(), "9500-9600").build(), containsInAnyOrder(
+            "[::1]:9500", "[::1]:9501", "[::1]:9502", "[::1]:9503", "[::1]:9504", "[::1]:9505",
+            "127.0.0.1:9500", "127.0.0.1:9501", "127.0.0.1:9502", "127.0.0.1:9503", "127.0.0.1:9504", "127.0.0.1:9505"));
+    }
+
+    public void testDefaultSeedAddressesWithSmallGlobalPortRange() {
+        testDefaultSeedAddresses(Settings.builder().put(TransportSettings.PORT.getKey(), "9300-9302").build(), containsInAnyOrder(
+            "[::1]:9300", "[::1]:9301", "[::1]:9302",
+            "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302"));
+    }
+
+    public void testDefaultSeedAddressesWithNonstandardProfilePortRange() {
+        testDefaultSeedAddresses(Settings.builder()
+                .put(TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(), "9500-9600")
+                .build(),
+            containsInAnyOrder(
+                "[::1]:9500", "[::1]:9501", "[::1]:9502", "[::1]:9503", "[::1]:9504", "[::1]:9505",
+                "127.0.0.1:9500", "127.0.0.1:9501", "127.0.0.1:9502", "127.0.0.1:9503", "127.0.0.1:9504", "127.0.0.1:9505"));
+    }
+
+    public void testDefaultSeedAddressesWithSmallProfilePortRange() {
+        testDefaultSeedAddresses(Settings.builder()
+                .put(TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(), "9300-9302")
+                .build(),
+            containsInAnyOrder(
+                "[::1]:9300", "[::1]:9301", "[::1]:9302",
+                "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302"));
+    }
+
+    public void testDefaultSeedAddressesPrefersProfileSettingToGlobalSetting() {
+        testDefaultSeedAddresses(Settings.builder()
+                .put(TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(), "9300-9302")
+                .put(TransportSettings.PORT.getKey(), "9500-9600")
+                .build(),
+            containsInAnyOrder(
+                "[::1]:9300", "[::1]:9301", "[::1]:9302",
+                "127.0.0.1:9300", "127.0.0.1:9301", "127.0.0.1:9302"));
+    }
+
+    public void testDefaultSeedAddressesWithNonstandardSinglePort() {
+        testDefaultSeedAddresses(Settings.builder().put(TransportSettings.PORT.getKey(), "9500").build(),
+            containsInAnyOrder("[::1]:9500", "127.0.0.1:9500"));
+    }
+
+    private void testDefaultSeedAddresses(final Settings settings, Matcher<Iterable<? extends String>> seedAddressesMatcher) {
+        final TestThreadPool testThreadPool = new TestThreadPool("test");
+        try {
+            final TcpTransport tcpTransport = new TcpTransport(settings, Version.CURRENT, testThreadPool,
+                new MockPageCacheRecycler(settings),
+                new NoneCircuitBreakerService(), writableRegistry(), new NetworkService(Collections.emptyList())) {
+
+                @Override
+                protected TcpServerChannel bind(String name, InetSocketAddress address) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                protected TcpChannel initiateChannel(DiscoveryNode node) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                protected void stopInternal() {
+                    throw new UnsupportedOperationException();
+                }
+            };
+
+            assertThat(tcpTransport.getDefaultSeedAddresses(), seedAddressesMatcher);
+        } finally {
+            testThreadPool.shutdown();
+        }
     }
 
     public void testDecodeWithIncompleteHeader() throws IOException {

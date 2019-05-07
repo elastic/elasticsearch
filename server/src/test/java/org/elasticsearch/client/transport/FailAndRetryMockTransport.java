@@ -170,7 +170,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
         throw new UnsupportedOperationException();
     }
 

@@ -86,6 +86,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isCloseConnectionException;
@@ -101,6 +102,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final int BYTES_NEEDED_FOR_MESSAGE_SIZE = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final BytesReference EMPTY_BYTES_REFERENCE = new BytesArray(new byte[0]);
+
+    // this limit is per-address
+    private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
 
     protected final Settings settings;
     protected final ThreadPool threadPool;
@@ -311,14 +315,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public List<String> getLocalAddresses() {
+    public List<String> getDefaultSeedAddresses() {
         List<String> local = new ArrayList<>();
         local.add("127.0.0.1");
         // check if v6 is supported, if so, v4 will also work via mapped addresses.
         if (NetworkUtils.SUPPORTS_V6) {
             local.add("[::1]"); // may get ports appended!
         }
-        return local;
+        return local.stream()
+            .flatMap(
+                address -> Arrays.stream(defaultPortRange())
+                    .limit(LIMIT_LOCAL_PORTS_COUNT)
+                    .mapToObj(port -> address + ":" + port)
+            )
+            .collect(Collectors.toList());
     }
 
     protected void bindServer(ProfileSettings profileSettings) {
@@ -456,8 +466,17 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
-        return parse(address, settings.get("transport.profiles.default.port", TransportSettings.PORT.get(settings)), perAddressLimit);
+    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
+        return parse(address, defaultPortRange()[0]);
+    }
+
+    private int[] defaultPortRange() {
+        return new PortsRange(
+            settings.get(
+                TransportSettings.PORT_PROFILE.getConcreteSettingForNamespace(TransportSettings.DEFAULT_PROFILE).getKey(),
+                TransportSettings.PORT.get(settings)
+            )
+        ).ports();
     }
 
     // this code is a take on guava's HostAndPort, like a HostAndPortRange
@@ -467,9 +486,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
     /**
-     * parse a hostname+port range spec into its equivalent addresses
+     * parse a hostname+port spec into its equivalent addresses
      */
-    static TransportAddress[] parse(String hostPortString, String defaultPortRange, int perAddressLimit) throws UnknownHostException {
+    static TransportAddress[] parse(String hostPortString, int defaultPort) throws UnknownHostException {
         Objects.requireNonNull(hostPortString);
         String host;
         String portString = null;
@@ -498,22 +517,18 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         }
 
+        int port;
         // if port isn't specified, fill with the default
         if (portString == null || portString.isEmpty()) {
-            portString = defaultPortRange;
+            port = defaultPort;
+        } else {
+            port = Integer.parseInt(portString);
         }
 
-        // generate address for each port in the range
-        Set<InetAddress> addresses = new HashSet<>(Arrays.asList(InetAddress.getAllByName(host)));
-        List<TransportAddress> transportAddresses = new ArrayList<>();
-        int[] ports = new PortsRange(portString).ports();
-        int limit = Math.min(ports.length, perAddressLimit);
-        for (int i = 0; i < limit; i++) {
-            for (InetAddress address : addresses) {
-                transportAddresses.add(new TransportAddress(address, ports[i]));
-            }
-        }
-        return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
+        return Arrays.stream(InetAddress.getAllByName(host))
+            .distinct()
+            .map(address -> new TransportAddress(address, port))
+            .toArray(TransportAddress[]::new);
     }
 
     @Override

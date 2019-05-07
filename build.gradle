@@ -88,7 +88,7 @@ subprojects {
       }
       repositories {
         maven {
-          name = 'localTest'
+          name = 'test'
           url = "${rootProject.buildDir}/local-test-repo"
         }
       }

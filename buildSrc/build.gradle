@@ -189,7 +189,7 @@ if (project != rootProject) {
   task integTest(type: Test) {
     // integration test requires the local testing repo for example plugin builds
     dependsOn project.rootProject.allprojects.collect {
-      it.tasks.matching { it.name == 'publishNebulaPublicationToLocalTestRepository'}
+      it.tasks.matching { it.name == 'publishNebulaPublicationToTestRepository'}
     }
     dependsOn setupLocalDownloads
     exclude "**/*Tests.class"

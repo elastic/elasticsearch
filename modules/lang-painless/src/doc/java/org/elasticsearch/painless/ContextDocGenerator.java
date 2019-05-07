@@ -134,15 +134,15 @@ public final class ContextDocGenerator {
 
         for (PainlessContextInfo contextInfo : contextInfos) {
             for (PainlessContextMethodInfo methodInfo : contextInfo.getImportedMethods()) {
-                staticInfoCounts.compute(methodInfo, (k, v) -> v == null ? 1 : v + 1);
+                staticInfoCounts.merge(methodInfo, 1, Integer::sum);
             }
 
             for (PainlessContextClassBindingInfo classBindingInfo : contextInfo.getClassBindings()) {
-                staticInfoCounts.compute(classBindingInfo, (k, v) -> v == null ? 1 : v + 1);
+                staticInfoCounts.merge(classBindingInfo, 1, Integer::sum);
             }
 
             for (PainlessContextInstanceBindingInfo instanceBindingInfo : contextInfo.getInstanceBindings()) {
-                staticInfoCounts.compute(instanceBindingInfo, (k, v) -> v == null ? 1 : v + 1);
+                staticInfoCounts.merge(instanceBindingInfo, 1, Integer::sum);
             }
         }
 
@@ -166,7 +166,7 @@ public final class ContextDocGenerator {
 
         for (PainlessContextInfo contextInfo : contextInfos) {
             for (PainlessContextClassInfo classInfo : contextInfo.getClasses()) {
-                classInfoCounts.compute(classInfo, (k, v) -> v == null ? 1 : v + 1);
+                classInfoCounts.merge(classInfo, 1, Integer::sum);
             }
         }
 

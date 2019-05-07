@@ -24,33 +24,49 @@ import org.gradle.testkit.runner.GradleRunner;
 public class DependencyLicensesTasksIT extends GradleIntegrationTestCase {
 
     public void testNoDependenciesWithNoFolder() {
-        GradleRunner runner = getRunner("no_dependencies_and_no_folder");
+        String project = "no_dependencies_and_no_folder";
+        GradleRunner runner = getRunner(project);
 
-        assertTaskSuccessful(runner.build(), ":no_dependencies_and_no_folder:dependencyLicenses");
+        assertTaskSuccessful(runner.build(), ":" + project + ":dependencyLicenses");
     }
 
     public void testDependenciesOk() {
-        GradleRunner runner = getRunner("dependencies_ok");
+        String project = "dependencies_ok";
+        GradleRunner runner = getRunner(project);
 
-        assertTaskSuccessful(runner.build(), ":dependencies_ok:dependencyLicenses");
+        assertTaskSuccessful(runner.build(), ":" + project + ":dependencyLicenses");
     }
 
     public void testNoDependenciesWithFolder() {
-        GradleRunner runner = getRunner("no_dependencies_with_folder");
+        String project = "no_dependencies_with_folder";
+        GradleRunner runner = getRunner(project);
 
-        assertTaskFailed(runner.buildAndFail(), ":no_dependencies_and_no_folder:dependencyLicenses");
+        String expectedOutcome = "Licenses dir " + getProjectName(runner, project) + "licenses exists, but there are no dependencies";
+        assertOutputContains(runner.buildAndFail().getOutput(), expectedOutcome);
     }
 
-    public void testDependenciesMissing() {
-        GradleRunner runner = getRunner("dependencies_missing");
+    public void testShaMissing() {
+        String project = "sha_missing";
+        GradleRunner runner = getRunner(project);
 
-        assertTaskFailed(runner.buildAndFail(), ":dependencies_missing:dependencyLicenses");
+        String expectedOutcome = "Missing SHA for icu4j-62.1.jar. Run \"gradle updateSHAs\" to create them";
+        assertOutputContains(runner.buildAndFail().getOutput(), expectedOutcome);
+    }
+
+    public void testLicensesMissing() {
+        String project = "license_missing";
+        GradleRunner runner = getRunner(project);
+
+        String expectedOutcome = "Missing LICENSE for icu4j-62.1.jar, expected in icu4j-LICENSE.txt";
+        assertOutputContains(runner.buildAndFail().getOutput(), expectedOutcome);
     }
 
     public void testTooManyDependencies() {
-        GradleRunner runner = getRunner("no_dependencies_with_folder");
+        String project = "dependencies_too_much";
+        GradleRunner runner = getRunner(project);
 
-        assertTaskFailed(runner.buildAndFail(), ":dependencies_too_much:dependencyLicenses");
+        String expectedOutcome = "Unused license super-csv-LICENSE.txt";
+        assertOutputContains(runner.buildAndFail().getOutput(), expectedOutcome);
     }
 
     private GradleRunner getRunner(String subProject) {
@@ -61,4 +77,7 @@ public class DependencyLicensesTasksIT extends GradleIntegrationTestCase {
             .withPluginClasspath();
     }
 
+    private String getProjectName(GradleRunner runner, String subProject) {
+        return runner.getProjectDir().toString() + "/" + subProject + "/";
+    }
 }

@@ -172,7 +172,10 @@ public class MockEventuallyConsistentRepository extends FsRepository {
                         super.writeBlob(blobName, new ByteArrayInputStream(baos.toByteArray()), blobSize, failIfAlreadyExists);
                         if (cachedMisses.contains(blobName)) {
                             // Remove cached missing blob later to simulate inconsistency between list and get calls.
-                            deterministicTaskQueue.scheduleNow(() -> cachedMisses.remove(blobName));
+                            // Just scheduling at the current time since we get randomized future execution from the deterministic
+                            // task queue's jitter anyway.
+                            deterministicTaskQueue.scheduleAt(
+                                deterministicTaskQueue.getCurrentTimeMillis(), () -> cachedMisses.remove(blobName));
                         }
                     } catch (NoSuchFileException | FileAlreadyExistsException e) {
                         // Ignoring, assuming a previous concurrent delete removed the parent path and that overwrites are not

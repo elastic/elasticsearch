@@ -176,6 +176,7 @@ class VagrantTestPlugin implements Plugin<Project> {
           which should work for 5.0.0+. This isn't a real ivy repository but gradle
           is fine with that */
         repos.ivy {
+            name "elasticsearch"
             artifactPattern "https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]"
         }
     }

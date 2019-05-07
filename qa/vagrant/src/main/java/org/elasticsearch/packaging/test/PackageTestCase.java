@@ -26,6 +26,7 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.io.FileMatchers;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
@@ -371,5 +372,15 @@ public abstract class PackageTestCase extends PackagingTestCase {
         assertThat(maxAddressSpace, equalTo("unlimited"));
 
         stopElasticsearch(sh);
+    }
+
+    public void test83PluginBinCleanup() throws Exception {
+        installation = install(distribution());
+        assertInstalled(distribution());
+        // add fake bin directory as if a plugin was installed
+        Files.createDirectories(installation.bin.resolve("myplugin"));
+
+        remove(distribution());
+        assertThat(installation.bin.toFile(), not(FileMatchers.anExistingDirectory()));
     }
 }

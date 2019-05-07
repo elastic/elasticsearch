@@ -55,6 +55,13 @@ if [ "$REMOVE_DIRS" = "true" ]; then
         echo " OK"
     fi
 
+    # plugins may have contained bin files
+    if [ -d /usr/share/elasticsearch/bin]; then
+        echo -n "Deleting plugin bin directories..."
+        rm -rf /usr/share/elasticsearch/bin
+        echo " OK"
+    fi
+
     if [ -d /var/run/elasticsearch ]; then
         echo -n "Deleting PID directory..."
         rm -rf /var/run/elasticsearch

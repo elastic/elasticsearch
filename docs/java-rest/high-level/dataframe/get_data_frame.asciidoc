@@ -29,8 +29,8 @@ The following arguments are optional.
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-options]
 --------------------------------------------------
-<1> Page {dataframe-transform}s starting from this value
-<2> Return at most `size` {dataframe-transform}s
+<1> Page {dataframe-transforms} starting from this value
+
 
 include::../execution.asciidoc[]
 

@@ -4,6 +4,14 @@
 == SQL Limitations
 
 [float]
+[[large-parsing-trees]]
+=== Large queries may throw `ParsingExpection`
+
+Extremely large queries can consume too much memory during the parsing phase, in which case the {es-sql} engine will
+abort parsing and throw an error. In such cases, consider reducing the query to a smaller size by potentially
+simplifying it or splitting it into smaller queries.
+
+[float]
 [[sys-columns-describe-table-nested-fields]]
 === Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
 

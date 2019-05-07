@@ -106,15 +106,6 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 @Override
                 public Settings onNodeStopped(String nodeName) {
                     try {
-                        for (Path dataPath : dataPaths) {
-                            try (Stream<Path> stateFiles = Files.list(dataPath.resolve(MetaDataStateFormat.STATE_DIR_NAME))) {
-                                for (Path path : stateFiles.collect(Collectors.toList())) {
-                                    if (path.getFileName().toString().startsWith(NodeMetaData.FORMAT.getPrefix())) {
-                                        IOUtils.rm(path);
-                                    }
-                                }
-                            }
-                        }
                         onNodeStopped.accept(dataPaths);
                     } catch (Exception e) {
                         throw new AssertionError(e);

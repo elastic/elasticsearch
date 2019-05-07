@@ -56,10 +56,11 @@ public class EnrichPolicyRunner implements Runnable {
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LongSupplier nowSupplier;
+    private final int fetchSize;
 
     EnrichPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener,
                        ClusterService clusterService, Client client, IndexNameExpressionResolver indexNameExpressionResolver,
-                       LongSupplier nowSupplier) {
+                       LongSupplier nowSupplier, int fetchSize) {
         this.policyName = policyName;
         this.policy = policy;
         this.listener = listener;
@@ -67,6 +68,7 @@ public class EnrichPolicyRunner implements Runnable {
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.nowSupplier = nowSupplier;
+        this.fetchSize = fetchSize;
     }
 
     @Override
@@ -181,6 +183,7 @@ public class EnrichPolicyRunner implements Runnable {
         retainFields.add(policy.getEnrichKey());
         retainFields.addAll(policy.getEnrichValues());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.size(fetchSize);
         searchSourceBuilder.fetchSource(retainFields.toArray(new String[0]), new String[0]);
         if (policy.getQuery() != null) {
             searchSourceBuilder.query(QueryBuilders.wrapperQuery(policy.getQuery().getQuery()));

@@ -17,6 +17,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -53,6 +54,9 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 
 public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+
+    static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING =
+        Setting.intSetting("index.xpack.enrich.fetch_size", 10000, 1, 1000000, Setting.Property.NodeScope);
 
     private final Settings settings;
     private final Boolean enabled;
@@ -107,7 +111,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(clusterService, client, threadPool,
+        EnrichPolicyExecutor enrichPolicyExecutor = new EnrichPolicyExecutor(settings, clusterService, client, threadPool,
             new IndexNameExpressionResolver(), System::currentTimeMillis);
         return Collections.singleton(enrichPolicyExecutor);
     }
@@ -121,5 +125,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Collections.singletonList(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(EnrichMetadata.TYPE),
             EnrichMetadata::fromXContent));
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Collections.singletonList(ENRICH_FETCH_SIZE_SETTING);
     }
 }

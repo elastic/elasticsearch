@@ -188,6 +188,10 @@ parsing synonyms, e.g. `asciifolding` will only produce the folded version of th
 token.  Others, e.g. `multiplexer`, `word_delimiter_graph` or `ngram` will throw an
 error.
 
+If you need to build analyzers that include both multi-token filters and synonym
+filters, consider using the <<analysis-multiplexer-tokenfilter,multiplexer>> filter,
+with the multi-token filters in one branch and the synonym filter in the other.
+
 WARNING: The synonym rules should not contain words that are removed by
 a filter that appears after in the chain (a `stop` filter for instance).
 Removing a term from a synonym rule breaks the matching at query time.

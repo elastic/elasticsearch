@@ -178,7 +178,7 @@ public class DateFormatters {
     /**
      * Returns a ISO 8601 compatible date time formatter and parser.
      * This is not fully compatible to the existing spec, which would require far more edge cases, but merely compatible with the
-     * existing joda time ISO data formatter
+     * existing joda time ISO date formatter
      */
     private static final DateFormatter ISO_8601 = new JavaDateFormatter("iso8601", STRICT_DATE_OPTIONAL_TIME_PRINTER,
         new DateTimeFormatterBuilder()

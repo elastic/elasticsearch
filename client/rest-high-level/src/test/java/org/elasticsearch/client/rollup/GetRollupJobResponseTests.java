@@ -44,7 +44,7 @@ public class GetRollupJobResponseTests extends ESTestCase {
                 this::createTestInstance,
                 this::toXContent,
                 GetRollupJobResponse::fromXContent)
-                .supportsUnknownFields(true)
+                .supportsUnknownFields(false)
                 .randomFieldsExcludeFilter(field ->
                         field.endsWith("status.current_position"))
                 .test();
@@ -74,10 +74,7 @@ public class GetRollupJobResponseTests extends ESTestCase {
         while (currentPosition.size() < positions) {
             currentPosition.put(randomAlphaOfLength(2), randomAlphaOfLength(2));
         }
-        return new RollupJobStatus(
-            randomFrom(IndexerState.values()),
-            currentPosition,
-            randomBoolean());
+        return new RollupJobStatus(randomFrom(IndexerState.values()), currentPosition);
     }
 
     private void toXContent(GetRollupJobResponse response, XContentBuilder builder) throws IOException {
@@ -108,7 +105,6 @@ public class GetRollupJobResponseTests extends ESTestCase {
         if (status.getCurrentPosition() != null) {
             builder.field(GetRollupJobResponse.CURRENT_POSITION.getPreferredName(), status.getCurrentPosition());
         }
-        builder.field(GetRollupJobResponse.UPGRADED_DOC_ID.getPreferredName(), status.getUpgradedDocumentId());
         builder.endObject();
     }
 

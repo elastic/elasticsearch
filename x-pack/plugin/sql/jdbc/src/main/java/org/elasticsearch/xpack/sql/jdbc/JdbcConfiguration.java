@@ -162,7 +162,7 @@ class JdbcConfiguration extends ConnectionConfiguration {
     }
 
     @Override
-    protected Collection<? extends String> extraOptions() {
+    protected Collection<String> extraOptions() {
         return OPTION_NAMES;
     }
 
@@ -192,9 +192,8 @@ class JdbcConfiguration extends ConnectionConfiguration {
 
     public DriverPropertyInfo[] driverPropertyInfo() {
         List<DriverPropertyInfo> info = new ArrayList<>();
-        for (String option : OPTION_NAMES) {
-            String value = null;
-            DriverPropertyInfo prop = new DriverPropertyInfo(option, value);
+        for (String option : optionNames()) {
+            DriverPropertyInfo prop = new DriverPropertyInfo(option, null);
             info.add(prop);
         }
 

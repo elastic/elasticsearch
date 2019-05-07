@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps.RollupFieldCaps;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -124,7 +126,7 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
         if (rollupJobGroupConfig.hasDatehistogram() == false) {
             return false;
         }
-        if ("UTC".equalsIgnoreCase(rollupJobGroupConfig.getTimezone()) == false) {
+        if (ZoneId.of(rollupJobGroupConfig.getTimezone()).getRules().equals(ZoneOffset.UTC.getRules()) == false) {
             return false;
         }
         try {
@@ -205,7 +207,16 @@ public class RollupDataExtractorFactory implements DataExtractorFactory {
             if (datehistogramAgg == null) {
                 return null;
             }
-            return (String)datehistogramAgg.get(DateHistogramGroupConfig.INTERVAL);
+            if (datehistogramAgg.get(DateHistogramGroupConfig.INTERVAL) != null) {
+                return (String)datehistogramAgg.get(DateHistogramGroupConfig.INTERVAL);
+            }
+            if (datehistogramAgg.get(DateHistogramGroupConfig.CALENDAR_INTERVAL) != null) {
+                return (String)datehistogramAgg.get(DateHistogramGroupConfig.CALENDAR_INTERVAL);
+            }
+            if (datehistogramAgg.get(DateHistogramGroupConfig.FIXED_INTERVAL) != null) {
+                return (String)datehistogramAgg.get(DateHistogramGroupConfig.FIXED_INTERVAL);
+            }
+            return null;
         }
 
         private String getTimezone() {

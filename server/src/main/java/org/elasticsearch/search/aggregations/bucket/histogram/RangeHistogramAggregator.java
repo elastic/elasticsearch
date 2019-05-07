@@ -20,11 +20,11 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -45,7 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 public class RangeHistogramAggregator extends BucketsAggregator {
-    private final ValuesSource.Bytes valuesSource;
+    private final ValuesSource.Bytes.FieldData.RangeFieldData valuesSource;
     private final DocValueFormat formatter;
     private final double interval, offset;
     private final BucketOrder order;
@@ -57,7 +57,7 @@ public class RangeHistogramAggregator extends BucketsAggregator {
 
     RangeHistogramAggregator(String name, AggregatorFactories factories, double interval, double offset,
                                BucketOrder order, boolean keyed, long minDocCount, double minBound, double maxBound,
-                               @Nullable ValuesSource.Bytes valuesSource, DocValueFormat formatter,
+                               @Nullable ValuesSource.Bytes.FieldData.RangeFieldData valuesSource, DocValueFormat formatter,
                                SearchContext context, Aggregator parent,
                                List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
@@ -84,8 +84,7 @@ public class RangeHistogramAggregator extends BucketsAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        // TODO: For prototyping, just hard code this to work with Double ranges
-        final BinaryDocValuesRangeQuery.LengthType lengthType = BinaryDocValuesRangeQuery.LengthType.FIXED_8;
+        final RangeFieldMapper.RangeType rangeType = valuesSource.rangeType();
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {

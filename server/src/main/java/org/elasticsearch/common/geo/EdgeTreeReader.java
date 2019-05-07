@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import static org.apache.lucene.geo.GeoUtils.lineRelateLine;
+import static org.apache.lucene.geo.GeoUtils.lineCrossesLine;
 
 public class EdgeTreeReader {
     final BytesRef bytesRef;
@@ -111,8 +110,7 @@ public class EdgeTreeReader {
         if (root.maxY >= minY) {
             // is bbox-query contained within linearRing
             // cast infinite ray to the right from bottom-left of bbox-query to see if it intersects edge
-            if (lineRelateLine(root.x1, root.y1, root.x2, root.y2,minX, minY,
-                    Integer.MAX_VALUE, minY) != PointValues.Relation.CELL_OUTSIDE_QUERY) {
+            if (lineCrossesLine(root.x1, root.y1, root.x2, root.y2,minX, minY, Integer.MAX_VALUE, minY)) {
                 res = true;
             }
 
@@ -136,10 +134,10 @@ public class EdgeTreeReader {
         if (root.maxY >= minY) {
 
             // does rectangle's edges intersect or reside inside polygon's edge
-            if (lineRelateLine(root.x1, root.y1, root.x2, root.y2, minX, minY, maxX, minY) != PointValues.Relation.CELL_OUTSIDE_QUERY ||
-                lineRelateLine(root.x1, root.y1, root.x2, root.y2, maxX, minY, maxX, maxY) != PointValues.Relation.CELL_OUTSIDE_QUERY ||
-                lineRelateLine(root.x1, root.y1, root.x2, root.y2, maxX, maxY, minX, maxY) != PointValues.Relation.CELL_OUTSIDE_QUERY ||
-                lineRelateLine(root.x1, root.y1, root.x2, root.y2, minX, maxY, minX, minY) != PointValues.Relation.CELL_OUTSIDE_QUERY) {
+            if (lineCrossesLine(root.x1, root.y1, root.x2, root.y2, minX, minY, maxX, minY) ||
+                lineCrossesLine(root.x1, root.y1, root.x2, root.y2, maxX, minY, maxX, maxY) ||
+                lineCrossesLine(root.x1, root.y1, root.x2, root.y2, maxX, maxY, minX, maxY) ||
+                lineCrossesLine(root.x1, root.y1, root.x2, root.y2, minX, maxY, minX, minY)) {
                 return true;
             }
 

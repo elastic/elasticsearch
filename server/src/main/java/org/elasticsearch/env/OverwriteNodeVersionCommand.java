@@ -101,9 +101,4 @@ public class OverwriteNodeVersionCommand extends ElasticsearchNodeCommand {
     OptionParser getParser() {
         return parser;
     }
-
-    //package-private for testing
-    void testExecute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        execute(terminal, options, env);
-    }
 }

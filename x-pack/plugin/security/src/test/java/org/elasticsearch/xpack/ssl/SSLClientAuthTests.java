@@ -11,6 +11,7 @@ import org.apache.http.ssl.SSLContexts;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
@@ -38,11 +40,14 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.security.cert.CertPathBuilderException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -135,6 +140,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.pem");
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.crt");
         Path nodeCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
+        Path nodeEcCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt");
 
         if (Files.notExists(keyPath) || Files.notExists(certPath)) {
             throw new ElasticsearchException("key or certificate path doesn't exist");
@@ -147,7 +153,8 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
             .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
             .put("xpack.security.transport.ssl.key", keyPath)
             .put("xpack.security.transport.ssl.certificate", certPath)
-            .put("xpack.security.transport.ssl.certificate_authorities", nodeCertPath)
+            .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
+            .putList("xpack.security.transport.ssl.certificate_authorities", nodeCertPath.toString(), nodeEcCertPath.toString())
             .setSecureSettings(secureSettings)
             .put("cluster.name", internalCluster().getClusterName())
             .put(SecurityField.USER_SETTING.getKey(), transportClientUsername() + ":" + new String(transportClientPassword().getChars()))
@@ -165,12 +172,13 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         try {
             String certPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt";
             String nodeCertPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
+            String nodeEcCertPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt";
             String keyPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem";
             TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Arrays.asList(getDataPath
-                (certPath), getDataPath(nodeCertPath))));
+                (certPath), getDataPath(nodeCertPath), getDataPath(nodeEcCertPath))));
             KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
                 (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
-            SSLContext context = SSLContext.getInstance("TLSv1.2");
+            SSLContext context = SSLContext.getInstance(randomFrom("TLSv1.3", "TLSv1.2"));
             context.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
             return context;
         } catch (Exception e) {
@@ -187,5 +195,19 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
             read = is.read(internalBuffer);
         }
         return baos.toByteArray();
+    }
+
+    /**
+     * TLSv1.3 when running in a JDK prior to 11.0.3 has a race condition when multiple simultaneous connections are established. See
+     * JDK-8213202. This issue is not triggered when using client authentication, which we do by default for transport connections.
+     * However if client authentication is turned off and TLSv1.3 is used on the affected JVMs then we will hit this issue.
+     */
+    private static List<String> getProtocols() {
+        JavaVersion full =
+            AccessController.doPrivileged((PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+        if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
+            return List.of("TLSv1.2");
+        }
+        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
     }
 }

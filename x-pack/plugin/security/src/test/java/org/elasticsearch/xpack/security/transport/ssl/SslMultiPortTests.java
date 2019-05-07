@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.ssl;
 
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.TestXPackTransportClient;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
@@ -21,8 +23,11 @@ import org.junit.BeforeClass;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
@@ -114,11 +119,12 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatStandardTransportClientCanConnectToNoClientAuthProfile() throws Exception {
         try(TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
-                .put(transportClientSettings())
-                .put("xpack.security.transport.ssl.enabled", true)
-                .put("node.name", "programmatic_transport_client")
-                .put("cluster.name", internalCluster().getClusterName())
-                .build(), LocalStateSecurity.class)) {
+            .put(transportClientSettings())
+            .put("xpack.security.transport.ssl.enabled", true)
+            .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
+            .put("node.name", "programmatic_transport_client")
+            .put("cluster.name", internalCluster().getClusterName())
+            .build(), LocalStateSecurity.class)) {
             transportClient.addTransportAddress(new TransportAddress(localAddress,
                     getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
@@ -154,7 +160,8 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.pem",
             "testclient-client-profile",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt"));
         try (TransportClient transportClient = createTransportClient(builder.build())) {
             transportClient.addTransportAddress(new TransportAddress(localAddress, getProfilePort("client")));
             assertGreenClusterState(transportClient);
@@ -174,7 +181,8 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.pem",
             "testclient-client-profile",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.crt",
-            Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            List.of("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+        builder.putList("xpack.security.transport.ssl.supported_protocols", getProtocols());
         try (TransportClient transportClient = createTransportClient(builder.build())) {
             transportClient.addTransportAddress(new TransportAddress(localAddress,
                     getProfilePort("no_client_auth")));
@@ -275,6 +283,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
             .build();
         try (TransportClient transportClient = new TestXPackTransportClient(settings,
                                                                             Collections.singletonList(LocalStateSecurity.class))) {
@@ -386,6 +395,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
             .put("cluster.name", internalCluster().getClusterName())
             .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.REQUIRED)
             .put("xpack.security.transport.ssl.enabled", true)
+            .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
             .build();
         try (TransportClient transportClient = new TestXPackTransportClient(settings,
                                                                             Collections.singletonList(LocalStateSecurity.class))) {
@@ -408,5 +418,19 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
         }
         throw new IllegalStateException("failed to find transport address equal to [" + NetworkAddress.format(localAddress) + "] " +
             " in the following bound addresses " + Arrays.toString(transportAddresses));
+    }
+
+    /**
+     * TLSv1.3 when running in a JDK prior to 11.0.3 has a race condition when multiple simultaneous connections are established. See
+     * JDK-8213202. This issue is not triggered when using client authentication, which we do by default for transport connections.
+     * However if client authentication is turned off and TLSv1.3 is used on the affected JVMs then we will hit this issue.
+     */
+    private static List<String> getProtocols() {
+        JavaVersion full =
+            AccessController.doPrivileged((PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+        if (full.compareTo(JavaVersion.parse("11.0.3")) < 0) {
+            return List.of("TLSv1.2");
+        }
+        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
     }
 }

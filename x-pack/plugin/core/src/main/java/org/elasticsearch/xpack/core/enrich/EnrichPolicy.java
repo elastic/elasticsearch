@@ -34,32 +34,30 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     public static final String EXACT_MATCH_TYPE = "exact_match";
     public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
 
-    static final ParseField TYPE = new ParseField("type");
-    static final ParseField QUERY = new ParseField("query");
-    static final ParseField INDICES = new ParseField("indices");
-    static final ParseField ENRICH_KEY = new ParseField("enrich_key");
-    static final ParseField ENRICH_VALUES = new ParseField("enrich_values");
-    static final ParseField SCHEDULE = new ParseField("schedule");
+    private static final ParseField TYPE = new ParseField("type");
+    private static final ParseField QUERY = new ParseField("query");
+    private static final ParseField INDICES = new ParseField("indices");
+    private static final ParseField ENRICH_KEY = new ParseField("enrich_key");
+    private static final ParseField ENRICH_VALUES = new ParseField("enrich_values");
+    private static final ParseField SCHEDULE = new ParseField("schedule");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
-        args -> {
-            return new EnrichPolicy(
-                (String) args[0],
-                (QuerySource) args[1],
-                (List<String>) args[2],
-                (String) args[3],
-                (List<String>) args[4],
-                (String) args[5]
-            );
-        }
+    private static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
+        args -> new EnrichPolicy(
+            (String) args[0],
+            (QuerySource) args[1],
+            (List<String>) args[2],
+            (String) args[3],
+            (List<String>) args[4],
+            (String) args[5]
+        )
     );
 
     static {
         declareParserOptions(PARSER);
     }
 
-    private static void declareParserOptions(ConstructingObjectParser parser) {
+    private static void declareParserOptions(ConstructingObjectParser<?, ?> parser) {
         parser.declareString(ConstructingObjectParser.constructorArg(), TYPE);
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             XContentBuilder contentBuilder = XContentBuilder.builder(p.contentType().xContent());
@@ -240,17 +238,15 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         static final ParseField NAME = new ParseField("name");
         @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<NamedPolicy, Void> PARSER = new ConstructingObjectParser<>("named_policy",
-            args -> {
-                return new NamedPolicy(
-                    (String) args[0],
-                    new EnrichPolicy((String) args[1],
-                        (QuerySource) args[2],
-                        (List<String>) args[3],
-                        (String) args[4],
-                        (List<String>) args[5],
-                        (String) args[6])
-                );
-            }
+            args -> new NamedPolicy(
+                (String) args[0],
+                new EnrichPolicy((String) args[1],
+                    (QuerySource) args[2],
+                    (List<String>) args[3],
+                    (String) args[4],
+                    (List<String>) args[5],
+                    (String) args[6])
+            )
         );
 
         static {

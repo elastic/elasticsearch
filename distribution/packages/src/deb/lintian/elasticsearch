@@ -39,6 +39,7 @@ arch-dependent-file-in-usr-share usr/share/elasticsearch/jdk/*
 unstripped-binary-or-object usr/share/elasticsearch/jdk/*
 extra-license-file usr/share/elasticsearch/jdk/legal/*
 hardening-no-pie usr/share/elasticsearch/jdk/bin/*
+hardening-no-pie usr/share/elasticsearch/jdk/lib/*
 
 # the system java version that lintian assumes is far behind what elasticsearch uses
 unknown-java-class-version

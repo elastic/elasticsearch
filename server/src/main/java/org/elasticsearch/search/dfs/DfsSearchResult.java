@@ -55,7 +55,7 @@ public class DfsSearchResult extends SearchPhaseResult {
             }
         }
         this.termStatistics = readTermStats(in, terms);
-        readFieldStats(in, fieldStatistics);
+        fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
     }
@@ -145,16 +145,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         }
     }
 
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
-        return readFieldStats(in, null);
-    }
-
-    public static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in,
-            ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics) throws IOException {
+    static ObjectObjectHashMap<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
         final int numFieldStatistics = in.readVInt();
-        if (fieldStatistics == null) {
-            fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
-        }
+        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap(numFieldStatistics);
         for (int i = 0; i < numFieldStatistics; i++) {
             final String field = in.readString();
             assert field != null;
@@ -169,7 +162,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         return fieldStatistics;
     }
 
-    public static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {
+    static TermStatistics[] readTermStats(StreamInput in, Term[] terms) throws IOException {
         int termsStatsSize = in.readVInt();
         final TermStatistics[] termStatistics;
         if (termsStatsSize == 0) {

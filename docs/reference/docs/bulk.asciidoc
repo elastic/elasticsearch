@@ -287,4 +287,4 @@ See <<url-access-control>>.
 [float]
 [[bulk-partial-responses]]
 === Partial responses
-To ensure fast responses, the multi search API will respond with partial results if one or more shards fail. See <<shard-failures, Shard failures>> for more information.
+To ensure fast responses, the bulk API will respond with partial results if one or more shards fail. See <<shard-failures, Shard failures>> for more information.

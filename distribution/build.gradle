@@ -237,14 +237,22 @@ String hash = jdkVersionMatcher.group(4)
 repositories {
   // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
   ivy {
+    name "legacy-jdk"
     url "https://download.oracle.com"
+    metadataSources {
+      artifact()
+    }
     patternLayout {
       artifact "java/GA/jdk${jdkMajor}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
     }
   }
   // current pattern since 12.0.1
   ivy {
+    name "jdk"
     url "https://download.oracle.com"
+    metadataSources {
+      artifact()
+    }
     patternLayout {
       artifact "java/GA/jdk${jdkVersion}/${hash}/${jdkBuild}/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"
     }

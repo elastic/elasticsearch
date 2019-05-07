@@ -7,48 +7,20 @@
 package org.elasticsearch.xpack.core.dataframe.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction.Request;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfigTests;
-import org.junit.Before;
 
 import java.io.IOException;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
 
-public class PreviewDataFrameTransformActionRequestTests extends AbstractSerializingTestCase<Request> {
-
-    private NamedWriteableRegistry namedWriteableRegistry;
-    private NamedXContentRegistry namedXContentRegistry;
-
-    @Before
-    public void registerAggregationNamedObjects() {
-        // register aggregations as NamedWriteable
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
-        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return namedWriteableRegistry;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return namedXContentRegistry;
-    }
+public class PreviewDataFrameTransformActionRequestTests extends AbstractSerializingDataFrameTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) throws IOException {
@@ -68,7 +40,8 @@ public class PreviewDataFrameTransformActionRequestTests extends AbstractSeriali
     @Override
     protected Request createTestInstance() {
         DataFrameTransformConfig config = new DataFrameTransformConfig("transform-preview", randomSourceConfig(),
-                new DestConfig("unused-transform-preview-index"), null, PivotConfigTests.randomPivotConfig(), null);
+                new DestConfig("unused-transform-preview-index"),
+                null, PivotConfigTests.randomPivotConfig(), null);
         return new Request(config);
     }
 

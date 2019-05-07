@@ -32,7 +32,6 @@ integTestCluster {
     setting 'xpack.security.authc.realms.native.native.order', '1'
     // OpenID Connect Realm 1 configured for authorization grant flow
     setting 'xpack.security.authc.realms.oidc.c2id.order', '2'
-    setting 'xpack.security.authc.realms.oidc.c2id.op.name', 'c2id-op'
     setting 'xpack.security.authc.realms.oidc.c2id.op.issuer', 'http://localhost:8080'
     setting 'xpack.security.authc.realms.oidc.c2id.op.authorization_endpoint', "http://127.0.0.1:${-> ephemeralPort}/c2id-login"
     setting 'xpack.security.authc.realms.oidc.c2id.op.token_endpoint', "http://127.0.0.1:${-> ephemeralPort}/c2id/token"
@@ -48,7 +47,6 @@ integTestCluster {
     setting 'xpack.security.authc.realms.oidc.c2id.claims.groups', 'groups'
     // OpenID Connect Realm 2 configured for implicit flow
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.order', '3'
-    setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.name', 'c2id-implicit'
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.issuer', 'http://localhost:8080'
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.authorization_endpoint', "http://127.0.0.1:${-> ephemeralPort}/c2id-login"
     setting 'xpack.security.authc.realms.oidc.c2id-implicit.op.token_endpoint', "http://127.0.0.1:${-> ephemeralPort}/c2id/token"

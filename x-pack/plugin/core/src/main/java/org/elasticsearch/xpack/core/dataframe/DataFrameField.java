@@ -27,6 +27,7 @@ public final class DataFrameField {
     public static final ParseField SOURCE = new ParseField("source");
     public static final ParseField DESTINATION = new ParseField("dest");
     public static final ParseField FORCE = new ParseField("force");
+    public static final ParseField SIZE = new ParseField("size");
 
     /**
      * Fields for checkpointing

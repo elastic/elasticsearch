@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
     public static final PutDataFrameTransformAction INSTANCE = new PutDataFrameTransformAction();
@@ -53,7 +55,15 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if(config.getPivotConfig() != null
+                && config.getPivotConfig().getSize() != null
+                && (config.getPivotConfig().getSize() < 10 || config.getPivotConfig().getSize() > 10_000)) {
+               validationException = addValidationError(
+                   "pivot.size [" + config.getPivotConfig().getSize() + "] must be greater than 10 and less than 10,000",
+                   validationException);
+            }
+            return validationException;
         }
 
         @Override

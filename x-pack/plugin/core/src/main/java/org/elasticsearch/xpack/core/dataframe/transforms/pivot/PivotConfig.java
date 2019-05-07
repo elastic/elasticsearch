@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +30,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
     private static final String NAME = "data_frame_transform_pivot";
     private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;
+    private final Integer size;
 
     private static final ConstructingObjectParser<PivotConfig, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<PivotConfig, Void> LENIENT_PARSER = createParser(true);
@@ -55,7 +57,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
                         throw new IllegalArgumentException("Required [aggregations]");
                     }
 
-                    return new PivotConfig(groups, aggregationConfig);
+                    return new PivotConfig(groups, aggregationConfig, (Integer)args[3]);
                 });
 
         parser.declareObject(constructorArg(),
@@ -63,18 +65,21 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
         parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), DataFrameField.AGGREGATIONS);
         parser.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p, lenient), DataFrameField.AGGS);
+        parser.declareInt(optionalConstructorArg(), DataFrameField.SIZE);
 
         return parser;
     }
 
-    public PivotConfig(final GroupConfig groups, final AggregationConfig aggregationConfig) {
+    public PivotConfig(final GroupConfig groups, final AggregationConfig aggregationConfig, Integer size) {
         this.groups = ExceptionsHelper.requireNonNull(groups, DataFrameField.GROUP_BY.getPreferredName());
         this.aggregationConfig = ExceptionsHelper.requireNonNull(aggregationConfig, DataFrameField.AGGREGATIONS.getPreferredName());
+        this.size = size;
     }
 
     public PivotConfig(StreamInput in) throws IOException {
         this.groups = new GroupConfig(in);
         this.aggregationConfig = new AggregationConfig(in);
+        this.size = in.readOptionalInt();
     }
 
     @Override
@@ -82,6 +87,9 @@ public class PivotConfig implements Writeable, ToXContentObject {
         builder.startObject();
         builder.field(DataFrameField.GROUP_BY.getPreferredName(), groups);
         builder.field(DataFrameField.AGGREGATIONS.getPreferredName(), aggregationConfig);
+        if (size != null) {
+            builder.field(DataFrameField.SIZE.getPreferredName(), size);
+        }
         builder.endObject();
         return builder;
     }
@@ -107,6 +115,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         groups.writeTo(out);
         aggregationConfig.writeTo(out);
+        out.writeOptionalInt(size);
     }
 
     public AggregationConfig getAggregationConfig() {
@@ -115,6 +124,11 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
     public GroupConfig getGroupConfig() {
         return groups;
+    }
+
+    @Nullable
+    public Integer getSize() {
+        return size;
     }
 
     @Override
@@ -129,12 +143,14 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
         final PivotConfig that = (PivotConfig) other;
 
-        return Objects.equals(this.groups, that.groups) && Objects.equals(this.aggregationConfig, that.aggregationConfig);
+        return Objects.equals(this.groups, that.groups)
+            && Objects.equals(this.aggregationConfig, that.aggregationConfig)
+            && Objects.equals(this.size, that.size);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(groups, aggregationConfig);
+        return Objects.hash(groups, aggregationConfig, size);
     }
 
     public boolean isValid() {

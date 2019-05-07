@@ -190,4 +190,115 @@ setup:
         transform_id: "_all"
         from: 0
         size: 10000
+---
+"Test transform where dest is included in source":
+  - do:
+      catch: /Destination index \[airline-data-by-airline\] is included in source expression \[airline-data/
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data*"]
+            },
+            "dest": { "index": "airline-data-by-airline" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+---
+"Test transform where dest is a simple index pattern":
+  - do:
+      catch: /Destination index .* should refer to a single index/
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": ["airline-data*"]
+            },
+            "dest": { "index": "destination*" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+---
+"Test alias scenarios":
+  - do:
+      indices.create:
+        index: created-destination-index
+  - do:
+      indices.create:
+        index: second-created-destination-index
+  - do:
+      indices.put_alias:
+        index: airline-data
+        name: source-index
+  - do:
+      indices.put_alias:
+        index: created-destination-index
+        name: dest-index
+  - do:
+      data_frame.put_data_frame_transform:
+        transform_id: "transform-from-aliases"
+        body: >
+          {
+            "source": {
+              "index": "source-index"
+            },
+            "dest": { "index": "dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
 
+  - do:
+      indices.put_alias:
+        index: created-destination-index
+        name: source-index
+
+  - do:
+      catch: /Destination index \[created-destination-index\] is included in source expression \[airline-data,created-destination-index\]/
+      data_frame.put_data_frame_transform:
+        transform_id: "transform-from-aliases-failures"
+        body: >
+          {
+            "source": {
+              "index": "source-index"
+            },
+            "dest": { "index": "dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+
+  - do:
+      indices.delete_alias:
+        index: created-destination-index
+        name: source-index
+
+  - do:
+      indices.put_alias:
+        index: second-created-destination-index
+        name: dest-index
+
+  - do:
+      catch: /Destination index \[dest-index\] should refer to a single index/
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": {
+              "index": ["source-index"]
+            },
+            "dest": { "index": "dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }

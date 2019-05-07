@@ -68,6 +68,7 @@ For Gradle:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 maven {
+    name "lucene-snapshots"
     url 'https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9'
 }
 --------------------------------------------------

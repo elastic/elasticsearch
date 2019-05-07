@@ -26,7 +26,6 @@ import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.hamcrest.CoreMatchers;
-import org.hamcrest.io.FileMatchers;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
@@ -381,6 +380,6 @@ public abstract class PackageTestCase extends PackagingTestCase {
         Files.createDirectories(installation.bin.resolve("myplugin"));
 
         remove(distribution());
-        assertThat(installation.bin.toFile(), not(FileMatchers.anExistingDirectory()));
+        assertFalse(Files.exists(installation.bin));
     }
 }

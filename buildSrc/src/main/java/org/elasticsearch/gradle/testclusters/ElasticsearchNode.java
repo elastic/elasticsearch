@@ -119,8 +119,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         esStdoutFile = confPathLogs.resolve("es.stdout.log");
         esStderrFile = confPathLogs.resolve("es.stderr.log");
         tmpDir = workingDir.resolve("tmp");
-        waitConditions.put("http ports file", node -> Files.exists(((ElasticsearchNode) node).httpPortsFile));
-        waitConditions.put("transport ports file", node -> Files.exists(((ElasticsearchNode)node).transportPortFile));
+        waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
     }
 
     public String getName() {
@@ -789,5 +788,18 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     List<Map<String, String>> getCredentials() {
         return credentials;
+    }
+
+    private boolean checkPortsFilesExistWithDelay(TestClusterConfiguration node) {
+        if (Files.exists(httpPortsFile) && Files.exists(transportPortFile)) {
+            return true;
+        }
+        try {
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new TestClustersException("Interrupted while waiting for ports files", e);
+        }
+        return Files.exists(httpPortsFile) && Files.exists(transportPortFile);
     }
 }

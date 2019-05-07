@@ -111,19 +111,13 @@ public interface TestClusterConfiguration {
                         break;
                     }
                 } catch (TestClustersException e) {
-                    throw new TestClustersException(e);
+                    throw e;
                 } catch (Exception e) {
                     if (lastException == null) {
                         lastException = e;
                     } else {
                         lastException = e;
                     }
-                }
-                try {
-                    Thread.sleep(500);
-                }
-                catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
             }
             if (conditionMet == false) {

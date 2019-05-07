@@ -74,6 +74,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 services, artifactsExtractDir, workingDirBase
             )
         );
+
+        addWaitForClusterHealth();
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
@@ -266,7 +268,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");
-        addWaitForClusterHealth();
         waitForConditions(waitConditions, startedAt, CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
     }
 
@@ -311,7 +312,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 throw new IllegalStateException("Connection attempt to " + this + " failed", e);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                return false;
+                throw new TestClustersException("Interrupted while waiting for " + this, e);
             } catch (GeneralSecurityException e) {
                 throw new RuntimeException("security exception", e);
             }

@@ -103,17 +103,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private void getMultipleReposSnapshotInfo(List<RepositoryMetaData> repos, String[] snapshots, boolean ignoreUnavailable,
                                               boolean verbose, ActionListener<GetSnapshotsResponse> listener) {
-        try {
+        ActionListener.completeWith(listener, () -> {
             List<SnapshotInfo> snapshotInfos = new ArrayList<>();
             for (RepositoryMetaData repo : repos) {
                 snapshotInfos.addAll(
                         getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose));
             }
             CollectionUtil.timSort(snapshotInfos);
-            listener.onResponse(new GetSnapshotsResponse(snapshotInfos));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            return new GetSnapshotsResponse(snapshotInfos);
+        });
     }
 
     private List<SnapshotInfo> getSingleRepoSnapshotInfo(String repo, String[] snapshots, boolean ignoreUnavailable, boolean verbose) {

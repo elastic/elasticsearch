@@ -80,8 +80,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
             "Stopping `node{::myTestCluster-1}`"
         );
     }
-
-    @Ignore // https://github.com/elastic/elasticsearch/issues/41256
+    
     public void testMultiProject() {
         BuildResult result = getTestClustersRunner(
             "user1", "user2", "-s", "-i", "--parallel", "-Dlocal.repo.path=" + getLocalTestRepoPath()

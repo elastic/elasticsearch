@@ -29,6 +29,8 @@ import java.util.Objects;
  */
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
+    private static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
+
     public static final String EXACT_MATCH_TYPE = "exact_match";
     public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
 
@@ -130,9 +132,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return schedule;
     }
 
-    public String getAliasName(String policyName) {
-        // #41553 (list policy api) will add name to policy, so that we don't have to provide the name via a parameter.
-        return ".enrich-" + policyName;
+    public String getBaseName(String policyName) {
+        return ENRICH_INDEX_NAME_BASE + policyName;
     }
 
     @Override

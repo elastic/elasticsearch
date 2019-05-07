@@ -418,6 +418,88 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(0, withDefaultFieldIssues.size());
     }
 
+    public void testJodaPatternOnDateTimeFields() throws IOException {
+        String pattern = "MM-YYYY";
+        String fieldName = "date_time_field";
+        String simpleMapping = "{\n" +
+            "\"properties\" : {\n" +
+            "   \"" + fieldName + "\" : {\n" +
+            "       \"type\" : \"date\",\n" +
+            "       \"format\" : \""+pattern+"\"\n" +
+            "       }\n" +
+            "   }" +
+            "}";
+
+        IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
+                                                 .settings(settings(
+                                                     VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT))))
+                                                 .numberOfShards(randomIntBetween(1,100))
+                                                 .numberOfReplicas(randomIntBetween(1, 100))
+                                                 .putMapping("_doc", simpleMapping)
+                                                 .build();
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Date time field format likely contain deprecated pattern",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
+            "This index has date fields with deprecated formats: ["
+                + "[type: _doc, field: date_time_field, format: MM-YYYY]"+
+                "]");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testJodaPatternOnMultipleFields() throws IOException {
+        String simpleMapping = "{\n" +
+            "\"properties\" : {\n" +
+            "   \"date_time_field_Y\" : {\n" +
+            "       \"type\" : \"date\",\n" +
+            "       \"format\" : \"MM-YYYY\"\n" +
+            "       },\n" +
+            "   \"date_time_field_C\" : {\n" +
+            "       \"type\" : \"date\",\n" +
+            "       \"format\" : \"CC\"\n" +
+            "       },\n" +
+            "   \"date_time_field_x\" : {\n" +
+            "       \"type\" : \"date\",\n" +
+            "       \"format\" : \"xx-MM\"\n" +
+            "       },\n" +
+            "   \"date_time_field_y\" : {\n" +
+            "       \"type\" : \"date\",\n" +
+            "       \"format\" : \"yy-MM\"\n" +
+            "       },\n" +
+            "   \"date_time_field_Z\" : {\n" +
+            "       \"type\" : \"date\",\n" +
+            "       \"format\" : \"HH:mmZ\"\n" +
+            "       },\n" +
+            "   \"date_time_field_z\" : {\n" +
+            "       \"type\" : \"date\",\n" +
+            "       \"format\" : \"HH:mmz\"\n" +
+            "       }\n" +
+            "   }" +
+            "}";
+
+        IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
+                                                 .settings(settings(
+                                                     VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT))))
+                                                 .numberOfShards(randomIntBetween(1,100))
+                                                 .numberOfReplicas(randomIntBetween(1, 100))
+                                                 .putMapping("_doc", simpleMapping)
+                                                 .build();
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Date time field format likely contain deprecated pattern",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
+            "This index has date fields with deprecated formats: ["+
+                 "[type: _doc, field: date_time_field_Y, format: MM-YYYY]"+
+                 "[type: _doc, field: date_time_field_C, format: CC]"+
+                 "[type: _doc, field: date_time_field_x, format: xx-MM]"+
+                 "[type: _doc, field: date_time_field_Z, format: HH:mmZ]"+
+                 "[type: _doc, field: date_time_field_z, format: HH:mmz]"+
+                "]");
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        assertEquals(singletonList(expected), issues);
+    }
+
     static void addRandomFields(final int fieldLimit,
                                         XContentBuilder mappingBuilder) throws IOException {
         AtomicInteger fieldCount = new AtomicInteger(0);

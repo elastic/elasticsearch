@@ -108,15 +108,6 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         }
     }
 
-    public void test() throws IOException {
-        if ("leader".equals(targetCluster)) {
-            putILMPolicy("ccr-alias-rollover", "25GB", 16, TimeValue.timeValueHours(7 * 24));
-
-        } else {
-            assert "follow".equals(targetCluster) : targetCluster;
-        }
-    }
-
     public void testCCRUnfollowDuringSnapshot() throws Exception {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {

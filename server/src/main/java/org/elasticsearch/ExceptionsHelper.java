@@ -176,9 +176,17 @@ public final class ExceptionsHelper {
     }
 
     public static IOException unwrapCorruption(Throwable t) {
-        return (IOException) unwrap(t, CorruptIndexException.class,
-                                       IndexFormatTooOldException.class,
-                                       IndexFormatTooNewException.class);
+        IOException corruptionException =
+            (IOException) unwrap(t, CorruptIndexException.class, IndexFormatTooOldException.class, IndexFormatTooNewException.class);
+        if (corruptionException == null && t != null) {
+            for (Throwable suppressed : t.getSuppressed()) {
+                corruptionException = unwrapCorruption(suppressed);
+                if (corruptionException != null) {
+                    return corruptionException;
+                }
+            }
+        }
+        return corruptionException;
     }
 
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {

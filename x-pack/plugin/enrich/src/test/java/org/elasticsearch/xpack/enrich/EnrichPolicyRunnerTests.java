@@ -90,7 +90,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, sourceIndex, "field1", enrichFields, "");
         String policyName = "test1";
 
-        ActionListener<PolicyExecutionResult> listener = new ActionListener<PolicyExecutionResult>() {
+        ActionListener<PolicyExecutionResult> listener = new ActionListener<>() {
             @Override
             public void onResponse(PolicyExecutionResult policyExecutionResult) {
                 logger.info("Run complete");
@@ -105,8 +105,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
         };
 
-        EnrichPolicyRunner enrichPolicyRunner =
-            new EnrichPolicyRunner(policyName, policy, listener, clusterService, client(), resolver, () -> createTime, 1000);
+        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(policyName, policy, listener, clusterService,
+            client(), resolver, () -> createTime, randomIntBetween(1, 10000));
 
         logger.info("Starting policy run");
 
@@ -205,7 +205,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, sourceIndexPattern, "field1", enrichFields, "");
         String policyName = "test1";
 
-        ActionListener<PolicyExecutionResult> listener = new ActionListener<PolicyExecutionResult>() {
+        ActionListener<PolicyExecutionResult> listener = new ActionListener<>() {
             @Override
             public void onResponse(PolicyExecutionResult policyExecutionResult) {
                 logger.info("Run complete");
@@ -220,8 +220,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             }
         };
 
-        EnrichPolicyRunner enrichPolicyRunner =
-            new EnrichPolicyRunner(policyName, policy, listener, clusterService, client(), resolver, () -> createTime, 1000);
+        EnrichPolicyRunner enrichPolicyRunner = new EnrichPolicyRunner(policyName, policy, listener, clusterService,
+            client(), resolver, () -> createTime, randomIntBetween(1, 10000));
 
         logger.info("Starting policy run");
 

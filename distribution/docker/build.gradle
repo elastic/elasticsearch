@@ -73,9 +73,7 @@ void addCopyDockerContextTask(final boolean oss) {
 
 preProcessFixture {
   dependsOn taskName("copy", true, "DockerContext")
-  dependsOn taskName("copy", true, "Dockerfile")
   dependsOn taskName("copy", false, "DockerContext")
-  dependsOn taskName("copy", false, "Dockerfile")
 }
 
 postProcessFixture.doLast {

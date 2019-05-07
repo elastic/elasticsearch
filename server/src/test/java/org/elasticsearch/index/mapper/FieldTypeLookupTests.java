@@ -189,6 +189,26 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(objectKey, keyedFieldType.key());
     }
 
+    public void testMultipleFlatObjectFieldTypes() {
+        String field1 = "object1.object2.field";
+        String field2 = "object1.field";
+        String field3 = "object2.field";
+
+        FlatObjectFieldMapper mapper1 = createFlatObjectMapper(field1);
+        FlatObjectFieldMapper mapper2 = createFlatObjectMapper(field2);
+        FlatObjectFieldMapper mapper3 = createFlatObjectMapper(field3);
+
+        FieldTypeLookup lookup = new FieldTypeLookup()
+            .copyAndAddAll("type", newList(mapper1, mapper2), emptyList());
+        assertNotNull(lookup.get(field1 + ".some.key"));
+        assertNotNull(lookup.get(field2 + ".some.key"));
+
+        lookup = lookup.copyAndAddAll("type", newList(mapper3), emptyList());
+        assertNotNull(lookup.get(field1 + ".some.key"));
+        assertNotNull(lookup.get(field2 + ".some.key"));
+        assertNotNull(lookup.get(field3 + ".some.key"));
+    }
+
     public void testMaxFlatObjectDepth() {
         FieldTypeLookup lookup = new FieldTypeLookup();
         assertEquals(0, lookup.maxFlatObjectDepth());

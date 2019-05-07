@@ -86,7 +86,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
 
             if (fieldMapper instanceof FlatObjectFieldMapper) {
-                flatObjectMappers = this.flatObjectMappers.copyAndPut(fieldName, (FlatObjectFieldMapper) fieldMapper);
+                flatObjectMappers = flatObjectMappers.copyAndPut(fieldName, (FlatObjectFieldMapper) fieldMapper);
             }
         }
 

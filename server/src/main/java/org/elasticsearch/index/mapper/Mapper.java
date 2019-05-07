@@ -171,7 +171,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public abstract String name();
 
     /**
-     * Returns a name representing the the type of this mapper.
+     * Returns a name representing the type of this mapper.
      */
     public abstract String typeName();
 

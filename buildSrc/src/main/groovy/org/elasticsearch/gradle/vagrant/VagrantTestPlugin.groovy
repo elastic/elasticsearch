@@ -30,6 +30,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             'oel-6',
             'oel-7',
             'opensuse-42',
+            'rhel-8',
             'sles-12',
             'ubuntu-1604',
             'ubuntu-1804'
@@ -173,6 +174,7 @@ class VagrantTestPlugin implements Plugin<Project> {
           which should work for 5.0.0+. This isn't a real ivy repository but gradle
           is fine with that */
         repos.ivy {
+            name "elasticsearch"
             artifactPattern "https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]"
         }
     }
@@ -300,7 +302,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                      } else {
                        \$testArgs = \$args
                      }
-                     "\$Env:SYSTEM_JAVA_HOME"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
+                     & "\$Env:SYSTEM_JAVA_HOME"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
                      exit \$LASTEXITCODE
                      """
         }

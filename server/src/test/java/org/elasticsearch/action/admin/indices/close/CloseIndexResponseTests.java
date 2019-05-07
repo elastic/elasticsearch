@@ -48,7 +48,7 @@ public class CloseIndexResponseTests extends ESTestCase {
         {
             final CloseIndexResponse response = randomResponse();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_1_0)));
+                out.setVersion(randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_2_0)));
                 response.writeTo(out);
 
                 final AcknowledgedResponse deserializedResponse = new AcknowledgedResponse();
@@ -65,7 +65,7 @@ public class CloseIndexResponseTests extends ESTestCase {
 
                 final CloseIndexResponse deserializedResponse = new CloseIndexResponse();
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_1_0)));
+                    in.setVersion(randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.V_7_2_0)));
                     deserializedResponse.readFrom(in);
                 }
                 assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));

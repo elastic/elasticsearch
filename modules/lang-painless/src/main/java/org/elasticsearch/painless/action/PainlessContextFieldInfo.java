@@ -119,4 +119,25 @@ public class PainlessContextFieldInfo implements Writeable, ToXContentObject {
     public int hashCode() {
         return Objects.hash(declaring, name, type);
     }
+
+    @Override
+    public String toString() {
+        return "PainlessContextFieldInfo{" +
+                "declaring='" + declaring + '\'' +
+                ", name='" + name + '\'' +
+                ", type='" + type + '\'' +
+                '}';
+    }
+
+    public String getDeclaring() {
+        return declaring;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getType() {
+        return type;
+    }
 }

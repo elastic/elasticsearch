@@ -16,7 +16,9 @@ node:
 
 - The <<node.name,node name>> of the node.
 - The node's hostname if `node.name` is not set, because `node.name` defaults
-  to the node's hostname.
+  to the node's hostname. You must use either the fully-qualified hostname or
+  the bare hostname <<modules-discovery-bootstrap-cluster-fqdns,depending on
+  your system configuration>>.
 - The IP address of the node's <<modules-transport,publish address>>, if it is
   not possible to use the `node.name` of the node. This is normally the IP
   address to which <<common-network-settings,`network.host`>> resolves but

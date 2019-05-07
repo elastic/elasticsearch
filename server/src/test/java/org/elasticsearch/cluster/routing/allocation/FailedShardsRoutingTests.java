@@ -631,12 +631,12 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(2));
 
-        Version versionNode3 = VersionUtils.randomVersionBetween(random(),Version.CURRENT.minimumIndexCompatibilityVersion(), null);
-        Version versionNode4 = VersionUtils.randomVersionBetween(random(),Version.CURRENT.minimumIndexCompatibilityVersion(), null);
         clusterState = ClusterState.builder(clusterState).nodes(
                 DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node3-7.x" + versionNode3, versionNode3))
-                .add(newNode("node4-7.x" + versionNode3, versionNode4)))
+                        .add(newNode("node3-old",
+                                VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), null)))
+                        .add(newNode("node4-old",
+                                VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumIndexCompatibilityVersion(), null))))
                 .build();
 
         // start all the replicas

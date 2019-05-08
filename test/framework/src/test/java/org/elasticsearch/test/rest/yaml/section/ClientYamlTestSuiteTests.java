@@ -24,6 +24,7 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -61,6 +62,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                         "        index: test_index\n" +
                         "\n");
         }
+        Version randomVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         parser = createParser(YamlXContent.yamlXContent,
                         testSpecBuilder.toString() +
                         "---\n" +
@@ -73,10 +75,10 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
                         "  - match: {test_index.test_type.properties.text.analyzer: whitespace}\n" +
                         "\n" +
                         "---\n" +
-                        "\"Get type mapping - pre 6.0\":\n" +
+                        "\"Get type mapping\":\n" +
                         "\n" +
                         "  - skip:\n" +
-                        "      version:     \"6.0.0 - \"\n" +
+                        "      version:     \"" + randomVersion + " - \"\n" +
                         "      reason:      \"for newer versions the index name is always returned\"\n" +
                         "\n" +
                         "  - do:\n" +
@@ -142,13 +144,11 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(matchAssertion.getField(), equalTo("test_index.test_type.properties.text.analyzer"));
         assertThat(matchAssertion.getExpectedValue().toString(), equalTo("whitespace"));
 
-        assertThat(restTestSuite.getTestSections().get(1).getName(),
-                equalTo("Get type mapping - pre 6.0"));
+        assertThat(restTestSuite.getTestSections().get(1).getName(), equalTo("Get type mapping"));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().isEmpty(), equalTo(false));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getReason(),
                 equalTo("for newer versions the index name is always returned"));
-        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(),
-                equalTo(Version.V_6_0_0));
+        assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getLowerVersion(), equalTo(randomVersion));
         assertThat(restTestSuite.getTestSections().get(1).getSkipSection().getUpperVersion(), equalTo(Version.CURRENT));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().size(), equalTo(3));
         assertThat(restTestSuite.getTestSections().get(1).getExecutableSections().get(0), instanceOf(DoSection.class));

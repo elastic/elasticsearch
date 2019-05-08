@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
@@ -45,7 +46,8 @@ public class LegacyIndexStatsIT extends ESIntegTestCase {
                 .admin()
                 .indices()
                 .prepareCreate("test1")
-                .setSettings(Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_0_0))
+                .setSettings(Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
+                        VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)))
                 .addMapping("_doc", "bar", "type=text,fielddata=true", "baz", "type=text,fielddata=true")
                 .get());
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,6 +45,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -761,11 +763,12 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
 
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(version);
             datafeedConfig.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.V_6_0_0);
+                in.setVersion(version);
                 DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(in);
                 assertEquals(datafeedConfig, streamedDatafeedConfig);
 

@@ -19,17 +19,17 @@ import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTIN
 
 public class IndexDeprecationChecksTests extends ESTestCase {
     public void testOldIndicesCheck() {
-        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-            VersionUtils.getPreviousVersion(Version.V_7_0_0));
+        Version createdWith = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0,
+            VersionUtils.getPreviousVersion(Version.V_8_0_0));
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
             .settings(settings(createdWith))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-            "Index created before 7.0",
+            "Index created before 8.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                "breaking-changes-8.0.html",
+                "breaking-changes-9.0.html",
             "This index was created using version: " + createdWith);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
         assertEquals(singletonList(expected), issues);

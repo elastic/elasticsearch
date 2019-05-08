@@ -61,9 +61,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         innerHitsExecute(context.query(), context.searcher(), hits);
     }
 
-    static void innerHitsExecute(Query mainQuery,
-                                 IndexSearcher indexSearcher,
-                                 SearchHit[] hits) throws IOException {
+    static void innerHitsExecute(Query mainQuery, IndexSearcher indexSearcher, SearchHit[] hits) throws IOException {
         List<PercolateQuery> percolateQueries = locatePercolatorQuery(mainQuery);
         if (percolateQueries.isEmpty()) {
             return;

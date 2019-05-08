@@ -30,6 +30,7 @@ import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -61,17 +62,17 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
 
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT),
-                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.V_6_0_0)));
+                is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(Version.CURRENT.minimumCompatibilityVersion())));
     }
 
     public void testThatInstancesAreCachedAndReused() {
-        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
         // same es version should be cached
-        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_2_1));
-        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_0),
-                PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.V_6_0_1));
+        Version randomVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        assertSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(randomVersion),
+                PreBuiltAnalyzers.STANDARD.getAnalyzer(randomVersion));
+        // other random version should not be cached
+        Version otherVersion = randomValueOtherThan(randomVersion, () -> VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+        assertNotSame(PreBuiltAnalyzers.STANDARD.getAnalyzer(randomVersion), PreBuiltAnalyzers.STANDARD.getAnalyzer(otherVersion));
 
         // Same Lucene version should be cached:
         assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_6_2_1),

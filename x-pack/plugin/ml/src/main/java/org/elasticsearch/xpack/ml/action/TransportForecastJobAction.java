@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -125,7 +124,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     }
 
     static void validate(Job job, ForecastJobAction.Request request) {
-        if (job.getJobVersion() == null || job.getJobVersion().before(Version.V_6_1_0)) {
+        if (job.getJobVersion() == null) {
             throw ExceptionsHelper.badRequestException(
                     "Cannot run forecast because jobs created prior to version 6.1 are not supported");
         }

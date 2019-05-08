@@ -43,7 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.is;
 
 public class IndicesPermissionTests extends ESTestCase {
 
@@ -212,21 +211,6 @@ public class IndicesPermissionTests extends ESTestCase {
         StreamInput in = out.bytes().streamInput();
         RoleDescriptor.IndicesPrivileges readIndicesPrivileges = new RoleDescriptor.IndicesPrivileges(in);
         assertEquals(readIndicesPrivileges, indicesPrivileges.build());
-
-        out = new BytesStreamOutput();
-        out.setVersion(Version.V_6_0_0);
-        indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder();
-        indicesPrivileges.grantedFields(allowed);
-        indicesPrivileges.deniedFields(denied);
-        indicesPrivileges.query("{match_all:{}}");
-        indicesPrivileges.indices(readIndicesPrivileges.getIndices());
-        indicesPrivileges.privileges("all", "read", "priv");
-        indicesPrivileges.build().writeTo(out);
-        out.close();
-        in = out.bytes().streamInput();
-        in.setVersion(Version.V_6_0_0);
-        RoleDescriptor.IndicesPrivileges readIndicesPrivileges2 = new RoleDescriptor.IndicesPrivileges(in);
-        assertEquals(readIndicesPrivileges, readIndicesPrivileges2);
     }
 
     // tests that field permissions are merged correctly when we authorize with several groups and don't crash when an index has no group

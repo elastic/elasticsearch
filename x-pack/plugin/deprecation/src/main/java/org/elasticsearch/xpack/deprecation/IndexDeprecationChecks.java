@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -75,11 +76,11 @@ public class IndexDeprecationChecks {
 
     static DeprecationIssue oldIndicesCheck(IndexMetaData indexMetaData) {
         Version createdWith = indexMetaData.getCreationVersion();
-        if (createdWith.before(Version.V_7_0_0)) {
+        if (createdWith.before(Version.V_8_0_0)) {
                 return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
-                    "Index created before 7.0",
+                    "Index created before 8.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                        "breaking-changes-8.0.html",
+                        "breaking-changes-9.0.html",
                     "This index was created using version: " + createdWith);
             }
         return null;

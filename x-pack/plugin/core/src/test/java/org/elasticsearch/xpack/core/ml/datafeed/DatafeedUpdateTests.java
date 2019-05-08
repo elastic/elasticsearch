@@ -36,6 +36,7 @@ import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregat
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig.Mode;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
@@ -309,8 +310,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             aggs,
             null));
         // So equality check between the streamed and current passes
-        // Streamed DatafeedConfigs when they are before 6.6.0 require a parsed object for aggs and queries, consequently all the default
-        // values are added between them
         datafeedUpdateBuilder.setQuery(
             QueryProvider
                 .fromParsedQuery(QueryBuilders.boolQuery()
@@ -320,11 +319,12 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
 
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(version);
             datafeedUpdate.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.V_6_0_0);
+                in.setVersion(version);
                 DatafeedUpdate streamedDatafeedUpdate = new DatafeedUpdate(in);
                 assertEquals(datafeedUpdate, streamedDatafeedUpdate);
 

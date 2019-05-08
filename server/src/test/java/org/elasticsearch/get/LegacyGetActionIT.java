@@ -46,7 +46,7 @@ public class LegacyGetActionIT extends ESIntegTestCase {
                 .setSettings(
                         Settings.builder()
                                 .put("index.refresh_interval", -1)
-                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_6_0_0))); // multi-types in 6.0.0
+                                .put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.V_7_0_0)));
 
         try (XContentBuilder source = jsonBuilder().startObject().field("field1", "value").endObject()) {
             client()

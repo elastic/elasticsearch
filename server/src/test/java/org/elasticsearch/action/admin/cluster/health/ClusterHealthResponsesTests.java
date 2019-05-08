@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -26,6 +27,8 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterIndexHealthTests;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +37,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -41,6 +45,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.EnumSet;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -81,6 +86,26 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
         assertThat(clusterHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
     }
 
+    public void testClusterHealthVerifyMasterNodeDiscovery() throws IOException {
+        DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
+                EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
+        //set the node information to verify master_node discovery in ClusterHealthResponse
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                                                .nodes(DiscoveryNodes.builder()
+                                                    .add(localNode)
+                                                    .localNodeId(localNode.getId())
+                                                    .masterNodeId(localNode.getId()))
+                                                .build();
+        int pendingTasks = randomIntBetween(0, 200);
+        int inFlight = randomIntBetween(0, 200);
+        int delayedUnassigned = randomIntBetween(0, 200);
+        TimeValue pendingTaskInQueueTime = TimeValue.timeValueMillis(randomIntBetween(1000, 100000));
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", new String[] {MetaData.ALL}, clusterState, pendingTasks, inFlight, delayedUnassigned, pendingTaskInQueueTime);
+        clusterHealth = maybeSerialize(clusterHealth);
+        assertThat(clusterHealth.getClusterStateHealth().hasDiscoveredMaster(), Matchers.equalTo(true));
+        assertClusterHealth(clusterHealth);
+    }
+
     private void assertClusterHealth(ClusterHealthResponse clusterHealth) {
         ClusterStateHealth clusterStateHealth = clusterHealth.getClusterStateHealth();
 
@@ -91,6 +116,7 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
         assertThat(clusterHealth.getUnassignedShards(), Matchers.equalTo(clusterStateHealth.getUnassignedShards()));
         assertThat(clusterHealth.getNumberOfNodes(), Matchers.equalTo(clusterStateHealth.getNumberOfNodes()));
         assertThat(clusterHealth.getNumberOfDataNodes(), Matchers.equalTo(clusterStateHealth.getNumberOfDataNodes()));
+        assertThat(clusterHealth.hasDiscoveredMaster(), Matchers.equalTo(clusterStateHealth.hasDiscoveredMaster()));
     }
 
     ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {
@@ -124,7 +150,7 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
             }
         }
         ClusterStateHealth stateHealth = new ClusterStateHealth(randomInt(100), randomInt(100), randomInt(100),
-                randomInt(100), randomInt(100), randomInt(100), randomInt(100),
+                randomInt(100), randomInt(100), randomInt(100), randomInt(100), randomBoolean(),
                 randomDoubleBetween(0d, 100d, true), randomFrom(ClusterHealthStatus.values()), indices);
 
         return new ClusterHealthResponse(randomAlphaOfLengthBetween(1, 10), randomInt(100), randomInt(100), randomInt(100),
@@ -189,7 +215,7 @@ public class ClusterHealthResponsesTests extends AbstractStreamableXContentTestC
                 ClusterStateHealth state = instance.getClusterStateHealth();
                 ClusterStateHealth newState = new ClusterStateHealth(state.getActivePrimaryShards() + between(1, 10),
                         state.getActiveShards(), state.getRelocatingShards(), state.getInitializingShards(), state.getUnassignedShards(),
-                        state.getNumberOfNodes(), state.getNumberOfDataNodes(), state.getActiveShardsPercent(), state.getStatus(),
+                        state.getNumberOfNodes(), state.getNumberOfDataNodes(), state.hasDiscoveredMaster(), state.getActiveShardsPercent(), state.getStatus(),
                         state.getIndices());
                 return new ClusterHealthResponse(instance.getClusterName(),
                         instance.getNumberOfPendingTasks(), instance.getNumberOfInFlightFetch(),

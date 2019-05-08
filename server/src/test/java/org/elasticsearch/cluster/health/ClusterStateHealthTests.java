@@ -173,6 +173,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
                                                 .metaData(metaData)
                                                 .routingTable(routingTable.build())
+                                                .nodes(clusterService.state().nodes())
                                                 .build();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(
             clusterState, IndicesOptions.strictExpand(), (String[]) null
@@ -180,6 +181,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices);
         logger.info("cluster status: {}, expected {}", clusterStateHealth.getStatus(), counter.status());
         clusterStateHealth = maybeSerialize(clusterStateHealth);
+        assertThat(clusterStateHealth.hasDiscoveredMaster(), equalTo(clusterService.state().nodes().getMasterNodeId() != null));
         assertClusterHealth(clusterStateHealth, counter);
     }
 

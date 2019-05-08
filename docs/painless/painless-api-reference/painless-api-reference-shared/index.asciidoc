@@ -5,6 +5,10 @@
 
 The following API is available in all contexts.
 
+==== Classes By Package
+The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
+
+
 ==== java.lang
 <<painless-api-reference-shared-java-lang, Expand details for java.lang>>
 

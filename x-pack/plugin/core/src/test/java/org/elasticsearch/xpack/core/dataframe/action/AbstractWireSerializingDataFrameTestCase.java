@@ -14,6 +14,8 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.junit.Before;
 
+import java.util.List;
+
 import static java.util.Collections.emptyList;
 
 public abstract class AbstractWireSerializingDataFrameTestCase<T extends Writeable> extends AbstractWireSerializingTestCase<T> {
@@ -24,12 +26,14 @@ public abstract class AbstractWireSerializingDataFrameTestCase<T extends Writeab
     private NamedXContentRegistry namedXContentRegistry;
 
     @Before
-    public void registerAggregationNamedObjects() throws Exception {
-        // register aggregations as NamedWriteable
+    public void registerNamedObjects() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
 
-        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        namedXContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
+        List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
+
+        namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+        namedXContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
     @Override

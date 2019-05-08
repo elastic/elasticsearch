@@ -313,6 +313,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (iterationResult.isDone()) {
                 logger.debug("Finished indexing for job [" + getJobId() + "], saving state and shutting down.");
 
+                position.set(iterationResult.getPosition());
                 // execute finishing tasks
                 onFinish(ActionListener.wrap(
                         r -> doSaveState(finishAndSetState(), position.get(), () -> {}),

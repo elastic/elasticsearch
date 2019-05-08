@@ -128,7 +128,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
             threadPool = new TestThreadPool("transport-client-nodes-service-tests");
             transport = new FailAndRetryMockTransport<TestResponse>(random(), clusterName) {
                 @Override
-                public List<String> getLocalAddresses() {
+                public List<String> getDefaultSeedAddresses() {
                     return Collections.emptyList();
                 }
 

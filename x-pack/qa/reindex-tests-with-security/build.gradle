@@ -36,6 +36,12 @@ integTestCluster {
   setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
   setting 'reindex.ssl.truststore.path', 'ca.p12'
   setting 'reindex.ssl.truststore.password', 'password'
+
+  // Workaround for JDK-8212885
+  if (project.ext.runtimeJavaVersion.isJava12Compatible() == false) {
+    setting 'reindex.ssl.supported_protocols', 'TLSv1.2'
+  }
+
   extraConfigFile 'roles.yml', 'roles.yml'
   [
     test_admin: 'superuser',

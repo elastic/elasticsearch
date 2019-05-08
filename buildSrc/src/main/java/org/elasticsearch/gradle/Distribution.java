@@ -20,16 +20,14 @@ package org.elasticsearch.gradle;
 
 public enum Distribution {
 
-    INTEG_TEST("elasticsearch", "integ-test-zip"),
-    DEFAULT("elasticsearch", "elasticsearch"),
-    OSS("elasticsearch-oss", "elasticsearch-oss");
+    INTEG_TEST("elasticsearch"),
+    DEFAULT("elasticsearch"),
+    OSS("elasticsearch-oss");
 
     private final String artifactName;
-    private final String group;
 
-    Distribution(String name, String group) {
+    Distribution(String name) {
         this.artifactName = name;
-        this.group = group;
     }
 
     public String getArtifactName() {
@@ -37,7 +35,11 @@ public enum Distribution {
     }
 
     public String getGroup() {
-        return "org.elasticsearch.distribution." + group;
+        if (this.equals(INTEG_TEST)) {
+            return "org.elasticsearch.distribution.integ-test-zip";
+        } else {
+            return "org.elasticsearch.distribution." + name().toLowerCase();
+        }
     }
 
     public String getFileExtension() {

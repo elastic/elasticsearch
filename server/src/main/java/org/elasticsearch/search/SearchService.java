@@ -1093,20 +1093,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public static final class CanMatchResponse extends SearchPhaseResult {
-        private boolean canMatch;
+        private final boolean canMatch;
 
         public CanMatchResponse(StreamInput in) throws IOException {
+            super(in);
             this.canMatch = in.readBoolean();
         }
 
         public CanMatchResponse(boolean canMatch) {
             this.canMatch = canMatch;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            canMatch = in.readBoolean();
         }
 
         @Override

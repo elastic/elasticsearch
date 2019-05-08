@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -416,11 +415,6 @@ public class SearchAsyncActionTests extends ESTestCase {
         public TestSearchPhaseResult(long id, DiscoveryNode node) {
             this.requestId = id;
             this.node = node;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-
         }
 
         @Override

@@ -60,7 +60,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     protected InternalSingleBucketAggregation(StreamInput in) throws IOException {
         super(in);
         docCount = in.readVLong();
-        aggregations = InternalAggregations.readAggregations(in);
+        aggregations = new InternalAggregations(in);
     }
 
     @Override

@@ -148,7 +148,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .startObject("by_date")
                         .startObject("date_histogram")
                             .field("field", "timestamp")
-                            .field("interval", "month")
+                            .field("calendar_interval", "month")
                         .endObject()
                         .startObject("aggs")
                             // the aggregation name is missing
@@ -172,7 +172,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .startObject("by_date")
                         .startObject("date_histogram")
                             .field("field", "timestamp")
-                            .field("interval", "month")
+                            .field("calendar_interval", "month")
                         .endObject()
                         .startObject("aggs")
                             .startObject("tag_count")

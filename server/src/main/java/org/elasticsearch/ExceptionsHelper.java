@@ -175,18 +175,26 @@ public final class ExceptionsHelper {
         return first;
     }
 
+    private static final List<Class<? extends IOException>> CORRUPTION_EXCEPTIONS =
+        List.of(CorruptIndexException.class, IndexFormatTooOldException.class, IndexFormatTooNewException.class);
+
     public static IOException unwrapCorruption(Throwable t) {
-        IOException corruptionException =
-            (IOException) unwrap(t, CorruptIndexException.class, IndexFormatTooOldException.class, IndexFormatTooNewException.class);
-        if (corruptionException == null && t != null) {
-            for (Throwable suppressed : t.getSuppressed()) {
-                corruptionException = unwrapCorruption(suppressed);
-                if (corruptionException != null) {
-                    return corruptionException;
+        if (t != null) {
+            do {
+                for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
+                    if (clazz.isInstance(t)) {
+                        return (IOException) t;
+                    }
                 }
-            }
+                for (Throwable suppressed : t.getSuppressed()) {
+                    IOException corruptionException = unwrapCorruption(suppressed);
+                    if (corruptionException != null) {
+                        return corruptionException;
+                    }
+                }
+            } while ((t = t.getCause()) != null);
         }
-        return corruptionException;
+        return null;
     }
 
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {

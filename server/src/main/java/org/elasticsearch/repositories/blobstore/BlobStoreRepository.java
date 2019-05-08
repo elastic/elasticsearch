@@ -631,17 +631,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void endVerification(String seed) {
         if (isReadOnly() == false) {
             try {
-                recursiveDelete(basePath().add(testBlobPrefix(seed)));
+                final String testPrefix = testBlobPrefix(seed);
+                final BlobContainer container = blobStore().blobContainer(basePath().add(testPrefix));
+                    container.deleteBlobsIgnoringIfNotExists(List.copyOf(container.listBlobs().keySet()));
+                blobStore().blobContainer(basePath()).deleteBlobIgnoringIfNotExists(testPrefix);
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
-        }
-    }
-
-    private void recursiveDelete(BlobPath path) throws IOException {
-        final BlobContainer container = blobStore().blobContainer(path);
-        for (Map.Entry<String, BlobMetaData> blobMetaDataEntry : container.listBlobs().entrySet()) {
-            if (blobMetaDataEntry.getValue().length() == 0)
         }
     }
 

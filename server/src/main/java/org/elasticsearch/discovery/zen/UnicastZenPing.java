@@ -144,8 +144,7 @@ public class UnicastZenPing implements ZenPing {
     }
 
     private SeedHostsProvider.HostsResolver createHostsResolver() {
-        return (hosts, limitPortCounts) -> SeedHostsResolver.resolveHostsLists(unicastZenPingExecutorService, logger, hosts,
-            limitPortCounts, transportService, resolveTimeout);
+        return hosts -> SeedHostsResolver.resolveHostsLists(unicastZenPingExecutorService, logger, hosts, transportService, resolveTimeout);
     }
 
     @Override

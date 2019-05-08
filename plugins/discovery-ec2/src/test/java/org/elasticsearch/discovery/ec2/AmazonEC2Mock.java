@@ -20,37 +20,48 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.ResponseMetadata;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.regions.Region;
 import com.amazonaws.services.ec2.AmazonEC2;
+import com.amazonaws.services.ec2.model.AcceptReservedInstancesExchangeQuoteRequest;
+import com.amazonaws.services.ec2.model.AcceptReservedInstancesExchangeQuoteResult;
+import com.amazonaws.services.ec2.model.AcceptTransitGatewayVpcAttachmentRequest;
+import com.amazonaws.services.ec2.model.AcceptTransitGatewayVpcAttachmentResult;
+import com.amazonaws.services.ec2.model.AcceptVpcEndpointConnectionsRequest;
+import com.amazonaws.services.ec2.model.AcceptVpcEndpointConnectionsResult;
 import com.amazonaws.services.ec2.model.AcceptVpcPeeringConnectionRequest;
 import com.amazonaws.services.ec2.model.AcceptVpcPeeringConnectionResult;
+import com.amazonaws.services.ec2.model.AdvertiseByoipCidrRequest;
+import com.amazonaws.services.ec2.model.AdvertiseByoipCidrResult;
 import com.amazonaws.services.ec2.model.AllocateAddressRequest;
 import com.amazonaws.services.ec2.model.AllocateAddressResult;
 import com.amazonaws.services.ec2.model.AllocateHostsRequest;
 import com.amazonaws.services.ec2.model.AllocateHostsResult;
-import com.amazonaws.services.ec2.model.AssignPrivateIpAddressesRequest;
-import com.amazonaws.services.ec2.model.AssignPrivateIpAddressesResult;
+import com.amazonaws.services.ec2.model.ApplySecurityGroupsToClientVpnTargetNetworkRequest;
+import com.amazonaws.services.ec2.model.ApplySecurityGroupsToClientVpnTargetNetworkResult;
 import com.amazonaws.services.ec2.model.AssignIpv6AddressesRequest;
 import com.amazonaws.services.ec2.model.AssignIpv6AddressesResult;
+import com.amazonaws.services.ec2.model.AssignPrivateIpAddressesRequest;
+import com.amazonaws.services.ec2.model.AssignPrivateIpAddressesResult;
 import com.amazonaws.services.ec2.model.AssociateAddressRequest;
 import com.amazonaws.services.ec2.model.AssociateAddressResult;
-import com.amazonaws.services.ec2.model.AssociateVpcCidrBlockRequest;
-import com.amazonaws.services.ec2.model.AssociateVpcCidrBlockResult;
-import com.amazonaws.services.ec2.model.AssociateSubnetCidrBlockRequest;
-import com.amazonaws.services.ec2.model.AssociateSubnetCidrBlockResult;
-import com.amazonaws.services.ec2.model.AssociateIamInstanceProfileRequest;
-import com.amazonaws.services.ec2.model.AssociateIamInstanceProfileResult;
-import com.amazonaws.services.ec2.model.AcceptReservedInstancesExchangeQuoteRequest;
-import com.amazonaws.services.ec2.model.AcceptReservedInstancesExchangeQuoteResult;
+import com.amazonaws.services.ec2.model.AssociateClientVpnTargetNetworkRequest;
+import com.amazonaws.services.ec2.model.AssociateClientVpnTargetNetworkResult;
 import com.amazonaws.services.ec2.model.AssociateDhcpOptionsRequest;
 import com.amazonaws.services.ec2.model.AssociateDhcpOptionsResult;
+import com.amazonaws.services.ec2.model.AssociateIamInstanceProfileRequest;
+import com.amazonaws.services.ec2.model.AssociateIamInstanceProfileResult;
 import com.amazonaws.services.ec2.model.AssociateRouteTableRequest;
 import com.amazonaws.services.ec2.model.AssociateRouteTableResult;
+import com.amazonaws.services.ec2.model.AssociateSubnetCidrBlockRequest;
+import com.amazonaws.services.ec2.model.AssociateSubnetCidrBlockResult;
+import com.amazonaws.services.ec2.model.AssociateTransitGatewayRouteTableRequest;
+import com.amazonaws.services.ec2.model.AssociateTransitGatewayRouteTableResult;
+import com.amazonaws.services.ec2.model.AssociateVpcCidrBlockRequest;
+import com.amazonaws.services.ec2.model.AssociateVpcCidrBlockResult;
 import com.amazonaws.services.ec2.model.AttachClassicLinkVpcRequest;
 import com.amazonaws.services.ec2.model.AttachClassicLinkVpcResult;
 import com.amazonaws.services.ec2.model.AttachInternetGatewayRequest;
@@ -61,6 +72,8 @@ import com.amazonaws.services.ec2.model.AttachVolumeRequest;
 import com.amazonaws.services.ec2.model.AttachVolumeResult;
 import com.amazonaws.services.ec2.model.AttachVpnGatewayRequest;
 import com.amazonaws.services.ec2.model.AttachVpnGatewayResult;
+import com.amazonaws.services.ec2.model.AuthorizeClientVpnIngressRequest;
+import com.amazonaws.services.ec2.model.AuthorizeClientVpnIngressResult;
 import com.amazonaws.services.ec2.model.AuthorizeSecurityGroupEgressRequest;
 import com.amazonaws.services.ec2.model.AuthorizeSecurityGroupEgressResult;
 import com.amazonaws.services.ec2.model.AuthorizeSecurityGroupIngressRequest;
@@ -69,6 +82,8 @@ import com.amazonaws.services.ec2.model.BundleInstanceRequest;
 import com.amazonaws.services.ec2.model.BundleInstanceResult;
 import com.amazonaws.services.ec2.model.CancelBundleTaskRequest;
 import com.amazonaws.services.ec2.model.CancelBundleTaskResult;
+import com.amazonaws.services.ec2.model.CancelCapacityReservationRequest;
+import com.amazonaws.services.ec2.model.CancelCapacityReservationResult;
 import com.amazonaws.services.ec2.model.CancelConversionTaskRequest;
 import com.amazonaws.services.ec2.model.CancelConversionTaskResult;
 import com.amazonaws.services.ec2.model.CancelExportTaskRequest;
@@ -83,24 +98,34 @@ import com.amazonaws.services.ec2.model.CancelSpotInstanceRequestsRequest;
 import com.amazonaws.services.ec2.model.CancelSpotInstanceRequestsResult;
 import com.amazonaws.services.ec2.model.ConfirmProductInstanceRequest;
 import com.amazonaws.services.ec2.model.ConfirmProductInstanceResult;
+import com.amazonaws.services.ec2.model.CopyFpgaImageRequest;
+import com.amazonaws.services.ec2.model.CopyFpgaImageResult;
 import com.amazonaws.services.ec2.model.CopyImageRequest;
 import com.amazonaws.services.ec2.model.CopyImageResult;
 import com.amazonaws.services.ec2.model.CopySnapshotRequest;
 import com.amazonaws.services.ec2.model.CopySnapshotResult;
+import com.amazonaws.services.ec2.model.CreateCapacityReservationRequest;
+import com.amazonaws.services.ec2.model.CreateCapacityReservationResult;
+import com.amazonaws.services.ec2.model.CreateClientVpnEndpointRequest;
+import com.amazonaws.services.ec2.model.CreateClientVpnEndpointResult;
+import com.amazonaws.services.ec2.model.CreateClientVpnRouteRequest;
+import com.amazonaws.services.ec2.model.CreateClientVpnRouteResult;
 import com.amazonaws.services.ec2.model.CreateCustomerGatewayRequest;
-import com.amazonaws.services.ec2.model.CreateDefaultVpcResult;
-import com.amazonaws.services.ec2.model.CreateDefaultVpcRequest;
 import com.amazonaws.services.ec2.model.CreateCustomerGatewayResult;
+import com.amazonaws.services.ec2.model.CreateDefaultSubnetRequest;
+import com.amazonaws.services.ec2.model.CreateDefaultSubnetResult;
+import com.amazonaws.services.ec2.model.CreateDefaultVpcRequest;
+import com.amazonaws.services.ec2.model.CreateDefaultVpcResult;
 import com.amazonaws.services.ec2.model.CreateDhcpOptionsRequest;
 import com.amazonaws.services.ec2.model.CreateDhcpOptionsResult;
 import com.amazonaws.services.ec2.model.CreateEgressOnlyInternetGatewayRequest;
 import com.amazonaws.services.ec2.model.CreateEgressOnlyInternetGatewayResult;
-import com.amazonaws.services.ec2.model.CreateFpgaImageRequest;
-import com.amazonaws.services.ec2.model.CreateFpgaImageResult;
-import com.amazonaws.services.ec2.model.CreateNetworkInterfacePermissionRequest;
-import com.amazonaws.services.ec2.model.CreateNetworkInterfacePermissionResult;
+import com.amazonaws.services.ec2.model.CreateFleetRequest;
+import com.amazonaws.services.ec2.model.CreateFleetResult;
 import com.amazonaws.services.ec2.model.CreateFlowLogsRequest;
 import com.amazonaws.services.ec2.model.CreateFlowLogsResult;
+import com.amazonaws.services.ec2.model.CreateFpgaImageRequest;
+import com.amazonaws.services.ec2.model.CreateFpgaImageResult;
 import com.amazonaws.services.ec2.model.CreateImageRequest;
 import com.amazonaws.services.ec2.model.CreateImageResult;
 import com.amazonaws.services.ec2.model.CreateInstanceExportTaskRequest;
@@ -109,12 +134,18 @@ import com.amazonaws.services.ec2.model.CreateInternetGatewayRequest;
 import com.amazonaws.services.ec2.model.CreateInternetGatewayResult;
 import com.amazonaws.services.ec2.model.CreateKeyPairRequest;
 import com.amazonaws.services.ec2.model.CreateKeyPairResult;
+import com.amazonaws.services.ec2.model.CreateLaunchTemplateRequest;
+import com.amazonaws.services.ec2.model.CreateLaunchTemplateResult;
+import com.amazonaws.services.ec2.model.CreateLaunchTemplateVersionRequest;
+import com.amazonaws.services.ec2.model.CreateLaunchTemplateVersionResult;
 import com.amazonaws.services.ec2.model.CreateNatGatewayRequest;
 import com.amazonaws.services.ec2.model.CreateNatGatewayResult;
 import com.amazonaws.services.ec2.model.CreateNetworkAclEntryRequest;
 import com.amazonaws.services.ec2.model.CreateNetworkAclEntryResult;
 import com.amazonaws.services.ec2.model.CreateNetworkAclRequest;
 import com.amazonaws.services.ec2.model.CreateNetworkAclResult;
+import com.amazonaws.services.ec2.model.CreateNetworkInterfacePermissionRequest;
+import com.amazonaws.services.ec2.model.CreateNetworkInterfacePermissionResult;
 import com.amazonaws.services.ec2.model.CreateNetworkInterfaceRequest;
 import com.amazonaws.services.ec2.model.CreateNetworkInterfaceResult;
 import com.amazonaws.services.ec2.model.CreatePlacementGroupRequest;
@@ -135,10 +166,22 @@ import com.amazonaws.services.ec2.model.CreateSubnetRequest;
 import com.amazonaws.services.ec2.model.CreateSubnetResult;
 import com.amazonaws.services.ec2.model.CreateTagsRequest;
 import com.amazonaws.services.ec2.model.CreateTagsResult;
+import com.amazonaws.services.ec2.model.CreateTransitGatewayRequest;
+import com.amazonaws.services.ec2.model.CreateTransitGatewayResult;
+import com.amazonaws.services.ec2.model.CreateTransitGatewayRouteRequest;
+import com.amazonaws.services.ec2.model.CreateTransitGatewayRouteResult;
+import com.amazonaws.services.ec2.model.CreateTransitGatewayRouteTableRequest;
+import com.amazonaws.services.ec2.model.CreateTransitGatewayRouteTableResult;
+import com.amazonaws.services.ec2.model.CreateTransitGatewayVpcAttachmentRequest;
+import com.amazonaws.services.ec2.model.CreateTransitGatewayVpcAttachmentResult;
 import com.amazonaws.services.ec2.model.CreateVolumeRequest;
 import com.amazonaws.services.ec2.model.CreateVolumeResult;
+import com.amazonaws.services.ec2.model.CreateVpcEndpointConnectionNotificationRequest;
+import com.amazonaws.services.ec2.model.CreateVpcEndpointConnectionNotificationResult;
 import com.amazonaws.services.ec2.model.CreateVpcEndpointRequest;
 import com.amazonaws.services.ec2.model.CreateVpcEndpointResult;
+import com.amazonaws.services.ec2.model.CreateVpcEndpointServiceConfigurationRequest;
+import com.amazonaws.services.ec2.model.CreateVpcEndpointServiceConfigurationResult;
 import com.amazonaws.services.ec2.model.CreateVpcPeeringConnectionRequest;
 import com.amazonaws.services.ec2.model.CreateVpcPeeringConnectionResult;
 import com.amazonaws.services.ec2.model.CreateVpcRequest;
@@ -149,26 +192,38 @@ import com.amazonaws.services.ec2.model.CreateVpnConnectionRouteRequest;
 import com.amazonaws.services.ec2.model.CreateVpnConnectionRouteResult;
 import com.amazonaws.services.ec2.model.CreateVpnGatewayRequest;
 import com.amazonaws.services.ec2.model.CreateVpnGatewayResult;
+import com.amazonaws.services.ec2.model.DeleteClientVpnEndpointRequest;
+import com.amazonaws.services.ec2.model.DeleteClientVpnEndpointResult;
+import com.amazonaws.services.ec2.model.DeleteClientVpnRouteRequest;
+import com.amazonaws.services.ec2.model.DeleteClientVpnRouteResult;
 import com.amazonaws.services.ec2.model.DeleteCustomerGatewayRequest;
 import com.amazonaws.services.ec2.model.DeleteCustomerGatewayResult;
 import com.amazonaws.services.ec2.model.DeleteDhcpOptionsRequest;
 import com.amazonaws.services.ec2.model.DeleteDhcpOptionsResult;
 import com.amazonaws.services.ec2.model.DeleteEgressOnlyInternetGatewayRequest;
 import com.amazonaws.services.ec2.model.DeleteEgressOnlyInternetGatewayResult;
-import com.amazonaws.services.ec2.model.DeleteNetworkInterfacePermissionRequest;
-import com.amazonaws.services.ec2.model.DeleteNetworkInterfacePermissionResult;
+import com.amazonaws.services.ec2.model.DeleteFleetsRequest;
+import com.amazonaws.services.ec2.model.DeleteFleetsResult;
 import com.amazonaws.services.ec2.model.DeleteFlowLogsRequest;
 import com.amazonaws.services.ec2.model.DeleteFlowLogsResult;
+import com.amazonaws.services.ec2.model.DeleteFpgaImageRequest;
+import com.amazonaws.services.ec2.model.DeleteFpgaImageResult;
 import com.amazonaws.services.ec2.model.DeleteInternetGatewayRequest;
 import com.amazonaws.services.ec2.model.DeleteInternetGatewayResult;
 import com.amazonaws.services.ec2.model.DeleteKeyPairRequest;
 import com.amazonaws.services.ec2.model.DeleteKeyPairResult;
+import com.amazonaws.services.ec2.model.DeleteLaunchTemplateRequest;
+import com.amazonaws.services.ec2.model.DeleteLaunchTemplateResult;
+import com.amazonaws.services.ec2.model.DeleteLaunchTemplateVersionsRequest;
+import com.amazonaws.services.ec2.model.DeleteLaunchTemplateVersionsResult;
 import com.amazonaws.services.ec2.model.DeleteNatGatewayRequest;
 import com.amazonaws.services.ec2.model.DeleteNatGatewayResult;
 import com.amazonaws.services.ec2.model.DeleteNetworkAclEntryRequest;
 import com.amazonaws.services.ec2.model.DeleteNetworkAclEntryResult;
 import com.amazonaws.services.ec2.model.DeleteNetworkAclRequest;
 import com.amazonaws.services.ec2.model.DeleteNetworkAclResult;
+import com.amazonaws.services.ec2.model.DeleteNetworkInterfacePermissionRequest;
+import com.amazonaws.services.ec2.model.DeleteNetworkInterfacePermissionResult;
 import com.amazonaws.services.ec2.model.DeleteNetworkInterfaceRequest;
 import com.amazonaws.services.ec2.model.DeleteNetworkInterfaceResult;
 import com.amazonaws.services.ec2.model.DeletePlacementGroupRequest;
@@ -187,8 +242,20 @@ import com.amazonaws.services.ec2.model.DeleteSubnetRequest;
 import com.amazonaws.services.ec2.model.DeleteSubnetResult;
 import com.amazonaws.services.ec2.model.DeleteTagsRequest;
 import com.amazonaws.services.ec2.model.DeleteTagsResult;
+import com.amazonaws.services.ec2.model.DeleteTransitGatewayRequest;
+import com.amazonaws.services.ec2.model.DeleteTransitGatewayResult;
+import com.amazonaws.services.ec2.model.DeleteTransitGatewayRouteRequest;
+import com.amazonaws.services.ec2.model.DeleteTransitGatewayRouteResult;
+import com.amazonaws.services.ec2.model.DeleteTransitGatewayRouteTableRequest;
+import com.amazonaws.services.ec2.model.DeleteTransitGatewayRouteTableResult;
+import com.amazonaws.services.ec2.model.DeleteTransitGatewayVpcAttachmentRequest;
+import com.amazonaws.services.ec2.model.DeleteTransitGatewayVpcAttachmentResult;
 import com.amazonaws.services.ec2.model.DeleteVolumeRequest;
 import com.amazonaws.services.ec2.model.DeleteVolumeResult;
+import com.amazonaws.services.ec2.model.DeleteVpcEndpointConnectionNotificationsRequest;
+import com.amazonaws.services.ec2.model.DeleteVpcEndpointConnectionNotificationsResult;
+import com.amazonaws.services.ec2.model.DeleteVpcEndpointServiceConfigurationsRequest;
+import com.amazonaws.services.ec2.model.DeleteVpcEndpointServiceConfigurationsResult;
 import com.amazonaws.services.ec2.model.DeleteVpcEndpointsRequest;
 import com.amazonaws.services.ec2.model.DeleteVpcEndpointsResult;
 import com.amazonaws.services.ec2.model.DeleteVpcPeeringConnectionRequest;
@@ -201,18 +268,36 @@ import com.amazonaws.services.ec2.model.DeleteVpnConnectionRouteRequest;
 import com.amazonaws.services.ec2.model.DeleteVpnConnectionRouteResult;
 import com.amazonaws.services.ec2.model.DeleteVpnGatewayRequest;
 import com.amazonaws.services.ec2.model.DeleteVpnGatewayResult;
+import com.amazonaws.services.ec2.model.DeprovisionByoipCidrRequest;
+import com.amazonaws.services.ec2.model.DeprovisionByoipCidrResult;
 import com.amazonaws.services.ec2.model.DeregisterImageRequest;
 import com.amazonaws.services.ec2.model.DeregisterImageResult;
 import com.amazonaws.services.ec2.model.DescribeAccountAttributesRequest;
 import com.amazonaws.services.ec2.model.DescribeAccountAttributesResult;
 import com.amazonaws.services.ec2.model.DescribeAddressesRequest;
 import com.amazonaws.services.ec2.model.DescribeAddressesResult;
+import com.amazonaws.services.ec2.model.DescribeAggregateIdFormatRequest;
+import com.amazonaws.services.ec2.model.DescribeAggregateIdFormatResult;
 import com.amazonaws.services.ec2.model.DescribeAvailabilityZonesRequest;
 import com.amazonaws.services.ec2.model.DescribeAvailabilityZonesResult;
 import com.amazonaws.services.ec2.model.DescribeBundleTasksRequest;
 import com.amazonaws.services.ec2.model.DescribeBundleTasksResult;
+import com.amazonaws.services.ec2.model.DescribeByoipCidrsRequest;
+import com.amazonaws.services.ec2.model.DescribeByoipCidrsResult;
+import com.amazonaws.services.ec2.model.DescribeCapacityReservationsRequest;
+import com.amazonaws.services.ec2.model.DescribeCapacityReservationsResult;
 import com.amazonaws.services.ec2.model.DescribeClassicLinkInstancesRequest;
 import com.amazonaws.services.ec2.model.DescribeClassicLinkInstancesResult;
+import com.amazonaws.services.ec2.model.DescribeClientVpnAuthorizationRulesRequest;
+import com.amazonaws.services.ec2.model.DescribeClientVpnAuthorizationRulesResult;
+import com.amazonaws.services.ec2.model.DescribeClientVpnConnectionsRequest;
+import com.amazonaws.services.ec2.model.DescribeClientVpnConnectionsResult;
+import com.amazonaws.services.ec2.model.DescribeClientVpnEndpointsRequest;
+import com.amazonaws.services.ec2.model.DescribeClientVpnEndpointsResult;
+import com.amazonaws.services.ec2.model.DescribeClientVpnRoutesRequest;
+import com.amazonaws.services.ec2.model.DescribeClientVpnRoutesResult;
+import com.amazonaws.services.ec2.model.DescribeClientVpnTargetNetworksRequest;
+import com.amazonaws.services.ec2.model.DescribeClientVpnTargetNetworksResult;
 import com.amazonaws.services.ec2.model.DescribeConversionTasksRequest;
 import com.amazonaws.services.ec2.model.DescribeConversionTasksResult;
 import com.amazonaws.services.ec2.model.DescribeCustomerGatewaysRequest;
@@ -221,26 +306,34 @@ import com.amazonaws.services.ec2.model.DescribeDhcpOptionsRequest;
 import com.amazonaws.services.ec2.model.DescribeDhcpOptionsResult;
 import com.amazonaws.services.ec2.model.DescribeEgressOnlyInternetGatewaysRequest;
 import com.amazonaws.services.ec2.model.DescribeEgressOnlyInternetGatewaysResult;
-import com.amazonaws.services.ec2.model.DescribeExportTasksRequest;
-import com.amazonaws.services.ec2.model.DescribeExportTasksResult;
 import com.amazonaws.services.ec2.model.DescribeElasticGpusRequest;
 import com.amazonaws.services.ec2.model.DescribeElasticGpusResult;
+import com.amazonaws.services.ec2.model.DescribeExportTasksRequest;
+import com.amazonaws.services.ec2.model.DescribeExportTasksResult;
+import com.amazonaws.services.ec2.model.DescribeFleetHistoryRequest;
+import com.amazonaws.services.ec2.model.DescribeFleetHistoryResult;
+import com.amazonaws.services.ec2.model.DescribeFleetInstancesRequest;
+import com.amazonaws.services.ec2.model.DescribeFleetInstancesResult;
+import com.amazonaws.services.ec2.model.DescribeFleetsRequest;
+import com.amazonaws.services.ec2.model.DescribeFleetsResult;
+import com.amazonaws.services.ec2.model.DescribeFlowLogsRequest;
+import com.amazonaws.services.ec2.model.DescribeFlowLogsResult;
+import com.amazonaws.services.ec2.model.DescribeFpgaImageAttributeRequest;
+import com.amazonaws.services.ec2.model.DescribeFpgaImageAttributeResult;
 import com.amazonaws.services.ec2.model.DescribeFpgaImagesRequest;
 import com.amazonaws.services.ec2.model.DescribeFpgaImagesResult;
 import com.amazonaws.services.ec2.model.DescribeHostReservationOfferingsRequest;
 import com.amazonaws.services.ec2.model.DescribeHostReservationOfferingsResult;
 import com.amazonaws.services.ec2.model.DescribeHostReservationsRequest;
 import com.amazonaws.services.ec2.model.DescribeHostReservationsResult;
-import com.amazonaws.services.ec2.model.DescribeIdentityIdFormatRequest;
-import com.amazonaws.services.ec2.model.DescribeIdentityIdFormatResult;
-import com.amazonaws.services.ec2.model.DescribeFlowLogsRequest;
-import com.amazonaws.services.ec2.model.DescribeFlowLogsResult;
 import com.amazonaws.services.ec2.model.DescribeHostsRequest;
 import com.amazonaws.services.ec2.model.DescribeHostsResult;
 import com.amazonaws.services.ec2.model.DescribeIamInstanceProfileAssociationsRequest;
 import com.amazonaws.services.ec2.model.DescribeIamInstanceProfileAssociationsResult;
 import com.amazonaws.services.ec2.model.DescribeIdFormatRequest;
 import com.amazonaws.services.ec2.model.DescribeIdFormatResult;
+import com.amazonaws.services.ec2.model.DescribeIdentityIdFormatRequest;
+import com.amazonaws.services.ec2.model.DescribeIdentityIdFormatResult;
 import com.amazonaws.services.ec2.model.DescribeImageAttributeRequest;
 import com.amazonaws.services.ec2.model.DescribeImageAttributeResult;
 import com.amazonaws.services.ec2.model.DescribeImagesRequest;
@@ -251,6 +344,8 @@ import com.amazonaws.services.ec2.model.DescribeImportSnapshotTasksRequest;
 import com.amazonaws.services.ec2.model.DescribeImportSnapshotTasksResult;
 import com.amazonaws.services.ec2.model.DescribeInstanceAttributeRequest;
 import com.amazonaws.services.ec2.model.DescribeInstanceAttributeResult;
+import com.amazonaws.services.ec2.model.DescribeInstanceCreditSpecificationsRequest;
+import com.amazonaws.services.ec2.model.DescribeInstanceCreditSpecificationsResult;
 import com.amazonaws.services.ec2.model.DescribeInstanceStatusRequest;
 import com.amazonaws.services.ec2.model.DescribeInstanceStatusResult;
 import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
@@ -259,6 +354,10 @@ import com.amazonaws.services.ec2.model.DescribeInternetGatewaysRequest;
 import com.amazonaws.services.ec2.model.DescribeInternetGatewaysResult;
 import com.amazonaws.services.ec2.model.DescribeKeyPairsRequest;
 import com.amazonaws.services.ec2.model.DescribeKeyPairsResult;
+import com.amazonaws.services.ec2.model.DescribeLaunchTemplateVersionsRequest;
+import com.amazonaws.services.ec2.model.DescribeLaunchTemplateVersionsResult;
+import com.amazonaws.services.ec2.model.DescribeLaunchTemplatesRequest;
+import com.amazonaws.services.ec2.model.DescribeLaunchTemplatesResult;
 import com.amazonaws.services.ec2.model.DescribeMovingAddressesRequest;
 import com.amazonaws.services.ec2.model.DescribeMovingAddressesResult;
 import com.amazonaws.services.ec2.model.DescribeNatGatewaysRequest;
@@ -267,14 +366,18 @@ import com.amazonaws.services.ec2.model.DescribeNetworkAclsRequest;
 import com.amazonaws.services.ec2.model.DescribeNetworkAclsResult;
 import com.amazonaws.services.ec2.model.DescribeNetworkInterfaceAttributeRequest;
 import com.amazonaws.services.ec2.model.DescribeNetworkInterfaceAttributeResult;
-import com.amazonaws.services.ec2.model.DescribeNetworkInterfacesRequest;
-import com.amazonaws.services.ec2.model.DescribeNetworkInterfacesResult;
 import com.amazonaws.services.ec2.model.DescribeNetworkInterfacePermissionsRequest;
 import com.amazonaws.services.ec2.model.DescribeNetworkInterfacePermissionsResult;
+import com.amazonaws.services.ec2.model.DescribeNetworkInterfacesRequest;
+import com.amazonaws.services.ec2.model.DescribeNetworkInterfacesResult;
 import com.amazonaws.services.ec2.model.DescribePlacementGroupsRequest;
 import com.amazonaws.services.ec2.model.DescribePlacementGroupsResult;
 import com.amazonaws.services.ec2.model.DescribePrefixListsRequest;
 import com.amazonaws.services.ec2.model.DescribePrefixListsResult;
+import com.amazonaws.services.ec2.model.DescribePrincipalIdFormatRequest;
+import com.amazonaws.services.ec2.model.DescribePrincipalIdFormatResult;
+import com.amazonaws.services.ec2.model.DescribePublicIpv4PoolsRequest;
+import com.amazonaws.services.ec2.model.DescribePublicIpv4PoolsResult;
 import com.amazonaws.services.ec2.model.DescribeRegionsRequest;
 import com.amazonaws.services.ec2.model.DescribeRegionsResult;
 import com.amazonaws.services.ec2.model.DescribeReservedInstancesListingsRequest;
@@ -291,12 +394,10 @@ import com.amazonaws.services.ec2.model.DescribeScheduledInstanceAvailabilityReq
 import com.amazonaws.services.ec2.model.DescribeScheduledInstanceAvailabilityResult;
 import com.amazonaws.services.ec2.model.DescribeScheduledInstancesRequest;
 import com.amazonaws.services.ec2.model.DescribeScheduledInstancesResult;
-import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest;
-import com.amazonaws.services.ec2.model.DescribeSecurityGroupsResult;
-import com.amazonaws.services.ec2.model.DescribeStaleSecurityGroupsRequest;
-import com.amazonaws.services.ec2.model.DescribeStaleSecurityGroupsResult;
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupReferencesRequest;
 import com.amazonaws.services.ec2.model.DescribeSecurityGroupReferencesResult;
+import com.amazonaws.services.ec2.model.DescribeSecurityGroupsRequest;
+import com.amazonaws.services.ec2.model.DescribeSecurityGroupsResult;
 import com.amazonaws.services.ec2.model.DescribeSnapshotAttributeRequest;
 import com.amazonaws.services.ec2.model.DescribeSnapshotAttributeResult;
 import com.amazonaws.services.ec2.model.DescribeSnapshotsRequest;
@@ -313,10 +414,20 @@ import com.amazonaws.services.ec2.model.DescribeSpotInstanceRequestsRequest;
 import com.amazonaws.services.ec2.model.DescribeSpotInstanceRequestsResult;
 import com.amazonaws.services.ec2.model.DescribeSpotPriceHistoryRequest;
 import com.amazonaws.services.ec2.model.DescribeSpotPriceHistoryResult;
+import com.amazonaws.services.ec2.model.DescribeStaleSecurityGroupsRequest;
+import com.amazonaws.services.ec2.model.DescribeStaleSecurityGroupsResult;
 import com.amazonaws.services.ec2.model.DescribeSubnetsRequest;
 import com.amazonaws.services.ec2.model.DescribeSubnetsResult;
 import com.amazonaws.services.ec2.model.DescribeTagsRequest;
 import com.amazonaws.services.ec2.model.DescribeTagsResult;
+import com.amazonaws.services.ec2.model.DescribeTransitGatewayAttachmentsRequest;
+import com.amazonaws.services.ec2.model.DescribeTransitGatewayAttachmentsResult;
+import com.amazonaws.services.ec2.model.DescribeTransitGatewayRouteTablesRequest;
+import com.amazonaws.services.ec2.model.DescribeTransitGatewayRouteTablesResult;
+import com.amazonaws.services.ec2.model.DescribeTransitGatewayVpcAttachmentsRequest;
+import com.amazonaws.services.ec2.model.DescribeTransitGatewayVpcAttachmentsResult;
+import com.amazonaws.services.ec2.model.DescribeTransitGatewaysRequest;
+import com.amazonaws.services.ec2.model.DescribeTransitGatewaysResult;
 import com.amazonaws.services.ec2.model.DescribeVolumeAttributeRequest;
 import com.amazonaws.services.ec2.model.DescribeVolumeAttributeResult;
 import com.amazonaws.services.ec2.model.DescribeVolumeStatusRequest;
@@ -331,6 +442,14 @@ import com.amazonaws.services.ec2.model.DescribeVpcClassicLinkDnsSupportRequest;
 import com.amazonaws.services.ec2.model.DescribeVpcClassicLinkDnsSupportResult;
 import com.amazonaws.services.ec2.model.DescribeVpcClassicLinkRequest;
 import com.amazonaws.services.ec2.model.DescribeVpcClassicLinkResult;
+import com.amazonaws.services.ec2.model.DescribeVpcEndpointConnectionNotificationsRequest;
+import com.amazonaws.services.ec2.model.DescribeVpcEndpointConnectionNotificationsResult;
+import com.amazonaws.services.ec2.model.DescribeVpcEndpointConnectionsRequest;
+import com.amazonaws.services.ec2.model.DescribeVpcEndpointConnectionsResult;
+import com.amazonaws.services.ec2.model.DescribeVpcEndpointServiceConfigurationsRequest;
+import com.amazonaws.services.ec2.model.DescribeVpcEndpointServiceConfigurationsResult;
+import com.amazonaws.services.ec2.model.DescribeVpcEndpointServicePermissionsRequest;
+import com.amazonaws.services.ec2.model.DescribeVpcEndpointServicePermissionsResult;
 import com.amazonaws.services.ec2.model.DescribeVpcEndpointServicesRequest;
 import com.amazonaws.services.ec2.model.DescribeVpcEndpointServicesResult;
 import com.amazonaws.services.ec2.model.DescribeVpcEndpointsRequest;
@@ -353,6 +472,8 @@ import com.amazonaws.services.ec2.model.DetachVolumeRequest;
 import com.amazonaws.services.ec2.model.DetachVolumeResult;
 import com.amazonaws.services.ec2.model.DetachVpnGatewayRequest;
 import com.amazonaws.services.ec2.model.DetachVpnGatewayResult;
+import com.amazonaws.services.ec2.model.DisableTransitGatewayRouteTablePropagationRequest;
+import com.amazonaws.services.ec2.model.DisableTransitGatewayRouteTablePropagationResult;
 import com.amazonaws.services.ec2.model.DisableVgwRoutePropagationRequest;
 import com.amazonaws.services.ec2.model.DisableVgwRoutePropagationResult;
 import com.amazonaws.services.ec2.model.DisableVpcClassicLinkDnsSupportRequest;
@@ -361,16 +482,22 @@ import com.amazonaws.services.ec2.model.DisableVpcClassicLinkRequest;
 import com.amazonaws.services.ec2.model.DisableVpcClassicLinkResult;
 import com.amazonaws.services.ec2.model.DisassociateAddressRequest;
 import com.amazonaws.services.ec2.model.DisassociateAddressResult;
-import com.amazonaws.services.ec2.model.DisassociateRouteTableRequest;
-import com.amazonaws.services.ec2.model.DisassociateRouteTableResult;
+import com.amazonaws.services.ec2.model.DisassociateClientVpnTargetNetworkRequest;
+import com.amazonaws.services.ec2.model.DisassociateClientVpnTargetNetworkResult;
 import com.amazonaws.services.ec2.model.DisassociateIamInstanceProfileRequest;
 import com.amazonaws.services.ec2.model.DisassociateIamInstanceProfileResult;
-import com.amazonaws.services.ec2.model.DisassociateVpcCidrBlockRequest;
-import com.amazonaws.services.ec2.model.DisassociateVpcCidrBlockResult;
+import com.amazonaws.services.ec2.model.DisassociateRouteTableRequest;
+import com.amazonaws.services.ec2.model.DisassociateRouteTableResult;
 import com.amazonaws.services.ec2.model.DisassociateSubnetCidrBlockRequest;
 import com.amazonaws.services.ec2.model.DisassociateSubnetCidrBlockResult;
+import com.amazonaws.services.ec2.model.DisassociateTransitGatewayRouteTableRequest;
+import com.amazonaws.services.ec2.model.DisassociateTransitGatewayRouteTableResult;
+import com.amazonaws.services.ec2.model.DisassociateVpcCidrBlockRequest;
+import com.amazonaws.services.ec2.model.DisassociateVpcCidrBlockResult;
 import com.amazonaws.services.ec2.model.DryRunResult;
 import com.amazonaws.services.ec2.model.DryRunSupportedRequest;
+import com.amazonaws.services.ec2.model.EnableTransitGatewayRouteTablePropagationRequest;
+import com.amazonaws.services.ec2.model.EnableTransitGatewayRouteTablePropagationResult;
 import com.amazonaws.services.ec2.model.EnableVgwRoutePropagationRequest;
 import com.amazonaws.services.ec2.model.EnableVgwRoutePropagationResult;
 import com.amazonaws.services.ec2.model.EnableVolumeIORequest;
@@ -379,6 +506,12 @@ import com.amazonaws.services.ec2.model.EnableVpcClassicLinkDnsSupportRequest;
 import com.amazonaws.services.ec2.model.EnableVpcClassicLinkDnsSupportResult;
 import com.amazonaws.services.ec2.model.EnableVpcClassicLinkRequest;
 import com.amazonaws.services.ec2.model.EnableVpcClassicLinkResult;
+import com.amazonaws.services.ec2.model.ExportClientVpnClientCertificateRevocationListRequest;
+import com.amazonaws.services.ec2.model.ExportClientVpnClientCertificateRevocationListResult;
+import com.amazonaws.services.ec2.model.ExportClientVpnClientConfigurationRequest;
+import com.amazonaws.services.ec2.model.ExportClientVpnClientConfigurationResult;
+import com.amazonaws.services.ec2.model.ExportTransitGatewayRoutesRequest;
+import com.amazonaws.services.ec2.model.ExportTransitGatewayRoutesResult;
 import com.amazonaws.services.ec2.model.Filter;
 import com.amazonaws.services.ec2.model.GetConsoleOutputRequest;
 import com.amazonaws.services.ec2.model.GetConsoleOutputResult;
@@ -386,10 +519,20 @@ import com.amazonaws.services.ec2.model.GetConsoleScreenshotRequest;
 import com.amazonaws.services.ec2.model.GetConsoleScreenshotResult;
 import com.amazonaws.services.ec2.model.GetHostReservationPurchasePreviewRequest;
 import com.amazonaws.services.ec2.model.GetHostReservationPurchasePreviewResult;
+import com.amazonaws.services.ec2.model.GetLaunchTemplateDataRequest;
+import com.amazonaws.services.ec2.model.GetLaunchTemplateDataResult;
 import com.amazonaws.services.ec2.model.GetPasswordDataRequest;
 import com.amazonaws.services.ec2.model.GetPasswordDataResult;
 import com.amazonaws.services.ec2.model.GetReservedInstancesExchangeQuoteRequest;
 import com.amazonaws.services.ec2.model.GetReservedInstancesExchangeQuoteResult;
+import com.amazonaws.services.ec2.model.GetTransitGatewayAttachmentPropagationsRequest;
+import com.amazonaws.services.ec2.model.GetTransitGatewayAttachmentPropagationsResult;
+import com.amazonaws.services.ec2.model.GetTransitGatewayRouteTableAssociationsRequest;
+import com.amazonaws.services.ec2.model.GetTransitGatewayRouteTableAssociationsResult;
+import com.amazonaws.services.ec2.model.GetTransitGatewayRouteTablePropagationsRequest;
+import com.amazonaws.services.ec2.model.GetTransitGatewayRouteTablePropagationsResult;
+import com.amazonaws.services.ec2.model.ImportClientVpnClientCertificateRevocationListRequest;
+import com.amazonaws.services.ec2.model.ImportClientVpnClientCertificateRevocationListResult;
 import com.amazonaws.services.ec2.model.ImportImageRequest;
 import com.amazonaws.services.ec2.model.ImportImageResult;
 import com.amazonaws.services.ec2.model.ImportInstanceRequest;
@@ -403,18 +546,32 @@ import com.amazonaws.services.ec2.model.ImportVolumeResult;
 import com.amazonaws.services.ec2.model.Instance;
 import com.amazonaws.services.ec2.model.InstanceState;
 import com.amazonaws.services.ec2.model.InstanceStateName;
+import com.amazonaws.services.ec2.model.ModifyCapacityReservationRequest;
+import com.amazonaws.services.ec2.model.ModifyCapacityReservationResult;
+import com.amazonaws.services.ec2.model.ModifyClientVpnEndpointRequest;
+import com.amazonaws.services.ec2.model.ModifyClientVpnEndpointResult;
+import com.amazonaws.services.ec2.model.ModifyFleetRequest;
+import com.amazonaws.services.ec2.model.ModifyFleetResult;
+import com.amazonaws.services.ec2.model.ModifyFpgaImageAttributeRequest;
+import com.amazonaws.services.ec2.model.ModifyFpgaImageAttributeResult;
 import com.amazonaws.services.ec2.model.ModifyHostsRequest;
 import com.amazonaws.services.ec2.model.ModifyHostsResult;
 import com.amazonaws.services.ec2.model.ModifyIdFormatRequest;
 import com.amazonaws.services.ec2.model.ModifyIdFormatResult;
+import com.amazonaws.services.ec2.model.ModifyIdentityIdFormatRequest;
+import com.amazonaws.services.ec2.model.ModifyIdentityIdFormatResult;
 import com.amazonaws.services.ec2.model.ModifyImageAttributeRequest;
 import com.amazonaws.services.ec2.model.ModifyImageAttributeResult;
 import com.amazonaws.services.ec2.model.ModifyInstanceAttributeRequest;
 import com.amazonaws.services.ec2.model.ModifyInstanceAttributeResult;
+import com.amazonaws.services.ec2.model.ModifyInstanceCapacityReservationAttributesRequest;
+import com.amazonaws.services.ec2.model.ModifyInstanceCapacityReservationAttributesResult;
+import com.amazonaws.services.ec2.model.ModifyInstanceCreditSpecificationRequest;
+import com.amazonaws.services.ec2.model.ModifyInstanceCreditSpecificationResult;
 import com.amazonaws.services.ec2.model.ModifyInstancePlacementRequest;
 import com.amazonaws.services.ec2.model.ModifyInstancePlacementResult;
-import com.amazonaws.services.ec2.model.ModifyIdentityIdFormatRequest;
-import com.amazonaws.services.ec2.model.ModifyIdentityIdFormatResult;
+import com.amazonaws.services.ec2.model.ModifyLaunchTemplateRequest;
+import com.amazonaws.services.ec2.model.ModifyLaunchTemplateResult;
 import com.amazonaws.services.ec2.model.ModifyNetworkInterfaceAttributeRequest;
 import com.amazonaws.services.ec2.model.ModifyNetworkInterfaceAttributeResult;
 import com.amazonaws.services.ec2.model.ModifyReservedInstancesRequest;
@@ -425,32 +582,48 @@ import com.amazonaws.services.ec2.model.ModifySpotFleetRequestRequest;
 import com.amazonaws.services.ec2.model.ModifySpotFleetRequestResult;
 import com.amazonaws.services.ec2.model.ModifySubnetAttributeRequest;
 import com.amazonaws.services.ec2.model.ModifySubnetAttributeResult;
+import com.amazonaws.services.ec2.model.ModifyTransitGatewayVpcAttachmentRequest;
+import com.amazonaws.services.ec2.model.ModifyTransitGatewayVpcAttachmentResult;
 import com.amazonaws.services.ec2.model.ModifyVolumeAttributeRequest;
 import com.amazonaws.services.ec2.model.ModifyVolumeAttributeResult;
 import com.amazonaws.services.ec2.model.ModifyVolumeRequest;
 import com.amazonaws.services.ec2.model.ModifyVolumeResult;
 import com.amazonaws.services.ec2.model.ModifyVpcAttributeRequest;
 import com.amazonaws.services.ec2.model.ModifyVpcAttributeResult;
+import com.amazonaws.services.ec2.model.ModifyVpcEndpointConnectionNotificationRequest;
+import com.amazonaws.services.ec2.model.ModifyVpcEndpointConnectionNotificationResult;
 import com.amazonaws.services.ec2.model.ModifyVpcEndpointRequest;
 import com.amazonaws.services.ec2.model.ModifyVpcEndpointResult;
+import com.amazonaws.services.ec2.model.ModifyVpcEndpointServiceConfigurationRequest;
+import com.amazonaws.services.ec2.model.ModifyVpcEndpointServiceConfigurationResult;
+import com.amazonaws.services.ec2.model.ModifyVpcEndpointServicePermissionsRequest;
+import com.amazonaws.services.ec2.model.ModifyVpcEndpointServicePermissionsResult;
+import com.amazonaws.services.ec2.model.ModifyVpcPeeringConnectionOptionsRequest;
+import com.amazonaws.services.ec2.model.ModifyVpcPeeringConnectionOptionsResult;
+import com.amazonaws.services.ec2.model.ModifyVpcTenancyRequest;
+import com.amazonaws.services.ec2.model.ModifyVpcTenancyResult;
 import com.amazonaws.services.ec2.model.MonitorInstancesRequest;
 import com.amazonaws.services.ec2.model.MonitorInstancesResult;
 import com.amazonaws.services.ec2.model.MoveAddressToVpcRequest;
 import com.amazonaws.services.ec2.model.MoveAddressToVpcResult;
+import com.amazonaws.services.ec2.model.ProvisionByoipCidrRequest;
+import com.amazonaws.services.ec2.model.ProvisionByoipCidrResult;
+import com.amazonaws.services.ec2.model.PurchaseHostReservationRequest;
+import com.amazonaws.services.ec2.model.PurchaseHostReservationResult;
 import com.amazonaws.services.ec2.model.PurchaseReservedInstancesOfferingRequest;
 import com.amazonaws.services.ec2.model.PurchaseReservedInstancesOfferingResult;
 import com.amazonaws.services.ec2.model.PurchaseScheduledInstancesRequest;
 import com.amazonaws.services.ec2.model.PurchaseScheduledInstancesResult;
-import com.amazonaws.services.ec2.model.PurchaseHostReservationRequest;
-import com.amazonaws.services.ec2.model.PurchaseHostReservationResult;
 import com.amazonaws.services.ec2.model.RebootInstancesRequest;
 import com.amazonaws.services.ec2.model.RebootInstancesResult;
 import com.amazonaws.services.ec2.model.RegisterImageRequest;
 import com.amazonaws.services.ec2.model.RegisterImageResult;
+import com.amazonaws.services.ec2.model.RejectTransitGatewayVpcAttachmentRequest;
+import com.amazonaws.services.ec2.model.RejectTransitGatewayVpcAttachmentResult;
+import com.amazonaws.services.ec2.model.RejectVpcEndpointConnectionsRequest;
+import com.amazonaws.services.ec2.model.RejectVpcEndpointConnectionsResult;
 import com.amazonaws.services.ec2.model.RejectVpcPeeringConnectionRequest;
 import com.amazonaws.services.ec2.model.RejectVpcPeeringConnectionResult;
-import com.amazonaws.services.ec2.model.ModifyVpcPeeringConnectionOptionsRequest;
-import com.amazonaws.services.ec2.model.ModifyVpcPeeringConnectionOptionsResult;
 import com.amazonaws.services.ec2.model.ReleaseAddressRequest;
 import com.amazonaws.services.ec2.model.ReleaseAddressResult;
 import com.amazonaws.services.ec2.model.ReleaseHostsRequest;
@@ -465,6 +638,8 @@ import com.amazonaws.services.ec2.model.ReplaceRouteRequest;
 import com.amazonaws.services.ec2.model.ReplaceRouteResult;
 import com.amazonaws.services.ec2.model.ReplaceRouteTableAssociationRequest;
 import com.amazonaws.services.ec2.model.ReplaceRouteTableAssociationResult;
+import com.amazonaws.services.ec2.model.ReplaceTransitGatewayRouteRequest;
+import com.amazonaws.services.ec2.model.ReplaceTransitGatewayRouteResult;
 import com.amazonaws.services.ec2.model.ReportInstanceStatusRequest;
 import com.amazonaws.services.ec2.model.ReportInstanceStatusResult;
 import com.amazonaws.services.ec2.model.RequestSpotFleetRequest;
@@ -472,6 +647,8 @@ import com.amazonaws.services.ec2.model.RequestSpotFleetResult;
 import com.amazonaws.services.ec2.model.RequestSpotInstancesRequest;
 import com.amazonaws.services.ec2.model.RequestSpotInstancesResult;
 import com.amazonaws.services.ec2.model.Reservation;
+import com.amazonaws.services.ec2.model.ResetFpgaImageAttributeRequest;
+import com.amazonaws.services.ec2.model.ResetFpgaImageAttributeResult;
 import com.amazonaws.services.ec2.model.ResetImageAttributeRequest;
 import com.amazonaws.services.ec2.model.ResetImageAttributeResult;
 import com.amazonaws.services.ec2.model.ResetInstanceAttributeRequest;
@@ -482,6 +659,8 @@ import com.amazonaws.services.ec2.model.ResetSnapshotAttributeRequest;
 import com.amazonaws.services.ec2.model.ResetSnapshotAttributeResult;
 import com.amazonaws.services.ec2.model.RestoreAddressToClassicRequest;
 import com.amazonaws.services.ec2.model.RestoreAddressToClassicResult;
+import com.amazonaws.services.ec2.model.RevokeClientVpnIngressRequest;
+import com.amazonaws.services.ec2.model.RevokeClientVpnIngressResult;
 import com.amazonaws.services.ec2.model.RevokeSecurityGroupEgressRequest;
 import com.amazonaws.services.ec2.model.RevokeSecurityGroupEgressResult;
 import com.amazonaws.services.ec2.model.RevokeSecurityGroupIngressRequest;
@@ -490,11 +669,15 @@ import com.amazonaws.services.ec2.model.RunInstancesRequest;
 import com.amazonaws.services.ec2.model.RunInstancesResult;
 import com.amazonaws.services.ec2.model.RunScheduledInstancesRequest;
 import com.amazonaws.services.ec2.model.RunScheduledInstancesResult;
+import com.amazonaws.services.ec2.model.SearchTransitGatewayRoutesRequest;
+import com.amazonaws.services.ec2.model.SearchTransitGatewayRoutesResult;
 import com.amazonaws.services.ec2.model.StartInstancesRequest;
 import com.amazonaws.services.ec2.model.StartInstancesResult;
 import com.amazonaws.services.ec2.model.StopInstancesRequest;
 import com.amazonaws.services.ec2.model.StopInstancesResult;
 import com.amazonaws.services.ec2.model.Tag;
+import com.amazonaws.services.ec2.model.TerminateClientVpnConnectionsRequest;
+import com.amazonaws.services.ec2.model.TerminateClientVpnConnectionsResult;
 import com.amazonaws.services.ec2.model.TerminateInstancesRequest;
 import com.amazonaws.services.ec2.model.TerminateInstancesResult;
 import com.amazonaws.services.ec2.model.UnassignIpv6AddressesRequest;
@@ -507,9 +690,11 @@ import com.amazonaws.services.ec2.model.UpdateSecurityGroupRuleDescriptionsEgres
 import com.amazonaws.services.ec2.model.UpdateSecurityGroupRuleDescriptionsEgressResult;
 import com.amazonaws.services.ec2.model.UpdateSecurityGroupRuleDescriptionsIngressRequest;
 import com.amazonaws.services.ec2.model.UpdateSecurityGroupRuleDescriptionsIngressResult;
+import com.amazonaws.services.ec2.model.WithdrawByoipCidrRequest;
+import com.amazonaws.services.ec2.model.WithdrawByoipCidrResult;
 import com.amazonaws.services.ec2.waiters.AmazonEC2Waiters;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -563,7 +748,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeInstancesResult describeInstances(DescribeInstancesRequest describeInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         Collection<Instance> filteredInstances = new ArrayList<>();
 
         logger.debug("--> mocking describeInstances");
@@ -660,49 +845,77 @@ public class AmazonEC2Mock implements AmazonEC2 {
     @Override
     public AcceptReservedInstancesExchangeQuoteResult acceptReservedInstancesExchangeQuote(
             AcceptReservedInstancesExchangeQuoteRequest acceptReservedInstancesExchangeQuoteRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AcceptTransitGatewayVpcAttachmentResult acceptTransitGatewayVpcAttachment(
+        AcceptTransitGatewayVpcAttachmentRequest acceptTransitGatewayVpcAttachmentRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AcceptVpcEndpointConnectionsResult acceptVpcEndpointConnections(
+        AcceptVpcEndpointConnectionsRequest acceptVpcEndpointConnectionsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public RebootInstancesResult rebootInstances(RebootInstancesRequest rebootInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeReservedInstancesResult describeReservedInstances(
             DescribeReservedInstancesRequest describeReservedInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateFlowLogsResult createFlowLogs(CreateFlowLogsRequest createFlowLogsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeAvailabilityZonesResult describeAvailabilityZones(DescribeAvailabilityZonesRequest describeAvailabilityZonesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public RestoreAddressToClassicResult restoreAddressToClassic(RestoreAddressToClassicRequest restoreAddressToClassicRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DetachVolumeResult detachVolume(DetachVolumeRequest detachVolumeRequest) throws AmazonServiceException, AmazonClientException {
+    public RevokeClientVpnIngressResult revokeClientVpnIngress(RevokeClientVpnIngressRequest revokeClientVpnIngressRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DetachVolumeResult detachVolume(DetachVolumeRequest detachVolumeRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteKeyPairResult deleteKeyPair(DeleteKeyPairRequest deleteKeyPairRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteLaunchTemplateResult deleteLaunchTemplate(DeleteLaunchTemplateRequest deleteLaunchTemplateRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteLaunchTemplateVersionsResult deleteLaunchTemplateVersions(
+        DeleteLaunchTemplateVersionsRequest deleteLaunchTemplateVersionsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -713,171 +926,231 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public UnmonitorInstancesResult unmonitorInstances(UnmonitorInstancesRequest unmonitorInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public UpdateSecurityGroupRuleDescriptionsIngressResult updateSecurityGroupRuleDescriptionsIngress(
             UpdateSecurityGroupRuleDescriptionsIngressRequest updateSecurityGroupRuleDescriptionsIngressRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public WithdrawByoipCidrResult withdrawByoipCidr(WithdrawByoipCidrRequest withdrawByoipCidrRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public UpdateSecurityGroupRuleDescriptionsEgressResult updateSecurityGroupRuleDescriptionsEgress(
             UpdateSecurityGroupRuleDescriptionsEgressRequest updateSecurityGroupRuleDescriptionsEgressRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AttachVpnGatewayResult attachVpnGateway(AttachVpnGatewayRequest attachVpnGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateImageResult createImage(CreateImageRequest createImageRequest) throws AmazonServiceException, AmazonClientException {
+    public AuthorizeClientVpnIngressResult authorizeClientVpnIngress(AuthorizeClientVpnIngressRequest authorizeClientVpnIngressRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateImageResult createImage(CreateImageRequest createImageRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteSecurityGroupResult deleteSecurityGroup(DeleteSecurityGroupRequest deleteSecurityGroupRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateInstanceExportTaskResult createInstanceExportTask(CreateInstanceExportTaskRequest createInstanceExportTaskRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AuthorizeSecurityGroupEgressResult authorizeSecurityGroupEgress(
-            AuthorizeSecurityGroupEgressRequest authorizeSecurityGroupEgressRequest) throws AmazonServiceException, AmazonClientException {
+            AuthorizeSecurityGroupEgressRequest authorizeSecurityGroupEgressRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AssociateDhcpOptionsResult associateDhcpOptions(AssociateDhcpOptionsRequest associateDhcpOptionsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public GetPasswordDataResult getPasswordData(GetPasswordDataRequest getPasswordDataRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public GetReservedInstancesExchangeQuoteResult getReservedInstancesExchangeQuote(
             GetReservedInstancesExchangeQuoteRequest getReservedInstancesExchangeQuoteRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public GetTransitGatewayAttachmentPropagationsResult getTransitGatewayAttachmentPropagations(
+        GetTransitGatewayAttachmentPropagationsRequest getTransitGatewayAttachmentPropagationsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public GetTransitGatewayRouteTableAssociationsResult getTransitGatewayRouteTableAssociations(
+        GetTransitGatewayRouteTableAssociationsRequest getTransitGatewayRouteTableAssociationsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public GetTransitGatewayRouteTablePropagationsResult getTransitGatewayRouteTablePropagations(
+        GetTransitGatewayRouteTablePropagationsRequest getTransitGatewayRouteTablePropagationsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ImportClientVpnClientCertificateRevocationListResult importClientVpnClientCertificateRevocationList(
+        ImportClientVpnClientCertificateRevocationListRequest importClientVpnClientCertificateRevocationListRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public StopInstancesResult stopInstances(StopInstancesRequest stopInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public TerminateClientVpnConnectionsResult terminateClientVpnConnections(
+        TerminateClientVpnConnectionsRequest terminateClientVpnConnectionsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ImportKeyPairResult importKeyPair(ImportKeyPairRequest importKeyPairRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteNetworkInterfaceResult deleteNetworkInterface(DeleteNetworkInterfaceRequest deleteNetworkInterfaceRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifyVpcAttributeResult modifyVpcAttribute(ModifyVpcAttributeRequest modifyVpcAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeSpotFleetInstancesResult describeSpotFleetInstances(DescribeSpotFleetInstancesRequest describeSpotFleetInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateSecurityGroupResult createSecurityGroup(CreateSecurityGroupRequest createSecurityGroupRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeSpotPriceHistoryResult describeSpotPriceHistory(DescribeSpotPriceHistoryRequest describeSpotPriceHistoryRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeNetworkInterfacesResult describeNetworkInterfaces(DescribeNetworkInterfacesRequest describeNetworkInterfacesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeNetworkInterfacePermissionsResult describeNetworkInterfacePermissions(
             DescribeNetworkInterfacePermissionsRequest describeNetworkInterfacePermissionsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeRegionsResult describeRegions(DescribeRegionsRequest describeRegionsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateDhcpOptionsResult createDhcpOptions(CreateDhcpOptionsRequest createDhcpOptionsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateReservedInstancesListingResult createReservedInstancesListing(
             CreateReservedInstancesListingRequest createReservedInstancesListingRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteVpcEndpointsResult deleteVpcEndpoints(DeleteVpcEndpointsRequest deleteVpcEndpointsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ResetSnapshotAttributeResult resetSnapshotAttribute(ResetSnapshotAttributeRequest resetSnapshotAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DeleteRouteResult deleteRoute(DeleteRouteRequest deleteRouteRequest) throws AmazonServiceException, AmazonClientException {
+    public DeleteRouteResult deleteRoute(DeleteRouteRequest deleteRouteRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeInternetGatewaysResult describeInternetGateways(DescribeInternetGatewaysRequest describeInternetGatewaysRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ImportVolumeResult importVolume(ImportVolumeRequest importVolumeRequest) throws AmazonServiceException, AmazonClientException {
+    public ImportVolumeResult importVolume(ImportVolumeRequest importVolumeRequest) throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyCapacityReservationResult modifyCapacityReservation(ModifyCapacityReservationRequest modifyCapacityReservationRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyClientVpnEndpointResult modifyClientVpnEndpoint(ModifyClientVpnEndpointRequest modifyClientVpnEndpointRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyFleetResult modifyFleet(ModifyFleetRequest modifyFleetRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyFpgaImageAttributeResult modifyFpgaImageAttribute(ModifyFpgaImageAttributeRequest modifyFpgaImageAttributeRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -893,514 +1166,599 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeSecurityGroupsResult describeSecurityGroups(DescribeSecurityGroupsRequest describeSecurityGroupsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeStaleSecurityGroupsResult describeStaleSecurityGroups(
             DescribeStaleSecurityGroupsRequest describeStaleSecurityGroupsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeSecurityGroupReferencesResult describeSecurityGroupReferences(
             DescribeSecurityGroupReferencesRequest describeSecurityGroupReferencesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public RejectVpcPeeringConnectionResult rejectVpcPeeringConnection(
             RejectVpcPeeringConnectionRequest rejectVpcPeeringConnectionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifyVpcPeeringConnectionOptionsResult modifyVpcPeeringConnectionOptions(
             ModifyVpcPeeringConnectionOptionsRequest modifyVpcPeeringConnectionOptionsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyVpcTenancyResult modifyVpcTenancy(ModifyVpcTenancyRequest modifyVpcTenancyRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteFlowLogsResult deleteFlowLogs(DeleteFlowLogsRequest deleteFlowLogsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteFpgaImageResult deleteFpgaImage(DeleteFpgaImageRequest deleteFpgaImageRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DetachVpnGatewayResult detachVpnGateway(DetachVpnGatewayRequest detachVpnGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DisableTransitGatewayRouteTablePropagationResult disableTransitGatewayRouteTablePropagation(
+        DisableTransitGatewayRouteTablePropagationRequest disableTransitGatewayRouteTablePropagationRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeregisterImageResult deregisterImage(DeregisterImageRequest deregisterImageRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeSpotDatafeedSubscriptionResult describeSpotDatafeedSubscription(
                 DescribeSpotDatafeedSubscriptionRequest describeSpotDatafeedSubscriptionRequest)
-                throws AmazonServiceException, AmazonClientException {
+                throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DeleteTagsResult deleteTags(DeleteTagsRequest deleteTagsRequest) throws AmazonServiceException, AmazonClientException {
+    public DeleteTagsResult deleteTags(DeleteTagsRequest deleteTagsRequest) throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteTransitGatewayResult deleteTransitGateway(DeleteTransitGatewayRequest deleteTransitGatewayRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteTransitGatewayRouteResult deleteTransitGatewayRoute(DeleteTransitGatewayRouteRequest deleteTransitGatewayRouteRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteTransitGatewayRouteTableResult deleteTransitGatewayRouteTable(
+        DeleteTransitGatewayRouteTableRequest deleteTransitGatewayRouteTableRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteTransitGatewayVpcAttachmentResult deleteTransitGatewayVpcAttachment(
+        DeleteTransitGatewayVpcAttachmentRequest deleteTransitGatewayVpcAttachmentRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteSubnetResult deleteSubnet(DeleteSubnetRequest deleteSubnetRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeAccountAttributesResult describeAccountAttributes(DescribeAccountAttributesRequest describeAccountAttributesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AttachClassicLinkVpcResult attachClassicLinkVpc(AttachClassicLinkVpcRequest attachClassicLinkVpcRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateVpnGatewayResult createVpnGateway(CreateVpnGatewayRequest createVpnGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteClientVpnEndpointResult deleteClientVpnEndpoint(DeleteClientVpnEndpointRequest deleteClientVpnEndpointRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteClientVpnRouteResult deleteClientVpnRoute(DeleteClientVpnRouteRequest deleteClientVpnRouteRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public EnableVolumeIOResult enableVolumeIO(EnableVolumeIORequest enableVolumeIORequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public MoveAddressToVpcResult moveAddressToVpc(MoveAddressToVpcRequest moveAddressToVpcRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ProvisionByoipCidrResult provisionByoipCidr(ProvisionByoipCidrRequest provisionByoipCidrRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteVpnGatewayResult deleteVpnGateway(DeleteVpnGatewayRequest deleteVpnGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AttachVolumeResult attachVolume(AttachVolumeRequest attachVolumeRequest) throws AmazonServiceException, AmazonClientException {
+    public DeprovisionByoipCidrResult deprovisionByoipCidr(DeprovisionByoipCidrRequest deprovisionByoipCidrRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AttachVolumeResult attachVolume(AttachVolumeRequest attachVolumeRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVolumeStatusResult describeVolumeStatus(DescribeVolumeStatusRequest describeVolumeStatusRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVolumesModificationsResult describeVolumesModifications(
             DescribeVolumesModificationsRequest describeVolumesModificationsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeImportSnapshotTasksResult describeImportSnapshotTasks(
             DescribeImportSnapshotTasksRequest describeImportSnapshotTasksRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVpnConnectionsResult describeVpnConnections(DescribeVpnConnectionsRequest describeVpnConnectionsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ResetImageAttributeResult resetImageAttribute(ResetImageAttributeRequest resetImageAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public EnableVgwRoutePropagationResult enableVgwRoutePropagation(EnableVgwRoutePropagationRequest enableVgwRoutePropagationRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateSnapshotResult createSnapshot(CreateSnapshotRequest createSnapshotRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DeleteVolumeResult deleteVolume(DeleteVolumeRequest deleteVolumeRequest) throws AmazonServiceException, AmazonClientException {
+    public DeleteVolumeResult deleteVolume(DeleteVolumeRequest deleteVolumeRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateNetworkInterfaceResult createNetworkInterface(CreateNetworkInterfaceRequest createNetworkInterfaceRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifyReservedInstancesResult modifyReservedInstances(ModifyReservedInstancesRequest modifyReservedInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CancelSpotFleetRequestsResult cancelSpotFleetRequests(CancelSpotFleetRequestsRequest cancelSpotFleetRequestsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public UnassignPrivateIpAddressesResult unassignPrivateIpAddresses(UnassignPrivateIpAddressesRequest unassignPrivateIpAddressesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public UnassignIpv6AddressesResult unassignIpv6Addresses(UnassignIpv6AddressesRequest unassignIpv6AddressesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcsResult describeVpcs(DescribeVpcsRequest describeVpcsRequest) throws AmazonServiceException, AmazonClientException {
+    public DescribeVpcsResult describeVpcs(DescribeVpcsRequest describeVpcsRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CancelConversionTaskResult cancelConversionTask(CancelConversionTaskRequest cancelConversionTaskRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AssociateAddressResult associateAddress(AssociateAddressRequest associateAddressRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AssociateClientVpnTargetNetworkResult associateClientVpnTargetNetwork(
+        AssociateClientVpnTargetNetworkRequest associateClientVpnTargetNetworkRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AssociateIamInstanceProfileResult associateIamInstanceProfile(AssociateIamInstanceProfileRequest associateIamInstanceRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AssociateVpcCidrBlockResult associateVpcCidrBlock(AssociateVpcCidrBlockRequest associateVpcCidrBlockRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AssociateSubnetCidrBlockResult associateSubnetCidrBlock(AssociateSubnetCidrBlockRequest associateSubnetCidrBlockRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public AssociateTransitGatewayRouteTableResult associateTransitGatewayRouteTable(
+        AssociateTransitGatewayRouteTableRequest associateTransitGatewayRouteTableRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteCustomerGatewayResult deleteCustomerGateway(DeleteCustomerGatewayRequest deleteCustomerGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateNetworkAclEntryResult createNetworkAclEntry(CreateNetworkAclEntryRequest createNetworkAclEntryRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AcceptVpcPeeringConnectionResult acceptVpcPeeringConnection(AcceptVpcPeeringConnectionRequest acceptVpcPeeringConnectionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeExportTasksResult describeExportTasks(DescribeExportTasksRequest describeExportTasksRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeElasticGpusResult describeElasticGpus(DescribeElasticGpusRequest describeElasticGpusRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeFpgaImagesResult describeFpgaImages(DescribeFpgaImagesRequest describeFpgaImagesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeHostReservationOfferingsResult describeHostReservationOfferings(
             DescribeHostReservationOfferingsRequest describeHostReservationOfferingsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeHostReservationsResult describeHostReservations(DescribeHostReservationsRequest describeHostReservationsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeIdentityIdFormatResult describeIdentityIdFormat(DescribeIdentityIdFormatRequest describeIdentityIdFormatRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DetachInternetGatewayResult detachInternetGateway(DetachInternetGatewayRequest detachInternetGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateVpcPeeringConnectionResult createVpcPeeringConnection(CreateVpcPeeringConnectionRequest createVpcPeeringConnectionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateRouteTableResult createRouteTable(CreateRouteTableRequest createRouteTableRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CancelImportTaskResult cancelImportTask(CancelImportTaskRequest cancelImportTaskRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVolumesResult describeVolumes(DescribeVolumesRequest describeVolumesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeReservedInstancesListingsResult describeReservedInstancesListings(
             DescribeReservedInstancesListingsRequest describeReservedInstancesListingsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ReportInstanceStatusResult reportInstanceStatus(ReportInstanceStatusRequest reportInstanceStatusRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeRouteTablesResult describeRouteTables(DescribeRouteTablesRequest describeRouteTablesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeDhcpOptionsResult describeDhcpOptions(DescribeDhcpOptionsRequest describeDhcpOptionsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
     
     @Override
     public DescribeEgressOnlyInternetGatewaysResult describeEgressOnlyInternetGateways(
             DescribeEgressOnlyInternetGatewaysRequest describeEgressOnlyInternetGatewaysRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public MonitorInstancesResult monitorInstances(MonitorInstancesRequest monitorInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribePrefixListsResult describePrefixLists(DescribePrefixListsRequest describePrefixListsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public RequestSpotFleetResult requestSpotFleet(RequestSpotFleetRequest requestSpotFleetRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeImportImageTasksResult describeImportImageTasks(DescribeImportImageTasksRequest describeImportImageTasksRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeNetworkAclsResult describeNetworkAcls(DescribeNetworkAclsRequest describeNetworkAclsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeBundleTasksResult describeBundleTasks(DescribeBundleTasksRequest describeBundleTasksRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ImportInstanceResult importInstance(ImportInstanceRequest importInstanceRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteVpcPeeringConnectionResult deleteVpcPeeringConnection(DeleteVpcPeeringConnectionRequest deleteVpcPeeringConnectionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public GetConsoleOutputResult getConsoleOutput(GetConsoleOutputRequest getConsoleOutputRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public GetConsoleScreenshotResult getConsoleScreenshot(GetConsoleScreenshotRequest getConsoleScreenshotRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public GetHostReservationPurchasePreviewResult getHostReservationPurchasePreview(
             GetHostReservationPurchasePreviewRequest getHostReservationPurchasePreviewRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public GetLaunchTemplateDataResult getLaunchTemplateData(GetLaunchTemplateDataRequest getLaunchTemplateDataRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateInternetGatewayResult createInternetGateway(CreateInternetGatewayRequest createInternetGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteVpnConnectionRouteResult deleteVpnConnectionRoute(DeleteVpnConnectionRouteRequest deleteVpnConnectionRouteRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DetachNetworkInterfaceResult detachNetworkInterface(DetachNetworkInterfaceRequest detachNetworkInterfaceRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifyImageAttributeResult modifyImageAttribute(ModifyImageAttributeRequest modifyImageAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateCustomerGatewayResult createCustomerGateway(CreateCustomerGatewayRequest createCustomerGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateDefaultSubnetResult createDefaultSubnet(CreateDefaultSubnetRequest createDefaultSubnetRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateEgressOnlyInternetGatewayResult createEgressOnlyInternetGateway(
             CreateEgressOnlyInternetGatewayRequest createEgressOnlyInternetGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateFleetResult createFleet(CreateFleetRequest createFleetRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateFpgaImageResult createFpgaImage(CreateFpgaImageRequest createFpgaImageRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateNetworkInterfacePermissionResult createNetworkInterfacePermission(
             CreateNetworkInterfacePermissionRequest createNetworkInterfacePermissionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateDefaultVpcResult createDefaultVpc(CreateDefaultVpcRequest createDefaultVpcRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateSpotDatafeedSubscriptionResult createSpotDatafeedSubscription(
             CreateSpotDatafeedSubscriptionRequest createSpotDatafeedSubscriptionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AttachInternetGatewayResult attachInternetGateway(AttachInternetGatewayRequest attachInternetGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteVpnConnectionResult deleteVpnConnection(DeleteVpnConnectionRequest deleteVpnConnectionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeMovingAddressesResult describeMovingAddresses(DescribeMovingAddressesRequest describeMovingAddressesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeConversionTasksResult describeConversionTasks(DescribeConversionTasksRequest describeConversionTasksRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateVpnConnectionResult createVpnConnection(CreateVpnConnectionRequest createVpnConnectionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ImportImageResult importImage(ImportImageRequest importImageRequest) throws AmazonServiceException, AmazonClientException {
+    public ImportImageResult importImage(ImportImageRequest importImageRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DisableVpcClassicLinkResult disableVpcClassicLink(DisableVpcClassicLinkRequest disableVpcClassicLinkRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1412,31 +1770,37 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public DescribeInstanceAttributeResult describeInstanceAttribute(DescribeInstanceAttributeRequest describeInstanceAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeInstanceCreditSpecificationsResult describeInstanceCreditSpecifications(
+        DescribeInstanceCreditSpecificationsRequest describeInstanceCreditSpecificationsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeFlowLogsResult describeFlowLogs(DescribeFlowLogsRequest describeFlowLogsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVpcPeeringConnectionsResult describeVpcPeeringConnections(
             DescribeVpcPeeringConnectionsRequest describeVpcPeeringConnectionsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribePlacementGroupsResult describePlacementGroups(DescribePlacementGroupsRequest describePlacementGroupsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public RunInstancesResult runInstances(RunInstancesRequest runInstancesRequest) throws AmazonServiceException, AmazonClientException {
+    public RunInstancesResult runInstances(RunInstancesRequest runInstancesRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1446,49 +1810,72 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public SearchTransitGatewayRoutesResult searchTransitGatewayRoutes(
+        SearchTransitGatewayRoutesRequest searchTransitGatewayRoutesRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public DescribeSubnetsResult describeSubnets(DescribeSubnetsRequest describeSubnetsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AssociateRouteTableResult associateRouteTable(AssociateRouteTableRequest associateRouteTableRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifyVolumeAttributeResult modifyVolumeAttribute(ModifyVolumeAttributeRequest modifyVolumeAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteNetworkAclResult deleteNetworkAcl(DeleteNetworkAclRequest deleteNetworkAclRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeImagesResult describeImages(DescribeImagesRequest describeImagesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public StartInstancesResult startInstances(StartInstancesRequest startInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifyInstanceAttributeResult modifyInstanceAttribute(ModifyInstanceAttributeRequest modifyInstanceAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyInstanceCapacityReservationAttributesResult modifyInstanceCapacityReservationAttributes(
+        ModifyInstanceCapacityReservationAttributesRequest modifyInstanceCapacityReservationAttributesRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyInstanceCreditSpecificationResult modifyInstanceCreditSpecification(
+        ModifyInstanceCreditSpecificationRequest modifyInstanceCreditSpecificationRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifyInstancePlacementResult modifyInstancePlacement(ModifyInstancePlacementRequest modifyInstancePlacementRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyLaunchTemplateResult modifyLaunchTemplate(ModifyLaunchTemplateRequest modifyLaunchTemplateRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1500,175 +1887,224 @@ public class AmazonEC2Mock implements AmazonEC2 {
     @Override
     public CancelReservedInstancesListingResult cancelReservedInstancesListing(
             CancelReservedInstancesListingRequest cancelReservedInstancesListingRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteDhcpOptionsResult deleteDhcpOptions(DeleteDhcpOptionsRequest deleteDhcpOptionsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteEgressOnlyInternetGatewayResult deleteEgressOnlyInternetGateway(
             DeleteEgressOnlyInternetGatewayRequest deleteEgressOnlyInternetGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteFleetsResult deleteFleets(DeleteFleetsRequest deleteFleetsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteNetworkInterfacePermissionResult deleteNetworkInterfacePermission(
             DeleteNetworkInterfacePermissionRequest deleteNetworkInterfacePermissionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AuthorizeSecurityGroupIngressResult authorizeSecurityGroupIngress(
             AuthorizeSecurityGroupIngressRequest authorizeSecurityGroupIngressRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeSpotInstanceRequestsResult describeSpotInstanceRequests(
-            DescribeSpotInstanceRequestsRequest describeSpotInstanceRequestsRequest) throws AmazonServiceException, AmazonClientException {
+            DescribeSpotInstanceRequestsRequest describeSpotInstanceRequestsRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateVpcResult createVpc(CreateVpcRequest createVpcRequest) throws AmazonServiceException, AmazonClientException {
+    public CreateVpcResult createVpc(CreateVpcRequest createVpcRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeCustomerGatewaysResult describeCustomerGateways(DescribeCustomerGatewaysRequest describeCustomerGatewaysRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CancelExportTaskResult cancelExportTask(CancelExportTaskRequest cancelExportTaskRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateRouteResult createRoute(CreateRouteRequest createRouteRequest) throws AmazonServiceException, AmazonClientException {
+    public CreateRouteResult createRoute(CreateRouteRequest createRouteRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateVpcEndpointResult createVpcEndpoint(CreateVpcEndpointRequest createVpcEndpointRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CopyImageResult copyImage(CopyImageRequest copyImageRequest) throws AmazonServiceException, AmazonClientException {
+    public CreateVpcEndpointConnectionNotificationResult createVpcEndpointConnectionNotification(
+        CreateVpcEndpointConnectionNotificationRequest createVpcEndpointConnectionNotificationRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateVpcEndpointServiceConfigurationResult createVpcEndpointServiceConfiguration(
+        CreateVpcEndpointServiceConfigurationRequest createVpcEndpointServiceConfigurationRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CopyImageResult copyImage(CopyImageRequest copyImageRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVpcClassicLinkResult describeVpcClassicLink(DescribeVpcClassicLinkRequest describeVpcClassicLinkRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifyNetworkInterfaceAttributeResult modifyNetworkInterfaceAttribute(
             ModifyNetworkInterfaceAttributeRequest modifyNetworkInterfaceAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteRouteTableResult deleteRouteTable(DeleteRouteTableRequest deleteRouteTableRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeNetworkInterfaceAttributeResult describeNetworkInterfaceAttribute(
             DescribeNetworkInterfaceAttributeRequest describeNetworkInterfaceAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeClassicLinkInstancesResult describeClassicLinkInstances(
-            DescribeClassicLinkInstancesRequest describeClassicLinkInstancesRequest) throws AmazonServiceException, AmazonClientException {
+            DescribeClassicLinkInstancesRequest describeClassicLinkInstancesRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public RequestSpotInstancesResult requestSpotInstances(RequestSpotInstancesRequest requestSpotInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateTagsResult createTags(CreateTagsRequest createTagsRequest) throws AmazonServiceException, AmazonClientException {
+    public ResetFpgaImageAttributeResult resetFpgaImageAttribute(ResetFpgaImageAttributeRequest resetFpgaImageAttributeRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateTagsResult createTags(CreateTagsRequest createTagsRequest) throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateTransitGatewayResult createTransitGateway(CreateTransitGatewayRequest createTransitGatewayRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateTransitGatewayRouteResult createTransitGatewayRoute(CreateTransitGatewayRouteRequest createTransitGatewayRouteRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateTransitGatewayRouteTableResult createTransitGatewayRouteTable(
+        CreateTransitGatewayRouteTableRequest createTransitGatewayRouteTableRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateTransitGatewayVpcAttachmentResult createTransitGatewayVpcAttachment(
+        CreateTransitGatewayVpcAttachmentRequest createTransitGatewayVpcAttachmentRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVolumeAttributeResult describeVolumeAttribute(DescribeVolumeAttributeRequest describeVolumeAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AttachNetworkInterfaceResult attachNetworkInterface(AttachNetworkInterfaceRequest attachNetworkInterfaceRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ReplaceRouteResult replaceRoute(ReplaceRouteRequest replaceRouteRequest) throws AmazonServiceException, AmazonClientException {
+    public ReplaceRouteResult replaceRoute(ReplaceRouteRequest replaceRouteRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeTagsResult describeTags(DescribeTagsRequest describeTagsRequest) throws AmazonServiceException, AmazonClientException {
+    public DescribeTagsResult describeTags(DescribeTagsRequest describeTagsRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CancelBundleTaskResult cancelBundleTask(CancelBundleTaskRequest cancelBundleTaskRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CancelCapacityReservationResult cancelCapacityReservation(CancelCapacityReservationRequest cancelCapacityReservationRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DisableVgwRoutePropagationResult disableVgwRoutePropagation(DisableVgwRoutePropagationRequest disableVgwRoutePropagationRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ImportSnapshotResult importSnapshot(ImportSnapshotRequest importSnapshotRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CancelSpotInstanceRequestsResult cancelSpotInstanceRequests(CancelSpotInstanceRequestsRequest cancelSpotInstanceRequestsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeSpotFleetRequestsResult describeSpotFleetRequests(DescribeSpotFleetRequestsRequest describeSpotFleetRequestsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public PurchaseReservedInstancesOfferingResult purchaseReservedInstancesOffering(
             PurchaseReservedInstancesOfferingRequest purchaseReservedInstancesOfferingRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1685,243 +2121,323 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public ModifySnapshotAttributeResult modifySnapshotAttribute(ModifySnapshotAttributeRequest modifySnapshotAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeReservedInstancesModificationsResult describeReservedInstancesModifications(
             DescribeReservedInstancesModificationsRequest describeReservedInstancesModificationsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public TerminateInstancesResult terminateInstances(TerminateInstancesRequest terminateInstancesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifyVpcEndpointResult modifyVpcEndpoint(ModifyVpcEndpointRequest modifyVpcEndpointRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyVpcEndpointConnectionNotificationResult modifyVpcEndpointConnectionNotification(
+        ModifyVpcEndpointConnectionNotificationRequest modifyVpcEndpointConnectionNotificationRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyVpcEndpointServiceConfigurationResult modifyVpcEndpointServiceConfiguration(
+        ModifyVpcEndpointServiceConfigurationRequest modifyVpcEndpointServiceConfigurationRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ModifyVpcEndpointServicePermissionsResult modifyVpcEndpointServicePermissions(
+        ModifyVpcEndpointServicePermissionsRequest modifyVpcEndpointServicePermissionsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteSpotDatafeedSubscriptionResult deleteSpotDatafeedSubscription(
             DeleteSpotDatafeedSubscriptionRequest deleteSpotDatafeedSubscriptionRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteInternetGatewayResult deleteInternetGateway(DeleteInternetGatewayRequest deleteInternetGatewayRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeSnapshotAttributeResult describeSnapshotAttribute(DescribeSnapshotAttributeRequest describeSnapshotAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ReplaceRouteTableAssociationResult replaceRouteTableAssociation(
-            ReplaceRouteTableAssociationRequest replaceRouteTableAssociationRequest) throws AmazonServiceException, AmazonClientException {
+            ReplaceRouteTableAssociationRequest replaceRouteTableAssociationRequest) throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ReplaceTransitGatewayRouteResult replaceTransitGatewayRoute(
+        ReplaceTransitGatewayRouteRequest replaceTransitGatewayRouteRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeAddressesResult describeAddresses(DescribeAddressesRequest describeAddressesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeImageAttributeResult describeImageAttribute(DescribeImageAttributeRequest describeImageAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeKeyPairsResult describeKeyPairs(DescribeKeyPairsRequest describeKeyPairsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ConfirmProductInstanceResult confirmProductInstance(ConfirmProductInstanceRequest confirmProductInstanceRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CopyFpgaImageResult copyFpgaImage(CopyFpgaImageRequest copyFpgaImageRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DisassociateRouteTableResult disassociateRouteTable(DisassociateRouteTableRequest disassociateRouteTableRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DisassociateIamInstanceProfileResult disassociateIamInstanceProfile(
             DisassociateIamInstanceProfileRequest disassociateIamInstanceProfileRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DisassociateVpcCidrBlockResult disassociateVpcCidrBlock(DisassociateVpcCidrBlockRequest disassociateVpcCidrBlockRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public EnableTransitGatewayRouteTablePropagationResult enableTransitGatewayRouteTablePropagation(
+        EnableTransitGatewayRouteTablePropagationRequest enableTransitGatewayRouteTablePropagationRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DisassociateSubnetCidrBlockResult disassociateSubnetCidrBlock(
-            DisassociateSubnetCidrBlockRequest disassociateSubnetCidrBlockRequest) throws AmazonServiceException, AmazonClientException {
+            DisassociateSubnetCidrBlockRequest disassociateSubnetCidrBlockRequest) throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DisassociateTransitGatewayRouteTableResult disassociateTransitGatewayRouteTable(
+        DisassociateTransitGatewayRouteTableRequest disassociateTransitGatewayRouteTableRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVpcAttributeResult describeVpcAttribute(DescribeVpcAttributeRequest describeVpcAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public RevokeSecurityGroupEgressResult revokeSecurityGroupEgress(RevokeSecurityGroupEgressRequest revokeSecurityGroupEgressRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteNetworkAclEntryResult deleteNetworkAclEntry(DeleteNetworkAclEntryRequest deleteNetworkAclEntryRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateVolumeResult createVolume(CreateVolumeRequest createVolumeRequest) throws AmazonServiceException, AmazonClientException {
+    public CreateVolumeResult createVolume(CreateVolumeRequest createVolumeRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ModifyVolumeResult modifyVolume(ModifyVolumeRequest modifyVolumeRequest) throws AmazonServiceException, AmazonClientException {
+    public ModifyVolumeResult modifyVolume(ModifyVolumeRequest modifyVolumeRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeInstanceStatusResult describeInstanceStatus(DescribeInstanceStatusRequest describeInstanceStatusRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVpnGatewaysResult describeVpnGateways(DescribeVpnGatewaysRequest describeVpnGatewaysRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateSubnetResult createSubnet(CreateSubnetRequest createSubnetRequest) throws AmazonServiceException, AmazonClientException {
+    public CreateSubnetResult createSubnet(CreateSubnetRequest createSubnetRequest) throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeReservedInstancesOfferingsResult describeReservedInstancesOfferings(
             DescribeReservedInstancesOfferingsRequest describeReservedInstancesOfferingsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AssignPrivateIpAddressesResult assignPrivateIpAddresses(AssignPrivateIpAddressesRequest assignPrivateIpAddressesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AssignIpv6AddressesResult assignIpv6Addresses(AssignIpv6AddressesRequest assignIpv6AddressesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeSpotFleetRequestHistoryResult describeSpotFleetRequestHistory(
             DescribeSpotFleetRequestHistoryRequest describeSpotFleetRequestHistoryRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeleteSnapshotResult deleteSnapshot(DeleteSnapshotRequest deleteSnapshotRequest) 
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ReplaceNetworkAclAssociationResult replaceNetworkAclAssociation(
             ReplaceNetworkAclAssociationRequest replaceNetworkAclAssociationRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DisassociateAddressResult disassociateAddress(DisassociateAddressRequest disassociateAddressRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DisassociateClientVpnTargetNetworkResult disassociateClientVpnTargetNetwork(
+        DisassociateClientVpnTargetNetworkRequest disassociateClientVpnTargetNetworkRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreatePlacementGroupResult createPlacementGroup(CreatePlacementGroupRequest createPlacementGroupRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public BundleInstanceResult bundleInstance(BundleInstanceRequest bundleInstanceRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DeletePlacementGroupResult deletePlacementGroup(DeletePlacementGroupRequest deletePlacementGroupRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ModifySubnetAttributeResult modifySubnetAttribute(ModifySubnetAttributeRequest modifySubnetAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DeleteVpcResult deleteVpc(DeleteVpcRequest deleteVpcRequest) throws AmazonServiceException, AmazonClientException {
+    public ModifyTransitGatewayVpcAttachmentResult modifyTransitGatewayVpcAttachment(
+        ModifyTransitGatewayVpcAttachmentRequest modifyTransitGatewayVpcAttachmentRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CopySnapshotResult copySnapshot(CopySnapshotRequest copySnapshotRequest) throws AmazonServiceException, AmazonClientException {
+    public DeleteVpcResult deleteVpc(DeleteVpcRequest deleteVpcRequest) throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteVpcEndpointConnectionNotificationsResult deleteVpcEndpointConnectionNotifications(
+        DeleteVpcEndpointConnectionNotificationsRequest deleteVpcEndpointConnectionNotificationsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DeleteVpcEndpointServiceConfigurationsResult deleteVpcEndpointServiceConfigurations(
+        DeleteVpcEndpointServiceConfigurationsRequest deleteVpcEndpointServiceConfigurationsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CopySnapshotResult copySnapshot(CopySnapshotRequest copySnapshotRequest) throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateCapacityReservationResult createCapacityReservation(CreateCapacityReservationRequest createCapacityReservationRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateClientVpnEndpointResult createClientVpnEndpoint(CreateClientVpnEndpointRequest createClientVpnEndpointRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateClientVpnRouteResult createClientVpnRoute(CreateClientVpnRouteRequest createClientVpnRouteRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVpcEndpointServicesResult describeVpcEndpointServices(
             DescribeVpcEndpointServicesRequest describeVpcEndpointServicesRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public AllocateAddressResult allocateAddress(AllocateAddressRequest allocateAddressRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ReleaseAddressResult releaseAddress(ReleaseAddressRequest releaseAddressRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1938,13 +2454,24 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public ResetInstanceAttributeResult resetInstanceAttribute(ResetInstanceAttributeRequest resetInstanceAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateKeyPairResult createKeyPair(CreateKeyPairRequest createKeyPairRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateLaunchTemplateResult createLaunchTemplate(CreateLaunchTemplateRequest createLaunchTemplateRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateLaunchTemplateVersionResult createLaunchTemplateVersion(
+        CreateLaunchTemplateVersionRequest createLaunchTemplateVersionRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1955,38 +2482,50 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public ReplaceNetworkAclEntryResult replaceNetworkAclEntry(ReplaceNetworkAclEntryRequest replaceNetworkAclEntryRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeSnapshotsResult describeSnapshots(DescribeSnapshotsRequest describeSnapshotsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public CreateNetworkAclResult createNetworkAcl(CreateNetworkAclRequest createNetworkAclRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public RegisterImageResult registerImage(RegisterImageRequest registerImageRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public RejectTransitGatewayVpcAttachmentResult rejectTransitGatewayVpcAttachment(
+        RejectTransitGatewayVpcAttachmentRequest rejectTransitGatewayVpcAttachmentRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public RejectVpcEndpointConnectionsResult rejectVpcEndpointConnections(
+        RejectVpcEndpointConnectionsRequest rejectVpcEndpointConnectionsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public ResetNetworkInterfaceAttributeResult resetNetworkInterfaceAttribute(
             ResetNetworkInterfaceAttributeRequest resetNetworkInterfaceAttributeRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public EnableVpcClassicLinkResult enableVpcClassicLink(EnableVpcClassicLinkRequest enableVpcClassicLinkRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1997,121 +2536,159 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public ExportClientVpnClientCertificateRevocationListResult exportClientVpnClientCertificateRevocationList(
+        ExportClientVpnClientCertificateRevocationListRequest exportClientVpnClientCertificateRevocationListRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ExportClientVpnClientConfigurationResult exportClientVpnClientConfiguration(
+        ExportClientVpnClientConfigurationRequest exportClientVpnClientConfigurationRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ExportTransitGatewayRoutesResult exportTransitGatewayRoutes(
+        ExportTransitGatewayRoutesRequest exportTransitGatewayRoutesRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public CreateVpnConnectionRouteResult createVpnConnectionRoute(CreateVpnConnectionRouteRequest createVpnConnectionRouteRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeVpcEndpointsResult describeVpcEndpoints(DescribeVpcEndpointsRequest describeVpcEndpointsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DetachClassicLinkVpcResult detachClassicLinkVpc(DetachClassicLinkVpcRequest detachClassicLinkVpcRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeReservedInstancesResult describeReservedInstances() throws AmazonServiceException, AmazonClientException {
+    public DescribeReservedInstancesResult describeReservedInstances() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeAvailabilityZonesResult describeAvailabilityZones() throws AmazonServiceException, AmazonClientException {
+    public DescribeAvailabilityZonesResult describeAvailabilityZones() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotPriceHistoryResult describeSpotPriceHistory() throws AmazonServiceException, AmazonClientException {
+    public DescribeSpotPriceHistoryResult describeSpotPriceHistory() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeNetworkInterfacesResult describeNetworkInterfaces() throws AmazonServiceException, AmazonClientException {
+    public DescribeNetworkInterfacesResult describeNetworkInterfaces() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeRegionsResult describeRegions() throws AmazonServiceException, AmazonClientException {
+    public DescribeRegionsResult describeRegions() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeInternetGatewaysResult describeInternetGateways() throws AmazonServiceException, AmazonClientException {
+    public DescribeInternetGatewaysResult describeInternetGateways() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSecurityGroupsResult describeSecurityGroups() throws AmazonServiceException, AmazonClientException {
+    public DescribeSecurityGroupsResult describeSecurityGroups() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotDatafeedSubscriptionResult describeSpotDatafeedSubscription() throws AmazonServiceException, AmazonClientException {
+    public DescribeSpotDatafeedSubscriptionResult describeSpotDatafeedSubscription() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeAccountAttributesResult describeAccountAttributes() throws AmazonServiceException, AmazonClientException {
+    public DescribeAccountAttributesResult describeAccountAttributes() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVolumeStatusResult describeVolumeStatus() throws AmazonServiceException, AmazonClientException {
+    public DescribeVolumeStatusResult describeVolumeStatus() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeImportSnapshotTasksResult describeImportSnapshotTasks() throws AmazonServiceException, AmazonClientException {
+    public DescribeImportSnapshotTasksResult describeImportSnapshotTasks() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpnConnectionsResult describeVpnConnections() throws AmazonServiceException, AmazonClientException {
+    public DescribeVpnConnectionsResult describeVpnConnections() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcsResult describeVpcs() throws AmazonServiceException, AmazonClientException {
+    public DescribeVpcsResult describeVpcs() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AcceptVpcPeeringConnectionResult acceptVpcPeeringConnection() throws AmazonServiceException, AmazonClientException {
+    public AcceptVpcPeeringConnectionResult acceptVpcPeeringConnection() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeExportTasksResult describeExportTasks() throws AmazonServiceException, AmazonClientException {
+    public AdvertiseByoipCidrResult advertiseByoipCidr(AdvertiseByoipCidrRequest advertiseByoipCidrRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateVpcPeeringConnectionResult createVpcPeeringConnection() throws AmazonServiceException, AmazonClientException {
+    public DescribeExportTasksResult describeExportTasks() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CancelImportTaskResult cancelImportTask() throws AmazonServiceException, AmazonClientException {
+    public DescribeFleetHistoryResult describeFleetHistory(DescribeFleetHistoryRequest describeFleetHistoryRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVolumesResult describeVolumes() throws AmazonServiceException, AmazonClientException {
+    public DescribeFleetInstancesResult describeFleetInstances(DescribeFleetInstancesRequest describeFleetInstancesRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeFleetsResult describeFleets(DescribeFleetsRequest describeFleetsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateVpcPeeringConnectionResult createVpcPeeringConnection() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CancelImportTaskResult cancelImportTask() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeVolumesResult describeVolumes() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeReservedInstancesListingsResult describeReservedInstancesListings()
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeRouteTablesResult describeRouteTables() throws AmazonServiceException, AmazonClientException {
+    public DescribeRouteTablesResult describeRouteTables() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -2128,48 +2705,69 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
-    public DescribeDhcpOptionsResult describeDhcpOptions() throws AmazonServiceException, AmazonClientException {
+    public DescribeDhcpOptionsResult describeDhcpOptions() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribePrefixListsResult describePrefixLists() throws AmazonServiceException, AmazonClientException {
+    public DescribePrefixListsResult describePrefixLists() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeImportImageTasksResult describeImportImageTasks() throws AmazonServiceException, AmazonClientException {
+    public DescribePrincipalIdFormatResult describePrincipalIdFormat(DescribePrincipalIdFormatRequest describePrincipalIdFormatRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeNetworkAclsResult describeNetworkAcls() throws AmazonServiceException, AmazonClientException {
+    public DescribePublicIpv4PoolsResult describePublicIpv4Pools(DescribePublicIpv4PoolsRequest describePublicIpv4PoolsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeBundleTasksResult describeBundleTasks() throws AmazonServiceException, AmazonClientException {
+    public DescribeImportImageTasksResult describeImportImageTasks() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeNetworkAclsResult describeNetworkAcls() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeBundleTasksResult describeBundleTasks() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeByoipCidrsResult describeByoipCidrs(DescribeByoipCidrsRequest describeByoipCidrsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeCapacityReservationsResult describeCapacityReservations(
+        DescribeCapacityReservationsRequest describeCapacityReservationsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public RevokeSecurityGroupIngressResult revokeSecurityGroupIngress(RevokeSecurityGroupIngressRequest revokeSecurityGroupIngressRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public RevokeSecurityGroupIngressResult revokeSecurityGroupIngress() throws AmazonServiceException, AmazonClientException {
+    public RevokeSecurityGroupIngressResult revokeSecurityGroupIngress() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public CreateInternetGatewayResult createInternetGateway() throws AmazonServiceException, AmazonClientException {
+    public CreateInternetGatewayResult createInternetGateway() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeMovingAddressesResult describeMovingAddresses() throws AmazonServiceException, AmazonClientException {
+    public DescribeMovingAddressesResult describeMovingAddresses() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -2179,17 +2777,23 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
-    public DescribeConversionTasksResult describeConversionTasks() throws AmazonServiceException, AmazonClientException {
+    public DescribeConversionTasksResult describeConversionTasks() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ImportImageResult importImage() throws AmazonServiceException, AmazonClientException {
+    public ImportImageResult importImage() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeFlowLogsResult describeFlowLogs() throws AmazonServiceException, AmazonClientException {
+    public DescribeFlowLogsResult describeFlowLogs() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeFpgaImageAttributeResult describeFpgaImageAttribute(
+        DescribeFpgaImageAttributeRequest describeFpgaImageAttributeRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -2206,7 +2810,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
     @Override
     public DescribeIamInstanceProfileAssociationsResult describeIamInstanceProfileAssociations(
             DescribeIamInstanceProfileAssociationsRequest describeIamInstanceProfileAssociationsRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -2221,42 +2825,42 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
-    public DescribeVpcPeeringConnectionsResult describeVpcPeeringConnections() throws AmazonServiceException, AmazonClientException {
+    public DescribeVpcPeeringConnectionsResult describeVpcPeeringConnections() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribePlacementGroupsResult describePlacementGroups() throws AmazonServiceException, AmazonClientException {
+    public DescribePlacementGroupsResult describePlacementGroups() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSubnetsResult describeSubnets() throws AmazonServiceException, AmazonClientException {
+    public DescribeSubnetsResult describeSubnets() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeInstancesResult describeInstances() throws AmazonServiceException, AmazonClientException {
+    public DescribeInstancesResult describeInstances() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeImagesResult describeImages() throws AmazonServiceException, AmazonClientException {
+    public DescribeImagesResult describeImages() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotInstanceRequestsResult describeSpotInstanceRequests() throws AmazonServiceException, AmazonClientException {
+    public DescribeSpotInstanceRequestsResult describeSpotInstanceRequests() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeCustomerGatewaysResult describeCustomerGateways() throws AmazonServiceException, AmazonClientException {
+    public DescribeCustomerGatewaysResult describeCustomerGateways() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcClassicLinkResult describeVpcClassicLink() throws AmazonServiceException, AmazonClientException {
+    public DescribeVpcClassicLinkResult describeVpcClassicLink() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -2267,69 +2871,162 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
-    public DescribeClassicLinkInstancesResult describeClassicLinkInstances() throws AmazonServiceException, AmazonClientException {
+    public DescribeVpcEndpointConnectionNotificationsResult describeVpcEndpointConnectionNotifications(
+        DescribeVpcEndpointConnectionNotificationsRequest describeVpcEndpointConnectionNotificationsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeTagsResult describeTags() throws AmazonServiceException, AmazonClientException {
+    public DescribeVpcEndpointConnectionsResult describeVpcEndpointConnections(
+        DescribeVpcEndpointConnectionsRequest describeVpcEndpointConnectionsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public ImportSnapshotResult importSnapshot() throws AmazonServiceException, AmazonClientException {
+    public DescribeVpcEndpointServiceConfigurationsResult describeVpcEndpointServiceConfigurations(
+        DescribeVpcEndpointServiceConfigurationsRequest describeVpcEndpointServiceConfigurationsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeSpotFleetRequestsResult describeSpotFleetRequests() throws AmazonServiceException, AmazonClientException {
+    public DescribeVpcEndpointServicePermissionsResult describeVpcEndpointServicePermissions(
+        DescribeVpcEndpointServicePermissionsRequest describeVpcEndpointServicePermissionsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeClassicLinkInstancesResult describeClassicLinkInstances() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeClientVpnAuthorizationRulesResult describeClientVpnAuthorizationRules(
+        DescribeClientVpnAuthorizationRulesRequest describeClientVpnAuthorizationRulesRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeClientVpnConnectionsResult describeClientVpnConnections(
+        DescribeClientVpnConnectionsRequest describeClientVpnConnectionsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeClientVpnEndpointsResult describeClientVpnEndpoints(
+        DescribeClientVpnEndpointsRequest describeClientVpnEndpointsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeClientVpnRoutesResult describeClientVpnRoutes(
+        DescribeClientVpnRoutesRequest describeClientVpnRoutesRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeClientVpnTargetNetworksResult describeClientVpnTargetNetworks(
+        DescribeClientVpnTargetNetworksRequest describeClientVpnTargetNetworksRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeTagsResult describeTags() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeTransitGatewayAttachmentsResult describeTransitGatewayAttachments(
+        DescribeTransitGatewayAttachmentsRequest describeTransitGatewayAttachmentsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeTransitGatewayRouteTablesResult describeTransitGatewayRouteTables(
+        DescribeTransitGatewayRouteTablesRequest describeTransitGatewayRouteTablesRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeTransitGatewayVpcAttachmentsResult describeTransitGatewayVpcAttachments(
+        DescribeTransitGatewayVpcAttachmentsRequest describeTransitGatewayVpcAttachmentsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeTransitGatewaysResult describeTransitGateways(DescribeTransitGatewaysRequest describeTransitGatewaysRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ImportSnapshotResult importSnapshot() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeSpotFleetRequestsResult describeSpotFleetRequests() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeReservedInstancesModificationsResult describeReservedInstancesModifications()
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DeleteSpotDatafeedSubscriptionResult deleteSpotDatafeedSubscription() throws AmazonServiceException, AmazonClientException {
+    public DeleteSpotDatafeedSubscriptionResult deleteSpotDatafeedSubscription() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeAddressesResult describeAddresses() throws AmazonServiceException, AmazonClientException {
+    public DescribeAddressesResult describeAddresses() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeKeyPairsResult describeKeyPairs() throws AmazonServiceException, AmazonClientException {
+    public DescribeAggregateIdFormatResult describeAggregateIdFormat(DescribeAggregateIdFormatRequest describeAggregateIdFormatRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeInstanceStatusResult describeInstanceStatus() throws AmazonServiceException, AmazonClientException {
+    public DescribeKeyPairsResult describeKeyPairs() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpnGatewaysResult describeVpnGateways() throws AmazonServiceException, AmazonClientException {
+    public DescribeLaunchTemplateVersionsResult describeLaunchTemplateVersions(
+        DescribeLaunchTemplateVersionsRequest describeLaunchTemplateVersionsRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeLaunchTemplatesResult describeLaunchTemplates(DescribeLaunchTemplatesRequest describeLaunchTemplatesRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeInstanceStatusResult describeInstanceStatus() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeVpnGatewaysResult describeVpnGateways() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public DescribeReservedInstancesOfferingsResult describeReservedInstancesOfferings()
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcEndpointServicesResult describeVpcEndpointServices() throws AmazonServiceException, AmazonClientException {
+    public DescribeVpcEndpointServicesResult describeVpcEndpointServices() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public AllocateAddressResult allocateAddress() throws AmazonServiceException, AmazonClientException {
+    public AllocateAddressResult allocateAddress() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -2339,18 +3036,24 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
-    public DescribeSnapshotsResult describeSnapshots() throws AmazonServiceException, AmazonClientException {
+    public ApplySecurityGroupsToClientVpnTargetNetworkResult applySecurityGroupsToClientVpnTargetNetwork(
+        ApplySecurityGroupsToClientVpnTargetNetworkRequest applySecurityGroupsToClientVpnTargetNetworkRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
-    public DescribeVpcEndpointsResult describeVpcEndpoints() throws AmazonServiceException, AmazonClientException {
+    public DescribeSnapshotsResult describeSnapshots() throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DescribeVpcEndpointsResult describeVpcEndpoints() throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
     @Override
     public <X extends AmazonWebServiceRequest> DryRunResult<X> dryRun(DryRunSupportedRequest<X> request)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -2370,7 +3073,7 @@ public class AmazonEC2Mock implements AmazonEC2 {
 
     @Override
     public ModifySpotFleetRequestResult modifySpotFleetRequest(ModifySpotFleetRequestRequest modifySpotFleetRequestRequest)
-            throws AmazonServiceException, AmazonClientException {
+            throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 }

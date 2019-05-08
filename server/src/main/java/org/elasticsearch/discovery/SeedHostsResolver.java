@@ -116,7 +116,6 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
      * @param executorService  the executor service used to parallelize hostname lookups
      * @param logger           logger used for logging messages regarding hostname lookups
      * @param hosts            the hosts to resolve
-     * @param limitPortCounts  the number of ports to resolve (should be 1 for non-local transport)
      * @param transportService the transport service
      * @param resolveTimeout   the timeout before returning from hostname lookups
      * @return a list of resolved transport addresses
@@ -125,7 +124,6 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         final ExecutorService executorService,
         final Logger logger,
         final List<String> hosts,
-        final int limitPortCounts,
         final TransportService transportService,
         final TimeValue resolveTimeout) {
         Objects.requireNonNull(executorService);
@@ -140,7 +138,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         final List<Callable<TransportAddress[]>> callables =
             hosts
                 .stream()
-                .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn, limitPortCounts))
+                .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn))
                 .collect(Collectors.toList());
         final List<Future<TransportAddress[]>> futures;
         try {
@@ -224,9 +222,8 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                     }
 
                     List<TransportAddress> providedAddresses
-                        = hostsProvider.getSeedAddresses((hosts, limitPortCounts)
-                        -> resolveHostsLists(executorService.get(), logger, hosts, limitPortCounts,
-                        transportService, resolveTimeout));
+                        = hostsProvider.getSeedAddresses(hosts ->
+                            resolveHostsLists(executorService.get(), logger, hosts, transportService, resolveTimeout));
 
                     consumer.accept(providedAddresses);
                 }

@@ -122,10 +122,10 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
         QueryProvider validQueryProvider = createRandomValidQueryProvider();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             validQueryProvider.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writableRegistry())) {
-                in.setVersion(Version.V_6_0_0);
+                in.setVersion(Version.CURRENT);
 
                 QueryProvider streamedQueryProvider = QueryProvider.fromStream(in);
                 XContentObjectTransformer<QueryBuilder> transformer = XContentObjectTransformer.queryBuilderTransformer(xContentRegistry());
@@ -141,7 +141,7 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
             QueryProvider queryProviderWithEx = new QueryProvider(validQueryProvider.getQuery(),
                 validQueryProvider.getParsedQuery(),
                 new IOException("bad parsing"));
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             IOException ex = expectThrows(IOException.class, () -> queryProviderWithEx.writeTo(output));
             assertThat(ex.getMessage(), equalTo("bad parsing"));
         }
@@ -150,7 +150,7 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
             QueryProvider queryProviderWithEx = new QueryProvider(validQueryProvider.getQuery(),
                 validQueryProvider.getParsedQuery(),
                 new ElasticsearchException("bad parsing"));
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> queryProviderWithEx.writeTo(output));
             assertNotNull(ex.getCause());
             assertThat(ex.getCause().getMessage(), equalTo("bad parsing"));
@@ -158,7 +158,7 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             QueryProvider queryProviderWithOutParsed = new QueryProvider(validQueryProvider.getQuery(), null, null);
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> queryProviderWithOutParsed.writeTo(output));
             assertThat(ex.getMessage(), equalTo("Unsupported operation: parsed query is null"));
         }

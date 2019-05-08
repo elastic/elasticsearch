@@ -120,10 +120,10 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
         AggProvider validAggProvider = createRandomValidAggProvider();
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             validAggProvider.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writableRegistry())) {
-                in.setVersion(Version.V_6_0_0);
+                in.setVersion(Version.CURRENT);
                 AggProvider streamedAggProvider = AggProvider.fromStream(in);
                 assertThat(streamedAggProvider.getAggs(), equalTo(validAggProvider.getAggs()));
                 assertThat(streamedAggProvider.getParsingException(), is(nullValue()));
@@ -135,7 +135,7 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
             AggProvider aggProviderWithEx = new AggProvider(validAggProvider.getAggs(),
                 validAggProvider.getParsedAggs(),
                 new IOException("bad parsing"));
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             IOException ex = expectThrows(IOException.class, () -> aggProviderWithEx.writeTo(output));
             assertThat(ex.getMessage(), equalTo("bad parsing"));
         }
@@ -144,7 +144,7 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
             AggProvider aggProviderWithEx = new AggProvider(validAggProvider.getAggs(),
                 validAggProvider.getParsedAggs(),
                 new ElasticsearchException("bad parsing"));
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> aggProviderWithEx.writeTo(output));
             assertNotNull(ex.getCause());
             assertThat(ex.getCause().getMessage(), equalTo("bad parsing"));
@@ -152,7 +152,7 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             AggProvider aggProviderWithOutParsed = new AggProvider(validAggProvider.getAggs(), null, null);
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> aggProviderWithOutParsed.writeTo(output));
             assertThat(ex.getMessage(), equalTo("Unsupported operation: parsed aggregations are null"));
         }

@@ -412,7 +412,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(CoveringQuery.class));
         assertThat(t.v1().clauses().get(1).getQuery(), instanceOf(TermQuery.class));
 
-        t = fieldType.createCandidateQuery(indexReader, Version.V_6_0_0);
+        t = fieldType.createCandidateQuery(indexReader, Version.CURRENT.minimumCompatibilityVersion());
         assertTrue(t.v2());
         assertEquals(2, t.v1().clauses().size());
         assertThat(t.v1().clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));

@@ -297,10 +297,10 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
         assertThat(source.getValue("node_count"), equalTo(nodeCount));
 
         BytesStreamOutput oldOut = new BytesStreamOutput();
-        oldOut.setVersion(Version.V_6_0_0);
+        oldOut.setVersion(Version.CURRENT.minimumCompatibilityVersion());
         usage.writeTo(oldOut);
         StreamInput oldInput = oldOut.bytes().streamInput();
-        oldInput.setVersion(Version.V_6_0_0);
+        oldInput.setVersion(Version.CURRENT.minimumCompatibilityVersion());
         XPackFeatureSet.Usage oldSerializedUsage = new MachineLearningFeatureSetUsage(oldInput);
 
         XContentSource oldSource;

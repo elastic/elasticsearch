@@ -22,8 +22,6 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationResult;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MetricListEvaluationResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -176,7 +174,7 @@ public class BinarySoftClassification implements Evaluation {
     }
 
     @Override
-    public void evaluate(SearchResponse searchResponse, ActionListener<EvaluationResult> listener) {
+    public void evaluate(SearchResponse searchResponse, ActionListener<List<EvaluationMetricResult>> listener) {
         if (searchResponse.getHits().getTotalHits().value == 0) {
             listener.onFailure(ExceptionsHelper.badRequestException("No documents found containing both [{}, {}] fields", actualField,
                 predictedProbabilityField));
@@ -189,7 +187,7 @@ public class BinarySoftClassification implements Evaluation {
         for (SoftClassificationMetric metric : metrics) {
             results.add(metric.evaluate(binaryClassInfo, aggs));
         }
-        listener.onResponse(new MetricListEvaluationResult(NAME.getPreferredName(), results));
+        listener.onResponse(results);
     }
 
     private class BinaryClassInfo implements SoftClassificationMetric.ClassInfo {

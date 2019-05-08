@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
+import java.util.List;
+
 /**
  * Defines an evaluation
  */
@@ -29,7 +31,7 @@ public interface Evaluation extends ToXContentObject, NamedWriteable {
     /**
      * Computes the evaluation result
      * @param searchResponse The search response required to compute the result
-     * @param listener A listener of the result
+     * @param listener A listener of the results
      */
-    void evaluate(SearchResponse searchResponse, ActionListener<EvaluationResult> listener);
+    void evaluate(SearchResponse searchResponse, ActionListener<List<EvaluationMetricResult>> listener);
 }

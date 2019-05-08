@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[ilm-start]]
 === Start {ilm} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Start {ilm}</titleabbrev>
 ++++

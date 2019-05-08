@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -115,5 +116,10 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(field);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
     }
 }

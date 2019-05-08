@@ -28,7 +28,9 @@ new index.
 
 The rollover action takes the following parameters:
 
+[[rollover-action-params]]
 .`rollover` Action Parameters
+[options="header"]
 |===
 |Name |Description
 |max_size |The maximum estimated size the primary shard of the index is allowed

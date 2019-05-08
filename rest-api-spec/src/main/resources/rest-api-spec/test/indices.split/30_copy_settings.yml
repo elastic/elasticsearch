@@ -1,5 +1,7 @@
 ---
 "Copy settings during split index":
+  - skip:
+      features: [arbitrary_key]
 
   - do:
       nodes.info:

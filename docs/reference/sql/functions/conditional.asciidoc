@@ -98,6 +98,30 @@ an error message would be returned, mentioning that *'foo'* is of data type *key
 which does not match the expected data type *integer* (based on result *10*).
 ===============================
 
+[[sql-functions-conditional-case-groupby-custom-buckets]]
+===== Conditional bucketing
+
+CASE can be used as a GROUP BY key in a query to facilitate custom bucketing
+and assign descriptive names to those buckets. If, for example, the values
+for a key are too many or, simply, ranges of those values are more
+interesting than every single value, CASE can create custom buckets as in the
+following example:
+
+[source, sql]
+SELECT count(*) AS count,
+  CASE WHEN NVL(languages, 0) = 0 THEN 'zero'
+    WHEN languages = 1 THEN 'one'
+    WHEN languages = 2 THEN 'bilingual'
+    WHEN languages = 3 THEN 'trilingual'
+    ELSE 'multilingual'
+  END as lang_skills
+FROM employees
+GROUP BY lang_skills
+ORDER BY lang_skills;
+
+With this query, one can create normal grouping buckets for values _0, 1, 2, 3_ with
+descriptive names, and every value _>= 4_ falls into the _multilingual_ bucket.
+
 [[sql-functions-conditional-coalesce]]
 ==== `COALESCE`
 
@@ -222,6 +246,55 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[ifNullReturnFirst]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[ifNullReturnSecond]
 ----
+
+[[sql-functions-conditional-iif]]
+==== `IFF`
+
+.Synopsis:
+[source, sql]
+----
+IIF(
+    expression,   <1>
+    expression,   <2>
+    [expression]) <3>
+----
+
+*Input*:
+
+<1> boolean condition to check
+
+<2> return value if the boolean condition evaluates to `true`
+
+<3> return value if the boolean condition evaluates `false`; optional
+
+*Output*: 2nd expression if 1st expression (condition) evaluates to `true`. If it evaluates to `false`
+return 3rd expression. If 3rd expression is not provided return `null`.
+
+.Description
+
+Conditional function that implements the standard _IF <condition> THEN <result1> ELSE <result2>_
+logic of programming languages. If the 3rd expression is not provided and the condition evaluates to `false`,
+`null` is returned.
+
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[iifWithDefaultValue]
+----
+
+["source","sql",subs="attributes,callouts,macros"]
+----
+include-tagged::{sql-specs}/docs/docs.csv-spec[iifWithoutDefaultValue]
+----
+
+[TIP]
+=================
+*IIF* functions can be combined to implement more complex logic simulating the <<sql-functions-conditional-case>>
+expression. E.g.:
+
+[source, sql]
+IIF(a = 1, 'one', IIF(a = 2, 'two', IIF(a = 3, 'three', 'many')))
+=================
 
 
 [[sql-functions-conditional-isnull]]

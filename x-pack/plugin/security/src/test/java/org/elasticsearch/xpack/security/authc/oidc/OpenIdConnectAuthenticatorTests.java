@@ -633,7 +633,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     }
 
     private OpenIdConnectProviderConfiguration getOpConfig() throws URISyntaxException {
-        return new OpenIdConnectProviderConfiguration("op_name",
+        return new OpenIdConnectProviderConfiguration(
             new Issuer("https://op.example.com"),
             "https://op.example.org/jwks.json",
             new URI("https://op.example.org/login"),

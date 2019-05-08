@@ -155,7 +155,9 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
 
     @SuppressForbidden(reason = "Need to open socket connection")
     public void testRenegotiation() throws Exception {
-        SSLService sslService = createSSLService();
+        // force TLSv1.2 since renegotiation is not supported by 1.3
+        SSLService sslService =
+            createSSLService(Settings.builder().put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2").build());
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SocketFactory factory = sslService.sslSocketFactory(sslConfiguration);
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {

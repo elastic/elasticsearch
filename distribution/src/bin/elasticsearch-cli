@@ -2,8 +2,6 @@
 
 set -e -o pipefail
 
-# set tempdir to non empty string so env script does not create it, as it is not used here
-ES_TMPDIR="notused"
 source "`dirname "$0"`"/elasticsearch-env
 
 IFS=';' read -r -a additional_sources <<< "$ES_ADDITIONAL_SOURCES"

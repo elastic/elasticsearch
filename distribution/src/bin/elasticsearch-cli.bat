@@ -1,6 +1,3 @@
-
-rem set tempdir to non empty string so env script does not create it, as it is not used here
-set ES_TMPDIR="notused"
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 if defined ES_ADDITIONAL_SOURCES (

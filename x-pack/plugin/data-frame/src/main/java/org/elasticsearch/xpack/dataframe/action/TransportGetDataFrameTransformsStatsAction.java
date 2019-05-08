@@ -124,6 +124,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         dataFrameTransformsConfigManager.expandTransformIds(request.getId(), request.getPageParams(), ActionListener.wrap(
             ids -> {
                 request.setExpandedIds(ids);
+                request.setNodes(DataFrameNodes.dataFrameTaskNodes(ids, clusterService.state()));
                 super.doExecute(task, request, ActionListener.wrap(
                     response -> collectStatsForTransformsWithoutTasks(request, response, finalListener),
                     finalListener::onFailure

@@ -320,7 +320,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
         copyExtraConfigFiles();
 
-        if (isSettingTrue("xpack.security.enabled")) {
+        if (isSettingMissingOrTrue("xpack.security.enabled")) {
             if (credentials.isEmpty()) {
                 user(Collections.emptyMap());
             }
@@ -335,7 +335,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         startElasticsearchProcess();
     }
 
-    private boolean isSettingTrue(String name) {
+    private boolean isSettingMissingOrTrue(String name) {
         return Boolean.valueOf(settings.getOrDefault(name, () -> "false").get().toString());
     }
 

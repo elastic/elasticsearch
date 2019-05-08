@@ -162,7 +162,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                 getClock(), System::currentTimeMillis, xContentRegistry));
         SnapshotLifecycleTemplateRegistry templateRegistry = new SnapshotLifecycleTemplateRegistry(settings, clusterService, threadPool,
             client, xContentRegistry);
-        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, client, getClock().getZone(), clusterService, templateRegistry));
+        snapshotHistoryStore.set(new SnapshotHistoryStore(settings, client, getClock().getZone()));
         snapshotLifecycleService.set(new SnapshotLifecycleService(settings,
             () -> new SnapshotLifecycleTask(client, clusterService, snapshotHistoryStore.get()), clusterService, getClock()));
         return Arrays.asList(indexLifecycleInitialisationService.get(), snapshotLifecycleService.get(), snapshotHistoryStore.get());

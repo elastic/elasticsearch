@@ -212,7 +212,8 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(Objects.hash(getTimestamp(), getPolicyId(), getRepository(), getSnapshotName(), getOperation(), isSuccess()), getSnapshotConfiguration(), getErrorDetails());
+        return Objects.hash(getTimestamp(), getPolicyId(), getRepository(), getSnapshotName(), getOperation(), isSuccess(),
+            getSnapshotConfiguration(), getErrorDetails());
     }
 
     @Override

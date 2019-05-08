@@ -12,10 +12,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -26,7 +22,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.indexlifecycle.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
@@ -35,24 +30,20 @@ import static org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLif
  * Records Snapshot Lifecycle Management actions as represented by {@link SnapshotHistoryItem} into an index
  * for the purposes of querying and alerting.
  */
-public class SnapshotHistoryStore implements ClusterStateListener {
+public class SnapshotHistoryStore {
     private static final Logger logger = LogManager.getLogger(SnapshotHistoryStore.class);
     private static final DateFormatter indexTimeFormat = DateFormatter.forPattern("yyyy.MM");
 
     public static final String SLM_HISTORY_INDEX_PREFIX = ".slm-history-" + INDEX_TEMPLATE_VERSION + "-";
 
-    private final SnapshotLifecycleTemplateRegistry registry;
     private final Client client;
     private final ZoneId timeZone;
-    private final AtomicBoolean readyToIndex = new AtomicBoolean(false);
     private final boolean slmHistoryEnabled;
 
-    public SnapshotHistoryStore(Settings nodeSettings, Client client, ZoneId timeZone, ClusterService clusterService, SnapshotLifecycleTemplateRegistry registry) {
-        this.registry = registry;
+    public SnapshotHistoryStore(Settings nodeSettings, Client client, ZoneId timeZone) {
         this.client = client;
         this.timeZone = timeZone;
         slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
-        clusterService.addListener(this);
     }
 
     /**
@@ -86,16 +77,8 @@ public class SnapshotHistoryStore implements ClusterStateListener {
         }
     }
 
-    boolean validate(ClusterState state) {
-        return registry.validate(state);
-    }
 
     static String getHistoryIndexNameForTime(ZonedDateTime time) {
         return SLM_HISTORY_INDEX_PREFIX + indexTimeFormat.format(time);
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        readyToIndex.set(validate(event.state()));
     }
 }

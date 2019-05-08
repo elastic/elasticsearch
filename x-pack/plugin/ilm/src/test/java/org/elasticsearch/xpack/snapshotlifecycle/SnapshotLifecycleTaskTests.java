@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryItem;
 import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
-import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotLifecycleTemplateRegistry;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -91,7 +90,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                  fail("should not have tried to take a snapshot");
                  return null;
              })) {
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, null, ZoneOffset.UTC, clusterService,
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, ZoneOffset.UTC,
                 item -> fail("should not have tried to store an item"));
 
             SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
@@ -172,7 +171,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                      }
                  })) {
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
-            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, null, ZoneOffset.UTC, clusterService,
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, ZoneOffset.UTC,
                 item -> {
                     assertFalse(historyStoreCalled.getAndSet(true));
                     final SnapshotLifecyclePolicy policy = slpm.getPolicy();
@@ -232,9 +231,8 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
 
         Consumer<SnapshotHistoryItem> verifier;
 
-        public VerifyingHistoryStore(SnapshotLifecycleTemplateRegistry registry, Client client, ZoneId timeZone,
-                                     ClusterService clusterService, Consumer<SnapshotHistoryItem> verifier) {
-            super(Settings.EMPTY, client, timeZone, clusterService, registry);
+        public VerifyingHistoryStore(Client client, ZoneId timeZone, Consumer<SnapshotHistoryItem> verifier) {
+            super(Settings.EMPTY, client, timeZone);
             this.verifier = verifier;
         }
 

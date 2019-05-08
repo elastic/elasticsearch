@@ -9,29 +9,17 @@ package org.elasticsearch.xpack.core.snapshotlifecycle.history;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleAction;
-import org.elasticsearch.xpack.core.indexlifecycle.LifecycleType;
-import org.elasticsearch.xpack.core.indexlifecycle.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.junit.After;
 import org.junit.Before;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -45,25 +33,14 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class SnapshotHistoryStoreTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private ClusterService clusterService;
     private SnapshotLifecycleTemplateRegistryTests.VerifyingClient client;
     private SnapshotHistoryStore historyStore;
-    private SnapshotLifecycleTemplateRegistry registry;
 
     @Before
     public void setup() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new SnapshotLifecycleTemplateRegistryTests.VerifyingClient(threadPool);
-        clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.addAll(Arrays.asList(
-            new NamedXContentRegistry.Entry(LifecycleType.class, new ParseField(TimeseriesLifecycleType.TYPE),
-                (p) -> TimeseriesLifecycleType.INSTANCE),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)));
-        NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(entries);
-        registry = new SnapshotLifecycleTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
-
-        historyStore = new SnapshotHistoryStore(Settings.EMPTY, client, ZoneOffset.UTC, clusterService, registry);
+        historyStore = new SnapshotHistoryStore(Settings.EMPTY, client, ZoneOffset.UTC);
     }
 
     @After
@@ -75,7 +52,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
 
     public void testNoActionIfDisabled() {
         Settings settings = Settings.builder().put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
-        SnapshotHistoryStore disabledHistoryStore = new SnapshotHistoryStore(settings, client, ZoneOffset.UTC, clusterService, registry);
+        SnapshotHistoryStore disabledHistoryStore = new SnapshotHistoryStore(settings, client, ZoneOffset.UTC);
         String policyId = randomAlphaOfLength(5);
         SnapshotLifecyclePolicy policy = randomSnapshotLifecyclePolicy(policyId);
         final long timestamp = randomNonNegativeLong();

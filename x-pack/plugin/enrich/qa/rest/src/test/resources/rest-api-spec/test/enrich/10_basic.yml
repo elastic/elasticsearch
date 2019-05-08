@@ -16,7 +16,7 @@
       enrich.get_policy:
         name: policy-crud
   - match: { type: exact_match }
-  - match: { index_pattern: "bar*" }
+  - match: { indices: ["bar*"] }
   - match: { enrich_key: baz }
   - match: { enrich_values: ["a", "b"] }
   - match: { schedule: "*/120" }

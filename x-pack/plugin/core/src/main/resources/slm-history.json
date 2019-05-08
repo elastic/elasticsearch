@@ -12,9 +12,6 @@
   },
   "mappings": {
     "_doc": {
-      "_meta": {
-        "slm-history-version": "${xpack.slm.template.version}"
-      },
       "dynamic": false,
       "properties": {
         "@timestamp": {

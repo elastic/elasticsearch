@@ -44,6 +44,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -87,6 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
+@TestLogging(value = "org.elasticsearch.xpack.ccr:trace")
 public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     public static final class RetentionLeaseRenewIntervalSettingPlugin extends Plugin {
@@ -615,7 +617,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39509")
     public void testRetentionLeaseRenewalIsCancelledWhenFollowingIsPaused() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";
@@ -922,7 +923,6 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         }
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/39850")
     public void testForgetFollower() throws Exception {
         final String leaderIndex = "leader";
         final String followerIndex = "follower";

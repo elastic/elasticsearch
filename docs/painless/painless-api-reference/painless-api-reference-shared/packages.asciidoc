@@ -3,7 +3,7 @@
 
 [role="exclude",id="painless-api-reference-shared-java-lang"]
 === Shared API for package java.lang
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Appendable]]
 ==== Appendable
@@ -1399,7 +1399,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-math"]
 === Shared API for package java.math
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-BigDecimal]]
 ==== BigDecimal
@@ -1557,7 +1557,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-text"]
 === Shared API for package java.text
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Annotation]]
 ==== Annotation
@@ -2265,7 +2265,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time"]
 === Shared API for package java.time
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Clock]]
 ==== Clock
@@ -3078,7 +3078,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time-chrono"]
 === Shared API for package java.time.chrono
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-AbstractChronology]]
 ==== AbstractChronology
@@ -3675,7 +3675,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time-format"]
 === Shared API for package java.time.format
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-DateTimeFormatter]]
 ==== DateTimeFormatter
@@ -3874,7 +3874,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time-temporal"]
 === Shared API for package java.time.temporal
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ChronoField]]
 ==== ChronoField
@@ -4166,7 +4166,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-time-zone"]
 === Shared API for package java.time.zone
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ZoneOffsetTransition]]
 ==== ZoneOffsetTransition
@@ -4265,7 +4265,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-util"]
 === Shared API for package java.util
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-AbstractCollection]]
 ==== AbstractCollection
@@ -7194,7 +7194,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-util-function"]
 === Shared API for package java.util.function
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-BiConsumer]]
 ==== BiConsumer
@@ -7582,7 +7582,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-util-regex"]
 === Shared API for package java.util.regex
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Matcher]]
 ==== Matcher
@@ -7635,7 +7635,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-java-util-stream"]
 === Shared API for package java.util.stream
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-BaseStream]]
 ==== BaseStream
@@ -7957,7 +7957,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-apache-lucene-util"]
 === Shared API for package org.apache.lucene.util
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-BytesRef]]
 ==== BytesRef
@@ -7974,7 +7974,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-common-geo"]
 === Shared API for package org.elasticsearch.common.geo
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-GeoPoint]]
 ==== GeoPoint
@@ -7987,7 +7987,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-fielddata"]
 === Shared API for package org.elasticsearch.index.fielddata
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ScriptDocValues-Booleans]]
 ==== ScriptDocValues.Booleans
@@ -8386,7 +8386,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-mapper"]
 === Shared API for package org.elasticsearch.index.mapper
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-IpFieldMapper-IpFieldType-IpScriptDocValues]]
 ==== IpFieldMapper.IpFieldType.IpScriptDocValues
@@ -8445,7 +8445,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-query"]
 === Shared API for package org.elasticsearch.index.query
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-IntervalFilterScript-Interval]]
 ==== IntervalFilterScript.Interval
@@ -8459,7 +8459,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-index-similarity"]
 === Shared API for package org.elasticsearch.index.similarity
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-ScriptedSimilarity-Doc]]
 ==== ScriptedSimilarity.Doc
@@ -8499,7 +8499,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-painless-api"]
 === Shared API for package org.elasticsearch.painless.api
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-Debug]]
 ==== Debug
@@ -8511,7 +8511,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-script"]
 === Shared API for package org.elasticsearch.script
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-JodaCompatibleZonedDateTime]]
 ==== JodaCompatibleZonedDateTime
@@ -8594,7 +8594,7 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 
 [role="exclude",id="painless-api-reference-shared-org-elasticsearch-search-lookup"]
 === Shared API for package org.elasticsearch.search.lookup
-See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages.
+See the <<painless-api-reference-shared, Shared API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-shared-FieldLookup]]
 ==== FieldLookup

@@ -8,7 +8,7 @@
 #   On RedHat,
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
-
+set -x
 REMOVE_DIRS=false
 REMOVE_USER_AND_GROUP=false
 
@@ -56,7 +56,7 @@ if [ "$REMOVE_DIRS" = "true" ]; then
     fi
 
     # plugins may have contained bin files
-    if [ -d /usr/share/elasticsearch/bin]; then
+    if [ -d /usr/share/elasticsearch/bin ]; then
         echo -n "Deleting plugin bin directories..."
         rm -rf /usr/share/elasticsearch/bin
         echo " OK"

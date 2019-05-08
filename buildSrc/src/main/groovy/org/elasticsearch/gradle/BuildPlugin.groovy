@@ -46,6 +46,9 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.ArtifactRepository
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.artifacts.repositories.AuthenticationContainer
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
@@ -399,6 +402,16 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
+        project.getRepositories().all { repository ->
+            if (repository instanceof MavenArtifactRepository) {
+                final MavenArtifactRepository maven = (MavenArtifactRepository) repository
+                assertRepositoryURIUsesHttps(maven, project, maven.getUrl())
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(project, uri) }
+            } else if (repository instanceof IvyArtifactRepository) {
+                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
+                assertRepositoryURIUsesHttps(ivy, project, ivy.getUrl())
+            }
+        }
         RepositoryHandler repos = project.repositories
         if (System.getProperty('repos.mavenLocal') != null) {
             // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
@@ -407,33 +420,39 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.jcenter()
-        repos.ivy { IvyArtifactRepository repo ->
-            repo.url = 'https://artifacts.elastic.co/downloads'
-            repo.patternLayout { IvyPatternRepositoryLayout layout ->
-                layout.artifact 'elasticsearch/[module]-[revision](-[classifier]).[ext]'
+        repos.ivy {
+            name "elasticsearch"
+            url "https://artifacts.elastic.co/downloads"
+            patternLayout {
+                artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
             }
             // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
-            repo.credentials(HttpHeaderCredentials, { HttpHeaderCredentials credentials ->
-                credentials.name = 'X-Elastic-No-KPI'
-                credentials.value = '1'
-            } as Action<HttpHeaderCredentials>)
-            repo.authentication { AuthenticationContainer auth ->
-                auth.create('header', HttpHeaderAuthentication)
+            credentials(HttpHeaderCredentials) {
+                name = "X-Elastic-No-KPI"
+                value = "1"
+            }
+            authentication {
+                header(HttpHeaderAuthentication)
             }
         }
-        repos.maven { MavenArtifactRepository repo ->
-            repo.name = 'elastic'
-            repo.url = 'https://artifacts.elastic.co/maven'
+        repos.maven {
+            name "elastic"
+            url "https://artifacts.elastic.co/maven"
         }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
-            List<String> matches = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/).getAt(0) as List<String>
-            String revision = matches.get(1)
-            repos.maven { MavenArtifactRepository repo ->
-                repo.name = 'lucene-snapshots'
-                repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            String revision = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
+            repos.maven {
+                name 'lucene-snapshots'
+                url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
+        }
+    }
+
+    private static void assertRepositoryURIUsesHttps(final ArtifactRepository repository, final Project project, final URI uri) {
+        if (uri != null && uri.toURL().getProtocol().equals("http")) {
+            throw new GradleException("repository [${repository.name}] on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
         }
     }
 

@@ -1,100 +1,51 @@
 [[query-dsl-exists-query]]
 === Exists Query
 
-Returns documents that have at least one non-`null` value in the original field:
+Returns documents that contain a value other than `null` or `[]` in a provided
+field.
+
+[[exists-query-ex-request]]
+==== Example request
 
 [source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
-        "exists" : { "field" : "user" }
+        "exists": {
+            "field": "user"
+        }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
 
-For instance, these documents would all match the above query:
+[[exists-query-top-level-params]]
+==== Top-level parameters for `exists`
+`field`::
+Name of the field you wish to search.
++
+To return a document, this field must exist and contain a value other
+than `null` or `[]`. These values can include:
++
+* Empty strings, such as `""` or `"-"`
+* Arrays containing `null` and another value, such as `[null, "foo"]`
+* A custom <<null-value, `null-value`>>, defined in field mapping
+
+[[exists-query-notes]]
+==== Notes
+
+[[find-docs-null-values]]
+===== Find documents with null values
+To find documents that contain only `null` values or `[]` in a provided field,
+use the `must_not` <<query-dsl-bool-query, boolean query>> with the `exists`
+query.
+
+The following search returns documents that contain only `null` values or `[]`
+in the `user` field.
 
 [source,js]
---------------------------------------------------
-{ "user": "jane" }
-{ "user": "" } <1>
-{ "user": "-" } <2>
-{ "user": ["jane"] }
-{ "user": ["jane", null ] } <3>
---------------------------------------------------
-// NOTCONSOLE
-<1> An empty string is a non-`null` value.
-<2> Even though the `standard` analyzer would emit zero tokens, the original field is non-`null`.
-<3> At least one non-`null` value is required.
-
-These documents would *not* match the above query:
-
-[source,js]
---------------------------------------------------
-{ "user": null }
-{ "user": [] } <1>
-{ "user": [null] } <2>
-{ "foo":  "bar" } <3>
---------------------------------------------------
-// NOTCONSOLE
-<1> This field has no values.
-<2> At least one non-`null` value is required.
-<3> The `user` field is missing completely.
-
-[float]
-[[null-value-mapping]]
-==== `null_value` mapping
-
-If the field mapping includes the <<null-value,`null_value`>> setting
-then explicit `null` values are replaced with the specified `null_value`.  For
-instance, if the `user` field were mapped as follows:
-
-[source,js]
---------------------------------------------------
-PUT /example
-{
-  "mappings": {
-    "properties": {
-      "user": {
-        "type": "keyword",
-        "null_value": "_null_"
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-
-then explicit `null` values would be indexed as the string `_null_`, and the
-following docs would match the `exists` filter:
-
-[source,js]
---------------------------------------------------
-{ "user": null }
-{ "user": [null] }
---------------------------------------------------
-// NOTCONSOLE
-
-However, these docs--without explicit `null` values--would still have
-no values in the `user` field and thus would not match the `exists` filter:
-
-[source,js]
---------------------------------------------------
-{ "user": [] }
-{ "foo": "bar" }
---------------------------------------------------
-// NOTCONSOLE
-
-[[missing-query]]
-==== `missing` query
-
-There isn't a `missing` query. Instead use the `exists` query inside a
-`must_not` clause as follows:
-
-[source,js]
---------------------------------------------------
+----
 GET /_search
 {
     "query": {
@@ -107,7 +58,5 @@ GET /_search
         }
     }
 }
---------------------------------------------------
+----
 // CONSOLE
-
-This query returns documents that have no value in the user field.

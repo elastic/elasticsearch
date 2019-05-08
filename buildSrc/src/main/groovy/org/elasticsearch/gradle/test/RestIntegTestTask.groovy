@@ -70,7 +70,7 @@ class RestIntegTestTask extends DefaultTask {
             project.testClusters {
                 "$name" {
                     distribution = 'INTEG_TEST'
-                    version = project.version
+                    version = VersionProperties.elasticsearch
                     javaHome = project.file(project.ext.runtimeJavaHome)
                 }
             }

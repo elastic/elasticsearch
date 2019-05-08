@@ -23,7 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,16 +43,28 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 
 public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContentObject {
 
-    public static class AnalyzeToken implements Streamable, ToXContentObject {
-        private String term;
-        private int startOffset;
-        private int endOffset;
-        private int position;
-        private int positionLength = 1;
-        private Map<String, Object> attributes;
-        private String type;
+    public static class AnalyzeToken implements Writeable, ToXContentObject {
+        private final String term;
+        private final int startOffset;
+        private final int endOffset;
+        private final int position;
+        private final int positionLength;
+        private final Map<String, Object> attributes;
+        private final String type;
 
-        AnalyzeToken() {
+        AnalyzeToken(StreamInput in) throws IOException {
+            term = in.readString();
+            startOffset = in.readInt();
+            endOffset = in.readInt();
+            position = in.readVInt();
+            Integer len = in.readOptionalVInt();
+            if (len != null) {
+                positionLength = len;
+            } else {
+                positionLength = 1;
+            }
+            type = in.readOptionalString();
+            attributes = in.readMap();
         }
 
         @Override
@@ -134,12 +146,6 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             return builder;
         }
 
-        public static AnalyzeToken readAnalyzeToken(StreamInput in) throws IOException {
-            AnalyzeToken analyzeToken = new AnalyzeToken();
-            analyzeToken.readFrom(in);
-            return analyzeToken;
-        }
-
         public static AnalyzeToken fromXContent(XContentParser parser) throws IOException {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
             String field = null;
@@ -185,22 +191,6 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            term = in.readString();
-            startOffset = in.readInt();
-            endOffset = in.readInt();
-            position = in.readVInt();
-            Integer len = in.readOptionalVInt();
-            if (len != null) {
-                positionLength = len;
-            } else {
-                positionLength = 1;
-            }
-            type = in.readOptionalString();
-            attributes = in.readMap();
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(term);
             out.writeInt(startOffset);
@@ -212,11 +202,22 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         }
     }
 
-    private DetailAnalyzeResponse detail;
+    private final DetailAnalyzeResponse detail;
 
-    private List<AnalyzeToken> tokens;
+    private final List<AnalyzeToken> tokens;
 
-    AnalyzeResponse() {
+    AnalyzeResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        if (size > 0) {
+            tokens = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                tokens.add(new AnalyzeToken(in));
+            }
+        } else {
+            tokens = null;
+        }
+        detail = in.readOptionalStreamable(DetailAnalyzeResponse::new);
     }
 
     public AnalyzeResponse(List<AnalyzeToken> tokens, DetailAnalyzeResponse detail) {
@@ -270,16 +271,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        tokens = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            tokens.add(AnalyzeToken.readAnalyzeToken(in));
-        }
-        if (tokens.size() == 0) {
-            tokens = null;
-        }
-        detail = in.readOptionalStreamable(DetailAnalyzeResponse::new);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

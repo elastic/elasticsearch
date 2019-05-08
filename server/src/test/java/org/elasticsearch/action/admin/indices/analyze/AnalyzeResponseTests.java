@@ -20,12 +20,13 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +38,7 @@ import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<AnalyzeResponse> {
+public class AnalyzeResponseTests extends AbstractSerializingTestCase<AnalyzeResponse> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
@@ -50,8 +51,8 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
     }
 
     @Override
-    protected AnalyzeResponse createBlankInstance() {
-        return new AnalyzeResponse();
+    protected Writeable.Reader<AnalyzeResponse> instanceReader() {
+        return AnalyzeResponse::new;
     }
 
     @Override

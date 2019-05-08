@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
@@ -118,7 +119,8 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             }
         });
     }
-    protected abstract Response newResponse();
+
+    protected abstract Writeable.Reader<Response> getResponseReader();
 
     protected abstract boolean resolveIndex(Request request);
 
@@ -186,9 +188,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     new TransportResponseHandler<Response>() {
                     @Override
                     public Response read(StreamInput in) throws IOException {
-                        Response response = newResponse();
-                        response.readFrom(in);
-                        return response;
+                        return getResponseReader().read(in);
                     }
 
                     @Override
@@ -256,9 +256,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
                         @Override
                         public Response read(StreamInput in) throws IOException {
-                            Response response = newResponse();
-                            response.readFrom(in);
-                            return response;
+                            return getResponseReader().read(in);
                         }
 
                         @Override

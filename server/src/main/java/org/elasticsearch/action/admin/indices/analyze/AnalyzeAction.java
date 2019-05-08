@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class AnalyzeAction extends Action<AnalyzeResponse> {
 
@@ -32,6 +33,11 @@ public class AnalyzeAction extends Action<AnalyzeResponse> {
 
     @Override
     public AnalyzeResponse newResponse() {
-        return new AnalyzeResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<AnalyzeResponse> getResponseReader() {
+        return AnalyzeResponse::new;
     }
 }

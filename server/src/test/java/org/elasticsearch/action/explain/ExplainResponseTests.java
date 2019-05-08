@@ -43,6 +43,7 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExplainResponseTests extends AbstractStreamableXContentTestCase<ExplainResponse> {
+
     @Override
     protected ExplainResponse doParseInstance(XContentParser parser) throws IOException {
         return ExplainResponse.fromXContent(parser, randomBoolean());

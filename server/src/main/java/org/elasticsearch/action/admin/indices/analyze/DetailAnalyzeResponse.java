@@ -334,7 +334,7 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
             if (size > 0) {
                 tokens = new AnalyzeResponse.AnalyzeToken[size];
                 for (int i = 0; i < size; i++) {
-                    tokens[i] = AnalyzeResponse.AnalyzeToken.readAnalyzeToken(in);
+                    tokens[i] = new AnalyzeResponse.AnalyzeToken(in);
                 }
             }
         }

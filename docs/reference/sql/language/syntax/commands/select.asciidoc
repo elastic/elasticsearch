@@ -204,6 +204,10 @@ Multiple aggregates used:
 include-tagged::{sql-specs}/docs/docs.csv-spec[groupByAndMultipleAggs]
 ----
 
+[TIP]
+If custom bucketing is required, it can be achieved with the use of `<<sql-functions-conditional-case, CASE>>`,
+as shown <<sql-functions-conditional-case-groupby-custom-buckets, here>>.
+
 [[sql-syntax-group-by-implicit]]
 ===== Implicit Grouping
 

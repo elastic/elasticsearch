@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.Nullable;
@@ -24,6 +26,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -164,6 +167,13 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
         public Response(boolean stopped) {
             super(Collections.emptyList(), Collections.emptyList());
+            this.stopped = stopped;
+        }
+
+        public Response(List<TaskOperationFailure> taskFailures,
+                        List<? extends ElasticsearchException> nodeFailures,
+                        boolean stopped) {
+            super(taskFailures, nodeFailures);
             this.stopped = stopped;
         }
 

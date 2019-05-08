@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -24,6 +25,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -90,7 +92,8 @@ public class IndexDeprecationChecks {
 
     private static String formatDateField(String type, Map.Entry<?, ?> entry) {
         Map<?,?> value = (Map<?, ?>) entry.getValue();
-        return "type: " + type + ", field: " + entry.getKey() +", format: "+ value.get("format");
+        return "type: " + type + ", field: " + entry.getKey() +", format: "+ value.get("format") +", suggestion: "
+            + formatSuggestion((String)value.get("format"));
     }
 
     private static String formatField(String type, Map.Entry<?, ?> entry) {
@@ -270,7 +273,7 @@ public class IndexDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue deprecatedDateTiemFormat(IndexMetaData indexMetaData) {
+    static DeprecationIssue deprecatedDateTimeFormat(IndexMetaData indexMetaData) {
         ConcurrentLinkedQueue deprecatedPatterns = null;
 
 
@@ -294,7 +297,33 @@ public class IndexDeprecationChecks {
     private static boolean isDateFieldWithDeprecatedPattern(Map<?, ?> property) {
         return "date".equals(property.get("type")) &&
                 property.containsKey("format") &&
-                ((String)property.get("format")).contains("YY");
+            isDeprecatedFormat((String) property.get("format"));
+    }
+
+    private static boolean isDeprecatedFormat(String format) {
+        return format.contains("Y") ||
+            format.contains("C") ||
+            format.contains("x") ||
+            format.contains("y") ||
+            format.contains("Z") ||
+            format.contains("z");
+    }
+
+    private static String formatSuggestion(String format) {
+        StringJoiner joiner = new StringJoiner("; ");
+        if (format.contains("Y"))
+            joiner.add( "'Y' year-of-era becomes 'y'. 'Y' means week-based-year.");
+        if (format.contains("y"))
+            joiner.add( "'y' year changes meaning to year-of-era (cannot be <0 anymore).");
+        if (format.contains("C"))
+            joiner.add( "'C' century of era is no longer supported.");
+        if (format.contains("x"))
+            joiner.add( "'x' weak-year becomes 'Y'. 'x' means now zone-offset.");
+        if (format.contains("Z"))
+            joiner.add( "'Z' time zone offset/id is now 'Z' or 'X'. 'Z' might fail when parsing 'Z for Zulu time zone'. Consider using 'X'.");
+        if (format.contains("z"))
+            joiner.add( "'z' time zone text. Has the same meaing now. Will print 'Z for Zulu time zone' given UTC timezone.");
+        return joiner.toString();
     }
 
     private static final Set<String> TYPES_THAT_DONT_COUNT;

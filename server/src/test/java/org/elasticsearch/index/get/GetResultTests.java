@@ -224,7 +224,8 @@ public class GetResultTests extends ESTestCase {
             exists = false;
         }
         GetResult getResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, fields, metaFields);
-        GetResult expectedGetResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, expectedFields, expectedMetaFields);
+        GetResult expectedGetResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source,
+            expectedFields, expectedMetaFields);
         return Tuple.tuple(getResult, expectedGetResult);
     }
 

@@ -64,15 +64,8 @@ public class GetResponseTests extends ESTestCase {
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
         GetResponse getResponse = new GetResponse(tuple.v1());
         GetResponse expectedGetResponse = new GetResponse(tuple.v2());
-        if (getResponse.getResult.getMetadataFields().containsKey("_ignored")) {
-//            System.out.println("mew");
-            int a = 3;
-            int b = a-4;
-        }
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(getResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable, "_source");
-
-
 
         BytesReference mutated;
         if (addRandomFields) {
@@ -108,7 +101,8 @@ public class GetResponseTests extends ESTestCase {
                 output);
         }
         {
-            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null));
+            GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", UNASSIGNED_SEQ_NO,
+                0, 1, false, null, null, null));
             String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
@@ -130,7 +124,8 @@ public class GetResponseTests extends ESTestCase {
 
     public void testFromXContentThrowsParsingException() throws IOException {
         GetResponse getResponse =
-            new GetResponse(new GetResult(null, null, null, UNASSIGNED_SEQ_NO, 0, randomIntBetween(1, 5), randomBoolean(), null, null, null));
+            new GetResponse(new GetResult(null, null, null, UNASSIGNED_SEQ_NO, 0, randomIntBetween(1, 5),
+                randomBoolean(), null, null, null));
 
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(getResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());

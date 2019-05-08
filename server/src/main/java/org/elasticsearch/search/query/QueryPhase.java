@@ -281,6 +281,10 @@ public class QueryPhase implements SearchPhase {
             } finally {
                 searchContext.clearReleasables(SearchContext.Lifetime.COLLECTION);
             }
+            if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER
+                    && queryResult.terminatedEarly() == null) {
+                queryResult.terminatedEarly(false);
+            }
 
             final QuerySearchResult result = searchContext.queryResult();
             for (QueryCollectorContext ctx : collectors) {

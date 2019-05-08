@@ -564,24 +564,6 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testTranslateStAsWktForPoints() {
-        LogicalPlan p = plan("SELECT ST_AsWKT(point), ST_AsWKT(shape) FROM test " +
-            "WHERE ST_AsWKT(point) = 'point (10 20)'");
-        assertThat(p, instanceOf(Project.class));
-        assertThat(p.children().get(0), instanceOf(Filter.class));
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
-        assertNull(translation.query);
-        AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
-                "InternalSqlScriptUtils.stAswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0))," +
-                "params.v1)" +
-                ")",
-            aggFilter.scriptTemplate().toString());
-        assertEquals("[{v=point}, {v=point (10 20)}]", aggFilter.scriptTemplate().params().toString());
-    }
-
-    public void testTranslateStAsWktForShapes() {
         LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_AsWKT(point) = 'point (10 20)'");
         assertThat(p, instanceOf(Project.class));
         assertThat(p.children().get(0), instanceOf(Filter.class));

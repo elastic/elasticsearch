@@ -1246,7 +1246,9 @@ setup:
 
 ---
 "Search error against live index":
-
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix: https://github.com/elastic/elasticsearch/issues/41970"
   - do:
       catch: bad_request
       rollup.rollup_search:
@@ -1262,7 +1264,9 @@ setup:
 
 ---
 "Search error against rollup and live index":
-
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix: https://github.com/elastic/elasticsearch/issues/41970"
   - do:
       catch: bad_request
       rollup.rollup_search:

@@ -44,11 +44,11 @@ public final class EnrichStore {
         }
         // TODO: add policy validation
 
-        updateClusterState(current -> {
+        updateClusterState(clusterService, handler, current -> {
             final Map<String, EnrichPolicy> policies = getPolicies(current);
             policies.put(name, policy);
             return policies;
-        }, clusterService, handler);
+        });
     }
 
     /**
@@ -65,7 +65,7 @@ public final class EnrichStore {
             throw new IllegalArgumentException("name is missing or empty");
         }
 
-        updateClusterState(current -> {
+        updateClusterState(clusterService, handler, current -> {
             final Map<String, EnrichPolicy> policies = getPolicies(current);
             if (policies.containsKey(name) == false) {
                 throw new ResourceNotFoundException("policy [{}] not found", name);
@@ -73,7 +73,7 @@ public final class EnrichStore {
 
             policies.remove(name);
             return policies;
-        }, clusterService, handler);
+        });
     }
 
     /**
@@ -108,9 +108,9 @@ public final class EnrichStore {
         return policies;
     }
 
-    private static void updateClusterState(Function<ClusterState, Map<String, EnrichPolicy>> function,
-                                           ClusterService clusterService,
-                                           Consumer<Exception> handler) {
+    private static void updateClusterState(ClusterService clusterService,
+                                           Consumer<Exception> handler,
+                                           Function<ClusterState, Map<String, EnrichPolicy>> function) {
         clusterService.submitStateUpdateTask("update-enrich-metadata", new ClusterStateUpdateTask() {
 
             @Override

@@ -1310,12 +1310,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 builder.endObject();
             }
 
-            if (context == XContentContext.API && false == metaData.hashesOfConsistentSettings().isEmpty()) {
-                builder.startObject("hashes_of_consistent_settings");
-                builder.map(metaData.hashesOfConsistentSettings());
-                builder.endObject();
-            }
-
             builder.startObject("templates");
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
                 IndexTemplateMetaData.Builder.toXContentWithTypes(cursor.value, builder, params);

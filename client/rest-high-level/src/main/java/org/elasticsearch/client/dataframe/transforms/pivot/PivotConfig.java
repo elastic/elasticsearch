@@ -97,10 +97,6 @@ public class PivotConfig implements ToXContentObject {
         return Objects.hash(groups, aggregationConfig);
     }
 
-    public boolean isValid() {
-        return groups.isValid() && aggregationConfig.isValid();
-    }
-
     public static Builder builder() {
         return new Builder();
     }

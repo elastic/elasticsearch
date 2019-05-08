@@ -173,7 +173,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         analyzers.put("fingerprint", FingerprintAnalyzerProvider::new);
 
         // TODO remove in 8.0
-        analyzers.put("standard_html_strip", StandardHtmlStripAnalyzerProvider::new);
         analyzers.put("pattern", PatternAnalyzerProvider::new);
         analyzers.put("snowball", SnowballAnalyzerProvider::new);
 
@@ -233,7 +232,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("condition",
             requiresAnalysisSettings((i, e, n, s) -> new ScriptedConditionTokenFilterFactory(i, n, s, scriptService.get())));
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
-        filters.put("delimited_payload_filter", LegacyDelimitedPayloadTokenFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
         filters.put("dictionary_decompounder", requiresAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
         filters.put("dutch_stem", DutchStemTokenFilterFactory::new);
@@ -376,14 +374,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
         List<PreConfiguredCharFilter> filters = new ArrayList<>();
         filters.add(PreConfiguredCharFilter.singleton("html_strip", false, HTMLStripCharFilter::new));
-        filters.add(PreConfiguredCharFilter.singletonWithVersion("htmlStrip", false, (reader, version) -> {
-            if (version.onOrAfter(org.elasticsearch.Version.V_6_3_0)) {
-                deprecationLogger.deprecatedAndMaybeLog("htmlStrip_deprecation",
-                        "The [htmpStrip] char filter name is deprecated and will be removed in a future version. "
-                                + "Please change the filter name to [html_strip] instead.");
-            }
-            return new HTMLStripCharFilter(reader);
-        }));
         return filters;
     }
 

@@ -78,7 +78,7 @@ public class QuerySearchResultTests extends ESTestCase {
     public void testSerialization() throws Exception {
         QuerySearchResult querySearchResult = createTestInstance();
         Version version = VersionUtils.randomVersion(random());
-        QuerySearchResult deserialized = copyStreamable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, version);
+        QuerySearchResult deserialized = copyWriteable(querySearchResult, namedWriteableRegistry, QuerySearchResult::new, version);
         assertEquals(querySearchResult.getRequestId(), deserialized.getRequestId());
         assertNull(deserialized.getSearchShardTarget());
         assertEquals(querySearchResult.topDocs().maxScore, deserialized.topDocs().maxScore, 0f);
@@ -121,8 +121,7 @@ public class QuerySearchResultTests extends ESTestCase {
         byte[] bytes = Base64.getDecoder().decode(message);
         try (NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
             in.setVersion(Version.V_7_0_0);
-            QuerySearchResult querySearchResult = new QuerySearchResult();
-            querySearchResult.readFrom(in);
+            QuerySearchResult querySearchResult = new QuerySearchResult(in);
             assertEquals(100, querySearchResult.getRequestId());
             assertTrue(querySearchResult.hasAggs());
             InternalAggregations aggs = (InternalAggregations)querySearchResult.consumeAggs();

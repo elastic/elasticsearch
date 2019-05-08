@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +49,9 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     private static final ClusterState STATE = ClusterState.builder(new ClusterName("test")).metaData(MetaData.builder()
                 .put(index("target", "target_alias", "target_multi"), true)
                 .put(index("target2", "target_multi"), true)
+                .put(index("target_with_write_index", true, "target_multi_with_write_index"), true)
+                .put(index("target2_without_write_index", "target_multi_with_write_index"), true)
+                .put(index("qux", false, "target_alias_with_write_index_disabled"), true)
                 .put(index("foo"), true)
                 .put(index("bar"), true)
                 .put(index("baz"), true)
@@ -78,12 +82,26 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
         succeeds("target", "source", "source2", "source_multi");
     }
 
-    public void testTargetIsAlias() {
+    public void testTargetIsAliasToMultipleIndicesWithoutWriteAlias() {
         Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_multi", "foo"));
-        assertThat(e.getMessage(), containsString("Alias [target_multi] has more than one indices associated with it [["));
-        // The index names can come in either order
-        assertThat(e.getMessage(), containsString("target"));
-        assertThat(e.getMessage(), containsString("target2"));
+        assertThat(e.getMessage(), containsString("no write index is defined for alias [target_multi]. The write index may be explicitly " +
+                "disabled using is_write_index=false or the alias points to multiple indices without one being designated as a " +
+                "write index"));
+    }
+
+    public void testTargetIsAliasWithWriteIndexDisabled() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> succeeds("target_alias_with_write_index_disabled", "foo"));
+        assertThat(e.getMessage(), containsString("no write index is defined for alias [target_alias_with_write_index_disabled]. " +
+            "The write index may be explicitly disabled using is_write_index=false or the alias points to multiple indices without one " +
+            "being designated as a write index"));
+        succeeds("qux", "foo"); // writing directly into the index of which this is the alias works though
+    }
+
+    public void testTargetIsWriteAlias() {
+        succeeds("target_multi_with_write_index", "foo");
+        succeeds("target_multi_with_write_index", "target2_without_write_index");
+        fails("target_multi_with_write_index", "target_multi_with_write_index");
+        fails("target_multi_with_write_index", "target_with_write_index");
     }
 
     public void testRemoteInfoSkipsValidation() {
@@ -97,7 +115,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
 
     private void fails(String target, String... sources) {
         Exception e = expectThrows(ActionRequestValidationException.class, () -> succeeds(target, sources));
-        assertThat(e.getMessage(), containsString("reindex cannot write into an index its reading from [target]"));
+        assertThat(e.getMessage(), containsString("reindex cannot write into an index its reading from"));
     }
 
     private void succeeds(String target, String... sources) {
@@ -110,12 +128,16 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     }
 
     private static IndexMetaData index(String name, String... aliases) {
+        return index(name, null, aliases);
+    }
+
+    private static IndexMetaData index(String name, @Nullable Boolean writeIndex, String... aliases) {
         IndexMetaData.Builder builder = IndexMetaData.builder(name).settings(Settings.builder()
                 .put("index.version.created", Version.CURRENT.id)
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1));
         for (String alias: aliases) {
-            builder.putAlias(AliasMetaData.builder(alias).build());
+            builder.putAlias(AliasMetaData.builder(alias).writeIndex(writeIndex).build());
         }
         return builder.build();
     }

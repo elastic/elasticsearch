@@ -169,6 +169,9 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(raw, notNullValue());
         assertThat(raw.binaryValue(), is(new BytesRef("foo")));
+
+        assertWarnings("The multi-field named [field] contains its own [fields] entry. Defining " +
+            "multi-fields within a multi-field is deprecated and will no longer be supported in 8.0.");
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
@@ -234,5 +237,8 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("field.raw"), notNullValue());
         assertThat(doc.rootDoc().getField("field.raw").stringValue(), is("foo"));
+
+        assertWarnings("The multi-field named [field] contains its own [fields] entry. Defining " +
+            "multi-fields within a multi-field is deprecated and will no longer be supported in 8.0.");
     }
 }

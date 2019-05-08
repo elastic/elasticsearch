@@ -20,6 +20,7 @@ public class RestExecuteEnrichPolicyAction extends BaseRestHandler {
     public RestExecuteEnrichPolicyAction(final Settings settings, final RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/_enrich/policy/{name}/_execute", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_enrich/policy/{name}/_execute", this);
     }
 
     @Override

@@ -111,7 +111,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     }
 
     static SearchResponse processResponses(RollupSearchContext rollupContext, MultiSearchResponse msearchResponse,
-                                           InternalAggregation.ReduceContext reduceContext) {
+                                           InternalAggregation.ReduceContext reduceContext) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
             return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContext);

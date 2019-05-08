@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -186,31 +187,23 @@ public class PivotConfig implements Writeable, ToXContentObject {
             }
             leafNames.add(name);
         }
-
-        for (String fullName : usedNames) {
-            String[] tokens = fullName.split("\\.");
-            for (int i = tokens.length - 1; i > 0; i--) {
-                StringBuilder prefix = new StringBuilder();
-                for (int j = 0; j < i; j++) {
-                    prefix.append(tokens[j]);
-                }
-                String prefixString = prefix.toString();
-                if (leafNames.contains(prefixString)) {
-                    validationFailures.add("field [" + prefixString + "] cannot be both an object and a field");
-                }
+        usedNames.sort(String::compareTo);
+        for (int i = 0; i < usedNames.size() - 1; i++) {
+            if (usedNames.get(i+1).startsWith(usedNames.get(i) + ".")) {
+                validationFailures.add("field [" + usedNames.get(i) + "] cannot be both an object and a field");
             }
         }
         return validationFailures;
     }
 
 
-    private static void addAggNames(AggregationBuilder aggregationBuilder, List<String> names) {
+    private static void addAggNames(AggregationBuilder aggregationBuilder, Collection<String> names) {
         names.add(aggregationBuilder.getName());
         aggregationBuilder.getSubAggregations().forEach(agg -> addAggNames(agg, names));
         aggregationBuilder.getPipelineAggregations().forEach(agg -> addAggNames(agg, names));
     }
 
-    private static void addAggNames(PipelineAggregationBuilder pipelineAggregationBuilder, List<String> names) {
+    private static void addAggNames(PipelineAggregationBuilder pipelineAggregationBuilder, Collection<String> names) {
         names.add(pipelineAggregationBuilder.getName());
     }
 }

@@ -17,7 +17,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
+
+import java.util.List;
 
 public class TransportEvaluateDataFrameAction extends HandledTransportAction<EvaluateDataFrameAction.Request,
     EvaluateDataFrameAction.Response> {
@@ -40,13 +42,13 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
         SearchRequest searchRequest = new SearchRequest(request.getIndices());
         searchRequest.source(evaluation.buildSearch());
 
-        ActionListener<EvaluationResult> resultListener = ActionListener.wrap(
-            result -> listener.onResponse(new EvaluateDataFrameAction.Response(result)),
+        ActionListener<List<EvaluationMetricResult>> resultsListener = ActionListener.wrap(
+            results -> listener.onResponse(new EvaluateDataFrameAction.Response(evaluation.getName(), results)),
             listener::onFailure
         );
 
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(
-            searchResponse -> threadPool.generic().execute(() -> evaluation.evaluate(searchResponse, resultListener)),
+            searchResponse -> threadPool.generic().execute(() -> evaluation.evaluate(searchResponse, resultsListener)),
             listener::onFailure
         ));
     }

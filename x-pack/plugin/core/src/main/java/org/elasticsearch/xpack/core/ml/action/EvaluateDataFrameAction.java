@@ -21,7 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationResult;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -152,38 +152,46 @@ public class EvaluateDataFrameAction extends Action<EvaluateDataFrameAction.Resp
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private EvaluationResult result;
+        private String evaluationName;
+        private List<EvaluationMetricResult> metrics;
 
         public Response() {
         }
 
-        public Response(EvaluationResult result) {
-            this.result = Objects.requireNonNull(result);
+        public Response(String evaluationName, List<EvaluationMetricResult> metrics) {
+            this.evaluationName = Objects.requireNonNull(evaluationName);
+            this.metrics = Objects.requireNonNull(metrics);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.result = in.readNamedWriteable(EvaluationResult.class);
+            this.evaluationName = in.readString();
+            this.metrics = in.readNamedWriteableList(EvaluationMetricResult.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeNamedWriteable(result);
+            out.writeString(evaluationName);
+            out.writeList(metrics);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(result.getEvaluationName(), result);
+            builder.startObject(evaluationName);
+            for (EvaluationMetricResult metric : metrics) {
+                builder.field(metric.getName(), metric);
+            }
+            builder.endObject();
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(result);
+            return Objects.hash(evaluationName, metrics);
         }
 
         @Override
@@ -195,7 +203,7 @@ public class EvaluateDataFrameAction extends Action<EvaluateDataFrameAction.Resp
                 return false;
             }
             Response other = (Response) obj;
-            return Objects.equals(result, other.result);
+            return Objects.equals(evaluationName, other.evaluationName) && Objects.equals(metrics, other.metrics);
         }
 
         @Override

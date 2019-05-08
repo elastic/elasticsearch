@@ -67,7 +67,12 @@ setup:
 
 ---
 "Test preview transform":
+  - skip:
+      reason:  date histo interval is deprecated
+      features: "warnings"
   - do:
+      warnings:
+        - "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future."
       data_frame.preview_data_frame_transform:
         body: >
           {
@@ -99,6 +104,21 @@ setup:
             "source": { "index": "airline-data" },
             "pivot": {
               "group_by": {"airline": {"terms": {"not_a_terms_param": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+---
+"Test preview with non-existing source index":
+  - do:
+      catch: /Source index \[does_not_exist\] does not exist/
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": ["airline-data", "does_not_exist"] },
+            "pivot": {
+              "group_by": {
+                "airline": {"terms": {"field": "airline"}},
+                "by-hour": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }

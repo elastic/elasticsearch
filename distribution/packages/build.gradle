@@ -143,7 +143,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       }
       if (jdk) {
         into('jdk') {
-          with jdkFiles('linux')
+          with jdkFiles(project, 'linux')
         }
       }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly

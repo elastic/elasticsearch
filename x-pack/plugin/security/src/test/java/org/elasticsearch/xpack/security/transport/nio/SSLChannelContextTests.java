@@ -21,6 +21,7 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
+import javax.net.ssl.SSLException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Selector;
@@ -186,8 +187,7 @@ public class SSLChannelContextTests extends ESTestCase {
     }
 
     public void testQueuedWritesAreIgnoredWhenNotReadyForAppWrites() {
-        when(sslDriver.readyForApplicationWrites()).thenReturn(false);
-        when(sslDriver.needsNonApplicationWrite()).thenReturn(false);
+        when(sslDriver.readyForApplicationData()).thenReturn(false);
 
         context.queueWriteOperation(mock(FlushReadyWrite.class));
 
@@ -195,34 +195,20 @@ public class SSLChannelContextTests extends ESTestCase {
     }
 
     public void testPendingEncryptedFlushMeansWriteInterested() throws Exception {
-        when(sslDriver.readyForApplicationWrites()).thenReturn(false);
-        when(sslDriver.needsNonApplicationWrite()).thenReturn(true, false);
-        doAnswer(getWriteAnswer(1, false)).when(sslDriver).nonApplicationWrite();
+        context.queueWriteOperation(mock(FlushReadyWrite.class));
+        when(sslDriver.readyForApplicationData()).thenReturn(true);
+        doAnswer(getWriteAnswer(1, false)).when(sslDriver).write(any(FlushOperation.class));
 
         // Call will put bytes in buffer to flush
         context.flushChannel();
         assertTrue(context.readyForFlush());
     }
 
-    public void testNeedsNonAppWritesMeansWriteInterested() {
-        when(sslDriver.readyForApplicationWrites()).thenReturn(false);
-        when(sslDriver.needsNonApplicationWrite()).thenReturn(true);
-
-        assertTrue(context.readyForFlush());
-    }
-
-    public void testNoNonAppWriteInterestInAppMode() {
-        when(sslDriver.readyForApplicationWrites()).thenReturn(true);
-
-        assertFalse(context.readyForFlush());
-
-        verify(sslDriver, times(0)).needsNonApplicationWrite();
-    }
-
     public void testFirstFlushMustFinishForWriteToContinue() throws Exception {
-        when(sslDriver.readyForApplicationWrites()).thenReturn(false);
-        when(sslDriver.needsNonApplicationWrite()).thenReturn(true);
-        doAnswer(getWriteAnswer(1, false)).when(sslDriver).nonApplicationWrite();
+        context.queueWriteOperation(mock(FlushReadyWrite.class));
+        context.queueWriteOperation(mock(FlushReadyWrite.class));
+        when(sslDriver.readyForApplicationData()).thenReturn(true);
+        doAnswer(getWriteAnswer(1, false)).when(sslDriver).write(any(FlushOperation.class));
 
         // First call will put bytes in buffer to flush
         context.flushChannel();
@@ -231,31 +217,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.flushChannel();
         assertTrue(context.readyForFlush());
 
-        verify(sslDriver, times(1)).nonApplicationWrite();
-    }
-
-    public void testNonAppWrites() throws Exception {
-        when(sslDriver.needsNonApplicationWrite()).thenReturn(true, true, false);
-        when(sslDriver.readyForApplicationWrites()).thenReturn(false);
-        doAnswer(getWriteAnswer(1, false)).when(sslDriver).nonApplicationWrite();
-        when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(1);
-
-        context.flushChannel();
-
-        verify(sslDriver, times(2)).nonApplicationWrite();
-        verify(rawChannel, times(2)).write(same(selector.getIoBuffer()));
-    }
-
-    public void testNonAppWritesStopIfBufferNotFullyFlushed() throws Exception {
-        when(sslDriver.needsNonApplicationWrite()).thenReturn(true);
-        when(sslDriver.readyForApplicationWrites()).thenReturn(false);
-        doAnswer(getWriteAnswer(1, false)).when(sslDriver).nonApplicationWrite();
-        when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(0);
-
-        context.flushChannel();
-
-        verify(sslDriver, times(1)).nonApplicationWrite();
-        verify(rawChannel, times(1)).write(same(selector.getIoBuffer()));
+        verify(sslDriver, times(1)).write(any(FlushOperation.class));
     }
 
     public void testQueuedWriteIsFlushedInFlushCall() throws Exception {
@@ -263,7 +225,7 @@ public class SSLChannelContextTests extends ESTestCase {
         FlushReadyWrite flushOperation = new FlushReadyWrite(context, buffers, listener);
         context.queueWriteOperation(flushOperation);
 
-        when(sslDriver.readyForApplicationWrites()).thenReturn(true);
+        when(sslDriver.readyForApplicationData()).thenReturn(true);
         doAnswer(getWriteAnswer(10, true)).when(sslDriver).write(eq(flushOperation));
 
         when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(10);
@@ -279,7 +241,7 @@ public class SSLChannelContextTests extends ESTestCase {
         FlushReadyWrite flushOperation = new FlushReadyWrite(context, buffers, listener);
         context.queueWriteOperation(flushOperation);
 
-        when(sslDriver.readyForApplicationWrites()).thenReturn(true);
+        when(sslDriver.readyForApplicationData()).thenReturn(true);
         doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(eq(flushOperation));
         when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(4);
         context.flushChannel();
@@ -299,7 +261,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.queueWriteOperation(flushOperation1);
         context.queueWriteOperation(flushOperation2);
 
-        when(sslDriver.readyForApplicationWrites()).thenReturn(true);
+        when(sslDriver.readyForApplicationData()).thenReturn(true);
         doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(any(FlushOperation.class));
         when(rawChannel.write(same(selector.getIoBuffer()))).thenReturn(5, 5, 2);
         context.flushChannel();
@@ -316,7 +278,7 @@ public class SSLChannelContextTests extends ESTestCase {
         context.queueWriteOperation(flushOperation);
 
         IOException exception = new IOException();
-        when(sslDriver.readyForApplicationWrites()).thenReturn(true);
+        when(sslDriver.readyForApplicationData()).thenReturn(true);
         doAnswer(getWriteAnswer(5, true)).when(sslDriver).write(eq(flushOperation));
         when(rawChannel.write(any(ByteBuffer.class))).thenThrow(exception);
         expectThrows(IOException.class, () -> context.flushChannel());
@@ -326,9 +288,9 @@ public class SSLChannelContextTests extends ESTestCase {
     }
 
     public void testWriteIOExceptionMeansChannelReadyToClose() throws Exception {
-        when(sslDriver.readyForApplicationWrites()).thenReturn(false);
-        when(sslDriver.needsNonApplicationWrite()).thenReturn(true);
-        doAnswer(getWriteAnswer(1, false)).when(sslDriver).nonApplicationWrite();
+        context.queueWriteOperation(mock(FlushReadyWrite.class));
+        when(sslDriver.readyForApplicationData()).thenReturn(true);
+        doAnswer(getWriteAnswer(1, false)).when(sslDriver).write(any(FlushOperation.class));
 
         context.flushChannel();
 
@@ -383,7 +345,7 @@ public class SSLChannelContextTests extends ESTestCase {
         }
     }
 
-    public void testInitiateCloseFromDifferentThreadSchedulesCloseNotify() {
+    public void testInitiateCloseFromDifferentThreadSchedulesCloseNotify() throws SSLException {
         when(selector.isOnCurrentThread()).thenReturn(false, true);
         context.closeChannel();
 
@@ -394,7 +356,7 @@ public class SSLChannelContextTests extends ESTestCase {
         verify(sslDriver).initiateClose();
     }
 
-    public void testInitiateCloseFromSameThreadSchedulesCloseNotify() {
+    public void testInitiateCloseFromSameThreadSchedulesCloseNotify() throws SSLException {
         context.closeChannel();
 
         ArgumentCaptor<WriteOperation> captor = ArgumentCaptor.forClass(WriteOperation.class);

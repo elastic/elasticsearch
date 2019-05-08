@@ -87,9 +87,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
     }
 
     @Override
-    public List<TransportAddress> resolveHosts(
-        final List<String> hosts,
-        final int limitPortCounts) {
+    public List<TransportAddress> resolveHosts(final List<String> hosts) {
         Objects.requireNonNull(hosts);
         if (resolveTimeout.nanos() < 0) {
             throw new IllegalArgumentException("resolve timeout must be non-negative but was [" + resolveTimeout + "]");
@@ -98,7 +96,7 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         final List<Callable<TransportAddress[]>> callables =
             hosts
                 .stream()
-                .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn, limitPortCounts))
+                .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn))
                 .collect(Collectors.toList());
         final List<Future<TransportAddress[]>> futures;
         try {

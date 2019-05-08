@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.job.util;
+package org.elasticsearch.client.core;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -57,11 +57,11 @@ public class PageParams implements ToXContentObject {
         this.size = size;
     }
 
-    public int getFrom() {
+    public Integer getFrom() {
         return from;
     }
 
-    public int getSize() {
+    public Integer getSize() {
         return size;
     }
 

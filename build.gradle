@@ -338,7 +338,7 @@ gradle.projectsEvaluated {
     if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
       integTest.mustRunAfter test
     }
-    configurations.all { Configuration configuration ->
+    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.all { Dependency dep ->
         Project upstreamProject = dependencyToProject(dep)
         if (upstreamProject != null) {

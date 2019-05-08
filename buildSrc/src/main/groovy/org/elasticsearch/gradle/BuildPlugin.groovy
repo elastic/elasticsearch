@@ -48,9 +48,6 @@ import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.artifacts.repositories.ArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
-import org.gradle.api.artifacts.repositories.MavenArtifactRepository
-import org.gradle.api.artifacts.repositories.AuthenticationContainer
-import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyPatternRepositoryLayout
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.credentials.HttpHeaderCredentials
@@ -406,7 +403,7 @@ class BuildPlugin implements Plugin<Project> {
             if (repository instanceof MavenArtifactRepository) {
                 final MavenArtifactRepository maven = (MavenArtifactRepository) repository
                 assertRepositoryURIUsesHttps(maven, project, maven.getUrl())
-                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(project, uri) }
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(maven, project, uri) }
             } else if (repository instanceof IvyArtifactRepository) {
                 final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
                 assertRepositoryURIUsesHttps(ivy, project, ivy.getUrl())
@@ -420,32 +417,31 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.jcenter()
-        repos.ivy {
-            name "elasticsearch"
-            url "https://artifacts.elastic.co/downloads"
-            patternLayout {
-                artifact "elasticsearch/[module]-[revision](-[classifier]).[ext]"
+        repos.ivy { IvyArtifactRepository repo ->
+            repo.name = 'elasticsearch'
+            repo.url = 'https://artifacts.elastic.co/downloads'
+            repo.patternLayout { IvyPatternRepositoryLayout layout ->
+                layout.artifact 'elasticsearch/[module]-[revision](-[classifier]).[ext]'
             }
             // this header is not a credential but we hack the capability to send this header to avoid polluting our download stats
-            credentials(HttpHeaderCredentials) {
-                name = "X-Elastic-No-KPI"
-                value = "1"
-            }
-            authentication {
-                header(HttpHeaderAuthentication)
-            }
+            repo.credentials(HttpHeaderCredentials, { HttpHeaderCredentials creds ->
+                creds.name = 'X-Elastic-No-KPI'
+                creds.value = '1'
+            } as Action<HttpHeaderCredentials>)
+            repo.authentication.create('header', HttpHeaderAuthentication)
         }
-        repos.maven {
-            name "elastic"
-            url "https://artifacts.elastic.co/maven"
+        repos.maven { MavenArtifactRepository repo ->
+            repo.name = 'elastic'
+            repo.url = 'https://artifacts.elastic.co/maven'
         }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
-            String revision = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
-            repos.maven {
-                name 'lucene-snapshots'
-                url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            List<String> matches = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/).getAt(0) as List<String>
+            String revision = matches.get(1)
+            repos.maven { MavenArtifactRepository repo ->
+                repo.name = 'lucene-snapshots'
+                repo.url = "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
         }
     }

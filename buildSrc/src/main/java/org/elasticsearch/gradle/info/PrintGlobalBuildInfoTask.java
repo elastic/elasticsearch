@@ -39,6 +39,11 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
 
         setGlobalProperties();
         globalInfoListeners.forEach(Runnable::run);
+
+        // Since all tasks depend on this task, and it always runs for every build, this makes sure that lifecycle tasks will still
+        // correctly report as UP-TO-DATE, since the convention is a lifecycle task (i.e. assemble, build, etc) will only be marked as
+        // UP-TO-DATE if all upstream tasks were also UP-TO-DATE.
+        setDidWork(false);
     }
 
     @InputFile
@@ -59,11 +64,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
     @InputFile
     public RegularFileProperty getFipsJvmFile() {
         return fipsJvmFile;
-    }
-
-    @Internal
-    public List<Runnable> getGlobalInfoListeners() {
-        return globalInfoListeners;
     }
 
     public void setGlobalInfoListeners(List<Runnable> globalInfoListeners) {

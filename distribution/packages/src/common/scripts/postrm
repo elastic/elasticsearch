@@ -8,7 +8,6 @@
 #   On RedHat,
 #       $1=0         : indicates a removal
 #       $1=1         : indicates an upgrade
-set -x
 REMOVE_DIRS=false
 REMOVE_USER_AND_GROUP=false
 

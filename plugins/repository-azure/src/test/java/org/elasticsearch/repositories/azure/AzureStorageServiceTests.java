@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.RetryExponentialRetry;
+import com.microsoft.azure.storage.StorageCredentialsSharedAccessSignature;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.core.Base64;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -45,7 +46,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -56,11 +57,12 @@ public class AzureStorageServiceTests extends ESTestCase {
             .put("azure.client.azure3.endpoint_suffix", "my_endpoint_suffix").build();
 
         final Map<String, AzureStorageSettings> loadedSettings = AzureStorageSettings.load(settings);
-        assertThat(loadedSettings.keySet(), containsInAnyOrder("azure1","azure2","azure3","default"));
+        assertThat(loadedSettings.keySet(), containsInAnyOrder("azure1","azure2","azure3","azure4","default"));
 
-        assertThat(loadedSettings.get("azure1").getEndpointSuffix(), isEmptyString());
-        assertThat(loadedSettings.get("azure2").getEndpointSuffix(), isEmptyString());
+        assertThat(loadedSettings.get("azure1").getEndpointSuffix(), is(emptyString()));
+        assertThat(loadedSettings.get("azure2").getEndpointSuffix(), is(emptyString()));
         assertThat(loadedSettings.get("azure3").getEndpointSuffix(), equalTo("my_endpoint_suffix"));
+        assertThat(loadedSettings.get("azure4").getEndpointSuffix(), is(emptyString()));
     }
 
     private AzureRepositoryPlugin pluginWithSettingsValidation(Settings settings) {
@@ -86,6 +88,37 @@ public class AzureStorageServiceTests extends ESTestCase {
             assertThat(client1.getEndpoint().toString(), equalTo("https://myaccount1.blob.my_endpoint_suffix"));
             final CloudBlobClient client2 = azureStorageService.client("azure2").v1();
             assertThat(client2.getEndpoint().toString(), equalTo("https://myaccount2.blob.core.windows.net"));
+        }
+    }
+
+    public void testCreateClientWithSasToken() throws IOException {
+        final Settings settings = Settings.builder().setSecureSettings(buildSecureSettings()).build();
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService;
+            final CloudBlobClient client4 = azureStorageService.client("azure4").v1();
+            assertThat(client4.getEndpoint().toString(), equalTo("https://myaccount4.blob.core.windows.net"));
+            assertThat(client4.getCredentials(), instanceOf(com.microsoft.azure.storage.StorageCredentialsSharedAccessSignature.class));
+            StorageCredentialsSharedAccessSignature sas = (StorageCredentialsSharedAccessSignature) client4.getCredentials();
+            assertThat(sas.getToken(), equalTo(java.util.Base64.getEncoder().encodeToString(("sig=signature4&foo=b%r").getBytes(StandardCharsets.UTF_8))));
+        }
+    }
+
+    public void testConflictingAuthenticationSettings() throws IOException {
+        final MockSecureSettings secureSettings1 = new MockSecureSettings();
+        secureSettings1.setString("azure.client.azure1.account", "myaccount1");
+        secureSettings1.setString("azure.client.azure1.key", encodeKey("mykey11"));
+        final Settings settings1 = Settings.builder().setSecureSettings(secureSettings1).build();
+        final MockSecureSettings secureSettings2 = new MockSecureSettings();
+        secureSettings2.setString("azure.client.azure1.account", "myaccount1");
+        secureSettings2.setString("azure.client.azure1.key", encodeKey("mykey11"));
+        secureSettings2.setString("azure.client.azure1.sas_token", encodeKey("some=token"));
+        final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings1)) {
+            final AzureStorageService azureStorageService = plugin.azureStoreService;
+            final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
+            assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
+            final SettingsException e = expectThrows(SettingsException.class, () ->  plugin.reload(settings2));
+            assertThat(e.getMessage(), is("Both key and sas_token are set for [azure1] - only one must be specified"));
         }
     }
 
@@ -162,18 +195,18 @@ public class AzureStorageServiceTests extends ESTestCase {
             final AzureStorageService azureStorageService = plugin.azureStoreService;
             final CloudBlobClient client11 = azureStorageService.client("azure1").v1();
             assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
-            plugin.reload(settings2);
+            final SettingsException e = expectThrows(SettingsException.class, () -> plugin.reload(settings2));
+            azureStorageService.client("azure1");
+            assertThat(e.getMessage(), is("Either key or sas_token need to be defined for azure client [azure1]"));
             // existing client untouched
             assertThat(client11.getEndpoint().toString(), equalTo("https://myaccount1.blob.core.windows.net"));
-            final SettingsException e = expectThrows(SettingsException.class, () -> azureStorageService.client("azure1"));
-            assertThat(e.getMessage(), is("Invalid azure client settings with name [azure1]"));
         }
     }
 
     public void testGetSelectedClientNonExisting() {
         final AzureStorageService azureStorageService = storageServiceWithSettingsValidation(buildSettings());
-        final SettingsException e = expectThrows(SettingsException.class, () -> azureStorageService.client("azure4"));
-        assertThat(e.getMessage(), is("Unable to find client with name [azure4]"));
+        final SettingsException e = expectThrows(SettingsException.class, () -> azureStorageService.client("azure5"));
+        assertThat(e.getMessage(), is("Unable to find client with name [azure5]"));
     }
 
     public void testGetSelectedClientDefaultTimeout() {
@@ -341,6 +374,8 @@ public class AzureStorageServiceTests extends ESTestCase {
         secureSettings.setString("azure.client.azure2.key", encodeKey("mykey2"));
         secureSettings.setString("azure.client.azure3.account", "myaccount3");
         secureSettings.setString("azure.client.azure3.key", encodeKey("mykey3"));
+        secureSettings.setString("azure.client.azure4.account", "myaccount4");
+        secureSettings.setString("azure.client.azure4.sas_token", encodeKey("sig=signature4&foo=b%r"));
         return secureSettings;
     }
 

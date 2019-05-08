@@ -53,36 +53,38 @@ final class AzureStorageSettings {
     public static final AffixSetting<SecureString> KEY_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "key",
         key -> SecureSetting.secureString(key, null));
 
+    /** Azure SAS token */
+    public static final AffixSetting<SecureString> SAS_TOKEN_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "sas_token",
+        key -> SecureSetting.secureString(key, null));
+
     /** max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT). */
     public static final Setting<Integer> MAX_RETRIES_SETTING =
         Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "max_retries",
             (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope),
-            ACCOUNT_SETTING, KEY_SETTING);
+            ACCOUNT_SETTING);
     /**
      * Azure endpoint suffix. Default to core.windows.net (CloudStorageAccount.DEFAULT_DNS).
      */
     public static final Setting<String> ENDPOINT_SUFFIX_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "endpoint_suffix",
-        key -> Setting.simpleString(key, Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING);
+        key -> Setting.simpleString(key, Property.NodeScope), ACCOUNT_SETTING);
 
     public static final AffixSetting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING);
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueMinutes(-1), Property.NodeScope), ACCOUNT_SETTING);
 
     /** The type of the proxy to connect to azure through. Can be direct (no proxy, default), http or socks */
     public static final AffixSetting<Proxy.Type> PROXY_TYPE_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "proxy.type",
-        (key) -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
-        , ACCOUNT_SETTING, KEY_SETTING);
+        (key) -> new Setting<>(key, "direct", s -> Proxy.Type.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope), ACCOUNT_SETTING);
 
     /** The host name of a proxy to connect to azure through. */
     public static final AffixSetting<String> PROXY_HOST_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "proxy.host",
-        (key) -> Setting.simpleString(key, Property.NodeScope), KEY_SETTING, ACCOUNT_SETTING, PROXY_TYPE_SETTING);
+        (key) -> Setting.simpleString(key, Property.NodeScope), ACCOUNT_SETTING, PROXY_TYPE_SETTING);
 
     /** The port of a proxy to connect to azure through. */
     public static final Setting<Integer> PROXY_PORT_SETTING = Setting.affixKeySetting(AZURE_CLIENT_PREFIX_KEY, "proxy.port",
-        (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope), ACCOUNT_SETTING, KEY_SETTING, PROXY_TYPE_SETTING,
+        (key) -> Setting.intSetting(key, 0, 0, 65535, Setting.Property.NodeScope), ACCOUNT_SETTING, PROXY_TYPE_SETTING,
         PROXY_HOST_SETTING);
 
-    private final String account;
-    private final String key;
+    private final AzureCredentials credentials;
     private final String endpointSuffix;
     private final TimeValue timeout;
     private final int maxRetries;
@@ -90,10 +92,9 @@ final class AzureStorageSettings {
     private final LocationMode locationMode;
 
     // copy-constructor
-    private AzureStorageSettings(String account, String key, String endpointSuffix, TimeValue timeout, int maxRetries, Proxy proxy,
+    private AzureStorageSettings(AzureCredentials credentials, String endpointSuffix, TimeValue timeout, int maxRetries, Proxy proxy,
             LocationMode locationMode) {
-        this.account = account;
-        this.key = key;
+        this.credentials = credentials;
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -101,10 +102,9 @@ final class AzureStorageSettings {
         this.locationMode = locationMode;
     }
 
-    AzureStorageSettings(String account, String key, String endpointSuffix, TimeValue timeout, int maxRetries,
+    AzureStorageSettings(AzureCredentials credentials, String endpointSuffix, TimeValue timeout, int maxRetries,
                                 Proxy.Type proxyType, String proxyHost, Integer proxyPort) {
-        this.account = account;
-        this.key = key;
+        this.credentials = credentials;
         this.endpointSuffix = endpointSuffix;
         this.timeout = timeout;
         this.maxRetries = maxRetries;
@@ -146,16 +146,7 @@ final class AzureStorageSettings {
     }
 
     public String buildConnectionString() {
-        final StringBuilder connectionStringBuilder = new StringBuilder();
-        connectionStringBuilder.append("DefaultEndpointsProtocol=https")
-                .append(";AccountName=")
-                .append(account)
-                .append(";AccountKey=")
-                .append(key);
-        if (Strings.hasText(endpointSuffix)) {
-            connectionStringBuilder.append(";EndpointSuffix=").append(endpointSuffix);
-        }
-        return connectionStringBuilder.toString();
+        return credentials.buildConnectionString(endpointSuffix);
     }
 
     public LocationMode getLocationMode() {
@@ -165,8 +156,7 @@ final class AzureStorageSettings {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
-        sb.append("account='").append(account).append('\'');
-        sb.append(", key='").append(key).append('\'');
+        sb.append("credentials='").append(credentials.toString()).append('\'');
         sb.append(", timeout=").append(timeout);
         sb.append(", endpointSuffix='").append(endpointSuffix).append('\'');
         sb.append(", maxRetries=").append(maxRetries);
@@ -200,15 +190,34 @@ final class AzureStorageSettings {
     // pkg private for tests
     /** Parse settings for a single client. */
     private static AzureStorageSettings getClientSettings(Settings settings, String clientName) {
-        try (SecureString account = getConfigValue(settings, clientName, ACCOUNT_SETTING);
-             SecureString key = getConfigValue(settings, clientName, KEY_SETTING)) {
-            return new AzureStorageSettings(account.toString(), key.toString(),
+            return new AzureStorageSettings(loadCredentials(settings, clientName),
                 getValue(settings, clientName, ENDPOINT_SUFFIX_SETTING),
                 getValue(settings, clientName, TIMEOUT_SETTING),
                 getValue(settings, clientName, MAX_RETRIES_SETTING),
                 getValue(settings, clientName, PROXY_TYPE_SETTING),
                 getValue(settings, clientName, PROXY_HOST_SETTING),
                 getValue(settings, clientName, PROXY_PORT_SETTING));
+    }
+
+    private static AzureCredentials loadCredentials(Settings settings, String clientName) {
+        try (SecureString account = getConfigValue(settings, clientName, ACCOUNT_SETTING);
+             SecureString key = getConfigValue(settings, clientName, KEY_SETTING);
+             SecureString sasToken = getConfigValue(settings, clientName, SAS_TOKEN_SETTING)
+        ) {
+            if(key.length() != 0 && sasToken.length() != 0) {
+                throw new SettingsException("Both key and sas_token are set for [" + clientName + "] - only one must be specified");
+            }
+            if (account.length() != 0) {
+                if(key.length() != 0) {
+                    return new AzureKeyCredentials(account.toString(), key.toString());
+                } else if(sasToken.length() != 0) {
+                    return  new AzureSasCredentials(account.toString(), sasToken.toString());
+                } else {
+                    throw new SettingsException("Either key or sas_token need to be defined for azure client [" + clientName + "]");
+                }
+            } else {
+                throw new SettingsException("Missing account name for azure client [" + clientName + "]");
+            }
         }
     }
 
@@ -228,7 +237,7 @@ final class AzureStorageSettings {
                                                                   LocationMode locationMode) {
         final var map = new HashMap<String, AzureStorageSettings>();
         for (final Map.Entry<String, AzureStorageSettings> entry : clientsSettings.entrySet()) {
-            final AzureStorageSettings azureSettings = new AzureStorageSettings(entry.getValue().account, entry.getValue().key,
+            final AzureStorageSettings azureSettings = new AzureStorageSettings(entry.getValue().credentials,
                     entry.getValue().endpointSuffix, entry.getValue().timeout, entry.getValue().maxRetries, entry.getValue().proxy,
                     locationMode);
             map.put(entry.getKey(), azureSettings);

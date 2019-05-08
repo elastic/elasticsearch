@@ -139,14 +139,17 @@ public class AzureRepository extends BlobStoreRepository {
 
     @Override
     public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
-        try {
-            final AzureBlobStore blobStore = (AzureBlobStore) blobStore();
-            if (blobStore.containerExist() == false) {
-                throw new IllegalArgumentException("The bucket [" + blobStore + "] does not exist. Please create it before "
-                        + " creating an azure snapshot repository backed by it.");
+        // Skip bucket existence check if sas_token is set since it might not hold the required permissions to list buckets
+        if(!storageService.storageSettings.containsKey("sas_token")) {
+            try {
+                final AzureBlobStore blobStore = (AzureBlobStore) blobStore();
+                if (blobStore.containerExist() == false) {
+                    throw new IllegalArgumentException("The bucket [" + blobStore + "] does not exist. Please create it before "
+                            + " creating an azure snapshot repository backed by it.");
+                }
+            } catch (URISyntaxException | StorageException e) {
+                throw new SnapshotCreationException(metadata.name(), snapshotId, e);
             }
-        } catch (URISyntaxException | StorageException e) {
-            throw new SnapshotCreationException(metadata.name(), snapshotId, e);
         }
         super.initializeSnapshot(snapshotId, indices, clusterMetadata);
     }

@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Map;
 
-public class HtmlStripProcessor extends AbstractStringProcessor<String> {
+public final class HtmlStripProcessor extends AbstractStringProcessor<String> {
 
     public static final String TYPE = "html_strip";
 

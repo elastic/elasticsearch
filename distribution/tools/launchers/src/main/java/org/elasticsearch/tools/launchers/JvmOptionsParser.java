@@ -81,7 +81,9 @@ final class JvmOptionsParser {
         if (invalidLines.isEmpty()) {
             // now append the JVM options from ES_JAVA_OPTS
             final String environmentJvmOptions = System.getenv("ES_JAVA_OPTS");
-            jvmOptions.addAll(Arrays.stream(environmentJvmOptions.split("\\s+")).collect(Collectors.toList()));
+            if (environmentJvmOptions != null) {
+                jvmOptions.addAll(Arrays.stream(environmentJvmOptions.split("\\s+")).collect(Collectors.toList()));
+            }
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(jvmOptions);
             jvmOptions.addAll(ergonomicJvmOptions);
             final String spaceDelimitedJvmOptions = spaceDelimitJvmOptions(jvmOptions);

@@ -149,6 +149,18 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return groups.isValid() && aggregationConfig.isValid();
     }
 
+    public List<String> aggFieldValidation() {
+        if ((aggregationConfig.isValid() && groups.isValid()) == false) {
+            return Collections.emptyList();
+        }
+        List<String> usedNames = new ArrayList<>();
+        // TODO this will need to change once we allow multi-bucket aggs + field merging
+        aggregationConfig.getAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
+        aggregationConfig.getPipelineAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
+        usedNames.addAll(groups.getGroups().keySet());
+        return aggFieldValidation(usedNames);
+    }
+
     public static PivotConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
@@ -165,20 +177,14 @@ public class PivotConfig implements Writeable, ToXContentObject {
      * aggName2: foo.bar
      *
      * This should fail as aggName1 will cause foo.bar to be an object, causing a conflict with the use of foo.bar in aggName2.
-     *
+     * @param usedNames The aggregation and group_by names
      * @return List of validation failure messages
      */
-    public List<String> aggFieldValidation() {
-        if ((aggregationConfig.isValid() && groups.isValid()) == false) {
+    static List<String> aggFieldValidation(List<String> usedNames) {
+        if (usedNames == null || usedNames.isEmpty()) {
             return Collections.emptyList();
         }
-
         List<String> validationFailures = new ArrayList<>();
-        List<String> usedNames = new ArrayList<>();
-        // TODO this will need changed once we allow multi-bucket aggs + field merging
-        aggregationConfig.getAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
-        aggregationConfig.getPipelineAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
-        usedNames.addAll(groups.getGroups().keySet());
 
         Set<String> leafNames = new HashSet<>(usedNames.size());
         for(String name : usedNames) {

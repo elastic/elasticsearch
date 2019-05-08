@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -13,9 +14,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.dataframe.transforms.AbstractSerializingDataFrameTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 
 public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<PivotConfig> {
 
@@ -139,58 +143,8 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
 
-    public void testAggNameValidations() throws IOException {
+    public void testValidAggNames() throws IOException {
         String pivotAggs = "{"
-            + " \"group_by\": {"
-            + "   \"user\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"user.avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } }";
-        PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
-        assertTrue(pivotConfig.isValid());
-        List<String> fieldValidation = pivotConfig.aggFieldValidation();
-        assertFalse(fieldValidation.isEmpty());
-        assertThat(fieldValidation.get(0), equalTo("field [user] cannot be both an object and a field"));
-
-        pivotAggs = "{"
-            + " \"group_by\": {"
-            + "   \"user\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"user\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } }";
-        pivotConfig = createPivotConfigFromString(pivotAggs, true);
-        assertTrue(pivotConfig.isValid());
-        fieldValidation = pivotConfig.aggFieldValidation();
-        assertFalse(fieldValidation.isEmpty());
-        assertThat(fieldValidation.get(0), equalTo("duplicate field [user] detected"));
-
-        pivotAggs = "{"
-            + " \"group_by\": {"
-            + "   \"user\": {"
-            + "     \"terms\": {"
-            + "       \"field\": \"id\""
-            + "} } },"
-            + " \"aggs\": {"
-            + "   \"avg\": {"
-            + "     \"avg\": {"
-            + "       \"field\": \"points\""
-            + "} } } }";
-        pivotConfig = createPivotConfigFromString(pivotAggs, true);
-        assertTrue(pivotConfig.isValid());
-        fieldValidation = pivotConfig.aggFieldValidation();
-        assertTrue(fieldValidation.isEmpty());
-
-        pivotAggs = "{"
             + " \"group_by\": {"
             + "   \"user.id.field\": {"
             + "     \"terms\": {"
@@ -201,10 +155,54 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
             + "     \"avg\": {"
             + "       \"field\": \"points\""
             + "} } } }";
-        pivotConfig = createPivotConfigFromString(pivotAggs, true);
+        PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
         assertTrue(pivotConfig.isValid());
-        fieldValidation = pivotConfig.aggFieldValidation();
+        List<String> fieldValidation = pivotConfig.aggFieldValidation();
         assertTrue(fieldValidation.isEmpty());
+    }
+
+    public void testAggNameValidationsWithoutIssues() {
+        String prefix = randomAlphaOfLength(10) + "1";
+        String prefix2 = randomAlphaOfLength(10) + "2";
+        String nestedField1 = randomAlphaOfLength(10) + "3";
+        String nestedField2 = randomAlphaOfLength(10) + "4";
+
+        assertThat(PivotConfig.aggFieldValidation(Arrays.asList(prefix + nestedField1 + nestedField2,
+            prefix + nestedField1,
+            prefix,
+            prefix2)), is(empty()));
+
+        assertThat(PivotConfig.aggFieldValidation(
+            Arrays.asList(
+                dotJoin(prefix, nestedField1, nestedField2),
+                dotJoin(nestedField1, nestedField2),
+                nestedField2,
+                prefix2)), is(empty()));
+    }
+
+    public void testAggNameValidationsWithDuplicatesAndNestingIssues() {
+        String prefix = randomAlphaOfLength(10) + "1";
+        String prefix2 = randomAlphaOfLength(10) + "2";
+        String nestedField1 = randomAlphaOfLength(10) + "3";
+        String nestedField2 = randomAlphaOfLength(10) + "4";
+
+        List<String> failures = PivotConfig.aggFieldValidation(
+            Arrays.asList(
+                dotJoin(prefix, nestedField1, nestedField2),
+                dotJoin(prefix, nestedField2),
+                dotJoin(prefix, nestedField1),
+                dotJoin(prefix2, nestedField1),
+                dotJoin(prefix2, nestedField1),
+                prefix2));
+
+        assertThat(failures,
+            containsInAnyOrder("duplicate field [" + dotJoin(prefix2, nestedField1) + "] detected",
+                "field [" + prefix2 + "] cannot be both an object and a field",
+                "field [" + dotJoin(prefix, nestedField1) + "] cannot be both an object and a field"));
+    }
+
+    private String dotJoin(String... fields) {
+        return Strings.arrayToDelimitedString(fields, ".");
     }
 
     private PivotConfig createPivotConfigFromString(String json, boolean lenient) throws IOException {

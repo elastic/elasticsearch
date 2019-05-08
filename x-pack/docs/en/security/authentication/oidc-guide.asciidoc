@@ -642,7 +642,7 @@ POST /_security/oidc/logout
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[catch:bad_request]
+// TEST[catch:unauthorized]
 +
 If the realm is configured accordingly, this may result in a response with a `redirect` parameter indicating where
 the user needs to be redirected in the OP in order to complete the logout process.

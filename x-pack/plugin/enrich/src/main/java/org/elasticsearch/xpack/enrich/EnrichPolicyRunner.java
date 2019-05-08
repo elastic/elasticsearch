@@ -49,8 +49,6 @@ public class EnrichPolicyRunner implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
 
-    private static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
-
     private final String policyName;
     private final EnrichPolicy policy;
     private final ActionListener<PolicyExecutionResult> listener;
@@ -58,10 +56,11 @@ public class EnrichPolicyRunner implements Runnable {
     private final Client client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LongSupplier nowSupplier;
+    private final int fetchSize;
 
     EnrichPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener,
                        ClusterService clusterService, Client client, IndexNameExpressionResolver indexNameExpressionResolver,
-                       LongSupplier nowSupplier) {
+                       LongSupplier nowSupplier, int fetchSize) {
         this.policyName = policyName;
         this.policy = policy;
         this.listener = listener;
@@ -69,15 +68,16 @@ public class EnrichPolicyRunner implements Runnable {
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.nowSupplier = nowSupplier;
+        this.fetchSize = fetchSize;
     }
 
     @Override
     public void run() {
         // Collect the source index information
         logger.info("Policy [{}]: Running enrich policy", policyName);
-        final String sourceIndexPattern = policy.getIndexPattern();
-        logger.debug("Policy [{}]: Checking source index [{}]", policyName, sourceIndexPattern);
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndexPattern);
+        final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
+        logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
+        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
         client.admin().indices().getIndex(getIndexRequest, new ActionListener<>() {
             @Override
             public void onResponse(GetIndexResponse getIndexResponse) {
@@ -110,7 +110,7 @@ public class EnrichPolicyRunner implements Runnable {
                 listener.onFailure(
                     new ElasticsearchException(
                         "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
-                        policyName, sourceIndex, policy.getIndexPattern()));
+                        policyName, sourceIndex, policy.getIndices()));
             }
             if (properties.contains(policy.getEnrichKey()) == false) {
                 listener.onFailure(
@@ -119,10 +119,6 @@ public class EnrichPolicyRunner implements Runnable {
                         policyName, policy.getEnrichKey(), sourceIndex));
             }
         }
-    }
-
-    private String getEnrichIndexBase(final String policyName) {
-        return ENRICH_INDEX_NAME_BASE + policyName;
     }
 
     private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy) {
@@ -160,7 +156,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void prepareAndCreateEnrichIndex() {
         long nowTimestamp = nowSupplier.getAsLong();
-        String enrichIndexName = getEnrichIndexBase(policyName) + "-" + nowTimestamp;
+        String enrichIndexName = policy.getBaseName(policyName) + "-" + nowTimestamp;
         Settings enrichIndexSettings = Settings.builder()
             .put("index.auto_expand_replicas", "0-all")
             .build();
@@ -187,13 +183,14 @@ public class EnrichPolicyRunner implements Runnable {
         retainFields.add(policy.getEnrichKey());
         retainFields.addAll(policy.getEnrichValues());
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.size(fetchSize);
         searchSourceBuilder.fetchSource(retainFields.toArray(new String[0]), new String[0]);
         if (policy.getQuery() != null) {
             searchSourceBuilder.query(QueryBuilders.wrapperQuery(policy.getQuery().getQuery()));
         }
         ReindexRequest reindexRequest = new ReindexRequest()
             .setDestIndex(destinationIndexName)
-            .setSourceIndices(policy.getIndexPattern());
+            .setSourceIndices(policy.getIndices().toArray(new String[0]));
         reindexRequest.getSearchRequest().source(searchSourceBuilder);
         reindexRequest.getDestination().source(new BytesArray(new byte[0]), XContentType.SMILE);
         client.execute(ReindexAction.INSTANCE, reindexRequest, new ActionListener<>() {
@@ -234,7 +231,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void updateEnrichPolicyAlias(final String destinationIndexName) {
-        String enrichIndexBase = getEnrichIndexBase(policyName);
+        String enrichIndexBase = policy.getBaseName(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterService.state(), aliasRequest);

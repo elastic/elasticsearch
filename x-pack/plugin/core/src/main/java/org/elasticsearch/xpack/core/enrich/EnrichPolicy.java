@@ -29,12 +29,14 @@ import java.util.Objects;
  */
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
+    private static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
+
     public static final String EXACT_MATCH_TYPE = "exact_match";
     public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};
 
     static final ParseField TYPE = new ParseField("type");
     static final ParseField QUERY = new ParseField("query");
-    static final ParseField INDEX_PATTERN = new ParseField("index_pattern");
+    static final ParseField INDICES = new ParseField("indices");
     static final ParseField ENRICH_KEY = new ParseField("enrich_key");
     static final ParseField ENRICH_VALUES = new ParseField("enrich_values");
     static final ParseField SCHEDULE = new ParseField("schedule");
@@ -45,7 +47,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             return new EnrichPolicy(
                 (String) args[0],
                 (QuerySource) args[1],
-                (String) args[2],
+                (List<String>) args[2],
                 (String) args[3],
                 (List<String>) args[4],
                 (String) args[5]
@@ -64,7 +66,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             contentBuilder.generator().copyCurrentStructure(p);
             return new QuerySource(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
         }, QUERY);
-        parser.declareString(ConstructingObjectParser.constructorArg(), INDEX_PATTERN);
+        parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES);
         parser.declareString(ConstructingObjectParser.constructorArg(), ENRICH_KEY);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
         parser.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
@@ -76,7 +78,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     private final String type;
     private final QuerySource query;
-    private final String indexPattern;
+    private final List<String> indices;
     private final String enrichKey;
     private final List<String> enrichValues;
     private final String schedule;
@@ -85,7 +87,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         this(
             in.readString(),
             in.readOptionalWriteable(QuerySource::new),
-            in.readString(),
+            in.readStringList(),
             in.readString(),
             in.readStringList(),
             in.readString()
@@ -94,14 +96,14 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     public EnrichPolicy(String type,
                         QuerySource query,
-                        String indexPattern,
+                        List<String> indices,
                         String enrichKey,
                         List<String> enrichValues,
                         String schedule) {
         this.type = type;
         this.query= query;
         this.schedule = schedule;
-        this.indexPattern = indexPattern;
+        this.indices = indices;
         this.enrichKey = enrichKey;
         this.enrichValues = enrichValues;
     }
@@ -114,8 +116,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return query;
     }
 
-    public String getIndexPattern() {
-        return indexPattern;
+    public List<String> getIndices() {
+        return indices;
     }
 
     public String getEnrichKey() {
@@ -130,16 +132,15 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return schedule;
     }
 
-    public String getAliasName(String policyName) {
-        // #41553 (list policy api) will add name to policy, so that we don't have to provide the name via a parameter.
-        return ".enrich-" + policyName;
+    public String getBaseName(String policyName) {
+        return ENRICH_INDEX_NAME_BASE + policyName;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type);
         out.writeOptionalWriteable(query);
-        out.writeString(indexPattern);
+        out.writeStringCollection(indices);
         out.writeString(enrichKey);
         out.writeStringCollection(enrichValues);
         out.writeString(schedule);
@@ -151,7 +152,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         if (query != null) {
             builder.field(QUERY.getPreferredName(), query.getQueryAsMap());
         }
-        builder.field(INDEX_PATTERN.getPreferredName(), indexPattern);
+        builder.array(INDICES.getPreferredName(), indices.toArray(new String[0]));
         builder.field(ENRICH_KEY.getPreferredName(), enrichKey);
         builder.array(ENRICH_VALUES.getPreferredName(), enrichValues.toArray(new String[0]));
         builder.field(SCHEDULE.getPreferredName(), schedule);
@@ -165,7 +166,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         EnrichPolicy policy = (EnrichPolicy) o;
         return type.equals(policy.type) &&
             Objects.equals(query, policy.query) &&
-            indexPattern.equals(policy.indexPattern) &&
+            indices.equals(policy.indices) &&
             enrichKey.equals(policy.enrichKey) &&
             enrichValues.equals(policy.enrichValues) &&
             schedule.equals(policy.schedule);
@@ -176,7 +177,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return Objects.hash(
             type,
             query,
-            indexPattern,
+            indices,
             enrichKey,
             enrichValues,
             schedule
@@ -244,7 +245,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                     (String) args[0],
                     new EnrichPolicy((String) args[1],
                         (QuerySource) args[2],
-                        (String) args[3],
+                        (List<String>) args[3],
                         (String) args[4],
                         (List<String>) args[5],
                         (String) args[6])

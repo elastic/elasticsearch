@@ -18,13 +18,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.hasItemInArray;
 
-public class TransportStopDataFrameTransformActionTests extends ESTestCase {
+public class DataFrameNodesTests extends ESTestCase {
 
     public void testDataframeNodes() {
         String dataFrameIdFoo = "df-id-foo";
@@ -49,12 +48,12 @@ public class TransportStopDataFrameTransformActionTests extends ESTestCase {
                 }
 
                 @Override
-                public void writeTo(StreamOutput out) throws IOException {
+                public void writeTo(StreamOutput out) {
 
                 }
 
                 @Override
-                public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                public XContentBuilder toXContent(XContentBuilder builder, Params params) {
                     return null;
                 }
             },
@@ -64,7 +63,7 @@ public class TransportStopDataFrameTransformActionTests extends ESTestCase {
                 .metaData(MetaData.builder().putCustom(PersistentTasksCustomMetaData.TYPE, tasksBuilder.build()))
                 .build();
 
-        String[] nodes = TransportStopDataFrameTransformAction.dataframeNodes(Arrays.asList(dataFrameIdFoo, dataFrameIdBar), cs);
+        String[] nodes = DataFrameNodes.dataFrameTaskNodes(Arrays.asList(dataFrameIdFoo, dataFrameIdBar), cs);
         assertEquals(2, nodes.length);
         assertThat(nodes, hasItemInArray("node-1"));
         assertThat(nodes, hasItemInArray("node-2"));
@@ -72,7 +71,7 @@ public class TransportStopDataFrameTransformActionTests extends ESTestCase {
 
     public void testDataframeNodes_NoTasks() {
         ClusterState emptyState = ClusterState.builder(new ClusterName("_name")).build();
-        String[] nodes = TransportStopDataFrameTransformAction.dataframeNodes(Collections.singletonList("df-id"), emptyState);
+        String[] nodes = DataFrameNodes.dataFrameTaskNodes(Collections.singletonList("df-id"), emptyState);
         assertEquals(0, nodes.length);
     }
 }

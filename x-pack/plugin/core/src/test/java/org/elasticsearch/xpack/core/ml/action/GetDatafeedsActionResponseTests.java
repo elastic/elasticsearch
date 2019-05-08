@@ -40,4 +40,6 @@ public class GetDatafeedsActionResponseTests extends AbstractStreamableTestCase<
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
+
+
 }

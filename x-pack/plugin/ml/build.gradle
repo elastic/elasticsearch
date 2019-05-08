@@ -12,7 +12,7 @@ esplugin {
 
 repositories {
     ivy {
-        name "prelert-artifacts"
+        name "ml-cpp"
         url "https://prelert-artifacts.s3.amazonaws.com"
         metadataSources {
             // no repository metadata, look directly for the artifact
@@ -92,10 +92,6 @@ project.afterEvaluate {
     project.tasks.findByName('generateNotice').outputs.upToDateWhen {
         extractNativeLicenses.state.upToDate
     }
-}
-
-run {
-    plugin xpackModule('core')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

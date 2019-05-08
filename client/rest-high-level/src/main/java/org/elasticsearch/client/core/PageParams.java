@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.ml.job.util;
+package org.elasticsearch.client.core;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;

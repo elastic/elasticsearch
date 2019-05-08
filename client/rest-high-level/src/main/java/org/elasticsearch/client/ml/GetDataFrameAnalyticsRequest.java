@@ -21,7 +21,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.client.ml.job.util.PageParams;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.common.Nullable;
 
 import java.util.Arrays;

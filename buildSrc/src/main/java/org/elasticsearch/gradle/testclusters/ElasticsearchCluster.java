@@ -279,7 +279,9 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     void eachVersionedDistribution(BiConsumer<String, Distribution> consumer) {
-        nodes.forEach(each -> consumer.accept(each.getVersion(), each.getDistribution()));
+        nodes.forEach(each -> {
+            consumer.accept(each.getVersion(), each.getDistribution());
+        });
     }
 
     public ElasticsearchNode singleNode() {

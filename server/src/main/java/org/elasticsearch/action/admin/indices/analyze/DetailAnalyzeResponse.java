@@ -234,8 +234,8 @@ public class DetailAnalyzeResponse implements Writeable, ToXContentFragment {
     }
 
     public static class AnalyzeTokenList implements Writeable, ToXContentObject {
-        private String name;
-        private AnalyzeResponse.AnalyzeToken[] tokens;
+        private final String name;
+        private final AnalyzeResponse.AnalyzeToken[] tokens;
 
         @Override
         public boolean equals(Object o) {
@@ -266,6 +266,9 @@ public class DetailAnalyzeResponse implements Writeable, ToXContentFragment {
                 for (int i = 0; i < size; i++) {
                     tokens[i] = new AnalyzeResponse.AnalyzeToken(in);
                 }
+            }
+            else {
+                tokens = null;
             }
         }
 
@@ -326,8 +329,8 @@ public class DetailAnalyzeResponse implements Writeable, ToXContentFragment {
     }
 
     public static class CharFilteredText implements Writeable, ToXContentObject {
-        private String name;
-        private String[] texts;
+        private final String name;
+        private final String[] texts;
 
         public CharFilteredText(String name, String[] texts) {
             this.name = name;

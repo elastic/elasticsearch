@@ -17,7 +17,7 @@ GET /_search
             "user": {
                 "value": "ki",
                 "boost": 1.0,
-                "rewrite:" "constant_score"
+                "rewrite": "constant_score"
             }
         }
     }

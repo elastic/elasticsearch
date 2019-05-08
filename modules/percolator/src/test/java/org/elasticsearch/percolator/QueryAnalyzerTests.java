@@ -1128,7 +1128,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertEquals(new Term("field", "value"), result.extractions.toArray(new QueryExtraction[0])[0].term);
     }
 
-    public void testPointRangeQuerySelectShortestRange() {
+        public void testPointRangeQuerySelectShortestRange() {
         BooleanQuery.Builder boolQuery = new BooleanQuery.Builder();
         boolQuery.add(LongPoint.newRangeQuery("_field1", 10, 20), BooleanClause.Occur.FILTER);
         boolQuery.add(LongPoint.newRangeQuery("_field2", 10, 15), BooleanClause.Occur.FILTER);

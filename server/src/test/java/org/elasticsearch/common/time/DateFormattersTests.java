@@ -260,4 +260,44 @@ public class DateFormattersTests extends ESTestCase {
         String formatted = formatter.formatMillis(clock.millis());
         assertThat(formatted, is("2019-02-08T11:43:00.000Z"));
     }
+
+    public void testFractionalSeconds() {
+        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time");
+        {
+            Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.1Z"));
+            assertThat(instant.getNano(), is(100_000_000));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.12Z"));
+            assertThat(instant.getNano(), is(120_000_000));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.123Z"));
+            assertThat(instant.getNano(), is(123_000_000));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.1234Z"));
+            assertThat(instant.getNano(), is(123_400_000));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.12345Z"));
+            assertThat(instant.getNano(), is(123_450_000));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.123456Z"));
+            assertThat(instant.getNano(), is(123_456_000));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.1234567Z"));
+            assertThat(instant.getNano(), is(123_456_700));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.12345678Z"));
+            assertThat(instant.getNano(), is(123_456_780));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.123456789Z"));
+            assertThat(instant.getNano(), is(123_456_789));
+        }
+    }
 }

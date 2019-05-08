@@ -75,7 +75,7 @@ public class FileBasedSeedHostsProvider implements SeedHostsProvider {
 
     @Override
     public List<TransportAddress> getSeedAddresses(HostsResolver hostsResolver) {
-        final List<TransportAddress> transportAddresses = hostsResolver.resolveHosts(getHostsList(), 1);
+        final List<TransportAddress> transportAddresses = hostsResolver.resolveHosts(getHostsList());
         logger.debug("seed addresses: {}", transportAddresses);
         return transportAddresses;
     }

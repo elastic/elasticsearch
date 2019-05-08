@@ -160,8 +160,8 @@ public class ReadOnlyEngine extends Engine {
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         }
-        reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
-        return readerWrapperFunction.apply(reader);
+        reader = readerWrapperFunction.apply(reader);
+        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {

@@ -89,9 +89,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 assertThat(external.reader(), instanceOf(DirectoryReader.class));
                 DirectoryReader dirReader = external.getDirectoryReader();
                 ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(dirReader);
-                IndexReader.CacheHelper helper = dirReader.getReaderCacheHelper();
+                IndexReader.CacheHelper helper = esReader.getReaderCacheHelper();
                 assertNotNull(helper);
-                assertThat(esReader.getDelegate(), instanceOf(SoftDeletesDirectoryReaderWrapper.class));
                 assertEquals(helper.getKey(), dirReader.getReaderCacheHelper().getKey());
 
                 IOUtils.close(external, internal);

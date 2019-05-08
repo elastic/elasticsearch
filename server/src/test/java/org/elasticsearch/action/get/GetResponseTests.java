@@ -64,8 +64,15 @@ public class GetResponseTests extends ESTestCase {
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
         GetResponse getResponse = new GetResponse(tuple.v1());
         GetResponse expectedGetResponse = new GetResponse(tuple.v2());
+        if (getResponse.getResult.getMetadataFields().containsKey("_ignored")) {
+//            System.out.println("mew");
+            int a = 3;
+            int b = a-4;
+        }
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toShuffledXContent(getResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable, "_source");
+
+
 
         BytesReference mutated;
         if (addRandomFields) {

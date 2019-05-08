@@ -97,7 +97,8 @@ public class GetResultTests extends ESTestCase {
         // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
         // by the toXContentEmbedded method.
         GetResult expectedGetResult = new GetResult(null, null, null, tuple.v2().getSeqNo(), tuple.v2().getPrimaryTerm(), -1,
-                tuple.v2().isExists(), tuple.v2().sourceRef(), tuple.v2().getFields(), tuple.v2().getFields());
+                tuple.v2().isExists(), tuple.v2().sourceRef(), tuple.v2().getDocumentFields(),
+            tuple.v2().getMetadataFields());
 
         boolean humanReadable = randomBoolean();
         BytesReference originalBytes = toXContentEmbedded(getResult, xContentType, humanReadable);
@@ -155,7 +156,7 @@ public class GetResultTests extends ESTestCase {
     public static GetResult copyGetResult(GetResult getResult) {
         return new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(),
             getResult.getSeqNo(), getResult.getPrimaryTerm(), getResult.getVersion(),
-            getResult.isExists(), getResult.internalSourceRef(), getResult.getFields(), getResult.getFields());
+            getResult.isExists(), getResult.internalSourceRef(), getResult.getDocumentFields(), getResult.getMetadataFields());
     }
 
     public static GetResult mutateGetResult(GetResult getResult) {
@@ -196,6 +197,8 @@ public class GetResultTests extends ESTestCase {
         BytesReference source = null;
         Map<String, DocumentField> fields = null;
         Map<String, DocumentField> expectedFields = null;
+        Map<String, DocumentField> metaFields = null;
+        Map<String, DocumentField> expectedMetaFields = null;
         if (frequently()) {
             version = randomNonNegativeLong();
             seqNo = randomNonNegativeLong();
@@ -206,8 +209,13 @@ public class GetResultTests extends ESTestCase {
             }
             if (randomBoolean()) {
                 Tuple<Map<String, DocumentField>, Map<String, DocumentField>> tuple = randomDocumentFields(xContentType);
-                fields = tuple.v1();
-                expectedFields = tuple.v2();
+                fields = new HashMap<>();
+                metaFields = new HashMap<>();
+                GetResult.splitFieldsByMetadata(tuple.v1(), fields, metaFields);
+
+                expectedFields = new HashMap<>();
+                expectedMetaFields = new HashMap<>();
+                GetResult.splitFieldsByMetadata(tuple.v2(), expectedFields, expectedMetaFields);
             }
         } else {
             seqNo = UNASSIGNED_SEQ_NO;
@@ -215,8 +223,8 @@ public class GetResultTests extends ESTestCase {
             version = -1;
             exists = false;
         }
-        GetResult getResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, fields, null);
-        GetResult expectedGetResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, expectedFields, null);
+        GetResult getResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, fields, metaFields);
+        GetResult expectedGetResult = new GetResult(index, type, id, seqNo, primaryTerm, version, exists, source, expectedFields, expectedMetaFields);
         return Tuple.tuple(getResult, expectedGetResult);
     }
 

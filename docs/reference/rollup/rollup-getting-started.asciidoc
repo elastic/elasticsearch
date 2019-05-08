@@ -39,7 +39,7 @@ PUT _rollup/job/sensor
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
-        "interval": "60m"
+        "fixed_interval": "60m"
       },
       "terms": {
         "fields": ["node"]
@@ -194,7 +194,7 @@ GET /sensor_rollup/_rollup_search
         "timeline": {
             "date_histogram": {
                 "field": "timestamp",
-                "interval": "7d"
+                "fixed_interval": "7d"
             },
             "aggs": {
                 "nodes": {

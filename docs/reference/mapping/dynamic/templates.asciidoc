@@ -198,13 +198,36 @@ PUT my_index
 PUT my_index/_doc/1
 {
   "name": {
-    "first":  "Alice",
-    "middle": "Mary",
-    "last":   "White"
+    "first":  "John",
+    "middle": "Winston",
+    "last":   "Lennon"
   }
 }
 --------------------------------------------------
 // CONSOLE
+
+Note that the `path_match` and `path_unmatch` parameters match on object paths
+in addition to leaf fields. As an example, indexing the following document will
+result in an error because the `path_match` setting also matches the object
+field `name.title`, which can't be mapped as text:
+
+[source,js]
+--------------------------------------------------
+PUT my_index/_doc/2
+{
+  "name": {
+    "first":  "Paul",
+    "last":   "McCartney",
+    "title": {
+      "value": "Sir",
+      "category": "order of chivalry"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[catch:bad_request]
 
 [[template-variables]]
 ==== `{name}` and `{dynamic_type}`

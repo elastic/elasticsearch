@@ -77,9 +77,9 @@ final class JvmErgonomics {
     }
 
     private static List<String> flagsFinal(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
-        final Path java = Path.of(System.getProperty("java.home"), "bin", "java");
+        final String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         final List<String> command =
-                Stream.of(Stream.of(java.toString()), userDefinedJvmOptions.stream(), List.of("-XX:+PrintFlagsFinal", "-version").stream())
+                Stream.of(Stream.of(java), userDefinedJvmOptions.stream(), Stream.of("-XX:+PrintFlagsFinal"), Stream.of("-version"))
                         .reduce(Stream::concat)
                         .get()
                         .collect(Collectors.toUnmodifiableList());

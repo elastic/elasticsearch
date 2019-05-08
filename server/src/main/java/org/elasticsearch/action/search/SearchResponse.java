@@ -66,24 +66,14 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
     private static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     private static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
 
-    private SearchResponseSections internalResponse;
-
-    private String scrollId;
-
-    private int totalShards;
-
-    private int successfulShards;
-
-    private int skippedShards;
-
-    private ShardSearchFailure[] shardFailures;
-
-    private Clusters clusters;
-
-    private long tookInMillis;
-
-    public SearchResponse() {
-    }
+    private final SearchResponseSections internalResponse;
+    private final String scrollId;
+    private final int totalShards;
+    private final int successfulShards;
+    private final int skippedShards;
+    private final ShardSearchFailure[] shardFailures;
+    private final Clusters clusters;
+    private final long tookInMillis;
 
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
@@ -211,10 +201,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
      */
     public String getScrollId() {
         return scrollId;
-    }
-
-    public void scrollId(String scrollId) {
-        this.scrollId = scrollId;
     }
 
     /**

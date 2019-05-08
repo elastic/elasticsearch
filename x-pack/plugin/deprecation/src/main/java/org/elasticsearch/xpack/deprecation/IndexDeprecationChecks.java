@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.deprecation;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.apache.logging.log4j.util.StringBuilders;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -21,12 +20,12 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.StringJoiner;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -274,9 +273,6 @@ public class IndexDeprecationChecks {
     }
 
     static DeprecationIssue deprecatedDateTimeFormat(IndexMetaData indexMetaData) {
-        ConcurrentLinkedQueue deprecatedPatterns = null;
-
-
         List<String> fields = new ArrayList<>();
 
         fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> fields.addAll(
@@ -300,30 +296,51 @@ public class IndexDeprecationChecks {
             isDeprecatedFormat((String) property.get("format"));
     }
 
+    static Map<String, String> JODA_PATTERNS_DEPRECATIONS = new LinkedHashMap<>();
+    static {
+        JODA_PATTERNS_DEPRECATIONS.put("Y", "'Y' year-of-era becomes 'y'. 'Y' means week-based-year.");
+        JODA_PATTERNS_DEPRECATIONS.put("y", "'y' year changes meaning to year-of-era (cannot be <0 anymore).");
+        JODA_PATTERNS_DEPRECATIONS.put("C", "'C' century of era is no longer supported.");
+        JODA_PATTERNS_DEPRECATIONS.put("x", "'x' weak-year becomes 'Y'. 'x' means now zone-offset.");
+        JODA_PATTERNS_DEPRECATIONS.put("Z", "'Z' time zone offset/id is now 'Z' or 'X'. 'Z' might fail when parsing 'Z for Zulu time zone'. Consider using 'X'.");
+        JODA_PATTERNS_DEPRECATIONS.put("z", "'z' time zone text. Has the same meaing now. Will print 'Z for Zulu time zone' given UTC timezone.");
+    }
+
     private static boolean isDeprecatedFormat(String format) {
-        return format.contains("Y") ||
-            format.contains("C") ||
-            format.contains("x") ||
-            format.contains("y") ||
-            format.contains("Z") ||
-            format.contains("z");
+
+        return JODA_PATTERNS_DEPRECATIONS.keySet().stream()
+                                  .filter(s -> format.contains(s))
+                                  .findAny()
+                                  .isPresent();
+//        return format.contains("Y") ||
+//            format.contains("C") ||
+//            format.contains("x") ||
+//            format.contains("y") ||
+//            format.contains("Z") ||
+//            format.contains("z");
     }
 
     private static String formatSuggestion(String format) {
-        StringJoiner joiner = new StringJoiner("; ");
-        if (format.contains("Y"))
-            joiner.add( "'Y' year-of-era becomes 'y'. 'Y' means week-based-year.");
-        if (format.contains("y"))
-            joiner.add( "'y' year changes meaning to year-of-era (cannot be <0 anymore).");
-        if (format.contains("C"))
-            joiner.add( "'C' century of era is no longer supported.");
-        if (format.contains("x"))
-            joiner.add( "'x' weak-year becomes 'Y'. 'x' means now zone-offset.");
-        if (format.contains("Z"))
-            joiner.add( "'Z' time zone offset/id is now 'Z' or 'X'. 'Z' might fail when parsing 'Z for Zulu time zone'. Consider using 'X'.");
-        if (format.contains("z"))
-            joiner.add( "'z' time zone text. Has the same meaing now. Will print 'Z for Zulu time zone' given UTC timezone.");
-        return joiner.toString();
+        return JODA_PATTERNS_DEPRECATIONS.entrySet().stream()
+                                  .filter(s-> format.contains(s.getKey()))
+                                  .map(s->s.getValue())
+                                  .collect(Collectors.joining("; "));
+//        String concat = new ArrayList<String>().stream().collect(StringBuilder::new, StringBuilder::append);
+//     *                                 .toString();
+//        StringJoiner joiner = new StringJoiner("; ");
+//        if (format.contains("Y"))
+//            joiner.add( "'Y' year-of-era becomes 'y'. 'Y' means week-based-year.");
+//        if (format.contains("y"))
+//            joiner.add( "'y' year changes meaning to year-of-era (cannot be <0 anymore).");
+//        if (format.contains("C"))
+//            joiner.add( "'C' century of era is no longer supported.");
+//        if (format.contains("x"))
+//            joiner.add( "'x' weak-year becomes 'Y'. 'x' means now zone-offset.");
+//        if (format.contains("Z"))
+//            joiner.add( "'Z' time zone offset/id is now 'Z' or 'X'. 'Z' might fail when parsing 'Z for Zulu time zone'. Consider using 'X'.");
+//        if (format.contains("z"))
+//            joiner.add( "'z' time zone text. Has the same meaing now. Will print 'Z for Zulu time zone' given UTC timezone.");
+//        return joiner.toString();
     }
 
     private static final Set<String> TYPES_THAT_DONT_COUNT;

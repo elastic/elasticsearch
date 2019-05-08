@@ -418,36 +418,6 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(0, withDefaultFieldIssues.size());
     }
 
-    public void testJodaPatternOnDateTimeFields() throws IOException {
-        String pattern = "MM-YYYY";
-        String fieldName = "date_time_field";
-        String simpleMapping = "{\n" +
-            "\"properties\" : {\n" +
-            "   \"" + fieldName + "\" : {\n" +
-            "       \"type\" : \"date\",\n" +
-            "       \"format\" : \""+pattern+"\"\n" +
-            "       }\n" +
-            "   }" +
-            "}";
-
-        IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
-                                                 .settings(settings(
-                                                     VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT))))
-                                                 .numberOfShards(randomIntBetween(1,100))
-                                                 .numberOfReplicas(randomIntBetween(1, 100))
-                                                 .putMapping("_doc", simpleMapping)
-                                                 .build();
-
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date time field format likely contain deprecated pattern",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
-            "This index has date fields with deprecated formats: ["
-                + "[type: _doc, field: date_time_field, format: MM-YYYY]"+
-                "]");
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
-        assertEquals(singletonList(expected), issues);
-    }
-
     public void testJodaPatternDeprecations() throws IOException {
         String simpleMapping = "{\n" +
             "\"properties\" : {\n" +

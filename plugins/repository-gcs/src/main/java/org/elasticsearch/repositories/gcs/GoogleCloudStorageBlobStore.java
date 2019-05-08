@@ -287,15 +287,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     /**
-     * Deletes multiple blobs from the specific bucket all of which have prefixed names
-     *
-     * @param prefix prefix of the blobs to delete
-     */
-    private void deleteBlobsByPrefix(String prefix) throws IOException {
-        deleteBlobsIgnoringIfNotExists(listBlobsByPrefix("", prefix).keySet());
-    }
-
-    /**
      * Deletes multiple blobs from the specific bucket using a batch request
      *
      * @param blobNames names of the blobs to delete

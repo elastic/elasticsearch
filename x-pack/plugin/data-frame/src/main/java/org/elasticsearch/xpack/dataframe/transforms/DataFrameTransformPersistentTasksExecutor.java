@@ -133,7 +133,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // Schedule execution regardless
         ActionListener<DataFrameTransformStateAndStats> transformStatsActionListener = ActionListener.wrap(
             stateAndStats -> {
-
                 indexerBuilder.setInitialStats(stateAndStats.getTransformStats());
                 if (transformPTaskState == null) { // prefer the persistent task state
                     indexerBuilder.setInitialPosition(stateAndStats.getTransformState().getPosition());
@@ -228,7 +227,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         // attempt to start the task
 
         buildTask.initializeIndexer(indexerBuilder);
-        // TODO isInitialRun is false after relocation
+        // TODO isInitialRun is false after relocation??
         if (buildTask.getState().getTaskState().equals(DataFrameTransformTaskState.STOPPED) && buildTask.isInitialRun()) {
             logger.info("Data frame transform [{}] created.", buildTask.getTransformId());
             buildTask.start(previousCheckpoint, listener);

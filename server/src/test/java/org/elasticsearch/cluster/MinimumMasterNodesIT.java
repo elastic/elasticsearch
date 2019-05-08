@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -43,10 +44,12 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -253,6 +256,10 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
 
+        List<String> nonMasterNodes = new ArrayList<>(Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()),
+            Collections.singleton(internalCluster().getMasterName())));
+        Settings nonMasterDataPathSettings1 = internalCluster().dataPathSettings(nonMasterNodes.get(0));
+        Settings nonMasterDataPathSettings2 = internalCluster().dataPathSettings(nonMasterNodes.get(1));
         internalCluster().stopRandomNonMasterNode();
         internalCluster().stopRandomNonMasterNode();
 
@@ -264,7 +271,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         });
 
         logger.info("--> start back the 2 nodes ");
-        internalCluster().startNodes(2, settings);
+        internalCluster().startNodes(nonMasterDataPathSettings1, nonMasterDataPathSettings2);
 
         internalCluster().validateClusterFormed();
         ensureGreen();

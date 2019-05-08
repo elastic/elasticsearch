@@ -12,6 +12,7 @@ import org.hamcrest.Matchers;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -22,6 +23,19 @@ public class TestMatchers extends Matchers {
             @Override
             public boolean matches(Object item) {
                 return Files.exists(path, options);
+            }
+        };
+    }
+
+    public static <T, U> Matcher<BiPredicate<T, U>> predicateMatches(T arg1, U arg2) {
+        return new CustomMatcher<BiPredicate<T, U>>("Matches " + arg1) {
+            @Override
+            public boolean matches(Object item) {
+                if (BiPredicate.class.isInstance(item)) {
+                    return ((BiPredicate<T, U>) item).test(arg1, arg2);
+                } else {
+                    return false;
+                }
             }
         };
     }

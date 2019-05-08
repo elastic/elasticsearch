@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
@@ -42,10 +42,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 
 import static org.elasticsearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.elasticsearch.test.TestMatchers.predicateMatches;
+import static org.mockito.Mockito.mock;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -113,21 +114,22 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
     }
 
     public void testRequestPredicate() {
+        final Authentication authentication = mock(Authentication.class);
         final ManageApplicationPrivileges kibanaAndLogstash = new ManageApplicationPrivileges(Sets.newHashSet("kibana-*", "logstash"));
         final ManageApplicationPrivileges cloudAndSwiftype = new ManageApplicationPrivileges(Sets.newHashSet("cloud-*", "swiftype"));
-        final Predicate<TransportRequest> kibanaAndLogstashPredicate = kibanaAndLogstash.getRequestPredicate();
-        final Predicate<TransportRequest> cloudAndSwiftypePredicate = cloudAndSwiftype.getRequestPredicate();
+        final BiPredicate<TransportRequest, Authentication> kibanaAndLogstashPredicate = kibanaAndLogstash.getRequestPredicate();
+        final BiPredicate<TransportRequest, Authentication> cloudAndSwiftypePredicate = cloudAndSwiftype.getRequestPredicate();
         assertThat(kibanaAndLogstashPredicate, notNullValue());
         assertThat(cloudAndSwiftypePredicate, notNullValue());
 
         final GetPrivilegesRequest getKibana1 = new GetPrivilegesRequest();
         getKibana1.application("kibana-1");
-        assertThat(kibanaAndLogstashPredicate, predicateMatches(getKibana1));
-        assertThat(cloudAndSwiftypePredicate, not(predicateMatches(getKibana1)));
+        assertThat(kibanaAndLogstashPredicate, predicateMatches(getKibana1, authentication));
+        assertThat(cloudAndSwiftypePredicate, not(predicateMatches(getKibana1, authentication)));
 
         final DeletePrivilegesRequest deleteLogstash = new DeletePrivilegesRequest("logstash", new String[]{"all"});
-        assertThat(kibanaAndLogstashPredicate, predicateMatches(deleteLogstash));
-        assertThat(cloudAndSwiftypePredicate, not(predicateMatches(deleteLogstash)));
+        assertThat(kibanaAndLogstashPredicate, predicateMatches(deleteLogstash, authentication));
+        assertThat(cloudAndSwiftypePredicate, not(predicateMatches(deleteLogstash, authentication)));
 
         final PutPrivilegesRequest putKibana = new PutPrivilegesRequest();
 
@@ -137,11 +139,12 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
                 randomAlphaOfLengthBetween(3, 6).toLowerCase(Locale.ROOT), Collections.emptySet(), Collections.emptyMap()));
         }
         putKibana.setPrivileges(kibanaPrivileges);
-        assertThat(kibanaAndLogstashPredicate, predicateMatches(putKibana));
-        assertThat(cloudAndSwiftypePredicate, not(predicateMatches(putKibana)));
+        assertThat(kibanaAndLogstashPredicate, predicateMatches(putKibana, authentication));
+        assertThat(cloudAndSwiftypePredicate, not(predicateMatches(putKibana, authentication)));
     }
 
     public void testSecurityForGetAllApplicationPrivileges() {
+        final Authentication authentication = mock(Authentication.class);
         final GetPrivilegesRequest getAll = new GetPrivilegesRequest();
         getAll.application(null);
         getAll.privileges(new String[0]);
@@ -151,8 +154,8 @@ public class ManageApplicationPrivilegesTests extends ESTestCase {
         final ManageApplicationPrivileges kibanaOnly = new ManageApplicationPrivileges(Sets.newHashSet("kibana-*"));
         final ManageApplicationPrivileges allApps = new ManageApplicationPrivileges(Sets.newHashSet("*"));
 
-        assertThat(kibanaOnly.getRequestPredicate(), not(predicateMatches(getAll)));
-        assertThat(allApps.getRequestPredicate(), predicateMatches(getAll));
+        assertThat(kibanaOnly.getRequestPredicate(), not(predicateMatches(getAll, authentication)));
+        assertThat(allApps.getRequestPredicate(), predicateMatches(getAll, authentication));
     }
 
     private ManageApplicationPrivileges clone(ManageApplicationPrivileges original) {

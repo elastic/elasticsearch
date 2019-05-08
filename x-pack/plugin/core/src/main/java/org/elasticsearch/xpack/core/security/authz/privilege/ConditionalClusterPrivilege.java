@@ -11,9 +11,11 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
@@ -34,9 +36,10 @@ public interface ConditionalClusterPrivilege extends NamedWriteable, ToXContentF
     ClusterPrivilege getPrivilege();
 
     /**
-     * The request-level privilege (as a {@link Predicate}) that is required by this conditional privilege.
+     * The request-level privilege (as a {@link BiPredicate}) that is required by this conditional privilege.
+     * Conditions can also be evaluated based on the {@link Authentication} details.
      */
-    Predicate<TransportRequest> getRequestPredicate();
+    BiPredicate<TransportRequest, Authentication> getRequestPredicate();
 
     /**
      * A {@link ConditionalClusterPrivilege} should generate a fragment of {@code XContent}, which consists of
@@ -52,7 +55,8 @@ public interface ConditionalClusterPrivilege extends NamedWriteable, ToXContentF
      * from the categories.
      */
     enum Category {
-        APPLICATION(new ParseField("application"));
+        APPLICATION(new ParseField("application")),
+        API_KEYS(new ParseField("api_keys"));
 
         public final ParseField field;
 

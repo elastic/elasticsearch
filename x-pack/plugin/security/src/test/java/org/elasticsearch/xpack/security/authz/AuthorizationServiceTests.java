@@ -149,7 +149,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.Predicate;
+import java.util.function.BiPredicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
@@ -316,7 +316,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 
         final ConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(ConditionalClusterPrivilege.class);
-        final Predicate<TransportRequest> requestPredicate = r -> r == request;
+        final BiPredicate<TransportRequest, Authentication> requestPredicate = (r, a) -> r == request;
         Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
         Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
         final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[] {
@@ -337,7 +337,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 
         final ConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(ConditionalClusterPrivilege.class);
-        final Predicate<TransportRequest> requestPredicate = r -> false;
+        final BiPredicate<TransportRequest, Authentication> requestPredicate = (r, a) -> false;
         Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
         Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
         final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[] {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -124,10 +125,11 @@ public class Role {
      *
      * @param action cluster action
      * @param request {@link TransportRequest}
+     * @param authentication {@link Authentication} current authenticated user
      * @return {@code true} if action is allowed else returns {@code false}
      */
-    public boolean checkClusterAction(String action, TransportRequest request) {
-        return cluster.check(action, request);
+    public boolean checkClusterAction(String action, TransportRequest request, Authentication authentication) {
+        return cluster.check(action, request, authentication);
     }
 
     /**

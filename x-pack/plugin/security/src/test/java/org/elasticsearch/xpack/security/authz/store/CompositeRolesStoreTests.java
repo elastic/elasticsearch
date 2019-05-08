@@ -538,13 +538,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testMergingBasicRoles() {
+        final Authentication authentication = mock(Authentication.class);
         final TransportRequest request1 = mock(TransportRequest.class);
         final TransportRequest request2 = mock(TransportRequest.class);
         final TransportRequest request3 = mock(TransportRequest.class);
 
         ConditionalClusterPrivilege ccp1 = mock(ConditionalClusterPrivilege.class);
         when(ccp1.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        when(ccp1.getRequestPredicate()).thenReturn(req -> req == request1);
+        when(ccp1.getRequestPredicate()).thenReturn((req, authn) -> req == request1);
         RoleDescriptor role1 = new RoleDescriptor("r1", new String[]{"monitor"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
                 .indices("abc-*", "xyz-*")
@@ -570,7 +571,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         ConditionalClusterPrivilege ccp2 = mock(ConditionalClusterPrivilege.class);
         when(ccp2.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        when(ccp2.getRequestPredicate()).thenReturn(req -> req == request2);
+        when(ccp2.getRequestPredicate()).thenReturn((req, authn) -> req == request2);
         RoleDescriptor role2 = new RoleDescriptor("r2", new String[]{"manage_saml"}, new IndicesPrivileges[]{
             IndicesPrivileges.builder()
                 .indices("abc-*", "ind-2-*")
@@ -609,12 +610,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(role1, role2), cache, privilegeStore, future);
         Role role = future.actionGet();
 
-        assertThat(role.cluster().check(ClusterStateAction.NAME, randomFrom(request1, request2, request3)), equalTo(true));
-        assertThat(role.cluster().check(SamlAuthenticateAction.NAME, randomFrom(request1, request2, request3)), equalTo(true));
-        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, randomFrom(request1, request2, request3)), equalTo(false));
+        assertThat(role.cluster().check(ClusterStateAction.NAME, randomFrom(request1, request2, request3), authentication), equalTo(true));
+        assertThat(role.cluster().check(SamlAuthenticateAction.NAME, randomFrom(request1, request2, request3), authentication),
+                equalTo(true));
+        assertThat(role.cluster().check(ClusterUpdateSettingsAction.NAME, randomFrom(request1, request2, request3), authentication),
+                equalTo(false));
 
-        assertThat(role.cluster().check(PutUserAction.NAME, randomFrom(request1, request2)), equalTo(true));
-        assertThat(role.cluster().check(PutUserAction.NAME, request3), equalTo(false));
+        assertThat(role.cluster().check(PutUserAction.NAME, randomFrom(request1, request2), authentication), equalTo(true));
+        assertThat(role.cluster().check(PutUserAction.NAME, request3, authentication), equalTo(false));
 
         final Predicate<String> allowedRead = role.indices().allowedIndicesMatcher(GetAction.NAME);
         assertThat(allowedRead.test("abc-123"), equalTo(true));
@@ -1058,7 +1061,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         compositeRolesStore.getRoles(authentication.getUser(), authentication, roleFuture);
         Role role = roleFuture.actionGet();
-        assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE), is(false));
+        assertThat(role.checkClusterAction("cluster:admin/foo", Empty.INSTANCE, authentication), is(false));
         assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
         verify(apiKeyService).getRoleForApiKey(eq(authentication), any(ActionListener.class));
     }

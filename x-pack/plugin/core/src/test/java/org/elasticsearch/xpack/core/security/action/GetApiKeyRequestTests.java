@@ -70,18 +70,9 @@ public class GetApiKeyRequestTests extends ESTestCase {
 
         String[][] inputs = new String[][] {
                 { randomFrom(new String[] { null, "" }), randomFrom(new String[] { null, "" }), randomFrom(new String[] { null, "" }),
-                        randomFrom(new String[] { null, "" }) },
-                { randomFrom(new String[] { null, "" }), "user", "api-kid", "api-kname" },
-                { "realm", randomFrom(new String[] { null, "" }), "api-kid", "api-kname" },
-                { "realm", "user", "api-kid", randomFrom(new String[] { null, "" }) },
-                { randomFrom(new String[] { null, "" }), randomFrom(new String[] { null, "" }), "api-kid", "api-kname" } };
-        String[][] expectedErrorMessages = new String[][] { { "One of [api key id, api key name, username, realm name] must be specified" },
-                { "username or realm name must not be specified when the api key id or api key name is specified",
-                        "only one of [api key id, api key name] can be specified" },
-                { "username or realm name must not be specified when the api key id or api key name is specified",
-                        "only one of [api key id, api key name] can be specified" },
-                { "username or realm name must not be specified when the api key id or api key name is specified" },
-                { "only one of [api key id, api key name] can be specified" } };
+                        randomFrom(new String[] { null, "" }) } };
+        String[][] expectedErrorMessages = new String[][] { { "One of [api key id, api key name, username, realm name] must be specified"
+        } };
 
         for (int caseNo = 0; caseNo < inputs.length; caseNo++) {
             try (ByteArrayOutputStream bos = new ByteArrayOutputStream();

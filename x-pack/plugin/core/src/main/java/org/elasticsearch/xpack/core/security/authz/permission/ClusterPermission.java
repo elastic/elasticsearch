@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 
@@ -32,7 +33,7 @@ public abstract class ClusterPermission {
         return privilege;
     }
 
-    public abstract boolean check(String action, TransportRequest request);
+    public abstract boolean check(String action, TransportRequest request, Authentication authentication);
 
     public boolean grants(ClusterPrivilege clusterPrivilege) {
         return Operations.subsetOf(clusterPrivilege.getAutomaton(), this.privilege().getAutomaton());
@@ -55,7 +56,7 @@ public abstract class ClusterPermission {
         }
 
         @Override
-        public boolean check(String action, TransportRequest request) {
+        public boolean check(String action, TransportRequest request, Authentication authentication) {
             return predicate.test(action);
         }
 
@@ -77,8 +78,8 @@ public abstract class ClusterPermission {
         }
 
         @Override
-        public boolean check(String action, TransportRequest request) {
-            return super.privilege.predicate().test(action) && conditionalPrivilege.getRequestPredicate().test(request);
+        public boolean check(String action, TransportRequest request, Authentication authentication) {
+            return super.privilege.predicate().test(action) && conditionalPrivilege.getRequestPredicate().test(request, authentication);
         }
 
         @Override
@@ -113,8 +114,8 @@ public abstract class ClusterPermission {
         }
 
         @Override
-        public boolean check(String action, TransportRequest request) {
-            return children.stream().anyMatch(p -> p.check(action, request));
+        public boolean check(String action, TransportRequest request, Authentication authentication) {
+            return children.stream().anyMatch(p -> p.check(action, request, authentication));
         }
 
         @Override

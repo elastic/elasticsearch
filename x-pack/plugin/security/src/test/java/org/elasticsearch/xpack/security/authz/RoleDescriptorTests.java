@@ -23,7 +23,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.hamcrest.Matchers;
 
@@ -73,7 +73,7 @@ public class RoleDescriptorTests extends ESTestCase {
         };
 
         final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[]{
-            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+            new ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
         };
 
         RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all", "none" }, groups, applicationPrivileges,
@@ -105,7 +105,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build()
         };
         final ConditionalClusterPrivilege[] conditionalClusterPrivileges = {
-            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+            new ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
         };
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;
@@ -191,8 +191,8 @@ public class RoleDescriptorTests extends ESTestCase {
 
         final ConditionalClusterPrivilege conditionalPrivilege = rd.getConditionalClusterPrivileges()[0];
         assertThat(conditionalPrivilege.getCategory(), equalTo(ConditionalClusterPrivilege.Category.APPLICATION));
-        assertThat(conditionalPrivilege, instanceOf(ConditionalClusterPrivileges.ManageApplicationPrivileges.class));
-        assertThat(((ConditionalClusterPrivileges.ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
+        assertThat(conditionalPrivilege, instanceOf(ManageApplicationPrivileges.class));
+        assertThat(((ManageApplicationPrivileges) conditionalPrivilege).getApplicationNames(),
             containsInAnyOrder("kibana", "logstash"));
 
         q = "{\"applications\": [{\"application\": \"myapp\", \"resources\": [\"*\"], \"privileges\": [\"login\" ]}] }";
@@ -234,7 +234,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 .build()
         };
         final ConditionalClusterPrivilege[] conditionalClusterPrivileges = {
-            new ConditionalClusterPrivileges.ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
+            new ManageApplicationPrivileges(new LinkedHashSet<>(Arrays.asList("app01", "app02")))
         };
 
         Map<String, Object> metadata = randomBoolean() ? MetadataUtils.DEFAULT_RESERVED_METADATA : null;

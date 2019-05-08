@@ -39,6 +39,9 @@ public final class ClusterPrivilege extends Privilege {
             InvalidateTokenAction.NAME, RefreshTokenAction.NAME);
     private static final Automaton MANAGE_OIDC_AUTOMATON = patterns("cluster:admin/xpack/security/oidc/*");
     private static final Automaton MANAGE_TOKEN_AUTOMATON = patterns("cluster:admin/xpack/security/token/*");
+
+    private static final Automaton MANAGE_API_KEY_AUTOMATON = patterns("cluster:admin/xpack/security/api_key/*");
+
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton MONITOR_ML_AUTOMATON = patterns("cluster:monitor/xpack/ml/*");
     private static final Automaton MONITOR_DATA_FRAME_AUTOMATON = patterns("cluster:monitor/data_frame/*");
@@ -74,6 +77,7 @@ public final class ClusterPrivilege extends Privilege {
     public static final ClusterPrivilege MANAGE_DATA_FRAME =
             new ClusterPrivilege("manage_data_frame_transforms", MANAGE_DATA_FRAME_AUTOMATON);
     public static final ClusterPrivilege MANAGE_TOKEN =          new ClusterPrivilege("manage_token",        MANAGE_TOKEN_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_API_KEY =        new ClusterPrivilege("manage_api_key",      MANAGE_API_KEY_AUTOMATON);
     public static final ClusterPrivilege MANAGE_WATCHER =        new ClusterPrivilege("manage_watcher",      MANAGE_WATCHER_AUTOMATON);
     public static final ClusterPrivilege MANAGE_ROLLUP =         new ClusterPrivilege("manage_rollup",       MANAGE_ROLLUP_AUTOMATON);
     public static final ClusterPrivilege MANAGE_IDX_TEMPLATES =
@@ -105,6 +109,7 @@ public final class ClusterPrivilege extends Privilege {
             entry("manage_ml", MANAGE_ML),
             entry("manage_data_frame_transforms", MANAGE_DATA_FRAME),
             entry("manage_token", MANAGE_TOKEN),
+            entry("manage_api_key", MANAGE_API_KEY),
             entry("manage_watcher", MANAGE_WATCHER),
             entry("manage_index_templates", MANAGE_IDX_TEMPLATES),
             entry("manage_ingest_pipelines", MANAGE_INGEST_PIPELINES),

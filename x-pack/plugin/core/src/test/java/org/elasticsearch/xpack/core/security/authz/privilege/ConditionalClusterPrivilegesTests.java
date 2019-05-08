@@ -67,7 +67,8 @@ public class ConditionalClusterPrivilegesTests extends ESTestCase {
 
     private ConditionalClusterPrivilege[] buildSecurityPrivileges(int applicationNameLength) {
         return new ConditionalClusterPrivilege[] {
-            ManageApplicationPrivilegesTests.buildPrivileges(applicationNameLength)
+            ManageApplicationPrivilegesTests.buildPrivileges(applicationNameLength),
+            ManageApiKeyConditionalPrivilegesTests.ManageApiKeyConditionalPrivilegesBuilder.manageApiKeysOnlyForOwner()
         };
     }
 }

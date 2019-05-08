@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -129,8 +130,8 @@ public final class LimitedRole extends Role {
      * @return {@code true} if action is allowed else returns {@code false}
      */
     @Override
-    public boolean checkClusterAction(String action, TransportRequest request) {
-        return super.checkClusterAction(action, request) && limitedBy.checkClusterAction(action, request);
+    public boolean checkClusterAction(String action, TransportRequest request, Authentication authentication) {
+        return super.checkClusterAction(action, request, authentication) && limitedBy.checkClusterAction(action, request, authentication);
     }
 
     /**

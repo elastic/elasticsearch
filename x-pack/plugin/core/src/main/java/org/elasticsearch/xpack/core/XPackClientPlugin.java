@@ -177,7 +177,8 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ManageApiKeyConditionalPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -414,8 +415,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
                 // security : conditional privileges
                 new NamedWriteableRegistry.Entry(ConditionalClusterPrivilege.class,
-                    ConditionalClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
-                    ConditionalClusterPrivileges.ManageApplicationPrivileges::createFrom),
+                        ManageApplicationPrivileges.WRITEABLE_NAME,
+                        ManageApplicationPrivileges::createFrom),
+                new NamedWriteableRegistry.Entry(ConditionalClusterPrivilege.class,
+                        ManageApiKeyConditionalPrivileges.WRITEABLE_NAME,
+                        ManageApiKeyConditionalPrivileges::createFrom),
                 // security : role-mappings
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),

@@ -130,7 +130,7 @@ rp.client_id::
 
 rp.response_type::
     This is an identifier that controls which OpenID Connect authentication flow this RP supports and also
-    which flow this PR requests the OP should follow. Supported values are
+    which flow this RP requests the OP should follow. Supported values are
     - `code`, which means that the RP wants to use the Authorization Code flow. If your OP supports the
        Authorization Code flow, you should select this in favor of the Implicit Flow.
     - `id_token token` which means that the RP wants to use the Implicit flow and we also request an oAuth2
@@ -147,7 +147,7 @@ rp.redirect_uri::
     typically be +$\{kibana-url}/api/security/v1/oidc+ where _$\{kibana-url}_ is the base URL for your {kib} instance
 
 op.authorization_endpoint::
-    The URL for the Authorization Endpoint in the OpenID Connect Provider. This is where the user's browser
+    The URL for the Authorization Endpoint in the OP. This is where the user's browser
     will be redirected to start the authentication process. The value for this setting should be provided by your
     OpenID Connect Provider.
 
@@ -384,7 +384,7 @@ NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mappi
 to grant roles to users authenticating via OpenID Connect.
 
 This is an example of a simple role mapping that grants the `kibana_user` role
-to any user who authenticates against the `oidc1` OpenID Conenct realm:
+to any user who authenticates against the `oidc1` OpenID Connect realm:
 
 [source,js]
 --------------------------------------------------
@@ -460,7 +460,6 @@ as the metadata field `oidc(claim_name)` where "claim_name" is the name of the
 claim as it was contained in the ID Token or in the User Info response. Note that these will
 include all the https://openid.net/specs/openid-connect-core-1_0.html#IDToken[ID Token claims]
 that pertain to the authentication event, rather than the user themselves.
-
 
 This behaviour can be disabled by adding `populate_user_metadata: false` as
 a setting in the oidc realm.

@@ -548,7 +548,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             .addShard(shardRouting)
             .build();
         shard.updateShardState(shardRouting, shard.getPendingPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-            inSyncIds, newRoutingTable, Collections.emptySet());
+            inSyncIds, newRoutingTable);
     }
 
     protected void recoveryEmptyReplica(IndexShard replica, boolean startReplica) throws IOException {
@@ -633,7 +633,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
             request, Math.toIntExact(ByteSizeUnit.MB.toBytes(1)), between(1, 8));
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
-            currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable, Collections.emptySet());
+            currentClusterStateVersion.incrementAndGet(), inSyncIds, routingTable);
 
         PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
         recovery.recoverToTarget(future);
@@ -658,9 +658,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         inSyncIdsWithReplica.add(replica.routingEntry().allocationId().getId());
         // update both primary and replica shard state
         primary.updateShardState(primary.routingEntry(), primary.getPendingPrimaryTerm(), null,
-            currentClusterStateVersion.incrementAndGet(), inSyncIdsWithReplica, newRoutingTable, Collections.emptySet());
+            currentClusterStateVersion.incrementAndGet(), inSyncIdsWithReplica, newRoutingTable);
         replica.updateShardState(replica.routingEntry().moveToStarted(), replica.getPendingPrimaryTerm(), null,
-            currentClusterStateVersion.get(), inSyncIdsWithReplica, newRoutingTable, Collections.emptySet());
+            currentClusterStateVersion.get(), inSyncIdsWithReplica, newRoutingTable);
     }
 
 
@@ -685,7 +685,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             (is, listener) ->
                 listener.onResponse(new PrimaryReplicaSyncer.ResyncTask(1, "type", "action", "desc", null, Collections.emptyMap())),
             currentClusterStateVersion.incrementAndGet(),
-            inSyncIds, newRoutingTable, Collections.emptySet());
+            inSyncIds, newRoutingTable);
     }
 
     private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {

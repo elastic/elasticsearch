@@ -202,19 +202,7 @@ public class DynamicTemplate implements ToXContentObject {
 
         XContentFieldType xcontentFieldType = null;
         if (matchMappingType != null && matchMappingType.equals("*") == false) {
-            try {
-                xcontentFieldType = XContentFieldType.fromString(matchMappingType);
-            } catch (IllegalArgumentException e) {
-                if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1)) {
-                    throw e;
-                } else {
-                    deprecationLogger.deprecated("match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
-                            + e.getMessage());
-                    // this template is on an unknown type so it will never match anything
-                    // null indicates that the template should be ignored
-                    return null;
-                }
-            }
+            xcontentFieldType = XContentFieldType.fromString(matchMappingType);
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);

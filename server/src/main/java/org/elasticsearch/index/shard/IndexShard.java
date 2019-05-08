@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongMap;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
@@ -433,8 +434,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  final BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
                                  final long applyingClusterStateVersion,
                                  final Set<String> inSyncAllocationIds,
-                                 final IndexShardRoutingTable routingTable,
-                                 final Set<String> pre60AllocationIds) throws IOException {
+                                 final IndexShardRoutingTable routingTable) throws IOException {
         final ShardRouting currentRouting;
         synchronized (mutex) {
             currentRouting = this.shardRouting;
@@ -453,7 +453,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
 
             if (newRouting.primary()) {
-                replicationTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable, pre60AllocationIds);
+                replicationTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, routingTable);
             }
 
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {

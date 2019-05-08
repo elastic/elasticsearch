@@ -20,8 +20,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.logging.log4j.Logger;
+
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -714,13 +715,6 @@ public class MetaDataCreateIndexService {
                                    Settings targetIndexSettings) {
         IndexMetaData sourceMetaData = validateResize(state, sourceIndex, targetIndexMappingsTypes, targetIndexName, targetIndexSettings);
         IndexMetaData.selectSplitShard(0, sourceMetaData, IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings));
-        if (sourceMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-            // ensure we have a single type since this would make the splitting code considerably more complex
-            // and a 5.x index would not be splittable unless it has been shrunk before so rather opt out of the complexity
-            // since in 5.x we don't have a setting to artificially set the number of routing shards
-            throw new IllegalStateException("source index created version is too old to apply a split operation");
-        }
-
     }
 
     static IndexMetaData validateResize(ClusterState state, String sourceIndex,

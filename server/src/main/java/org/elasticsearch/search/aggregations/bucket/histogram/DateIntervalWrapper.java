@@ -288,11 +288,15 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         } else {
             // We're not sure what the interval was originally (legacy) so use old behavior of assuming
             // calendar first, then fixed.  Required because fixed/cal overlap in places ("1h")
-            DateTimeUnit intervalAsUnit = tryIntervalAsCalendarUnit();
-            if (intervalAsUnit != null) {
-                tzRoundingBuilder = Rounding.builder(tryIntervalAsCalendarUnit());
+            DateTimeUnit calInterval = tryIntervalAsCalendarUnit();
+            TimeValue fixedInterval = tryIntervalAsFixedUnit();
+            if (calInterval != null) {
+                tzRoundingBuilder = Rounding.builder(calInterval);
+            } else if (fixedInterval != null) {
+                tzRoundingBuilder = Rounding.builder(fixedInterval);
             } else {
-                tzRoundingBuilder = Rounding.builder(tryIntervalAsFixedUnit());
+                // If we get here we have exhausted our options and are not able to parse this interval
+                throw new IllegalArgumentException("Unable to parse interval [" + dateHistogramInterval + "]");
             }
         }
         if (timeZone != null) {

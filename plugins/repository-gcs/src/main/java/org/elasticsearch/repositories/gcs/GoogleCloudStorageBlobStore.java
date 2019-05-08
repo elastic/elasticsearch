@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import com.google.cloud.BatchResult;
 import com.google.cloud.ReadChannel;
 import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.Blob;
@@ -27,6 +28,7 @@ import com.google.cloud.storage.BlobInfo;
 import com.google.cloud.storage.Bucket;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
+import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.common.SuppressForbidden;
@@ -49,6 +51,12 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
@@ -93,7 +101,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param bucketName name of the bucket
      * @return true iff the bucket exists
      */
-    boolean doesBucketExist(String bucketName) {
+    private boolean doesBucketExist(String bucketName) {
         try {
             final Bucket bucket = SocketAccess.doPrivilegedIOException(() -> client().get(bucketName));
             return bucket != null;
@@ -276,6 +284,61 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (deleted == false) {
             throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
+    }
+
+    /**
+     * Deletes multiple blobs from the specific bucket all of which have prefixed names
+     *
+     * @param prefix prefix of the blobs to delete
+     */
+    private void deleteBlobsByPrefix(String prefix) throws IOException {
+        deleteBlobsIgnoringIfNotExists(listBlobsByPrefix("", prefix).keySet());
+    }
+
+    /**
+     * Deletes multiple blobs from the specific bucket using a batch request
+     *
+     * @param blobNames names of the blobs to delete
+     */
+    void deleteBlobsIgnoringIfNotExists(Collection<String> blobNames) throws IOException {
+        if (blobNames.isEmpty()) {
+            return;
+        }
+        // for a single op submit a simple delete instead of a batch of size 1
+        if (blobNames.size() == 1) {
+            deleteBlob(blobNames.iterator().next());
+            return;
+        }
+        final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
+        final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
+        final StorageException e = SocketAccess.doPrivilegedIOException(() -> {
+            final AtomicReference<StorageException> ioe = new AtomicReference<>();
+            final StorageBatch batch = client().batch();
+            for (BlobId blob : blobIdsToDelete) {
+                batch.delete(blob).notify(
+                    new BatchResult.Callback<>() {
+                        @Override
+                        public void success(Boolean result) {
+                        }
+
+                        @Override
+                        public void error(StorageException exception) {
+                            if (exception.getCode() != HTTP_NOT_FOUND) {
+                                failedBlobs.add(blob);
+                                if (ioe.compareAndSet(null, exception) == false) {
+                                    ioe.get().addSuppressed(exception);
+                                }
+                            }
+                        }
+                    });
+            }
+            batch.submit();
+            return ioe.get();
+        });
+        if (e != null) {
+            throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
+        }
+        assert failedBlobs.isEmpty();
     }
 
     private static String buildKey(String keyPath, String s) {

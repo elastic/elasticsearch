@@ -401,7 +401,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
+        public TransportAddress[] addressesFromString(String address) {
             return new TransportAddress[0];
         }
 
@@ -440,7 +440,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public List<String> getLocalAddresses() {
+        public List<String> getDefaultSeedAddresses() {
             return null;
         }
 

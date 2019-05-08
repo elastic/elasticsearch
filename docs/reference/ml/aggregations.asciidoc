@@ -63,7 +63,7 @@ PUT _ml/datafeeds/datafeed-farequote
     "buckets": {
       "date_histogram": {
         "field": "time",
-        "interval": "360s",
+        "fixed_interval": "360s",
         "time_zone": "UTC"
       },
       "aggregations": {
@@ -119,7 +119,7 @@ pipeline aggregation to find the first order derivative of the counter
       "buckets": {
         "date_histogram": {
           "field": "@timestamp",
-          "interval": "5m"
+          "fixed_interval": "5m"
         },
         "aggregations": {
           "@timestamp": {

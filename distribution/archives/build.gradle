@@ -61,7 +61,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       }
       if (jdk) {
         into('jdk') {
-          with jdkFiles(platform)
+          with jdkFiles(project, platform)
         }
       }
       into('') {

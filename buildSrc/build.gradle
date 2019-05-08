@@ -124,6 +124,7 @@ dependencies {
   compile 'com.avast.gradle:gradle-docker-compose-plugin:0.8.12'
   testCompile "junit:junit:${props.getProperty('junit')}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
+  testCompile 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
 }
 
 /*****************************************************************************

@@ -147,47 +147,6 @@ public class SeedHostsResolverTests extends ESTestCase {
         assertThat(resolvedAddressesRef.get(), equalTo(transportAddresses));
     }
 
-    public void testPortLimit() {
-        final NetworkService networkService = new NetworkService(Collections.emptyList());
-        final Transport transport = new MockNioTransport(
-            Settings.EMPTY,
-            Version.CURRENT,
-            threadPool,
-            networkService,
-            PageCacheRecycler.NON_RECYCLING_INSTANCE,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()) {
-
-            @Override
-            public BoundTransportAddress boundAddress() {
-                return new BoundTransportAddress(
-                    new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9500)},
-                    new TransportAddress(InetAddress.getLoopbackAddress(), 9500)
-                );
-            }
-        };
-        closeables.push(transport);
-        final TransportService transportService =
-            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null,
-                Collections.emptySet());
-        closeables.push(transportService);
-        final int limitPortCounts = randomIntBetween(1, 10);
-        final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
-            executorService,
-            logger,
-            Collections.singletonList("127.0.0.1"),
-            limitPortCounts,
-            transportService,
-            TimeValue.timeValueSeconds(30));
-        assertThat(transportAddresses, hasSize(limitPortCounts));
-        final Set<Integer> ports = new HashSet<>();
-        for (final TransportAddress address : transportAddresses) {
-            assertTrue(address.address().getAddress().isLoopbackAddress());
-            ports.add(address.getPort());
-        }
-        assertThat(ports, equalTo(IntStream.range(9300, 9300 + limitPortCounts).mapToObj(m -> m).collect(Collectors.toSet())));
-    }
-
     public void testRemovingLocalAddresses() {
         final NetworkService networkService = new NetworkService(Collections.emptyList());
         final InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
@@ -219,8 +178,9 @@ public class SeedHostsResolverTests extends ESTestCase {
         final List<TransportAddress> transportAddresses = SeedHostsResolver.resolveHostsLists(
             executorService,
             logger,
-            Collections.singletonList(NetworkAddress.format(loopbackAddress)),
-            10,
+            IntStream.range(9300, 9310)
+                .mapToObj(port -> NetworkAddress.format(loopbackAddress) + ":" + port)
+                .collect(Collectors.toList()),
             transportService,
             TimeValue.timeValueSeconds(30));
         assertThat(transportAddresses, hasSize(7));
@@ -255,7 +215,7 @@ public class SeedHostsResolverTests extends ESTestCase {
             }
 
             @Override
-            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+            public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
                 throw unknownHostException;
             }
 
@@ -271,7 +231,6 @@ public class SeedHostsResolverTests extends ESTestCase {
             executorService,
             logger,
             Arrays.asList(hostname),
-            1,
             transportService,
             TimeValue.timeValueSeconds(30)
         );
@@ -302,7 +261,7 @@ public class SeedHostsResolverTests extends ESTestCase {
             }
 
             @Override
-            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+            public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
                 if ("hostname1".equals(address)) {
                     return new TransportAddress[]{new TransportAddress(TransportAddress.META_ADDRESS, 9300)};
                 } else if ("hostname2".equals(address)) {
@@ -330,7 +289,6 @@ public class SeedHostsResolverTests extends ESTestCase {
                 executorService,
                 logger,
                 Arrays.asList("hostname1", "hostname2"),
-                1,
                 transportService,
                 resolveTimeout);
 
@@ -373,7 +331,6 @@ public class SeedHostsResolverTests extends ESTestCase {
             executorService,
             logger,
             Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301"),
-            1,
             transportService,
             TimeValue.timeValueSeconds(30));
         assertThat(transportAddresses, hasSize(1)); // only one of the two is valid and will be used

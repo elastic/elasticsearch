@@ -115,9 +115,8 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
 
     public void testUnicastHostsDoesNotExist() {
         final FileBasedSeedHostsProvider provider = new FileBasedSeedHostsProvider(createTempDir().toAbsolutePath());
-        final List<TransportAddress> addresses = provider.getSeedAddresses((hosts, limitPortCounts) ->
-            SeedHostsResolver.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
-                TimeValue.timeValueSeconds(10)));
+        final List<TransportAddress> addresses = provider.getSeedAddresses(hosts ->
+            SeedHostsResolver.resolveHostsLists(executorService, logger, hosts, transportService, TimeValue.timeValueSeconds(10)));
         assertEquals(0, addresses.size());
     }
 
@@ -145,8 +144,7 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
             writer.write(String.join("\n", hostEntries));
         }
 
-        return new FileBasedSeedHostsProvider(configPath).getSeedAddresses((hosts, limitPortCounts) ->
-            SeedHostsResolver.resolveHostsLists(executorService, logger, hosts, limitPortCounts, transportService,
-                TimeValue.timeValueSeconds(10)));
+        return new FileBasedSeedHostsProvider(configPath).getSeedAddresses(hosts ->
+            SeedHostsResolver.resolveHostsLists(executorService, logger, hosts, transportService, TimeValue.timeValueSeconds(10)));
     }
 }

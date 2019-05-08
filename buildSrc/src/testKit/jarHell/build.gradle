@@ -15,6 +15,7 @@ repositories {
     jcenter()
     repositories {
         maven {
+            name "local"
             url System.getProperty("local.repo.path")
         }
     }

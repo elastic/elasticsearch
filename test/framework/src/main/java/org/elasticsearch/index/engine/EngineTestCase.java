@@ -63,6 +63,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -995,16 +996,17 @@ public abstract class EngineTestCase extends ESTestCase {
     /**
      * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
-    public static List<DocIdSeqNoAndTerm> getDocIds(Engine engine, boolean refresh) throws IOException {
+    public static List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
         if (refresh) {
             engine.refresh("test_get_doc_ids");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids")) {
-            List<DocIdSeqNoAndTerm> docs = new ArrayList<>();
+            List<DocIdSeqNoAndSource> docs = new ArrayList<>();
             for (LeafReaderContext leafContext : searcher.reader().leaves()) {
                 LeafReader reader = leafContext.reader();
                 NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
                 NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
                 Bits liveDocs = reader.getLiveDocs();
                 for (int i = 0; i < reader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
@@ -1013,20 +1015,25 @@ public abstract class EngineTestCase extends ESTestCase {
                             continue;
                         }
                         final long primaryTerm = primaryTermDocValues.longValue();
-                        Document uuid = reader.document(i, Collections.singleton(IdFieldMapper.NAME));
-                        BytesRef binaryID = uuid.getBinaryValue(IdFieldMapper.NAME);
+                        Document doc = reader.document(i, Sets.newHashSet(IdFieldMapper.NAME, SourceFieldMapper.NAME));
+                        BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
                         String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
+                        final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
                         if (seqNoDocValues.advanceExact(i) == false) {
                             throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
                         }
                         final long seqNo = seqNoDocValues.longValue();
-                        docs.add(new DocIdSeqNoAndTerm(id, seqNo, primaryTerm));
+                        if (versionDocValues.advanceExact(i) == false) {
+                            throw new AssertionError("versionDocValues not found for doc[" + i + "] id[" + id + "]");
+                        }
+                        final long version = versionDocValues.longValue();
+                        docs.add(new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version));
                     }
                 }
             }
-            docs.sort(Comparator.comparingLong(DocIdSeqNoAndTerm::getSeqNo)
-                .thenComparingLong(DocIdSeqNoAndTerm::getPrimaryTerm)
-                .thenComparing((DocIdSeqNoAndTerm::getId)));
+            docs.sort(Comparator.comparingLong(DocIdSeqNoAndSource::getSeqNo)
+                .thenComparingLong(DocIdSeqNoAndSource::getPrimaryTerm)
+                .thenComparing((DocIdSeqNoAndSource::getId)));
             return docs;
         }
     }

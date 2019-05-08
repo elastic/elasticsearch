@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
+import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -248,7 +249,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     // Add all new shards to start processing on
                     final ShardId shardId = shard.key;
                     final ShardSnapshotStatus shardSnapshotStatus = shard.value;
-                    if (localNodeId.equals(shardSnapshotStatus.nodeId()) && shardSnapshotStatus.state() == State.INIT
+                    if (localNodeId.equals(shardSnapshotStatus.nodeId())
+                        && shardSnapshotStatus.state() == ShardState.INIT
                         && snapshotShards.containsKey(shardId) == false) {
                         logger.trace("[{}] - Adding shard to the queue", shardId);
                         if (startedShards == null) {
@@ -286,7 +288,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     } else {
                         // due to CS batching we might have missed the INIT state and straight went into ABORTED
                         // notify master that abort has completed by moving to FAILED
-                        if (shard.value.state() == State.ABORTED) {
+                        if (shard.value.state() == ShardState.ABORTED) {
                             notifyFailedSnapshotShard(snapshot, shard.key, shard.value.reason());
                         }
                     }
@@ -480,12 +482,14 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     /** Notify the master node that the given shard has been successfully snapshotted **/
     private void notifySuccessfulSnapshotShard(final Snapshot snapshot, final ShardId shardId) {
-        sendSnapshotShardUpdate(snapshot, shardId, new ShardSnapshotStatus(clusterService.localNode().getId(), State.SUCCESS));
+        sendSnapshotShardUpdate(snapshot, shardId,
+            new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.SUCCESS));
     }
 
     /** Notify the master node that the given shard failed to be snapshotted **/
     private void notifyFailedSnapshotShard(final Snapshot snapshot, final ShardId shardId, final String failure) {
-        sendSnapshotShardUpdate(snapshot, shardId, new ShardSnapshotStatus(clusterService.localNode().getId(), State.FAILED, failure));
+        sendSnapshotShardUpdate(snapshot, shardId,
+            new ShardSnapshotStatus(clusterService.localNode().getId(), ShardState.FAILED, failure));
     }
 
     /** Updates the shard snapshot status by sending a {@link UpdateIndexShardSnapshotStatusRequest} to the master node */

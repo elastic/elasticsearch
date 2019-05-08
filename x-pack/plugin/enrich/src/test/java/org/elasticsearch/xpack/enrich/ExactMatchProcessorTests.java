@@ -51,7 +51,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(createEnrichDocument("eops.nl", Map.of("globalRank", 4567, "tldRank", 80, "tld", "nl")));
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key", List.of(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
+                    List.of(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -98,7 +99,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(createEnrichDocument("eops.nl", Map.of("globalRank", 4567, "tldRank", 80, "tld", "nl")));
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key", List.of(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
+                    List.of(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -129,7 +131,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(createEnrichDocument("eops.nl", Map.of("globalRank", 4567, "tldRank", 80, "tld", "nl")));
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key", List.of(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
+                    List.of(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -156,7 +159,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
             try (IndexWriter indexWriter = new IndexWriter(directory, iwConfig)) {
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key", List.of(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
+                    List.of(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -187,7 +191,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(document);
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key", List.of(), "schedule");
+                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
+                    List.of(), "schedule");
                 Function<String, EnrichPolicy> policyLookup = policyName -> policy;
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -216,7 +221,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
     }
 
     public void testIgnoreKeyMissing() throws Exception {
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, "majestic_index", "key", List.of(), "schedule");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key", List.of(),
+            "schedule");
         Function<String, EnrichPolicy> policyLookup = policyName -> policy;
         {
             ExactMatchProcessor processor = new ExactMatchProcessor("_tag", policyLookup, indexExpression -> null, "_name", "domain",

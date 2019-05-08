@@ -62,6 +62,10 @@ public class XPackLicenseStateTests extends ESTestCase {
         return randomFrom(TRIAL, PLATINUM);
     }
 
+    public static OperationMode randomTrialGoldOrPlatinumMode() {
+        return randomFrom(TRIAL, GOLD, PLATINUM);
+    }
+
     public static OperationMode randomTrialBasicStandardGoldOrPlatinumMode() {
         return randomFrom(TRIAL, BASIC, STANDARD, GOLD, PLATINUM);
     }
@@ -263,8 +267,12 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAckMesssages(XPackField.SECURITY, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
 
-    public void testSecurityAckTrialStandardGoldOrPlatinumToBasic() {
-        assertAckMesssages(XPackField.SECURITY, randomTrialStandardGoldOrPlatinumMode(), BASIC, 4);
+    public void testSecurityAckTrialGoldOrPlatinumToBasic() {
+        assertAckMesssages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 7);
+    }
+
+    public void testSecurityAckStandardToBasic() {
+        assertAckMesssages(XPackField.SECURITY, STANDARD, BASIC, 1);
     }
 
     public void testSecurityAckAnyToStandard() {

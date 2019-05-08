@@ -59,7 +59,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
             return new EnrichPolicy(
                 randomFrom(EnrichPolicy.SUPPORTED_POLICY_TYPES),
                 randomBoolean() ? querySource : null,
-                randomAlphaOfLength(4),
+                Arrays.asList(generateRandomStringArray(8, 4, false, false)),
                 randomAlphaOfLength(4),
                 Arrays.asList(generateRandomStringArray(8, 4, false, false)),
                 randomAlphaOfLength(4)
@@ -89,7 +89,7 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
         } else {
             assertThat(expectedInstance.getQuery(), nullValue());
         }
-        assertThat(newInstance.getIndexPattern(), equalTo(expectedInstance.getIndexPattern()));
+        assertThat(newInstance.getIndices(), equalTo(expectedInstance.getIndices()));
         assertThat(newInstance.getEnrichKey(), equalTo(expectedInstance.getEnrichKey()));
         assertThat(newInstance.getEnrichValues(), equalTo(expectedInstance.getEnrichValues()));
         assertThat(newInstance.getSchedule(), equalTo(expectedInstance.getSchedule()));

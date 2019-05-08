@@ -228,6 +228,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             // create the rollup job
             final Request createRollupJobRequest = new Request("PUT", getRollupEndpoint() + "/job/rollup-job-test");
 
+            String intervalType;
+            if (getOldClusterVersion().onOrAfter(Version.V_8_0_0)) { // TODO change this after backport
+                intervalType = "fixed_interval";
+            } else {
+                intervalType = "interval";
+            }
+
             createRollupJobRequest.setJsonEntity("{"
                     + "\"index_pattern\":\"rollup-*\","
                     + "\"rollup_index\":\"results-rollup\","
@@ -236,7 +243,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     + "\"groups\":{"
                     + "    \"date_histogram\":{"
                     + "        \"field\":\"timestamp\","
-                    + "        \"interval\":\"5m\""
+                    + "        \"" + intervalType + "\":\"5m\""
                     + "      }"
                     + "},"
                     + "\"metrics\":["

@@ -53,6 +53,7 @@ import java.util.regex.Pattern
 buildscript {
   repositories {
     maven {
+      name "gradle-plugins"
       url "https://plugins.gradle.org/m2/"
     }
   }

@@ -264,6 +264,7 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         return runtimeVersionFile;
     }
 
+    @OutputFile
     public RegularFileProperty getFipsJvmFile() {
         return fipsJvmFile;
     }

@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalysisMode;
@@ -37,6 +39,8 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFl
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
 public class TypeParsers {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(TypeParsers.class));
 
     public static final String DOC_VALUES = "doc_values";
     public static final String INDEX_OPTIONS_DOCS = "docs";
@@ -214,11 +218,16 @@ public class TypeParsers {
 
     public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext,
                                           String propName, Object propNode) {
-        parserContext = parserContext.createMultiFieldContext(parserContext);
         if (propName.equals("fields")) {
+            if (parserContext.isWithinMultiField()) {
+                deprecationLogger.deprecatedAndMaybeLog("multifield_within_multifield", "The multi-field " +
+                    "named [" + name + "] contains its own [fields] entry. Defining multi-fields within a " +
+                    "multi-field is deprecated and will no longer be supported in 8.0.");
+            }
+
+            parserContext = parserContext.createMultiFieldContext(parserContext);
 
             final Map<String, Object> multiFieldsPropNodes;
-
             if (propNode instanceof List && ((List<?>) propNode).isEmpty()) {
                 multiFieldsPropNodes = Collections.emptyMap();
             } else if (propNode instanceof Map) {

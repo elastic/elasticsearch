@@ -24,7 +24,11 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisMode;
@@ -36,6 +40,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -150,6 +155,35 @@ public class TypeParsersTests extends ESTestCase {
                 Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
+    }
+
+    public void testMultiFieldWithinMultiField() throws IOException {
+        TextFieldMapper.Builder builder = new TextFieldMapper.Builder("textField");
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+            .field("type", "keyword")
+            .startObject("fields")
+                .startObject("sub-field")
+                    .field("type", "keyword")
+                    .startObject("fields")
+                        .startObject("sub-sub-field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+
+        Map<String, Object> fieldNode = XContentHelper.convertToMap(
+            BytesReference.bytes(mapping), true, mapping.contentType()).v2();
+
+        Mapper.TypeParser typeParser = new KeywordFieldMapper.TypeParser();
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext("type",
+            null, null, type -> typeParser, Version.CURRENT, null);
+
+        TypeParsers.parseField(builder, "some-field", fieldNode, parserContext);
+        assertWarnings("The multi-field named [sub-field] contains its own [fields] entry. Defining " +
+            "multi-fields within a multi-field is deprecated and will no longer be supported in 8.0.");
     }
 
     private Analyzer createAnalyzerWithMode(String name, AnalysisMode mode) {

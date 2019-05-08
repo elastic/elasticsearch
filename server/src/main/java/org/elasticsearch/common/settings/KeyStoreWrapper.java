@@ -546,6 +546,10 @@ public class KeyStoreWrapper implements SecureSettings {
         return new ByteArrayInputStream(entry.bytes);
     }
 
+    /**
+     * Returns the SHA256 digest for the setting's value, even after {@code #close()} has been called. The setting must exist. The digest is
+     * used to check for value changes without actually storing the value.
+     */
     @Override
     public byte[] getSHA256Digest(String setting) {
         assert entries.get() != null : "Keystore is not loaded";

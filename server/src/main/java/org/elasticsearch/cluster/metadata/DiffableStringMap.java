@@ -39,6 +39,8 @@ import java.util.Set;
  */
 public class DiffableStringMap extends AbstractMap<String, String> implements Diffable<DiffableStringMap> {
 
+    public static final DiffableStringMap EMPTY = new DiffableStringMap(Collections.emptyMap());
+
     private final Map<String, String> innerMap;
 
     DiffableStringMap(final Map<String, String> map) {
@@ -74,6 +76,8 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
      * Represents differences between two DiffableStringMaps.
      */
     public static class DiffableStringMapDiff implements Diff<DiffableStringMap> {
+
+        public static final DiffableStringMapDiff EMPTY = new DiffableStringMapDiff(DiffableStringMap.EMPTY, DiffableStringMap.EMPTY);
 
         private final List<String> deletes;
         private final Map<String, String> upserts; // diffs also become upserts

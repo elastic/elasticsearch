@@ -93,7 +93,7 @@ public class SettingsModuleTests extends ModuleTestCase {
                     Setting.Property.Consistent);
             SettingsModule module = new SettingsModule(settings, concreteConsistentSetting);
             assertInstanceBinding(module, Settings.class, (s) -> s == settings);
-            assertThat(module.getConsistentSecureSettings(), Matchers.containsInAnyOrder(concreteConsistentSetting));
+            assertThat(module.getConsistentSettings(), Matchers.containsInAnyOrder(concreteConsistentSetting));
 
             final Setting<?> concreteUnsecureConsistentSetting = Setting.simpleString("some.custom.UNSECURE.consistent.setting",
                     Property.Consistent, Property.NodeScope);
@@ -109,7 +109,7 @@ public class SettingsModuleTests extends ModuleTestCase {
                     key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
             module = new SettingsModule(settings2,afixConcreteConsistentSetting);
             assertInstanceBinding(module, Settings.class, (s) -> s == settings2);
-            assertThat(module.getConsistentSecureSettings(), Matchers.containsInAnyOrder(afixConcreteConsistentSetting));
+            assertThat(module.getConsistentSettings(), Matchers.containsInAnyOrder(afixConcreteConsistentSetting));
 
             final Setting<?> concreteUnsecureConsistentAfixSetting = Setting.affixKeySetting(
                     "some.custom.secure.consistent.afix.", "setting",

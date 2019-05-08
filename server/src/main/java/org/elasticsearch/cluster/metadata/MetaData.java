@@ -854,12 +854,10 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             coordinationMetaData = new CoordinationMetaData(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
                 hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
             } else {
-                // empty diff
-                hashesOfConsistentSettings = new DiffableStringMap(Collections.emptyMap())
-                        .diff(new DiffableStringMap(Collections.emptyMap()));
+                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
             }
             indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexMetaData::readFrom,
                 IndexMetaData::readDiffFrom);
@@ -876,7 +874,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             coordinationMetaData.writeTo(out);
             Settings.writeSettingsToStream(transientSettings, out);
             Settings.writeSettingsToStream(persistentSettings, out);
-            if (out.getVersion().onOrAfter(Version.CURRENT)) {
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
                 hashesOfConsistentSettings.writeTo(out);
             }
             indices.writeTo(out);
@@ -909,7 +907,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         builder.coordinationMetaData(new CoordinationMetaData(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             builder.hashesOfConsistentSettings(new DiffableStringMap(in));
         }
         int size = in.readVInt();
@@ -936,7 +934,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         coordinationMetaData.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             hashesOfConsistentSettings.writeTo(out);
         }
         out.writeVInt(indices.size());

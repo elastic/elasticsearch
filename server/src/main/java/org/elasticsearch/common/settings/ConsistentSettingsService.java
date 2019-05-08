@@ -59,7 +59,7 @@ public final class ConsistentSettingsService {
     private final Settings settings;
     private final ClusterService clusterService;
     private final Collection<Setting<?>> secureSettingsCollection;
-    private final SecretKeyFactory PBKDF2KeyFactory;
+    private final SecretKeyFactory pbkdf2KeyFactory;
 
     public ConsistentSettingsService(Settings settings, ClusterService clusterService,
                                      Collection<Setting<?>> secureSettingsCollection) {
@@ -68,7 +68,7 @@ public final class ConsistentSettingsService {
         this.secureSettingsCollection = secureSettingsCollection;
         // this is used to compute the PBKDF2 hash (the published one)
         try {
-            this.PBKDF2KeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+            this.pbkdf2KeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("The \"PBKDF2WithHmacSHA512\" algorithm is required for consistent secure settings' hashes", e);
         }
@@ -92,7 +92,7 @@ public final class ConsistentSettingsService {
                         final Map<String, String> publishedHashesOfConsistentSettings = currentState.metaData()
                                 .hashesOfConsistentSettings();
                         if (computedHashesOfConsistentSettings.equals(publishedHashesOfConsistentSettings)) {
-                            logger.debug("Nothing to publish. What is already published matches this master's view.");
+                            logger.debug("Nothing to publish. What is already published matches this node's view.");
                             return currentState;
                         } else {
                             return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
@@ -133,7 +133,7 @@ public final class ConsistentSettingsService {
         final AtomicBoolean allConsistent = new AtomicBoolean(true);
         forEachConcreteSecureSettingDo(concreteSecureSetting -> {
             final String publishedSaltAndHash = publishedHashesOfConsistentSettings.get(concreteSecureSetting.getKey());
-            final byte[] localHash = concreteSecureSetting.getSecretValueSHA256(settings);
+            final byte[] localHash = concreteSecureSetting.getSecretDigest(settings);
             if (publishedSaltAndHash == null && localHash == null) {
                 // consistency of missing
                 logger.debug("no published hash for the consistent secure setting [{}] but it also does NOT exist on the local node",
@@ -214,7 +214,7 @@ public final class ConsistentSettingsService {
     private Map<String, String> computeHashesOfConsistentSecureSettings() {
         final Map<String, String> hashesBySettingKey = new HashMap<>();
         forEachConcreteSecureSettingDo(concreteSecureSetting -> {
-            final byte[] localHash = concreteSecureSetting.getSecretValueSHA256(settings);
+            final byte[] localHash = concreteSecureSetting.getSecretDigest(settings);
             if (localHash != null) {
                 final String salt = UUIDs.randomBase64UUID();
                 final byte[] publicHash = computeSaltedPBKDF2Hash(localHash, salt.getBytes(StandardCharsets.UTF_8));
@@ -232,7 +232,7 @@ public final class ConsistentSettingsService {
         try {
             value = MessageDigests.toHexCharArray(bytes);
             final PBEKeySpec spec = new PBEKeySpec(value, salt, iterations, keyLength);
-            final SecretKey key = PBKDF2KeyFactory.generateSecret(spec);
+            final SecretKey key = pbkdf2KeyFactory.generateSecret(spec);
             return key.getEncoded();
         } catch (InvalidKeySpecException e) {
             throw new RuntimeException("Unexpected exception when computing PBKDF2 hash", e);

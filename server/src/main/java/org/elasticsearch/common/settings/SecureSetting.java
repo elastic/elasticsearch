@@ -97,7 +97,12 @@ public abstract class SecureSetting<T> extends Setting<T> {
         }
     }
 
-    public byte[] getSecretValueSHA256(Settings settings) {
+    /**
+     * Returns the digest of this secure setting's value. This method can be called at all times, there is no requirement that
+     * {@code SecureSettings} be open, unlike {@code #get(Settings)}. The digest is used to check for changes of the value, without
+     * actually storing the value.
+     */
+    public byte[] getSecretDigest(Settings settings) {
         final SecureSettings secureSettings = settings.getSecureSettings();
         if (secureSettings == null || false == secureSettings.getSettingNames().contains(getKey())) {
             return null;

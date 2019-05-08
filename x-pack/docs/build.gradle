@@ -82,7 +82,6 @@ integTestCluster {
     setting 'xpack.security.authc.realms.file.file.order', '0'
     setting 'xpack.security.authc.realms.native.native.order', '1'
     setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
-    setting 'xpack.security.authc.realms.oidc.oidc1.op.name', 'c2id-implicit'
     setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
     setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
     setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"

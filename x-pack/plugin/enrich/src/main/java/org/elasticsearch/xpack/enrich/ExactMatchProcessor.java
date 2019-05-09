@@ -11,8 +11,10 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
@@ -29,8 +31,9 @@ import java.util.function.Function;
 
 final class ExactMatchProcessor extends AbstractProcessor {
 
-    private final Function<String, EnrichPolicy> policyLookup;
-    private final Function<String, Engine.Searcher> searchProvider;
+    static final String ENRICH_KEY_FIELD_NAME = "enrich_key_field";
+
+    private final Function<String, Tuple<IndexMetaData, Engine.Searcher>> searchProvider;
 
     private final String policyName;
     private final String enrichKey;
@@ -38,14 +41,12 @@ final class ExactMatchProcessor extends AbstractProcessor {
     private final List<EnrichSpecification> specifications;
 
     ExactMatchProcessor(String tag,
-                        Function<String, EnrichPolicy> policyLookup,
-                        Function<String, Engine.Searcher> searchProvider,
+                        Function<String, Tuple<IndexMetaData, Engine.Searcher>> searchProvider,
                         String policyName,
                         String enrichKey,
                         boolean ignoreMissing,
                         List<EnrichSpecification> specifications) {
         super(tag);
-        this.policyLookup = policyLookup;
         this.searchProvider = searchProvider;
         this.policyName = policyName;
         this.enrichKey = enrichKey;
@@ -55,18 +56,16 @@ final class ExactMatchProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        final EnrichPolicy policy = policyLookup.apply(policyName);
-        if (policy == null) {
-            throw new IllegalArgumentException("policy [" + policyName + "] does not exists");
-        }
-
         final String value = ingestDocument.getFieldValue(enrichKey, String.class, ignoreMissing);
         if (value == null) {
             return ingestDocument;
         }
 
         // TODO: re-use the engine searcher between enriching documents from the same write request
-        try (Engine.Searcher engineSearcher = searchProvider.apply(policy.getBaseName(policyName))) {
+        Tuple<IndexMetaData, Engine.Searcher> tuple = searchProvider.apply(EnrichPolicy.getBaseName(policyName));
+        String enrichKeyField = getEnrichKeyField(tuple.v1());
+
+        try (Engine.Searcher engineSearcher = tuple.v2()) {
             if (engineSearcher.getDirectoryReader().leaves().size() == 0) {
                 return ingestDocument;
             } else if (engineSearcher.getDirectoryReader().leaves().size() != 1) {
@@ -74,9 +73,9 @@ final class ExactMatchProcessor extends AbstractProcessor {
             }
 
             final LeafReader leafReader = engineSearcher.getDirectoryReader().leaves().get(0).reader();
-            final Terms terms = leafReader.terms(policy.getEnrichKey());
+            final Terms terms = leafReader.terms(enrichKeyField);
             if (terms == null) {
-                throw new IllegalStateException("enrich key field [" + policy.getEnrichKey() + "] does not exist");
+                throw new IllegalStateException("enrich key field does not exist");
             }
 
             final TermsEnum tenum = terms.iterator();
@@ -123,5 +122,23 @@ final class ExactMatchProcessor extends AbstractProcessor {
 
     List<EnrichSpecification> getSpecifications() {
         return specifications;
+    }
+
+    private static String getEnrichKeyField(IndexMetaData imd) {
+        if (imd == null) {
+            throw new IllegalStateException("enrich index is missing");
+        }
+
+        Map<String, Object> mappingSource = imd.mapping().getSourceAsMap();
+        Map<?, ?> meta = (Map<?, ?>) mappingSource.get("_meta");
+        if (meta == null) {
+            throw new IllegalStateException("_meta field is missing in enrich index");
+        }
+
+        String fieldName = (String) meta.get(ENRICH_KEY_FIELD_NAME);
+        if (fieldName == null) {
+            throw new IllegalStateException("enrich key fieldname missing");
+        }
+        return fieldName;
     }
 }

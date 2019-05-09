@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.Processor;
@@ -22,10 +24,10 @@ final class EnrichProcessorFactory implements Processor.Factory {
     static final String TYPE = "enrich";
 
     private final Function<String, EnrichPolicy> policyLookup;
-    private final Function<String, Engine.Searcher> searchProvider;
+    private final Function<String, Tuple<IndexMetaData, Engine.Searcher>> searchProvider;
 
     EnrichProcessorFactory(Supplier<ClusterState> clusterStateSupplier,
-                           Function<String, Engine.Searcher> searchProvider) {
+                           Function<String, Tuple<IndexMetaData, Engine.Searcher>> searchProvider) {
         this.policyLookup = policyName -> EnrichStore.getPolicy(policyName, clusterStateSupplier.get());
         this.searchProvider = searchProvider;
     }
@@ -57,7 +59,7 @@ final class EnrichProcessorFactory implements Processor.Factory {
 
         switch (policy.getType()) {
             case EnrichPolicy.EXACT_MATCH_TYPE:
-                return new ExactMatchProcessor(tag, policyLookup, searchProvider, policyName, enrichKey, ignoreMissing, specifications);
+                return new ExactMatchProcessor(tag, searchProvider, policyName, enrichKey, ignoreMissing, specifications);
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policy.getType() + "]");
         }

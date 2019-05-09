@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
@@ -118,7 +119,17 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             }
         });
     }
+
+    @Deprecated
     protected abstract Response newResponse();
+
+    protected Writeable.Reader<Response> getResponseReader() {
+        return in -> {
+            Response response = newResponse();
+            response.readFrom(in);
+            return response;
+        };
+    }
 
     protected abstract boolean resolveIndex(Request request);
 
@@ -182,13 +193,12 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         public void start() {
             if (shardIt == null) {
                 // just execute it on the local node
+                final Writeable.Reader<Response> reader = getResponseReader();
                 transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(),
                     new TransportResponseHandler<Response>() {
                     @Override
                     public Response read(StreamInput in) throws IOException {
-                        Response response = newResponse();
-                        response.readFrom(in);
-                        return response;
+                        return reader.read(in);
                     }
 
                     @Override
@@ -251,14 +261,13 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                             node
                     );
                 }
+                final Writeable.Reader<Response> reader = getResponseReader();
                 transportService.sendRequest(node, transportShardAction, internalRequest.request(),
                     new TransportResponseHandler<Response>() {
 
                         @Override
                         public Response read(StreamInput in) throws IOException {
-                            Response response = newResponse();
-                            response.readFrom(in);
-                            return response;
+                            return reader.read(in);
                         }
 
                         @Override

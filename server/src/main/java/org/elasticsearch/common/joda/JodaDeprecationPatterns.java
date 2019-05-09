@@ -52,6 +52,6 @@ public class JodaDeprecationPatterns {
                                                       .filter(s -> format.contains(s.getKey()))
                                                       .map(s -> s.getValue())
                                                       .collect(Collectors.joining("; "));
-        return suggestion + USE_PREFIX_8_WARNING;
+        return suggestion;
     }
 }

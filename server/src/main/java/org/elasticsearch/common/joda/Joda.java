@@ -270,7 +270,8 @@ public class Joda {
     private static void maybeLogJodaDeprecation(String format) {
         if (JodaDeprecationPatterns.isDeprecatedFormat(format)) {
             String suggestion = JodaDeprecationPatterns.formatSuggestion(format);
-            deprecationLogger.deprecatedAndMaybeLog("joda-pattern-deprecation", suggestion);
+            deprecationLogger.deprecatedAndMaybeLog("joda-pattern-deprecation",
+                suggestion + " " + JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
         }
     }
 

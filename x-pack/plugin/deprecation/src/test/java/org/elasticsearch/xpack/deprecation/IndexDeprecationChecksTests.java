@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
@@ -472,8 +473,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                  "[type: _doc, field: date_time_field_Z, format: HH:mmZ, " +
                 "suggestion: 'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'.], "+
                  "[type: _doc, field: date_time_field_z, format: HH:mmz, " +
-                "suggestion: 'z' time zone text. Will print 'Z' for Zulu given UTC timezone.]"+
-                "]");
+                "suggestion: 'z' time zone text. Will print 'Z' for Zulu given UTC timezone." +
+                "]"+
+                "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertEquals(singletonList(expected), issues);
     }
@@ -507,7 +509,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "'C' century of era is no longer supported.; " +
                 "'x' weak-year becomes 'Y'. Use 'x' for zone-offset." +
                 "]"+
-                "]");
+                "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertEquals(singletonList(expected), issues);
     }

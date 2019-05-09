@@ -26,18 +26,10 @@ public class JavaHome {
         return version;
     }
 
-    public void setVersion(Integer version) {
-        this.version = version;
-    }
-
     @InputDirectory
     @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
     public File getJavaHome() {
         return javaHome;
-    }
-
-    public void setJavaHome(File javaHome) {
-        this.javaHome = javaHome;
     }
 }

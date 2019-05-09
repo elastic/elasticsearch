@@ -77,6 +77,14 @@ final class JvmErgonomics {
     }
 
     private static List<String> flagsFinal(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
+        /*
+         * To deduce the final set of JVM options that Elasticsearch is going to start with, we start a separate Java process with the JVM
+         * options that we would pass on the command line. For this Java process we will add two additional flags, -XX:+PrintFlagsFinal and
+         * -version. This causes the Java process that we start to parse the JVM options into their final values, display them on standard
+         * output, print the version to standard error, and then exit. The JVM itself never bootstraps, and therefore this process is
+         * lightweight. By doing this, we get the JVM options parsed exactly as the JVM that we are going to execute would parse them
+         * without having to implement our own JVM option parsing logic.
+         */
         final String java = Path.of(System.getProperty("java.home"), "bin", "java").toString();
         final List<String> command =
                 Stream.of(Stream.of(java), userDefinedJvmOptions.stream(), Stream.of("-XX:+PrintFlagsFinal"), Stream.of("-version"))

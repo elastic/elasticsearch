@@ -120,16 +120,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         });
     }
 
-    @Deprecated
-    protected abstract Response newResponse();
-
-    protected Writeable.Reader<Response> getResponseReader() {
-        return in -> {
-            Response response = newResponse();
-            response.readFrom(in);
-            return response;
-        };
-    }
+    protected abstract Writeable.Reader<Response> getResponseReader();
 
     protected abstract boolean resolveIndex(Request request);
 

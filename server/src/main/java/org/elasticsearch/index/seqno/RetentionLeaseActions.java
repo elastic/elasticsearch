@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -119,8 +120,8 @@ public class RetentionLeaseActions {
         abstract void doRetentionLeaseAction(IndexShard indexShard, T request, ActionListener<Response> listener);
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected Writeable.Reader<Response> getResponseReader() {
+            return Response::new;
         }
 
         @Override
@@ -169,6 +170,10 @@ public class RetentionLeaseActions {
                         ActionListener.map(listener, r -> new Response()));
             }
 
+            @Override
+            protected Writeable.Reader<Response> getResponseReader() {
+                return Response::new;
+            }
         }
 
         @Override
@@ -392,6 +397,12 @@ public class RetentionLeaseActions {
 
     public static class Response extends ActionResponse {
 
+        public Response() {
+        }
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
 }

@@ -567,7 +567,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.shardId = ShardId.readShardId(in);
+            this.shardId = new ShardId(in);
         }
 
         public ShardId shardId() {
@@ -647,7 +647,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             expectedCommitId = new Engine.CommitId(in);
             syncId = in.readString();
         }
@@ -749,7 +749,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         }
 
         @Override

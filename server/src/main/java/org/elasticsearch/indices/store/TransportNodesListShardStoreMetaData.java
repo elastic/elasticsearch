@@ -203,7 +203,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             this.metadataSnapshot = new Store.MetadataSnapshot(in);
         }
 
@@ -245,7 +245,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         }
 
         @Override
@@ -288,7 +288,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         }
 
         @Override

@@ -302,7 +302,7 @@ public class RetentionLeaseActions {
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             id = in.readString();
         }
 

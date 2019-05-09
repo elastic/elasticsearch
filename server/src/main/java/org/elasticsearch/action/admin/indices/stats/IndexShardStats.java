@@ -90,7 +90,7 @@ public class IndexShardStats implements Iterable<ShardStats>, Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         int shardSize = in.readVInt();
         shards = new ShardStats[shardSize];
         for (int i = 0; i < shardSize; i++) {

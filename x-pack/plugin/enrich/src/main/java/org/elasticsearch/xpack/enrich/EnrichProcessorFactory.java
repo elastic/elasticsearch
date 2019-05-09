@@ -13,27 +13,24 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-final class EnrichProcessorFactory implements Processor.Factory {
+final class EnrichProcessorFactory implements Processor.Factory, Consumer<ClusterState> {
 
     static final String TYPE = "enrich";
-
-    private final Function<String, EnrichPolicy> policyLookup;
     private final Function<String, Engine.Searcher> searchProvider;
+    volatile Map<String, EnrichPolicy> policies = Map.of();
 
-    EnrichProcessorFactory(Supplier<ClusterState> clusterStateSupplier,
-                           Function<String, Engine.Searcher> searchProvider) {
-        this.policyLookup = policyName -> EnrichStore.getPolicy(policyName, clusterStateSupplier.get());
+    EnrichProcessorFactory(Function<String, Engine.Searcher> searchProvider) {
         this.searchProvider = searchProvider;
     }
 
     @Override
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
-        EnrichPolicy policy = policyLookup.apply(policyName);
+        EnrichPolicy policy = policies.get(policyName);
         if (policy == null) {
             throw new IllegalArgumentException("policy [" + policyName + "] does not exists");
         }
@@ -57,10 +54,24 @@ final class EnrichProcessorFactory implements Processor.Factory {
 
         switch (policy.getType()) {
             case EnrichPolicy.EXACT_MATCH_TYPE:
-                return new ExactMatchProcessor(tag, policyLookup, searchProvider, policyName, enrichKey, ignoreMissing, specifications);
+                return new ExactMatchProcessor(tag, s -> policies.get(s), searchProvider, policyName, enrichKey,
+                    ignoreMissing, specifications);
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policy.getType() + "]");
         }
+    }
+
+    @Override
+    public void accept(ClusterState state) {
+        final EnrichMetadata enrichMetadata = state.metaData().custom(EnrichMetadata.TYPE);
+        if (enrichMetadata == null) {
+            return;
+        }
+        if (policies.equals(enrichMetadata.getPolicies())) {
+            return;
+        }
+
+        policies = enrichMetadata.getPolicies();
     }
 
     static final class EnrichSpecification {

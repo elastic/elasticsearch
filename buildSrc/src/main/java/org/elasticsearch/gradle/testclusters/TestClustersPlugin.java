@@ -302,7 +302,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     public void execute(Task task) {
                         project.getRootProject().getConfigurations()
                             .matching(config -> config.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
-                            .forEach(config -> project.sync(spec ->
+                            .forEach(config -> project.copy(spec ->
                                 config.getResolvedConfiguration()
                                     .getResolvedArtifacts()
                                     .forEach(resolvedArtifact -> {

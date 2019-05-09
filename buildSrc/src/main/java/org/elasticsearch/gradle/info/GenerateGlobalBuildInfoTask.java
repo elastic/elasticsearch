@@ -171,7 +171,6 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         return runJavaAsScript(javaHome, versionScript);
     }
 
-
     /**
      * Runs the given javascript using jjs from the jdk, and returns the output
      */

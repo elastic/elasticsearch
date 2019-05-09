@@ -79,45 +79,9 @@ public final class ConsistentSettingsService {
      * published by the master node only. Note that this is not designed for {@link SecureSettings} implementations that are mutable.
      */
     public LocalNodeMasterListener newHashPublisher() {
-        return new LocalNodeMasterListener() {
-
-            // eagerly compute hashes to be published
-            final Map<String, String> computedHashesOfConsistentSettings = computeHashesOfConsistentSecureSettings();
-
-            @Override
-            public void onMaster() {
-                clusterService.submitStateUpdateTask("publish-secure-settings-hashes", new ClusterStateUpdateTask(Priority.URGENT) {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        final Map<String, String> publishedHashesOfConsistentSettings = currentState.metaData()
-                                .hashesOfConsistentSettings();
-                        if (computedHashesOfConsistentSettings.equals(publishedHashesOfConsistentSettings)) {
-                            logger.debug("Nothing to publish. What is already published matches this node's view.");
-                            return currentState;
-                        } else {
-                            return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
-                                    .hashesOfConsistentSettings(computedHashesOfConsistentSettings)).build();
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        logger.error("unable to publish secure settings hashes", e);
-                    }
-
-                });
-            }
-
-            @Override
-            public void offMaster() {
-                logger.trace("I am no longer master, nothing to do");
-            }
-
-            @Override
-            public String executorName() {
-                return ThreadPool.Names.SAME;
-            }
-        };
+        // eagerly compute hashes to be published
+        final Map<String, String> computedHashesOfConsistentSettings = computeHashesOfConsistentSecureSettings();
+        return new HashesPublisher(computedHashesOfConsistentSettings, clusterService);
     }
 
     /**
@@ -240,6 +204,52 @@ public final class ConsistentSettingsService {
             if (value != null) {
                 Arrays.fill(value, '0');
             }
+        }
+    }
+
+    static final class HashesPublisher implements LocalNodeMasterListener {
+
+        // eagerly compute hashes to be published
+        final Map<String, String> computedHashesOfConsistentSettings;
+        final ClusterService clusterService;
+
+        HashesPublisher(Map<String, String> computedHashesOfConsistentSettings, ClusterService clusterService) {
+            this.computedHashesOfConsistentSettings = Map.copyOf(computedHashesOfConsistentSettings);
+            this.clusterService = clusterService;
+        }
+
+        @Override
+        public void onMaster() {
+            clusterService.submitStateUpdateTask("publish-secure-settings-hashes", new ClusterStateUpdateTask(Priority.URGENT) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    final Map<String, String> publishedHashesOfConsistentSettings = currentState.metaData()
+                            .hashesOfConsistentSettings();
+                    if (computedHashesOfConsistentSettings.equals(publishedHashesOfConsistentSettings)) {
+                        logger.debug("Nothing to publish. What is already published matches this node's view.");
+                        return currentState;
+                    } else {
+                        return ClusterState.builder(currentState).metaData(MetaData.builder(currentState.metaData())
+                                .hashesOfConsistentSettings(computedHashesOfConsistentSettings)).build();
+                    }
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error("unable to publish secure settings hashes", e);
+                }
+
+            });
+        }
+
+        @Override
+        public void offMaster() {
+            logger.trace("I am no longer master, nothing to do");
+        }
+
+        @Override
+        public String executorName() {
+            return ThreadPool.Names.SAME;
         }
     }
 

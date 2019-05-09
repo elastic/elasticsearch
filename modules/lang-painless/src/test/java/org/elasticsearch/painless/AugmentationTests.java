@@ -235,7 +235,7 @@ public class AugmentationTests extends ScriptTestCase {
             //System.out.println(String.format("Splitting '%s' by '%s' %d times", split.input, split.token, split.count));
             assertArrayEquals(
                 split.input.split(Pattern.quote(split.token), split.count),
-                (String[])exec(String.format("return \"%s\".splitOnToken(\"%s\", %d);", split.input, split.token, split.count))
+                (String[])exec("return \""+split.input+"\".splitOnToken(\""+split.token+"\", "+split.count+");")
             );
         }
     }

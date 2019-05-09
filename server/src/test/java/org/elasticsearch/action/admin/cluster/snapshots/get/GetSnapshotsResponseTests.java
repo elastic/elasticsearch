@@ -59,6 +59,6 @@ public class GetSnapshotsResponseTests extends AbstractStreamableXContentTestCas
                 System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean()));
 
         }
-        return new GetSnapshotsResponse(snapshots);
+        return new GetSnapshotsResponse(snapshots, Collections.emptyList());
     }
 }

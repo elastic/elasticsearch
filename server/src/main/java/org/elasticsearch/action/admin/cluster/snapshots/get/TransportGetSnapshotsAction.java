@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
+import org.apache.logging.log4j.core.util.Throwables;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
@@ -51,6 +53,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 /**
@@ -92,8 +96,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 new ActionListenerResponseHandler<>(
                         ActionListener.wrap(
                                 response ->
-                                    // We need to switch back to GENERIC thread pool, because we can work with BlobStoreRepository
-                                    // only on GENERIC or SNAPSHOT thread pool
+                                    // switch to GENERIC thread pool because it might be long running operation
                                     threadPool.executor(ThreadPool.Names.GENERIC).execute(
                                             () -> getMultipleReposSnapshotInfo(response.repositories(), request.snapshots(),
                                                     request.ignoreUnavailable(), request.verbose(), listener)),
@@ -103,15 +106,39 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private void getMultipleReposSnapshotInfo(List<RepositoryMetaData> repos, String[] snapshots, boolean ignoreUnavailable,
                                               boolean verbose, ActionListener<GetSnapshotsResponse> listener) {
-        ActionListener.completeWith(listener, () -> {
-            List<SnapshotInfo> snapshotInfos = new ArrayList<>();
-            for (RepositoryMetaData repo : repos) {
-                snapshotInfos.addAll(
-                        getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose));
+        List<Future<List<SnapshotInfo>>> futures = new ArrayList<>(repos.size());
+
+        // run concurrently for all repos on SNAPSHOT thread pool
+        for (final RepositoryMetaData repo : repos) {
+            futures.add(threadPool.executor(ThreadPool.Names.SNAPSHOT).submit(
+                    () -> getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose)));
+        }
+        List<SnapshotInfo> snapshotInfos = new ArrayList<>();
+        List<GetSnapshotResponseFailureItem> failures = new ArrayList<>();
+        assert repos.size() == futures.size();
+
+        for (int i = 0; i < repos.size(); i++) {
+            try {
+                snapshotInfos.addAll(futures.get(i).get());
+            } catch (InterruptedException e) {
+                Throwables.rethrow(e);
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof ElasticsearchException) {
+                    failures.add(new GetSnapshotResponseFailureItem(repos.get(i).name(), (ElasticsearchException) e.getCause()));
+                } else {
+                    Throwables.rethrow(e);
+                }
             }
-            CollectionUtil.timSort(snapshotInfos);
-            return new GetSnapshotsResponse(snapshotInfos);
-        });
+        }
+        CollectionUtil.timSort(snapshotInfos);
+        CollectionUtil.timSort(failures);
+
+        // We need to preserve pre 7.2 BwC - if there is a single repo and it has failed, fail the whole request
+        if (snapshotInfos.size() == 0 && failures.size() == 1) {
+            listener.onFailure(failures.get(0).getError());
+        } else {
+            listener.onResponse(new GetSnapshotsResponse(snapshotInfos, failures));
+        }
     }
 
     private List<SnapshotInfo> getSingleRepoSnapshotInfo(String repo, String[] snapshots, boolean ignoreUnavailable, boolean verbose) {

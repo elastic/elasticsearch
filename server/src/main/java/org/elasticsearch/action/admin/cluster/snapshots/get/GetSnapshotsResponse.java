@@ -44,20 +44,24 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER =
         new ConstructingObjectParser<>(GetSnapshotsResponse.class.getName(), true,
-            (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0]));
+            (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0], (List<GetSnapshotResponseFailureItem>)args[1]));
 
     static {
         GET_SNAPSHOT_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
             (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(), new ParseField("snapshots"));
+        GET_SNAPSHOT_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                (p, c) -> GetSnapshotResponseFailureItem.PARSER.apply(p, c), new ParseField("failures"));
     }
 
     private List<SnapshotInfo> snapshots = Collections.emptyList();
+    private List<GetSnapshotResponseFailureItem> failures = Collections.emptyList();
 
     GetSnapshotsResponse() {
     }
 
-    GetSnapshotsResponse(List<SnapshotInfo> snapshots) {
+    GetSnapshotsResponse(List<SnapshotInfo> snapshots, List<GetSnapshotResponseFailureItem> failures) {
         this.snapshots = Collections.unmodifiableList(snapshots);
+        this.failures = failures;
     }
 
     /**
@@ -69,15 +73,33 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         return snapshots;
     }
 
+    /**
+     * Returns the list of failures
+     *
+     * @return the list of failed repositories
+     */
+    public List<GetSnapshotResponseFailureItem> getFailures() {
+        return failures;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        int size = in.readVInt();
-        List<SnapshotInfo> builder = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            builder.add(new SnapshotInfo(in));
+        int snapshotsSize = in.readVInt();
+        List<SnapshotInfo> snapshotsBuilder = new ArrayList<>(snapshotsSize);
+        for (int i = 0; i < snapshotsSize; i++) {
+            snapshotsBuilder.add(new SnapshotInfo(in));
         }
-        snapshots = Collections.unmodifiableList(builder);
+        snapshots = Collections.unmodifiableList(snapshotsBuilder);
+
+        if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            int failuresSize = in.readVInt();
+            List<GetSnapshotResponseFailureItem> failuresBuilder = new ArrayList<>();
+            for (int i = 0; i < failuresSize; i++) {
+                failuresBuilder.add(new GetSnapshotResponseFailureItem(in));
+            }
+            failures = Collections.unmodifiableList(failuresBuilder);
+        }
     }
 
     @Override
@@ -87,6 +109,12 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         for (SnapshotInfo snapshotInfo : snapshots) {
             snapshotInfo.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            out.writeVInt(failures.size());
+            for (GetSnapshotResponseFailureItem failureItem : failures) {
+                failureItem.writeTo(out);
+            }
+        }
     }
 
     @Override
@@ -95,6 +123,11 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         builder.startArray("snapshots");
         for (SnapshotInfo snapshotInfo : snapshots) {
             snapshotInfo.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.startArray("failures");
+        for (GetSnapshotResponseFailureItem failure : failures) {
+            failure.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();
@@ -110,11 +143,11 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSnapshotsResponse that = (GetSnapshotsResponse) o;
-        return Objects.equals(snapshots, that.snapshots);
+        return Objects.equals(snapshots, that.snapshots) && Objects.equals(failures, that.failures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshots);
+        return Objects.hash(snapshots, failures);
     }
 }

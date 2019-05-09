@@ -228,11 +228,11 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
 
 
     public Map<String, DocumentField> getMetadataFields() {
-        return new HashMap<>(metaFields);
+        return metaFields;
     }
 
     public Map<String, DocumentField> getDocumentFields() {
-        return new HashMap<>(documentFields);
+        return documentFields;
     }
 
     public Map<String, DocumentField> getFields() {

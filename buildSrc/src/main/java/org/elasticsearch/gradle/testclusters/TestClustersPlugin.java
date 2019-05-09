@@ -290,6 +290,33 @@ public class TestClustersPlugin implements Plugin<Project> {
                     project.delete(getExtractDir(rootProject));
                 }
             });
+            onCreate.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        project.getConfigurations()
+                            .matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+                            .forEach(config -> project.copy(spec ->
+                                config.getResolvedConfiguration()
+                                    .getResolvedArtifacts()
+                                    .forEach(resolvedArtifact -> {
+                                        final FileTree files;
+                                        File file = resolvedArtifact.getFile();
+                                        if (file.getName().endsWith(".zip")) {
+                                            files = project.zipTree(file);
+                                        } else if (file.getName().endsWith("tar.gz")) {
+                                            files = project.tarTree(file);
+                                        } else {
+                                            throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
+                                        }
+                                        spec.from(files, s -> s.into(resolvedArtifact.getModuleVersion().getId().getGroup()));
+                                        spec.into(getExtractDir(project));
+                                    }))
+                            );
+                    }
+            });
+            onCreate.getInputs().files(
+                project.getConfigurations().matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+            );
         });
 
         // When the project evaluated we know of all tasks that use clusters.
@@ -347,29 +374,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                             distribution.getFileExtension());
 
                 }
-
-                sync.getInputs().files(helperConfiguration);
-                // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
-                sync.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        project.copy(spec ->
-                            helperConfiguration.getResolvedConfiguration().getResolvedArtifacts().forEach(resolvedArtifact -> {
-                                final FileTree files;
-                                File file = resolvedArtifact.getFile();
-                                if (file.getName().endsWith(".zip")) {
-                                    files = project.zipTree(file);
-                                } else if (file.getName().endsWith("tar.gz")) {
-                                    files = project.tarTree(file);
-                                } else {
-                                    throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
-                                }
-
-                                spec.from(files, s -> s.into(resolvedArtifact.getModuleVersion().getId().getGroup()));
-                                spec.into(getExtractDir(project));
-                            }));
-                    }
-                });
             })));
     }
 

@@ -87,8 +87,9 @@ public final class AggregationResultUtils {
                 } else {
                     // Execution should never reach this point!
                     // Creating transforms with unsupported aggregations shall not be possible
-                    logger.error("Dataframe Internal Error: unsupported aggregation ["+ aggResult.getName() +"], ignoring");
-                    assert false;
+                    throw new AggregationExtractionException("unsupported aggregation [{}] with name [{}]",
+                        aggResult.getType(),
+                        aggResult.getName());
                 }
             }
 

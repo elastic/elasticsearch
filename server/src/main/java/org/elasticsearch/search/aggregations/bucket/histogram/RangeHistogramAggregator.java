@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -161,4 +162,8 @@ public class RangeHistogramAggregator extends BucketsAggregator {
             pipelineAggregators(), metaData());
     }
 
+    @Override
+    public void doClose() {
+        Releasables.close(bucketOrds);
+    }
 }

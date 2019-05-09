@@ -24,8 +24,9 @@ class SchemaCompositeAggsRowSet extends CompositeAggsRowSet implements SchemaRow
 
     SchemaCompositeAggsRowSet(Schema schema, List<BucketExtractor> exts, BitSet mask, SearchResponse response, int limitAggs,
             byte[] next,
+            boolean includeFrozen,
             String... indices) {
-        super(exts, mask, response, limitAggs, next, indices);
+        super(exts, mask, response, limitAggs, next, includeFrozen, indices);
         this.schema = schema;
     }
 

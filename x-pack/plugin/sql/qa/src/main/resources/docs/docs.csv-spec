@@ -93,11 +93,11 @@ showTables
 // tag::showTables
 SHOW TABLES;
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW          
-library        |BASE TABLE 
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS          
+library        |BASE TABLE     |INDEX    
 
 // end::showTables
 ;
@@ -106,9 +106,9 @@ showTablesLikeExact
 // tag::showTablesLikeExact
 SHOW TABLES LIKE 'emp';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX    
 
 // end::showTablesLikeExact
 ;
@@ -117,10 +117,10 @@ showTablesLikeWildcard
 // tag::showTablesLikeWildcard
 SHOW TABLES LIKE 'emp%';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW          
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS             
 
 // end::showTablesLikeWildcard
 ;
@@ -130,9 +130,9 @@ showTablesLikeOneChar
 // tag::showTablesLikeOneChar
 SHOW TABLES LIKE 'em_';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX     
 
 // end::showTablesLikeOneChar
 ;
@@ -141,20 +141,20 @@ showTablesLikeMixed
 // tag::showTablesLikeMixed
 SHOW TABLES LIKE '%em_';
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX        
 
 // end::showTablesLikeMixed
 ;
 
 showTablesLikeEscape
-schema::name:s|type:s
+schema::name:s|type:s|kind:s
 // tag::showTablesLikeEscape
 SHOW TABLES LIKE 'emp!%' ESCAPE '!';
 
-     name      |     type      
----------------+---------------
+     name      |     type      |     kind      
+---------------+---------------+---------------
 
 // end::showTablesLikeEscape
 ;
@@ -164,10 +164,10 @@ showTablesEsMultiIndex
 // tag::showTablesEsMultiIndex
 SHOW TABLES "*,-l*";
 
-     name      |     type      
----------------+---------------
-emp            |BASE TABLE     
-employees      |VIEW
+     name      |     type      |     kind      
+---------------+---------------+---------------
+emp            |BASE TABLE     |INDEX          
+employees      |VIEW           |ALIAS  
 
 // end::showTablesEsMultiIndex
 ;

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Helper methods for access and storage of an enrich policy.
@@ -43,9 +44,11 @@ public final class EnrichStore {
         }
         // TODO: add policy validation
 
-        final Map<String, EnrichPolicy> policies = getPolicies(clusterService.state());
-        policies.put(name, policy);
-        updateClusterState(policies, clusterService, handler);
+        updateClusterState(clusterService, handler, current -> {
+            final Map<String, EnrichPolicy> policies = getPolicies(current);
+            policies.put(name, policy);
+            return policies;
+        });
     }
 
     /**
@@ -62,13 +65,15 @@ public final class EnrichStore {
             throw new IllegalArgumentException("name is missing or empty");
         }
 
-        final Map<String, EnrichPolicy> policies = getPolicies(clusterService.state());
-        if (policies.containsKey(name) == false) {
-            throw new ResourceNotFoundException("policy [{}] not found", name);
-        }
+        updateClusterState(clusterService, handler, current -> {
+            final Map<String, EnrichPolicy> policies = getPolicies(current);
+            if (policies.containsKey(name) == false) {
+                throw new ResourceNotFoundException("policy [{}] not found", name);
+            }
 
-        policies.remove(name);
-        updateClusterState(policies, clusterService, handler);
+            policies.remove(name);
+            return policies;
+        });
     }
 
     /**
@@ -103,12 +108,14 @@ public final class EnrichStore {
         return policies;
     }
 
-    private static void updateClusterState(Map<String, EnrichPolicy> policies, ClusterService clusterService,
-                                                 Consumer<Exception> handler) {
-        clusterService.submitStateUpdateTask("update-enrich-policy", new ClusterStateUpdateTask() {
+    private static void updateClusterState(ClusterService clusterService,
+                                           Consumer<Exception> handler,
+                                           Function<ClusterState, Map<String, EnrichPolicy>> function) {
+        clusterService.submitStateUpdateTask("update-enrich-metadata", new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                Map<String, EnrichPolicy> policies = function.apply(currentState);
                 MetaData metaData = MetaData.builder(currentState.metaData())
                     .putCustom(EnrichMetadata.TYPE, new EnrichMetadata(policies))
                     .build();

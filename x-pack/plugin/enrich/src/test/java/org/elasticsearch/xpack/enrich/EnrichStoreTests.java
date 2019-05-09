@@ -36,8 +36,9 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
         assertThat(listPolicies.size(), equalTo(1));
         assertThat(listPolicies.get(name), equalTo(policy));
 
-        error = deleteEnrichPolicy(name, clusterService);
-        assertThat(error.get(), nullValue());
+        deleteEnrichPolicy(name, clusterService);
+        result = EnrichStore.getPolicy(name, clusterService.state());
+        assertThat(result, nullValue());
     }
 
     public void testPutValidation() throws Exception {
@@ -110,7 +111,7 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
         return error;
     }
 
-    private AtomicReference<Exception> deleteEnrichPolicy(String name, ClusterService clusterService) throws InterruptedException {
+    private void deleteEnrichPolicy(String name, ClusterService clusterService) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
         EnrichStore.deletePolicy(name, clusterService, e -> {
@@ -118,6 +119,8 @@ public class EnrichStoreTests extends ESSingleNodeTestCase {
             latch.countDown();
         });
         latch.await();
-        return error;
+        if (error.get() != null){
+            throw error.get();
+        }
     }
 }

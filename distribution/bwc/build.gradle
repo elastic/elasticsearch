@@ -238,12 +238,6 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
                 
         createBuildBwcTask(projectName, "${baseDir}/${projectName}", projectArtifact)
     }
-    
-
-    createRunBwcGradleTask("resolveAllBwcDependencies") {
-        args 'resolveAllDependencies'
-    }
-    resolveAllDependencies.dependsOn resolveAllBwcDependencies
 
     for (e in artifactFiles) {
         String projectName = e.key

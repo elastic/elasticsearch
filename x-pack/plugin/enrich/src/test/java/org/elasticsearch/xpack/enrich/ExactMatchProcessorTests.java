@@ -17,8 +17,12 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -26,7 +30,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.enrich.EnrichProcessorFactory.EnrichSpecification;
 
 import java.io.ByteArrayOutputStream;
@@ -35,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.enrich.ExactMatchProcessor.ENRICH_KEY_FIELD_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -51,16 +55,9 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(createEnrichDocument("eops.nl", Map.of("globalRank", 4567, "tldRank", 80, "tld", "nl")));
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
-                    List.of(), "schedule");
-                Function<String, EnrichPolicy> policyLookup = policyName -> policy;
-
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                    IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                    Function<String, Engine.Searcher> searchProvider = index -> new Engine.Searcher("_enrich", indexSearcher, indexReader);
-
                     ExactMatchProcessor processor =
-                        new ExactMatchProcessor("_tag", policyLookup, searchProvider, "_name", "domain", false,
+                        new ExactMatchProcessor("_tag", createSearchProvider(indexReader), "_name", "domain", false,
                             List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
 
                     IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
@@ -71,11 +68,8 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 }
 
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                    IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                    Function<String, Engine.Searcher> searchProvider = index -> new Engine.Searcher("_enrich", indexSearcher, indexReader);
-
                     ExactMatchProcessor processor =
-                        new ExactMatchProcessor("_tag", policyLookup, searchProvider, "_name", "domain", false,
+                        new ExactMatchProcessor("_tag", createSearchProvider(indexReader), "_name", "domain", false,
                             List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
 
                     IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
@@ -99,16 +93,9 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(createEnrichDocument("eops.nl", Map.of("globalRank", 4567, "tldRank", 80, "tld", "nl")));
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
-                    List.of(), "schedule");
-                Function<String, EnrichPolicy> policyLookup = policyName -> policy;
-
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                    IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                    Function<String, Engine.Searcher> searchProvider = index -> new Engine.Searcher("_enrich", indexSearcher, indexReader);
-
                     ExactMatchProcessor processor =
-                        new ExactMatchProcessor("_tag", policyLookup, searchProvider, "_name", "domain", false,
+                        new ExactMatchProcessor("_tag", createSearchProvider(indexReader), "_name", "domain", false,
                             List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
 
                     IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
@@ -131,16 +118,9 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(createEnrichDocument("eops.nl", Map.of("globalRank", 4567, "tldRank", 80, "tld", "nl")));
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
-                    List.of(), "schedule");
-                Function<String, EnrichPolicy> policyLookup = policyName -> policy;
-
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                    IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                    Function<String, Engine.Searcher> searchProvider = index -> new Engine.Searcher("_enrich", indexSearcher, indexReader);
-
                     ExactMatchProcessor processor =
-                        new ExactMatchProcessor("_tag", policyLookup, searchProvider, "_name", "domain", false,
+                        new ExactMatchProcessor("_tag", createSearchProvider(indexReader), "_name", "domain", false,
                             List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
 
                     IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
@@ -159,16 +139,9 @@ public class ExactMatchProcessorTests extends ESTestCase {
             try (IndexWriter indexWriter = new IndexWriter(directory, iwConfig)) {
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
-                    List.of(), "schedule");
-                Function<String, EnrichPolicy> policyLookup = policyName -> policy;
-
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                    IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                    Function<String, Engine.Searcher> searchProvider = index -> new Engine.Searcher("_enrich", indexSearcher, indexReader);
-
                     ExactMatchProcessor processor =
-                        new ExactMatchProcessor("_tag", policyLookup, searchProvider, "_name", "domain", false,
+                        new ExactMatchProcessor("_tag", createSearchProvider(indexReader), "_name", "domain", false,
                             List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
 
                     IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
@@ -191,41 +164,69 @@ public class ExactMatchProcessorTests extends ESTestCase {
                 indexWriter.addDocument(document);
                 indexWriter.commit();
 
-                EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key",
-                    List.of(), "schedule");
-                Function<String, EnrichPolicy> policyLookup = policyName -> policy;
-
                 try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                    IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-                    Function<String, Engine.Searcher> searchProvider = index -> new Engine.Searcher("_enrich", indexSearcher, indexReader);
-
                     ExactMatchProcessor processor =
-                        new ExactMatchProcessor("_tag", policyLookup, searchProvider, "_name", "domain", false,
+                        new ExactMatchProcessor("_tag", createSearchProvider(indexReader), "_name", "domain", false,
                             List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
 
                     IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
                         Map.of("domain", "elastic.co"));
                     Exception e = expectThrows(IllegalStateException.class, () -> processor.execute(ingestDocument));
-                    assertThat(e.getMessage(), equalTo("enrich key field [key] does not exist"));
+                    assertThat(e.getMessage(), equalTo("enrich key field does not exist"));
                 }
             }
         }
     }
 
-    public void testPolicyMissing() {
-        Function<String, EnrichPolicy> policyLookup = policyName -> null;
-        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", policyLookup, indexExpression -> null, "_name", "domain",
-            true, List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
-        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
-        expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+    public void testIndexMetadataMissing() {
+        Function<String, Tuple<IndexMetaData, Engine.Searcher>> provider = indexExpression -> new Tuple<>(null, null);
+        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", provider, "_name", "domain", false,
+            List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
+
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
+            Map.of("domain", "elastic.co"));
+        expectThrows(IllegalStateException.class, () -> processor.execute(ingestDocument));
+    }
+
+    public void testMetaFieldMissing() throws Exception {
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetaData imd = IndexMetaData.builder("majestic_index")
+            .settings(indexSettings)
+            .putMapping("_doc", "{}")
+            .build();
+
+        Function<String, Tuple<IndexMetaData, Engine.Searcher>> provider = indexExpression -> new Tuple<>(imd, null);
+        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", provider, "_name", "domain", false,
+            List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
+
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
+            Map.of("domain", "elastic.co"));
+        expectThrows(IllegalStateException.class, () -> processor.execute(ingestDocument));
+    }
+
+    public void testEnrichKeyFieldNameMissing() throws Exception {
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetaData imd = IndexMetaData.builder("majestic_index")
+            .settings(indexSettings)
+            .putMapping("_doc", "{\"_meta\": {}}")
+            .build();
+
+        Function<String, Tuple<IndexMetaData, Engine.Searcher>> provider = indexExpression -> new Tuple<>(imd, null);
+        ExactMatchProcessor processor = new ExactMatchProcessor("_tag", provider, "_name", "domain", false,
+                List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
+
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL,
+            Map.of("domain", "elastic.co"));
+        expectThrows(IllegalStateException.class, () -> processor.execute(ingestDocument));
     }
 
     public void testIgnoreKeyMissing() throws Exception {
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("majestic_index"), "key", List.of(),
-            "schedule");
-        Function<String, EnrichPolicy> policyLookup = policyName -> policy;
         {
-            ExactMatchProcessor processor = new ExactMatchProcessor("_tag", policyLookup, indexExpression -> null, "_name", "domain",
+            ExactMatchProcessor processor = new ExactMatchProcessor("_tag", ndexExpression -> null, "_name", "domain",
                 true, List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
             IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
 
@@ -234,7 +235,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
             assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(6));
         }
         {
-            ExactMatchProcessor processor = new ExactMatchProcessor("_tag", policyLookup, indexExpression -> null, "_name", "domain",
+            ExactMatchProcessor processor = new ExactMatchProcessor("_tag", indexExpression -> null, "_name", "domain",
                 false, List.of(new EnrichSpecification("tldRank", "tld_rank"), new EnrichSpecification("tld", "tld")));
             IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", "_routing", 1L, VersionType.INTERNAL, Map.of());
             expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
@@ -255,4 +256,17 @@ public class ExactMatchProcessorTests extends ESTestCase {
         return document;
     }
 
+    private static Function<String, Tuple<IndexMetaData, Engine.Searcher>> createSearchProvider(IndexReader indexReader) throws Exception {
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexMetaData imd = IndexMetaData.builder("majestic_index")
+            .settings(indexSettings)
+            .putMapping("_doc", "{\"_meta\": {\"" + ENRICH_KEY_FIELD_NAME +"\": \"key\"}}")
+            .build();
+
+        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        Engine.Searcher searcher = new Engine.Searcher("_enrich", indexSearcher, indexReader);
+        return indexExpression -> new Tuple<>(imd, searcher);
+    }
 }

@@ -83,7 +83,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         });
 
         assertBusy(() -> {
-            for (String template : XPackRestTestConstants.TEMPLATE_NAMES) {
+            for (String template : XPackRestTestConstants.TEMPLATE_NAMES_NO_ILM) {
                 assertOK(adminClient().performRequest(new Request("HEAD", "_template/" + template)));
             }
         });

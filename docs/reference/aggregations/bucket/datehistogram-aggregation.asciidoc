@@ -22,19 +22,31 @@ be tacked onto a particular year.
 Fixed intervals are, by contrast, always multiples of SI units and do not change
 based on calendaring context.
 
-Historically these were configured in a single `interval` field, which lead to
-confusing semantics.  Specifying `1d` would be assumed as a calendar-aware time,
-whereas `2d` would be interpreted as fixed time.  To get "one day" of fixed time,
-the user would need to specify `24h`.
+[NOTE]
+.Combined `interval` field is deprecated
+==================================
+deprecated[7.2, `interval` field is deprecated] Historically both calendar and fixed
+intervals were configured in a single `interval` field, which led to confusing
+semantics. Specifying `1d` would be assumed as a calendar-aware time,
+whereas `2d` would be interpreted as fixed time. To get "one day" of fixed time,
+the user would need to specify the next smaller unit (in this case, `24h`).
+
+This combined behavior was often unknown to users, and even when knowledgeable about
+the behavior it was difficult to use and confusing.
 
 This behavior has been deprecated in favor of two new, explicit fields: `calendar_interval`
 and `fixed_interval`.
+
+By forcing a choice between calendar and intervals up front, the semantics of the interval
+are clear to the user immediately and there is no ambiguity.  The old `interval` field
+will be removed in the future.
+==================================
 
 ===== Calendar Intervals
 
 Calendar-aware intervals are configured with the `calendar_interval` parameter.
 Calendar intervals can only be specified in "singular" quantities of the unit
-(`1d`, `1M`, etc).  Multiples, such as `2d`, are not supported and will throw an exception.
+(`1d`, `1M`, etc). Multiples, such as `2d`, are not supported and will throw an exception.
 
 The accepted units for calendar intervals are:
 
@@ -88,18 +100,76 @@ One year (1y) is the interval between the start day of the month and time of
 day and the same day of the month and time of day the following year in the
 specified timezone, so that the date and time are the same at the start and end. +
 
+===== Calendar Interval Examples
+As an example, here is an aggregation requesting bucket intervals of a month in calendar time:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs" : {
+        "sales_over_time" : {
+            "date_histogram" : {
+                "field" : "date",
+                "calendar_interval" : "month"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+If you attempt to use multiples of calendar units, the aggregation will fail because only
+singular calendar units are supported:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs" : {
+        "sales_over_time" : {
+            "date_histogram" : {
+                "field" : "date",
+                "calendar_interval" : "2d"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+// TEST[catch:bad_request]
+
+[source,js]
+--------------------------------------------------
+{
+  "error" : {
+    "root_cause" : [...],
+    "type" : "x_content_parse_exception",
+    "reason" : "[1:82] [date_histogram] failed to parse field [calendar_interval]",
+    "caused_by" : {
+      "type" : "illegal_argument_exception",
+      "reason" : "The supplied interval [2d] could not be parsed as a calendar interval.",
+      "stack_trace" : "java.lang.IllegalArgumentException: The supplied interval [2d] could not be parsed as a calendar interval."
+    }
+  }
+}
+
+--------------------------------------------------
+// NOTCONSOLE
 
 ===== Fixed Intervals
 
 Fixed intervals are configured with the `fixed_interval` parameter.
 
 In contrast to calendar-aware intervals, fixed intervals are a fixed number of SI
-units and never deviate, regardless of where they fall on the calendar.  One second
-is always composed of 1000ms.  This allows fixed intervals to be specified in
+units and never deviate, regardless of where they fall on the calendar. One second
+is always composed of 1000ms. This allows fixed intervals to be specified in
 any multiple of the supported units.
 
 However, it means fixed intervals cannot express other units such as months,
-since the duration of a month is not a fixed quantity.  Attempting to specify
+since the duration of a month is not a fixed quantity. Attempting to specify
 a calendar interval like month or quarter will throw an exception.
 
 The accepted units for fixed intervals are:
@@ -123,6 +193,66 @@ All days begin at the earliest possible time, which is usually 00:00:00
 (midnight).
 
 Defined as 24 hours (86,400,000 milliseconds)
+
+===== Fixed Interval Examples
+
+If we try to recreate the "month" `calendar_interval` from earlier, we can approximate that with
+30 fixed days:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs" : {
+        "sales_over_time" : {
+            "date_histogram" : {
+                "field" : "date",
+                "fixed_interval" : "30d"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+But if we try to use a calendar unit that is not supported, such as weeks, we'll get an exception:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs" : {
+        "sales_over_time" : {
+            "date_histogram" : {
+                "field" : "date",
+                "fixed_interval" : "2w"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+// TEST[catch:bad_request]
+
+[source,js]
+--------------------------------------------------
+{
+  "error" : {
+    "root_cause" : [...],
+    "type" : "x_content_parse_exception",
+    "reason" : "[1:82] [date_histogram] failed to parse field [fixed_interval]",
+    "caused_by" : {
+      "type" : "illegal_argument_exception",
+      "reason" : "failed to parse setting [date_histogram.fixedInterval] with value [2w] as a time value: unit is missing or unrecognized",
+      "stack_trace" : "java.lang.IllegalArgumentException: failed to parse setting [date_histogram.fixedInterval] with value [2w] as a time value: unit is missing or unrecognized"
+    }
+  }
+}
+
+--------------------------------------------------
+// NOTCONSOLE
 
 ===== Notes
 
@@ -148,46 +278,6 @@ shifting to another time unit (e.g., `1.5h` could instead be specified as `90m`)
 
 NOTE: You can also specify time values using abbreviations supported by
 <<time-units,time units>> parsing.
-
-===== Examples
-
-Requesting bucket intervals of a month in calendar time.
-
-[source,js]
---------------------------------------------------
-POST /sales/_search?size=0
-{
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "calendar_interval" : "month"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:sales]
-
-And a similar quantity using fixed intervals would be something near 30 days:
-
-[source,js]
---------------------------------------------------
-POST /sales/_search?size=0
-{
-    "aggs" : {
-        "sales_over_time" : {
-            "date_histogram" : {
-                "field" : "date",
-                "fixed_interval" : "30d"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:sales]
 
 ===== Keys
 

@@ -1009,6 +1009,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     @TestLogging("_root:DEBUG")  // this fails at a very low rate on CI: https://github.com/elastic/elasticsearch/issues/32506
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/32506")
     public void testFilterCacheStats() throws Exception {
         Settings settings = Settings.builder().put(indexSettings()).put("number_of_replicas", 0).build();
         assertAcked(prepareCreate("index").setSettings(settings).get());

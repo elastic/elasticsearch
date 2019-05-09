@@ -37,6 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -82,7 +83,9 @@ final class JvmOptionsParser {
             // now append the JVM options from ES_JAVA_OPTS
             final String environmentJvmOptions = System.getenv("ES_JAVA_OPTS");
             if (environmentJvmOptions != null) {
-                jvmOptions.addAll(Arrays.stream(environmentJvmOptions.split("\\s+")).collect(Collectors.toList()));
+                jvmOptions.addAll(Arrays.stream(environmentJvmOptions.split("\\s+"))
+                        .filter(Predicate.not(String::isBlank))
+                        .collect(Collectors.toUnmodifiableList()));
             }
             final List<String> ergonomicJvmOptions = JvmErgonomics.choose(jvmOptions);
             jvmOptions.addAll(ergonomicJvmOptions);

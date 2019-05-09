@@ -59,7 +59,7 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             globalCheckpoint = in.readZLong();
         } else {

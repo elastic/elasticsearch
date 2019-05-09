@@ -75,6 +75,9 @@ setup:
 
 ---
 "Max bucket":
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix: https://github.com/elastic/elasticsearch/issues/41947"
   - do:
       cluster.put_settings:
         body:
@@ -89,9 +92,14 @@ setup:
         body:
           aggregations:
             test:
-              date_histogram:
-                field: date
-                interval: 1d
+              terms:
+                field: keyword
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            search.max_buckets: 6
 
   - do:
       catch: /.*Trying to create too many buckets.*/
@@ -105,25 +113,6 @@ setup:
                 field: keyword
               aggs:
                 2:
-                  date_histogram:
+                  terms:
                     field: date
-                    interval: 1d
 
-  - do:
-      cluster.put_settings:
-        body:
-          transient:
-            search.max_buckets: 100
-
-  - do:
-      catch: /.*Trying to create too many buckets.*/
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          aggregations:
-            test:
-              date_histogram:
-                field: date
-                interval: 1d
-                min_doc_count: 0

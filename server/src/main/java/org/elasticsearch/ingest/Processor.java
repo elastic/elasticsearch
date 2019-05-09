@@ -116,6 +116,8 @@ public interface Processor {
 
         /**
          * Provides access to an engine searcher of a locally allocated index specified for the provided index.
+         * The input of this function is an index expression and this function returns the {@link IndexMetaData}
+         * of the resolved locally allocated index and {@link Engine.Searcher} instance for the resolved index.
          *
          * The locally allocated index must be have a single primary shard.
          */

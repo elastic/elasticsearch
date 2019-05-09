@@ -84,7 +84,7 @@ SHOW TABLES LIKE 'test\_alias' ESCAPE '\';
 
 name:s               | type:s  | kind:s
 
-test_alias           | VIEW    | INDEX
+test_alias           | VIEW    | ALIAS
 ;
 
 showPattern

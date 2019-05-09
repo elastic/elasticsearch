@@ -190,7 +190,7 @@ public class SysTablesTests extends ESTestCase {
             assertTrue(r.advanceRow());
             assertEquals("alias", r.column(2));
             assertEquals("VIEW", r.column(3));
-        }, frozen, index, alias);
+        }, index, alias);
     }
 
     public void testSysTablesWithProperTypesAndFrozen() throws Exception {
@@ -204,7 +204,7 @@ public class SysTablesTests extends ESTestCase {
             assertTrue(r.advanceRow());
             assertEquals("alias", r.column(2));
             assertEquals("VIEW", r.column(3));
-        }, index, alias, frozen);
+        }, index, frozen, alias);
     }
 
     public void testSysTablesPattern() throws Exception {
@@ -247,6 +247,15 @@ public class SysTablesTests extends ESTestCase {
             assertEquals(1, r.size());
             assertEquals("test", r.column(2));
         }, index);
+    }
+
+    public void testSysTablesOnlyIndicesWithFrozen() throws Exception {
+        executeCommand("SYS TABLES LIKE 'test' TYPE 'BASE TABLE'", r -> {
+            assertEquals(2, r.size());
+            assertEquals("frozen", r.column(2));
+            assertTrue(r.advanceRow());
+            assertEquals("test", r.column(2));
+        }, index, frozen);
     }
 
     public void testSysTablesOnlyIndicesInLegacyMode() throws Exception {
@@ -366,8 +375,8 @@ public class SysTablesTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, Configuration cfg, IndexInfo... infos)
-            throws Exception {
+    private void executeCommand(String sql, List<SqlTypedParamValue> params, Consumer<SchemaRowSet> consumer, Configuration cfg,
+            IndexInfo... infos) throws Exception {
         Tuple<Command, SqlSession> tuple = sql(sql, params, cfg);
 
         IndexResolver resolver = tuple.v2().indexResolver();

@@ -22,8 +22,6 @@ package org.elasticsearch.repositories.azure;
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -40,8 +38,6 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 public class AzureBlobStore implements BlobStore {
-    
-    private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
 
     private final AzureStorageService service;
 
@@ -80,17 +76,6 @@ public class AzureBlobStore implements BlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new AzureBlobContainer(path, this);
-    }
-
-    @Override
-    public void delete(BlobPath path) throws IOException {
-        final String keyPath = path.buildAsString();
-        try {
-            service.deleteFiles(clientName, container, keyPath);
-        } catch (URISyntaxException | StorageException e) {
-            logger.warn("cannot access [{}] in container {{}}: {}", keyPath, container, e.getMessage());
-            throw new IOException(e);
-        }
     }
 
     @Override

@@ -193,6 +193,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return ALIAS_TO_CONCRETE_FIELD_NAME.getOrDefault(builderFieldName, builderFieldName);
     }
 
+    protected Iterable<MappedFieldType> getMapping() {
+        return serviceHolder.mapperService.fieldTypes();
+    }
+
     @AfterClass
     public static void afterClass() throws Exception {
         IOUtils.close(serviceHolder);

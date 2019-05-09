@@ -13,8 +13,4 @@ dependencies {
     compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
 }
 
-run {
-    plugin xpackModule('core')
-}
-
 integTest.enabled = false

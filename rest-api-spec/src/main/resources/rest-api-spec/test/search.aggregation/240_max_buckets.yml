@@ -89,6 +89,7 @@ setup:
       catch: /.*Trying to create too many buckets.*/
       search:
         rest_total_hits_as_int: true
+        allow_partial_search_results: false
         index: test
         body:
           aggregations:
@@ -106,6 +107,7 @@ setup:
       catch: /.*Trying to create too many buckets.*/
       search:
         rest_total_hits_as_int: true
+        allow_partial_search_results: false
         index: test
         body:
           aggregations:

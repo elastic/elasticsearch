@@ -20,10 +20,12 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -89,6 +91,38 @@ public class RangeHistogramAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
+                if (values.advanceExact(doc)) {
+                    // Is it possible for valuesCount to be > 1 here? Multiple ranges are encoded into the same BytesRef in the binary doc
+                    // values, so it isn't clear what we'd be iterating over.
+                    final int valuesCount = values.docValueCount();
+
+                    double previousKey = Double.NEGATIVE_INFINITY;
+                    for (int i = 0; i < valuesCount; i++) {
+                        BytesRef encodedRanges = values.nextValue();
+                        // This list should be sorted by start-of-range, I think?
+                        List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(encodedRanges);
+                        for (RangeFieldMapper.Range range : ranges) {
+                            for (double value = rangeType.doubleValue(range.getTo()); value <= rangeType.doubleValue(range.getFrom());
+                                 value += interval) {
+                                double key = Math.floor((value - offset) / interval);
+                                if (key <= previousKey) {
+                                    continue;
+                                }
+                                // Bucket collection identical to NumericHistogramAggregator, could be refactored
+                                long bucketOrd = bucketOrds.add(Double.doubleToLongBits(key));
+                                if (bucketOrd < 0) { // already seen
+                                    bucketOrd = -1 - bucketOrd;
+                                    collectExistingBucket(sub, doc, bucketOrd);
+                                } else {
+                                    collectBucket(sub, doc, bucketOrd);
+                                }
+                                previousKey = key;
+
+                            }
+                        }
+
+                    }
+                }
             }
         };
     }

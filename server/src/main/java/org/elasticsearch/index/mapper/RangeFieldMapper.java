@@ -478,6 +478,14 @@ public class RangeFieldMapper extends FieldMapper {
             sb.append(includeTo ? ']' : ')');
             return sb.toString();
         }
+
+        public Object getFrom() {
+            return from;
+        }
+
+        public Object getTo() {
+            return to;
+        }
     }
 
     static class BinaryRangesDocValuesField extends CustomDocValuesField {

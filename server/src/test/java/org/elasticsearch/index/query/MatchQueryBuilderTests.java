@@ -46,7 +46,6 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -56,13 +55,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
+public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuilder> {
+    @Override
+    protected boolean isCacheable(MatchQueryBuilder queryBuilder) {
+        return queryBuilder.fuzziness() != null
+                ||  isCacheable(singletonList(queryBuilder.fieldName()), queryBuilder.value().toString());
+    }
 
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {

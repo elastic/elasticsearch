@@ -103,7 +103,7 @@ thirdPartyAudit {
       'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
    )
 
-   ignoreMissingClasses ( 
+   ignoreMissingClasses (
        'com.ibm.icu.lang.UCharacter'
    )
 }

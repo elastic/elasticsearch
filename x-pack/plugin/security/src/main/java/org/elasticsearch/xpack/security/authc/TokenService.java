@@ -241,8 +241,8 @@ public final class TokenService {
 
     /**
      * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata with
-     * auto-generated values. The created tokens are stored in the security index for versions up to 7.1.0 and to
-     * a specific security tokens index for later versions.
+     * auto-generated values. The created tokens are stored in the security index for versions up to
+     * {@link #VERSION_TOKENS_INDEX_INTRODUCED} and to a specific security tokens index for later versions.
      */
     public void createOAuth2Tokens(Authentication authentication, Authentication originatingClientAuth,
                                    Map<String, Object> metadata, boolean includeRefreshToken,
@@ -259,7 +259,8 @@ public final class TokenService {
 
     /**
      * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata. The created
-     * tokens are stored in the security index for versions up to 7.1.0 and to a specific security tokens index for later versions.
+     * tokens are stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED} and to a specific security
+     * tokens index for later versions.
      */
     //public for testing
     public void createOAuth2Tokens(String accessToken, String refreshToken, Authentication authentication,
@@ -274,9 +275,10 @@ public final class TokenService {
 
     /**
      * Create an access token and optionally a refresh token as well, based on the provided authentication and metadata. The created
-     * tokens are stored in the security index for versions up to 7.1.0 and to a specific security tokens index for later versions.
+     * tokens are stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED} and to a specific security tokens
+     * index for later versions.
      */
-    private void createOAuth2Tokens(String accessToken, String plainRefreshToken, Version tokenVersion, SecurityIndexManager tokensIndex,
+    private void createOAuth2Tokens(String accessToken, String refreshToken, Version tokenVersion, SecurityIndexManager tokensIndex,
                                     Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
                                     ActionListener<Tuple<String, String>> listener) {
         assert accessToken.length() == TOKEN_LENGTH : "We assume token ids have a fixed length for nodes of a certain version."
@@ -294,10 +296,10 @@ public final class TokenService {
             final String storedRefreshToken;
             if (tokenVersion.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 storedAccessToken = hashTokenString(accessToken);
-                storedRefreshToken = null == plainRefreshToken ? null : hashTokenString(plainRefreshToken);
+                storedRefreshToken = (null == refreshToken) ? null : hashTokenString(refreshToken);
             } else {
                 storedAccessToken = accessToken;
-                storedRefreshToken = plainRefreshToken;
+                storedRefreshToken = refreshToken;
             }
             final UserToken userToken = new UserToken(storedAccessToken, tokenVersion, tokenAuth, getExpirationTime(), metadata);
             final BytesReference tokenDocument = createTokenDocument(userToken, storedRefreshToken, originatingClientAuth);
@@ -315,14 +317,15 @@ public final class TokenService {
                                 if (indexResponse.getResult() == Result.CREATED) {
                                     final String versionedAccessToken = prependVersionAndEncodeAccessToken(tokenVersion, accessToken);
                                     if (tokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
-                                        final String versionedRefreshToken = plainRefreshToken != null
-                                            ? prependVersionAndEncodeRefreshToken(tokenVersion, plainRefreshToken)
+                                        final String versionedRefreshToken = refreshToken != null
+                                            ? prependVersionAndEncodeRefreshToken(tokenVersion, refreshToken)
                                             : null;
                                         listener.onResponse(new Tuple<>(versionedAccessToken, versionedRefreshToken));
                                     } else {
-                                        // prior versions are not version-prepended, as nodes on those versions don't expect it.
+                                        // prior versions of the refresh token are not version-prepended, as nodes on those
+                                        // versions don't expect it.
                                         // Such nodes might exist in a mixed cluster during a rolling upgrade.
-                                        listener.onResponse(new Tuple<>(versionedAccessToken, plainRefreshToken));
+                                        listener.onResponse(new Tuple<>(versionedAccessToken, refreshToken));
                                     }
                                 } else {
                                     listener.onFailure(traceLog("create token",
@@ -790,8 +793,7 @@ public final class TokenService {
                     final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
                     final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
                     final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
-                    if (false == refreshTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)
-                        || unencodedRefreshToken.length() != TOKEN_LENGTH) {
+                    if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
                         logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken,
                             refreshTokenVersion);
                         listener.onFailure(malformedTokenException());
@@ -800,7 +802,7 @@ public final class TokenService {
                         findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
                     }
                 } catch (IOException e) {
-                    logger.debug("Could not decode refresh token [" + refreshToken + "].", e);
+                    logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
                     listener.onFailure(malformedTokenException());
                 }
             }
@@ -818,7 +820,7 @@ public final class TokenService {
         final Consumer<Exception> maybeRetryOnFailure = ex -> {
             if (backoff.hasNext()) {
                 final TimeValue backofTimeValue = backoff.next();
-                logger.debug("retrying after [" + backofTimeValue + "] back off");
+                logger.debug("retrying after [{}] back off", backofTimeValue);
                 final Runnable retryWithContextRunnable = client.threadPool().getThreadContext()
                         .preserveContext(() -> findTokenFromRefreshToken(refreshToken, tokensIndexManager, backoff, listener));
                 client.threadPool().schedule(retryWithContextRunnable, backofTimeValue, GENERIC);

@@ -38,7 +38,7 @@ public class TransportOpenIdConnectAuthenticateAction
     private final ThreadPool threadPool;
     private final AuthenticationService authenticationService;
     private final TokenService tokenService;
-    private static final Logger logger = LogManager.getLogger(TransportOpenIdConnectLogoutAction.class);
+    private static final Logger logger = LogManager.getLogger(TransportOpenIdConnectAuthenticateAction.class);
 
     @Inject
     public TransportOpenIdConnectAuthenticateAction(ThreadPool threadPool, TransportService transportService,

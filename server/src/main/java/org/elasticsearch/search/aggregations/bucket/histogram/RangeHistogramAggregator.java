@@ -102,7 +102,7 @@ public class RangeHistogramAggregator extends BucketsAggregator {
                         // This list should be sorted by start-of-range, I think?
                         List<RangeFieldMapper.Range> ranges = rangeType.decodeRanges(encodedRanges);
                         for (RangeFieldMapper.Range range : ranges) {
-                            for (double value = rangeType.doubleValue(range.getTo()); value <= rangeType.doubleValue(range.getFrom());
+                            for (double value = rangeType.doubleValue(range.getFrom()); value <= rangeType.doubleValue(range.getTo());
                                  value += interval) {
                                 double key = Math.floor((value - offset) / interval);
                                 if (key <= previousKey) {

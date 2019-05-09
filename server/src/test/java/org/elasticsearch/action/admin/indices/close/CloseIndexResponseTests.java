@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.test.VersionUtils.randomPreviousCompatibleVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CloseIndexResponseTests extends ESTestCase {
@@ -47,7 +48,7 @@ public class CloseIndexResponseTests extends ESTestCase {
         {
             final CloseIndexResponse response = randomResponse();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(randomPreviousCompatibleVersion(random(), Version.V_7_2_0));
+                out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_1_0));
                 response.writeTo(out);
 
                 final AcknowledgedResponse deserializedResponse = new AcknowledgedResponse();
@@ -64,7 +65,7 @@ public class CloseIndexResponseTests extends ESTestCase {
 
                 final CloseIndexResponse deserializedResponse = new CloseIndexResponse();
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(randomPreviousCompatibleVersion(random(), Version.V_7_2_0));
+                    in.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_1_0));
                     deserializedResponse.readFrom(in);
                 }
                 assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));

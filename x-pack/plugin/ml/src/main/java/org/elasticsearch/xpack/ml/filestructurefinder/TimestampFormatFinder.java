@@ -95,13 +95,13 @@ public final class TimestampFormatFinder {
     static final CandidateTimestampFormat ISO8601_CANDIDATE_FORMAT =
         new CandidateTimestampFormat(CandidateTimestampFormat::iso8601FormatFromExample,
             "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", "\\b%{TIMESTAMP_ISO8601}\\b", "TIMESTAMP_ISO8601",
-            "1111 11 11 11 11");
+            "1111 11 11 11 11", 0, 19);
     static final CandidateTimestampFormat UNIX_MS_CANDIDATE_FORMAT =
         new CandidateTimestampFormat(example -> Collections.singletonList("UNIX_MS"), "\\b\\d{13}\\b", "\\b\\d{13}\\b", "POSINT",
-            "1111111111111");
+            "1111111111111", 0, 0);
     static final CandidateTimestampFormat UNIX_CANDIDATE_FORMAT =
         new CandidateTimestampFormat(example -> Collections.singletonList("UNIX"), "\\b\\d{10}\\b", "\\b\\d{10}(?:\\.\\d{3,9})?\\b",
-            "NUMBER", "1111111111");
+            "NUMBER", "1111111111", 0, 10);
     static final CandidateTimestampFormat TAI64N_CANDIDATE_FORMAT =
         new CandidateTimestampFormat(example -> Collections.singletonList("TAI64N"), "\\b[0-9A-Fa-f]{24}\\b", "\\b[0-9A-Fa-f]{24}\\b",
             "BASE16NUM");
@@ -117,52 +117,52 @@ public final class TimestampFormatFinder {
         new CandidateTimestampFormat(example -> CandidateTimestampFormat.iso8601LikeFormatFromExample(example, " ", " "),
             "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
             "\\b20\\d{2}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9} (?:Z|[+-]%{HOUR}%{MINUTE})\\b",
-            "TOMCAT_DATESTAMP", "1111 11 11 11 11 11 111"),
+            "TOMCAT_DATESTAMP", "1111 11 11 11 11 11 111", 0, 13),
         ISO8601_CANDIDATE_FORMAT,
         new CandidateTimestampFormat(
             example -> Arrays.asList("EEE MMM dd yy HH:mm:ss zzz", "EEE MMM d yy HH:mm:ss zzz"),
             "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{1,2} \\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
             "\\b%{DAY} %{MONTH} %{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}(?::(?:[0-5][0-9]|60)) %{TZ}\\b", "DATESTAMP_RFC822",
-            Arrays.asList("        11 11 11 11 11", "        1 11 11 11 11")),
+            Arrays.asList("        11 11 11 11 11", "        1 11 11 11 11"), 0, 5),
         new CandidateTimestampFormat(
             example -> CandidateTimestampFormat.adjustTrailingTimezoneFromExample(example, "EEE, dd MMM yyyy HH:mm:ss XX"),
             "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
             "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE}(?::(?:[0-5][0-9]|60)) (?:Z|[+-]%{HOUR}:?%{MINUTE})\\b",
-            "DATESTAMP_RFC2822", "1     1111 11 11 11"),
+            "DATESTAMP_RFC2822", Arrays.asList("     11     1111 11 11 11", "     1     1111 11 11 11"), 0, 7),
         new CandidateTimestampFormat(
             example -> Arrays.asList("EEE MMM dd HH:mm:ss zzz yyyy", "EEE MMM d HH:mm:ss zzz yyyy"),
             "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
             "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}(?::(?:[0-5][0-9]|60)) %{TZ} %{YEAR}\\b", "DATESTAMP_OTHER",
-            Arrays.asList("        11 11 11 11", "        1 11 11 11")),
+            Arrays.asList("        11 11 11 11", "        1 11 11 11"), 12, 10),
         new CandidateTimestampFormat(example -> Collections.singletonList("yyyyMMddHHmmss"), "\\b\\d{14}\\b",
             "\\b20\\d{2}%{MONTHNUM2}(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01]))(?:2[0123]|[01][0-9])%{MINUTE}(?:[0-5][0-9]|60)\\b",
-            "DATESTAMP_EVENTLOG", "11111111111111"),
+            "DATESTAMP_EVENTLOG", "11111111111111", 0, 0),
         new CandidateTimestampFormat(example -> Collections.singletonList("EEE MMM dd HH:mm:ss yyyy"),
             "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
             "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{YEAR}\\b", "HTTPDERROR_DATE",
-            "        11 11 11 11 1111"),
+            "        11 11 11 11 1111", 0, 0),
         new CandidateTimestampFormat(
             example -> CandidateTimestampFormat.expandDayAndAdjustFractionalSecondsFromExample(example, "MMM dd HH:mm:ss"),
             "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
             "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)(?:[:.,][0-9]{3,9})?\\b", "SYSLOGTIMESTAMP",
-            Arrays.asList("    11 11 11 11", "    1 11 11 11")),
+            Arrays.asList("    11 11 11 11", "    1 11 11 11"), 4, 10),
         new CandidateTimestampFormat(example -> Collections.singletonList("dd/MMM/yyyy:HH:mm:ss XX"),
             "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
             "\\b%{MONTHDAY}/%{MONTH}/%{YEAR}:%{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) [+-]?%{HOUR}%{MINUTE}\\b", "HTTPDATE",
-            "11     1111 11 11 11"),
+            "11     1111 11 11 11", 0, 6),
         new CandidateTimestampFormat(example -> Collections.singletonList("MMM dd, yyyy h:mm:ss a"),
             "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
             "%{MONTH} %{MONTHDAY}, 20\\d{2} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:AM|PM)\\b", "CATALINA_DATESTAMP",
-            Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11")),
+            Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11"), 0, 3),
         new CandidateTimestampFormat(example -> Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss"),
             "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
             "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b", "CISCOTIMESTAMP",
-            Arrays.asList("    11 1111 11 11 11", "     1 1111 11 11 11")),
+            Arrays.asList("    11 1111 11 11 11", "     1 1111 11 11 11"), 0, 0),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
             "\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
-            "11 11 1111 11 11 11"),
+            "11 11 1111 11 11 11", 0, 10),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
-            "\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}\\b", "\\b%{DATE}\\b", "DATE", "11 11 1111"),
+            "\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}\\b", "\\b%{DATE}\\b", "DATE", "11 11 1111", 0, 0),
         UNIX_MS_CANDIDATE_FORMAT,
         UNIX_CANDIDATE_FORMAT,
         TAI64N_CANDIDATE_FORMAT
@@ -386,16 +386,25 @@ public final class TimestampFormatFinder {
             // Since an search in a long string that has sections that nearly match will be very slow, it's
             // worth doing an initial sanity check to see if the relative positions of digits necessary to
             // get a match exist first
-            if (numberPosBitSet == null || candidate.quickRuleOutBitSets.isEmpty() ||
-                candidate.quickRuleOutBitSets.stream()
-                    .anyMatch(quickRuleOutBitSet -> findBitPattern(numberPosBitSet, quickRuleOutBitSet) >= 0)) {
-                Map<String, Object> captures = timeoutChecker.grokCaptures(candidate.strictSearchGrok, text,
+            Tuple<Integer, Integer> boundsForCandidate = findBoundsForCandidate(candidate, numberPosBitSet);
+            if (boundsForCandidate.v1() >= 0) {
+                assert boundsForCandidate.v2() > boundsForCandidate.v1();
+                String matchIn = text.substring(boundsForCandidate.v1(), Math.min(boundsForCandidate.v2(), text.length()));
+                Map<String, Object> captures = timeoutChecker.grokCaptures(candidate.strictSearchGrok, matchIn,
                     "timestamp format determination");
                 if (captures != null) {
-                    String preface = captures.getOrDefault(PREFACE, "").toString();
-                    String epilogue = captures.getOrDefault(EPILOGUE, "").toString();
-                    return new TimestampMatch(candidate, preface, text.substring(preface.length(),
-                        text.length() - epilogue.length()), epilogue);
+                    StringBuilder prefaceBuilder = new StringBuilder();
+                    if (boundsForCandidate.v1() > 0) {
+                        prefaceBuilder.append(text.subSequence(0, boundsForCandidate.v1()));
+                    }
+                    prefaceBuilder.append(captures.getOrDefault(PREFACE, ""));
+                    StringBuilder epilogueBuilder = new StringBuilder();
+                    epilogueBuilder.append(captures.getOrDefault(EPILOGUE, ""));
+                    if (boundsForCandidate.v2() < text.length()) {
+                        epilogueBuilder.append(text.subSequence(boundsForCandidate.v2(), text.length()));
+                    }
+                    return new TimestampMatch(candidate, prefaceBuilder.toString(), text.substring(prefaceBuilder.length(),
+                        text.length() - epilogueBuilder.length()), epilogueBuilder.toString());
                 }
             } else {
                 timeoutChecker.check("timestamp format determination");
@@ -833,15 +842,64 @@ public final class TimestampFormatFinder {
     }
 
     /**
+     * Given a timestamp candidate and a bit set showing the positions of digits in a piece of text, find the range
+     * of indices over which the candidate <em>might</em> possibly match.  Searching for Grok patterns that nearly
+     * match but don't quite is very expensive, so this method allows only a substring of a long string to be
+     * searched using the full Grok pattern.
+     * @param candidate       The timestamp candidate to consider.
+     * @param numberPosBitSet If not <code>null</code>, each bit must be set to <code>true</code> if and only if the
+     *                        corresponding position in the original text is a digit.
+     * @return A tuple of the form (start index, end index).  If the timestamp candidate cannot possibly match
+     *         anywhere then (-1, -1) is returned.  The end index in the returned tuple may be beyond the end of the
+     *         string (because the bit set is not necessarily the same length as the string so it cannot be capped
+     *         by this method), so the caller must cap it before passing to {@link String#substring(int, int)}.
+     */
+    static Tuple<Integer, Integer> findBoundsForCandidate(CandidateTimestampFormat candidate, BitSet numberPosBitSet) {
+
+        if (numberPosBitSet == null || candidate.quickRuleOutBitSets.isEmpty()) {
+            return new Tuple<>(0, Integer.MAX_VALUE);
+        }
+
+        int minFirstMatchStart = -1;
+        int maxLastMatchEnd = -1;
+        for (BitSet quickRuleOutBitSet : candidate.quickRuleOutBitSets) {
+            int currentMatch = findBitPattern(numberPosBitSet, 0, quickRuleOutBitSet);
+            if (currentMatch >= 0) {
+                if (minFirstMatchStart == -1 || currentMatch < minFirstMatchStart) {
+                    minFirstMatchStart = currentMatch;
+                }
+                do {
+                    int currentMatchEnd = currentMatch + quickRuleOutBitSet.length();
+                    if (currentMatchEnd > maxLastMatchEnd) {
+                        maxLastMatchEnd = currentMatchEnd;
+                    }
+                    currentMatch = findBitPattern(numberPosBitSet, currentMatch + 1, quickRuleOutBitSet);
+                } while (currentMatch > 0);
+            }
+        }
+        if (minFirstMatchStart == -1) {
+            assert maxLastMatchEnd == -1;
+            return new Tuple<>(-1, -1);
+        }
+        int lowerBound = Math.max(0, minFirstMatchStart - candidate.maxCharsBeforeQuickRuleOutMatch);
+        int upperBound = (Integer.MAX_VALUE - candidate.maxCharsAfterQuickRuleOutMatch - maxLastMatchEnd < 0) ?
+            Integer.MAX_VALUE : (maxLastMatchEnd + candidate.maxCharsAfterQuickRuleOutMatch);
+        return new Tuple<>(lowerBound, upperBound);
+    }
+
+    /**
      * This is basically the "Shift-Add" algorithm for string matching from the paper "A New Approach to Text Searching".
      * In this case the "alphabet" has just two "characters": 0 and 1 (or <code>false</code> and <code>true</code> in
      * some places because of the {@link BitSet} interface).
      * @see <a href="http://akira.ruc.dk/~keld/teaching/algoritmedesign_f08/Artikler/09/Baeza92.pdf">A New Approach to Text Searching</a>
-     * @param findIn The binary string to search in; "text" in the terminology of the paper.
-     * @param toFind The binary string to find; "pattern" in the terminology of the paper.
+     * @param findIn     The binary string to search in; "text" in the terminology of the paper.
+     * @param beginIndex The index to start searching {@code findIn}.
+     * @param toFind     The binary string to find; "pattern" in the terminology of the paper.
      * @return The index (starting from 0) of the first match of {@code toFind} in {@code findIn}, or -1 if no match is found.
      */
-    static int findBitPattern(BitSet findIn, BitSet toFind) {
+    static int findBitPattern(BitSet findIn, int beginIndex, BitSet toFind) {
+
+        assert beginIndex >= 0;
 
         // Note that this only compares up to the highest bit that is set, so trailing non digit characters will not participate
         // in the comparison.  This is not currently a problem for this class, but is something to consider if this functionality
@@ -850,7 +908,7 @@ public final class TimestampFormatFinder {
         int toFindLength = toFind.length();
         int findInLength = findIn.length();
         if (toFindLength == 0) {
-            return 0;
+            return beginIndex;
         }
         // 63 here is the largest bit position (starting from 0) in a long
         if (toFindLength > Math.min(63, findInLength)) {
@@ -867,7 +925,7 @@ public final class TimestampFormatFinder {
         for (int i = 0; i < toFindLength; ++i) {
             toFindMask[toFind.get(i) ? 1 : 0] &= ~(1L << i);
         }
-        for (int i = 0; i < findInLength; ++i) {
+        for (int i = beginIndex; i < findInLength; ++i) {
             state |= toFindMask[findIn.get(i) ? 1 : 0];
             state <<= 1;
             if ((state & (1L << toFindLength)) == 0L) {
@@ -1169,20 +1227,25 @@ public final class TimestampFormatFinder {
         final Grok strictFullMatchGrok;
         final String outputGrokPatternName;
         final List<BitSet> quickRuleOutBitSets;
+        final int maxCharsBeforeQuickRuleOutMatch;
+        final int maxCharsAfterQuickRuleOutMatch;
 
         CandidateTimestampFormat(Function<String, List<String>> javaTimestampFormatSupplier, String simpleRegex, String strictGrokPattern,
                                  String outputGrokPatternName) {
-            this(javaTimestampFormatSupplier, simpleRegex, strictGrokPattern, outputGrokPatternName, Collections.emptyList());
+            this(javaTimestampFormatSupplier, simpleRegex, strictGrokPattern, outputGrokPatternName, Collections.emptyList(),
+                Integer.MAX_VALUE, Integer.MAX_VALUE);
         }
 
         CandidateTimestampFormat(Function<String, List<String>> javaTimestampFormatSupplier, String simpleRegex, String strictGrokPattern,
-                                 String outputGrokPatternName, String quickRuleOutPattern) {
+                                 String outputGrokPatternName, String quickRuleOutPattern, int maxCharsBeforeQuickRuleOutMatch,
+                                 int maxCharsAfterQuickRuleOutMatch) {
             this(javaTimestampFormatSupplier, simpleRegex, strictGrokPattern, outputGrokPatternName,
-                Collections.singletonList(quickRuleOutPattern));
+                Collections.singletonList(quickRuleOutPattern), maxCharsBeforeQuickRuleOutMatch, maxCharsAfterQuickRuleOutMatch);
         }
 
         CandidateTimestampFormat(Function<String, List<String>> javaTimestampFormatSupplier, String simpleRegex, String strictGrokPattern,
-                                 String outputGrokPatternName, List<String> quickRuleOutPatterns) {
+                                 String outputGrokPatternName, List<String> quickRuleOutPatterns, int maxCharsBeforeQuickRuleOutMatch,
+                                 int maxCharsAfterQuickRuleOutMatch) {
             this.javaTimestampFormatSupplier = Objects.requireNonNull(javaTimestampFormatSupplier);
             this.simplePattern = Pattern.compile(simpleRegex, Pattern.MULTILINE);
             this.strictGrokPattern = Objects.requireNonNull(strictGrokPattern);
@@ -1193,6 +1256,10 @@ public final class TimestampFormatFinder {
             this.outputGrokPatternName = Objects.requireNonNull(outputGrokPatternName);
             this.quickRuleOutBitSets = quickRuleOutPatterns.stream().map(TimestampFormatFinder::stringToNumberPosBitSet)
                 .collect(Collectors.toList());
+            assert maxCharsBeforeQuickRuleOutMatch >= 0;
+            this.maxCharsBeforeQuickRuleOutMatch = maxCharsBeforeQuickRuleOutMatch;
+            assert maxCharsAfterQuickRuleOutMatch >= 0;
+            this.maxCharsAfterQuickRuleOutMatch = maxCharsAfterQuickRuleOutMatch;
         }
 
         boolean isCustomFormat() {

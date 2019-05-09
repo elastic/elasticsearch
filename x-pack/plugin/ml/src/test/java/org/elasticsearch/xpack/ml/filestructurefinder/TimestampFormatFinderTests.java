@@ -440,35 +440,74 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         BitSet findIn = TimestampFormatFinder.stringToNumberPosBitSet("");
         BitSet toFind = TimestampFormatFinder.stringToNumberPosBitSet("");
-        assertEquals(0, TimestampFormatFinder.findBitPattern(findIn, toFind));
+        assertEquals(0, TimestampFormatFinder.findBitPattern(findIn, 0, toFind));
 
         findIn = TimestampFormatFinder.stringToNumberPosBitSet("1 1 1");
         toFind = TimestampFormatFinder.stringToNumberPosBitSet("");
-        assertEquals(0, TimestampFormatFinder.findBitPattern(findIn, toFind));
+        assertEquals(0, TimestampFormatFinder.findBitPattern(findIn, 0, toFind));
+        assertEquals(1, TimestampFormatFinder.findBitPattern(findIn, 1, toFind));
+        assertEquals(2, TimestampFormatFinder.findBitPattern(findIn, 2, toFind));
 
         findIn = TimestampFormatFinder.stringToNumberPosBitSet("1 1 1");
         toFind = TimestampFormatFinder.stringToNumberPosBitSet("1");
-        assertEquals(0, TimestampFormatFinder.findBitPattern(findIn, toFind));
+        assertEquals(0, TimestampFormatFinder.findBitPattern(findIn, 0, toFind));
+        assertEquals(2, TimestampFormatFinder.findBitPattern(findIn, 1, toFind));
+        assertEquals(2, TimestampFormatFinder.findBitPattern(findIn, 2, toFind));
 
         findIn = TimestampFormatFinder.stringToNumberPosBitSet("1 1 1");
         toFind = TimestampFormatFinder.stringToNumberPosBitSet(" 1");
-        assertEquals(1, TimestampFormatFinder.findBitPattern(findIn, toFind));
+        assertEquals(1, TimestampFormatFinder.findBitPattern(findIn, 0, toFind));
+        assertEquals(1, TimestampFormatFinder.findBitPattern(findIn, 1, toFind));
+        assertEquals(3, TimestampFormatFinder.findBitPattern(findIn, 2, toFind));
 
         findIn = TimestampFormatFinder.stringToNumberPosBitSet("1 1 1");
         toFind = TimestampFormatFinder.stringToNumberPosBitSet("1 1");
-        assertEquals(0, TimestampFormatFinder.findBitPattern(findIn, toFind));
+        assertEquals(0, TimestampFormatFinder.findBitPattern(findIn, 0, toFind));
+        assertEquals(2, TimestampFormatFinder.findBitPattern(findIn, 1, toFind));
+        assertEquals(2, TimestampFormatFinder.findBitPattern(findIn, 2, toFind));
+        assertEquals(-1, TimestampFormatFinder.findBitPattern(findIn, 3, toFind));
 
         findIn = TimestampFormatFinder.stringToNumberPosBitSet("1 11 1 1");
         toFind = TimestampFormatFinder.stringToNumberPosBitSet("11 1");
-        assertEquals(2, TimestampFormatFinder.findBitPattern(findIn, toFind));
+        assertEquals(2, TimestampFormatFinder.findBitPattern(findIn, 0, toFind));
+        assertEquals(2, TimestampFormatFinder.findBitPattern(findIn, 1, toFind));
+        assertEquals(2, TimestampFormatFinder.findBitPattern(findIn, 2, toFind));
+        assertEquals(-1, TimestampFormatFinder.findBitPattern(findIn, 3, toFind));
 
         findIn = TimestampFormatFinder.stringToNumberPosBitSet("1 11 1 1");
         toFind = TimestampFormatFinder.stringToNumberPosBitSet(" 11 1");
-        assertEquals(1, TimestampFormatFinder.findBitPattern(findIn, toFind));
+        assertEquals(1, TimestampFormatFinder.findBitPattern(findIn, 0, toFind));
+        assertEquals(1, TimestampFormatFinder.findBitPattern(findIn, 1, toFind));
+        assertEquals(-1, TimestampFormatFinder.findBitPattern(findIn, 2, toFind));
 
         findIn = TimestampFormatFinder.stringToNumberPosBitSet("1 11 1 1");
         toFind = TimestampFormatFinder.stringToNumberPosBitSet(" 1 1");
-        assertEquals(4, TimestampFormatFinder.findBitPattern(findIn, toFind));
+        assertEquals(4, TimestampFormatFinder.findBitPattern(findIn, 0, toFind));
+        assertEquals(4, TimestampFormatFinder.findBitPattern(findIn, 4, toFind));
+        assertEquals(-1, TimestampFormatFinder.findBitPattern(findIn, 5, toFind));
+    }
+
+    public void testFindBoundsForCandidate() {
+
+        final TimestampFormatFinder.CandidateTimestampFormat httpdCandidateFormat = TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS
+            .stream().filter(candidate -> candidate.outputGrokPatternName.equals("HTTPDATE")).findAny().get();
+
+        BitSet numberPosBitSet = TimestampFormatFinder.stringToNumberPosBitSet("[2018-05-11T17:07:29,553][INFO ]" +
+            "[o.e.e.NodeEnvironment    ] [node-0] heap size [3.9gb], compressed ordinary object pointers [true]");
+        assertEquals(new Tuple<>(1, 36),
+            TimestampFormatFinder.findBoundsForCandidate(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT, numberPosBitSet));
+        assertEquals(new Tuple<>(-1, -1), TimestampFormatFinder.findBoundsForCandidate(httpdCandidateFormat, numberPosBitSet));
+        // TAI64N doesn't necessarily contain digits, so this functionality cannot guarantee that it won't match somewhere in the text
+        assertEquals(new Tuple<>(0, Integer.MAX_VALUE),
+            TimestampFormatFinder.findBoundsForCandidate(TimestampFormatFinder.TAI64N_CANDIDATE_FORMAT, numberPosBitSet));
+
+        numberPosBitSet = TimestampFormatFinder.stringToNumberPosBitSet("192.168.62.101 - - [29/Jun/2016:12:11:31 +0000] " +
+            "\"POST //apiserv:8080/engine/v2/jobs HTTP/1.1\" 201 42 \"-\" \"curl/7.46.0\" 384");
+        assertEquals(new Tuple<>(-1, -1),
+            TimestampFormatFinder.findBoundsForCandidate(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT, numberPosBitSet));
+        assertEquals(new Tuple<>(20, 46), TimestampFormatFinder.findBoundsForCandidate(httpdCandidateFormat, numberPosBitSet));
+        assertEquals(new Tuple<>(0, Integer.MAX_VALUE),
+            TimestampFormatFinder.findBoundsForCandidate(TimestampFormatFinder.TAI64N_CANDIDATE_FORMAT, numberPosBitSet));
     }
 
     public void testFindFormatGivenNoMatch() {

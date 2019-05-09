@@ -11,6 +11,7 @@ import org.elasticsearch.nio.Page;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
+import java.util.function.BiConsumer;
 import java.util.function.IntFunction;
 
 public class SSLOutboundBuffer implements AutoCloseable {
@@ -29,6 +30,8 @@ public class SSLOutboundBuffer implements AutoCloseable {
         if (encryptedBytesProduced != 0) {
             currentPage.byteBuffer().limit(encryptedBytesProduced);
             pages.addLast(currentPage);
+        } else if (currentPage != null) {
+            currentPage.close();
         }
         currentPage = null;
     }
@@ -45,6 +48,10 @@ public class SSLOutboundBuffer implements AutoCloseable {
     }
 
     FlushOperation buildNetworkFlushOperation() {
+        return buildNetworkFlushOperation((r, e) -> {});
+    }
+
+    FlushOperation buildNetworkFlushOperation(BiConsumer<Void, Exception> listener) {
         int pageCount = pages.size();
         ByteBuffer[] byteBuffers = new ByteBuffer[pageCount];
         Page[] pagesToClose = new Page[pageCount];
@@ -54,7 +61,10 @@ public class SSLOutboundBuffer implements AutoCloseable {
             byteBuffers[i] = page.byteBuffer();
         }
 
-        return new FlushOperation(byteBuffers, (r, e) -> IOUtils.closeWhileHandlingException(pagesToClose));
+        return new FlushOperation(byteBuffers, (r, e) -> {
+            IOUtils.closeWhileHandlingException(pagesToClose);
+            listener.accept(r, e);
+        });
     }
 
     boolean hasEncryptedBytesToFlush() {
@@ -63,6 +73,7 @@ public class SSLOutboundBuffer implements AutoCloseable {
 
     @Override
     public void close() {
+        IOUtils.closeWhileHandlingException(currentPage);
         IOUtils.closeWhileHandlingException(pages);
     }
 }

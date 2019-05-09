@@ -99,9 +99,8 @@ class PluginBuildPlugin extends BuildPlugin {
 
             project.tasks.run.dependsOn(project.tasks.bundlePlugin)
             if (isModule) {
-                project.tasks.run.clusterConfig.module(project)
                 project.tasks.run.clusterConfig.distribution = System.getProperty(
-                        'run.distribution', 'integ-test-zip'
+                        'run.distribution', isXPackModule ? 'default' : 'oss'
                 )
             } else {
                 project.tasks.run.clusterConfig.plugin(project.path)

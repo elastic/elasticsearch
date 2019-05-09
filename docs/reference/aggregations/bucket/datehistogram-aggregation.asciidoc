@@ -135,7 +135,7 @@ POST /sales/_search?size=0
         "sales_over_time" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "month"
+                "calendar_interval" : "month"
             }
         }
     }
@@ -158,7 +158,7 @@ POST /sales/_search?size=0
         "sales_over_time" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "90m"
+                "fixed_interval" : "90m"
             }
         }
     }
@@ -186,7 +186,7 @@ POST /sales/_search?size=0
         "sales_over_time" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "1M",
+                "calendar_interval" : "1M",
                 "format" : "yyyy-MM-dd" <1>
             }
         }
@@ -259,7 +259,7 @@ GET my_index/_search?size=0
     "by_day": {
       "date_histogram": {
         "field":     "date",
-        "interval":  "day"
+        "calendar_interval":  "day"
       }
     }
   }
@@ -301,7 +301,7 @@ GET my_index/_search?size=0
     "by_day": {
       "date_histogram": {
         "field":     "date",
-        "interval":  "day",
+        "calendar_interval":  "day",
         "time_zone": "-01:00"
       }
     }
@@ -380,7 +380,7 @@ GET my_index/_search?size=0
     "by_day": {
       "date_histogram": {
         "field":     "date",
-        "interval":  "day",
+        "calendar_interval":  "day",
         "offset":    "+6h"
       }
     }
@@ -432,7 +432,7 @@ POST /sales/_search?size=0
         "sales_over_time" : {
             "date_histogram" : {
                 "field" : "date",
-                "interval" : "1M",
+                "calendar_interval" : "1M",
                 "format" : "yyyy-MM-dd",
                 "keyed": true
             }
@@ -502,7 +502,7 @@ POST /sales/_search?size=0
         "sale_date" : {
              "date_histogram" : {
                  "field" : "date",
-                 "interval": "year",
+                 "calendar_interval": "year",
                  "missing": "2000/01/01" <1>
              }
          }

@@ -37,6 +37,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,7 +48,7 @@ public class SysColumnsTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
-    private final IndexInfo index = new IndexInfo("test_emp", IndexType.INDEX);
+    private final IndexInfo index = new IndexInfo("test_emp", IndexType.STANDARD_INDEX);
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
 
 
@@ -509,9 +510,9 @@ public class SysColumnsTests extends ESTestCase {
         EsIndex test = new EsIndex("test", mapping);
 
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[2]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any());
 
         tuple.v1().execute(tuple.v2(), wrap(consumer::accept, ex -> fail(ex.getMessage())));
     }

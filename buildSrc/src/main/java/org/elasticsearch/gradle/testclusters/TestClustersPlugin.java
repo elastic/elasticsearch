@@ -182,8 +182,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                         claimsInventory.put(elasticsearchCluster, claimsInventory.getOrDefault(elasticsearchCluster, 0) + 1);
                     }
                 }));
-
-            logger.info("Claims inventory: {}", claimsInventory);
+            if (claimsInventory.isEmpty() == false) {
+                logger.info("Claims inventory: {}", claimsInventory);
+            }
         });
     }
 
@@ -279,8 +280,11 @@ public class TestClustersPlugin implements Plugin<Project> {
         // the clusters will look for artifacts there based on the naming conventions.
         // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
         // the build.
-        Task sync = Boilerplate.maybeCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
+        Boilerplate.maybeCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
             onCreate.getOutputs().dir(getExtractDir(rootProject));
+            onCreate.getInputs().files(
+                project.getConfigurations().matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+            );
             // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
             onCreate.doFirst(new Action<Task>() {
                 @Override
@@ -293,8 +297,8 @@ public class TestClustersPlugin implements Plugin<Project> {
             onCreate.doLast(new Action<Task>() {
                     @Override
                     public void execute(Task task) {
-                        project.getConfigurations()
-                            .matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+                        project.getRootProject().getConfigurations()
+                            .matching(config -> config.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
                             .forEach(config -> project.copy(spec ->
                                 config.getResolvedConfiguration()
                                     .getResolvedArtifacts()
@@ -308,15 +312,13 @@ public class TestClustersPlugin implements Plugin<Project> {
                                         } else {
                                             throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
                                         }
+                                        logger.info("Extracting {}@{}", resolvedArtifact, config);
                                         spec.from(files, s -> s.into(resolvedArtifact.getModuleVersion().getId().getGroup()));
                                         spec.into(getExtractDir(project));
                                     }))
                             );
                     }
             });
-            onCreate.getInputs().files(
-                project.getConfigurations().matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
-            );
         });
 
         // When the project evaluated we know of all tasks that use clusters.

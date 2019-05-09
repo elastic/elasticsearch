@@ -1,0 +1,55 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "test_watch"
+        ignore: 404
+
+---
+"Test execute watch api with foreach action":
+  - do:
+      watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple": {
+                  "my_array" : [
+                    { "_doc" : { "_index" : "my_test_index", "_id" : "first", "key" : "first" } },
+                    { "_doc" : { "_index" : "my_test_index", "_id" : "second", "key" : "second" } }
+                  ]
+                }
+              },
+              "actions": {
+                "indexme" : {
+                  "foreach" : "my_array",
+                  "index" : {}
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+
+  - do:
+      mget:
+        body:
+          docs:
+            - { _index: my_test_index, _id: "first"}
+            - { _index: my_test_index, _id: "second"}
+
+  - is_true:  docs.0.found
+  - match:  { docs.0._source: { "key": "first" }}
+  - is_true:  docs.1.found
+  - match:  { docs.1._source: { "key": "second" }}

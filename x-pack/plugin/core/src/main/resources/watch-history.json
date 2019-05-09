@@ -264,6 +264,10 @@
                 "reason" : {
                   "type" : "keyword"
                 },
+                "foreach" : {
+                  "type": "object",
+                  "enabled" : false
+                },
                 "email": {
                   "type": "object",
                   "dynamic": true,

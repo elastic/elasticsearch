@@ -48,8 +48,12 @@ dependencies {
     testCompile project(path: ':modules:parent-join', configuration: 'runtime')
     testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
     testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
-    testCompile(project(':x-pack:license-tools')) {
-        transitive = false
+    testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
+
+    if (isEclipse == false || project.path == ":x-pack:plugin:core-tests") {
+      testCompile(project(':x-pack:license-tools')) {
+          transitive = false
+      }
     }
 }
 
@@ -68,7 +72,11 @@ processResources {
   if (licenseKey != null) {
     println "Using provided license key from ${licenseKey}"
   } else if (snapshot) {
-    licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
+    if (isEclipse) {
+      licenseKey = Paths.get(project.projectDir.path, '../../snapshot.key')
+    } else {
+      licenseKey = Paths.get(project.projectDir.path, 'snapshot.key')
+    }
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')
   }
@@ -85,6 +93,19 @@ forbiddenPatterns {
     exclude '**/*.p12'
     exclude '**/*.der'
     exclude '**/*.zip'
+}
+
+if (isEclipse) {
+    // in eclipse the project is under a fake root, we need to change around the source sets
+    sourceSets {
+        if (project.path == ":libs:core") {
+            main.java.srcDirs = ['java']
+            main.resources.srcDirs = ['resources']
+        } else {
+            test.java.srcDirs = ['java']
+            test.resources.srcDirs = ['resources']
+        }
+    }
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"

@@ -12,7 +12,7 @@ esplugin {
 
 repositories {
     ivy {
-        name "prelert-artifacts"
+        name "ml-cpp"
         url "https://prelert-artifacts.s3.amazonaws.com"
         metadataSources {
             // no repository metadata, look directly for the artifact
@@ -53,6 +53,9 @@ dependencies {
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     // This should not be here
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 
@@ -92,10 +95,6 @@ project.afterEvaluate {
     project.tasks.findByName('generateNotice').outputs.upToDateWhen {
         extractNativeLicenses.state.upToDate
     }
-}
-
-run {
-    plugin xpackModule('core')
 }
 
 // xpack modules are installed in real clusters as the meta plugin, so

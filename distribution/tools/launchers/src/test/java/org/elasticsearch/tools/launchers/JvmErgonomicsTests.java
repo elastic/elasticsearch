@@ -27,9 +27,12 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -141,6 +144,12 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         assertThat(
                 JvmErgonomics.choose(Arrays.asList("-Xms" + heapSize, "-Xmx" + heapSize)),
                 hasItem("-XX:MaxDirectMemorySize=" + heapMaxDirectMemorySize.get(heapSize)));
+    }
+
+    public void testMaxDirectMemorySizeChoiceWhenSet() throws InterruptedException, IOException {
+        assertThat(
+                JvmErgonomics.choose(Arrays.asList("-Xms1g", "-Xmx1g", "-XX:MaxDirectMemorySize=1g")),
+                everyItem(not(startsWith("-XX:MaxDirectMemorySize="))));
     }
 
 }

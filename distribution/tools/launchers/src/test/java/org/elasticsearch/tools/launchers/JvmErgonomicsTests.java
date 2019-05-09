@@ -135,15 +135,15 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
     }
 
     public void testMaxDirectMemorySizeChoice() throws InterruptedException, IOException {
-        final Map<String, String> heapMaxDirectMemorySize = Map.of(
-                        "64M", Long.toString((64L << 20) / 2),
-                        "512M", Long.toString((512L << 20) / 2),
-                        "1024M", Long.toString((1024L << 20) / 2),
-                        "1G",  Long.toString((1L << 30) / 2),
-                        "2048M", Long.toString((2048L << 20) / 2),
-                        "2G", Long.toString((2L << 30) / 2),
-                        "8G", Long.toString((8L << 30) / 2));
-        final String heapSize = randomFrom(heapMaxDirectMemorySize.keySet().toArray(String[]::new));
+        final Map<String, String> heapMaxDirectMemorySize = new HashMap<>();
+        heapMaxDirectMemorySize.put("64M", Long.toString((64L << 20) / 2));
+        heapMaxDirectMemorySize.put("512M", Long.toString((512L << 20) / 2));
+        heapMaxDirectMemorySize.put("1024M", Long.toString((1024L << 20) / 2));
+        heapMaxDirectMemorySize.put("1G",  Long.toString((1L << 30) / 2));
+        heapMaxDirectMemorySize.put("2048M", Long.toString((2048L << 20) / 2));
+        heapMaxDirectMemorySize.put("2G", Long.toString((2L << 30) / 2));
+        heapMaxDirectMemorySize.put("8G", Long.toString((8L << 30) / 2));
+        final String heapSize = randomFrom(heapMaxDirectMemorySize.keySet().toArray(new String[0]));
         assertThat(
                 JvmErgonomics.choose(Arrays.asList("-Xms" + heapSize, "-Xmx" + heapSize)),
                 hasItem("-XX:MaxDirectMemorySize=" + heapMaxDirectMemorySize.get(heapSize)));

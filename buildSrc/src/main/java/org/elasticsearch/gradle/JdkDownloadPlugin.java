@@ -46,6 +46,8 @@ import java.util.regex.Matcher;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
 
+    private static final String REPO_NAME_PREFIX = "jdk_repo_";
+
     @Override
     public void apply(Project project) {
         NamedDomainObjectContainer<Jdk> jdksContainer = project.container(Jdk.class, name ->
@@ -68,6 +70,13 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
                 // ensure a root level jdk download task exists
                 setupRootJdkDownload(project.getRootProject(), platform, version);
+            }
+        });
+
+        // all other repos should ignore the special jdk artifacts
+        project.getRootProject().getRepositories().all(repo -> {
+            if (repo.getName().startsWith(REPO_NAME_PREFIX) == false) {
+                repo.content(content -> content.excludeGroup("jdk"));
             }
         });
     }
@@ -95,10 +104,10 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         String hash = jdkVersionMatcher.group(5);
 
         // add fake ivy repo for jdk url
-        String repoName = "jdk_repo_" + version;
+        String repoName = REPO_NAME_PREFIX + version;
         RepositoryHandler repositories = rootProject.getRepositories();
         if (rootProject.getRepositories().findByName(repoName) == null) {
-            if (Integer.parseInt(jdkMajor) >= 12 && jdkVersion.equals("12") == false) {
+            if (hash != null) {
                 // current pattern since 12.0.1
                 repositories.ivy(ivyRepo -> {
                     ivyRepo.setName(repoName);
@@ -119,12 +128,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     ivyRepo.content(content -> content.includeGroup("jdk"));
                 });
             }
-            // all other repos should ignore the special jdk artifacts
-            repositories.all(repo -> {
-               if (repo.getName().equals(repoName) == false) {
-                   repo.content(content -> content.excludeGroup("jdk"));
-               }
-            });
         }
 
         // add the jdk as a "dependency"

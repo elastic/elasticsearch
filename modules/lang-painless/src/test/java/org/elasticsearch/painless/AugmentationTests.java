@@ -232,7 +232,7 @@ public class AugmentationTests extends ScriptTestCase {
             new SplitCase("1\n1.1.\r\n1\r\n111", "\r\n"),
         };
         for (SplitCase split : cases) {
-            System.out.println(String.format("Splitting '%s' by '%s' %d times", split.input, split.token, split.count));
+            //System.out.println(String.format("Splitting '%s' by '%s' %d times", split.input, split.token, split.count));
             assertArrayEquals(
                 split.input.split(Pattern.quote(split.token), split.count),
                 (String[])exec(String.format("return \"%s\".splitOnToken(\"%s\", %d);", split.input, split.token, split.count))

@@ -25,17 +25,31 @@ import java.util.stream.Collectors;
 
 public class JodaDeprecationPatterns {
     private static Map<String, String> JODA_PATTERNS_DEPRECATIONS = new LinkedHashMap<>();
+    private static Map<String, String> JODA_DEPRECATION_KEYS = new LinkedHashMap<>();
 
     static {
         JODA_PATTERNS_DEPRECATIONS.put("Y", "'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year.");
+        JODA_DEPRECATION_KEYS.put("Y", "joda-year-of-era-format");
+
         JODA_PATTERNS_DEPRECATIONS.put("y", "'y' year becomes 'u'. Use 'y' for year-of-era.");
+        JODA_DEPRECATION_KEYS.put("y", "joda-year-format");
+
         JODA_PATTERNS_DEPRECATIONS.put("C", "'C' century of era is no longer supported.");
+        JODA_DEPRECATION_KEYS.put("C", "joda-century-of-era-format");
+
         JODA_PATTERNS_DEPRECATIONS.put("x", "'x' weak-year becomes 'Y'. Use 'x' for zone-offset.");
+        JODA_DEPRECATION_KEYS.put("x", "joda-week-based-year-format");
+
         JODA_PATTERNS_DEPRECATIONS.put("Z",
             "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'.");
+        JODA_DEPRECATION_KEYS.put("Z", "joda-time-zone-offset");
+
         JODA_PATTERNS_DEPRECATIONS.put("z",
             "'z' time zone text. Will print 'Z' for Zulu given UTC timezone.");
+        JODA_DEPRECATION_KEYS.put("z", "joda-time-zone-text");
+
     }
+
 
     public static final String USE_PREFIX_8_WARNING = "Prefix your date format with '8' to use the new specifier.";
 
@@ -52,5 +66,9 @@ public class JodaDeprecationPatterns {
                                                       .map(s -> s.getValue())
                                                       .collect(Collectors.joining("; "));
         return suggestion + USE_PREFIX_8_WARNING;
+    }
+
+    public static String deprecationKey(String format) {
+        return null;
     }
 }

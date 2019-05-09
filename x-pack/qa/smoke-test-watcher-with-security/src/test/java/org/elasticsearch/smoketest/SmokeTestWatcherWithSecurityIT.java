@@ -6,6 +6,9 @@
 package org.elasticsearch.smoketest;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -14,6 +17,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
@@ -32,7 +36,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
+@TestLogging("org.elasticsearch.smoketest.SmokeTestWatcherWithSecurityIT:debug")
 public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
@@ -40,8 +44,11 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private String watchId = randomAlphaOfLength(20);
 
+    private static final Logger logger = LogManager.getLogger(SmokeTestWatcherWithSecurityIT.class);
+
     @Before
     public void startWatcher() throws Exception {
+
         Request createAllowedDoc = new Request("PUT", "/my_test_index/_doc/1");
         createAllowedDoc.setJsonEntity("{ \"value\" : \"15\" }");
         createAllowedDoc.addParameter("refresh", "true");
@@ -54,7 +61,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         Request createNotAllowedDoc = new Request("PUT", "/index_not_allowed_to_read/_doc/1");
         createNotAllowedDoc.setJsonEntity("{\"foo\":\"bar\"}");
         adminClient().performRequest(createNotAllowedDoc);
-
+        logger.debug("startWatcher() - before start");
         assertBusy(() -> {
             try {
                 Response statsResponse = adminClient().performRequest(new Request("GET", "/_watcher/stats"));
@@ -84,7 +91,14 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
         assertBusy(() -> {
             for (String template : XPackRestTestConstants.TEMPLATE_NAMES) {
-                assertOK(adminClient().performRequest(new Request("HEAD", "_template/" + template)));
+                try {
+                    assertOK(adminClient().performRequest(new Request("HEAD", "_template/" + template)));
+                }catch (AssertionError ae){
+                    logger.debug(
+                        new ParameterizedMessage("startWatcher() - caught assertion error, cant find template [{}]", template)
+                            .getFormattedMessage());
+                    throw ae;
+                }
             }
         });
     }

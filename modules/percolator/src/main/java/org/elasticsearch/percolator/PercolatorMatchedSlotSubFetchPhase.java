@@ -58,13 +58,12 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, SearchHit[] hits) throws IOException {
-        innerHitsExecute(context.query(), context.searcher(), hits, context.mapperService().getIndexSettings().getIndexVersionCreated());
+        innerHitsExecute(context.query(), context.searcher(), hits);
     }
 
     static void innerHitsExecute(Query mainQuery,
                                  IndexSearcher indexSearcher,
-                                 SearchHit[] hits,
-                                 Version indexVersionCreated) throws IOException {
+                                 SearchHit[] hits) throws IOException {
         List<PercolateQuery> percolateQueries = locatePercolatorQuery(mainQuery);
         if (percolateQueries.isEmpty()) {
             return;
@@ -74,7 +73,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         for (PercolateQuery percolateQuery : percolateQueries) {
             String fieldName = singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
-            Query nonNestedQuery = Queries.newNonNestedFilter(indexVersionCreated);
+            Query nonNestedQuery = Queries.newNonNestedFilter(Version.CURRENT);
             Weight weight = percolatorIndexSearcher.createWeight(percolatorIndexSearcher.rewrite(nonNestedQuery),
                     ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(percolatorIndexSearcher.getIndexReader().leaves().get(0));

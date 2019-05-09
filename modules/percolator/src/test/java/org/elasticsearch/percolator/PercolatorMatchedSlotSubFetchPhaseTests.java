@@ -34,7 +34,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +64,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
-                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits, Version.CURRENT);
+                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
                     assertNotNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                     assertEquals(0, (int) hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX).getValue());
                 }
@@ -80,7 +79,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
-                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits, Version.CURRENT);
+                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
                     assertNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                 }
 
@@ -94,7 +93,7 @@ public class PercolatorMatchedSlotSubFetchPhaseTests extends ESTestCase {
                     PercolateQuery percolateQuery =  new PercolateQuery("_name", queryStore, Collections.emptyList(),
                         new MatchAllDocsQuery(), memoryIndex.createSearcher(), null, new MatchNoDocsQuery());
 
-                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits, Version.CURRENT);
+                    PercolatorMatchedSlotSubFetchPhase.innerHitsExecute(percolateQuery, indexSearcher, hits);
                     assertNull(hits[0].field(PercolatorMatchedSlotSubFetchPhase.FIELD_NAME_PREFIX));
                 }
             }

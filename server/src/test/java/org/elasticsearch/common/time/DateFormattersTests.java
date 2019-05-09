@@ -198,6 +198,58 @@ public class DateFormattersTests extends ESTestCase {
         formatter.format(formatter.parse("2018-05-15T17:14:56.123456789+01:00"));
     }
 
+    public void testIso8601Parsing() {
+        DateFormatter formatter = DateFormatters.forPattern("iso8601");
+
+        // timezone not allowed with just date
+        formatter.format(formatter.parse("2018-05-15"));
+
+        formatter.format(formatter.parse("2018-05-15T17"));
+        formatter.format(formatter.parse("2018-05-15T17Z"));
+        formatter.format(formatter.parse("2018-05-15T17+0100"));
+        formatter.format(formatter.parse("2018-05-15T17+01:00"));
+
+        formatter.format(formatter.parse("2018-05-15T17:14"));
+        formatter.format(formatter.parse("2018-05-15T17:14Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14-0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14-01:00"));
+
+        formatter.format(formatter.parse("2018-05-15T17:14:56"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56+0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56+01:00"));
+
+        // milliseconds can be separated using comma or decimal point
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123-0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123-01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123+0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123+01:00"));
+
+        // microseconds can be separated using comma or decimal point
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456+0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456+01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456-0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456-01:00"));
+
+        // nanoseconds can be separated using comma or decimal point
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789-0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56.123456789-01:00"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456789"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456789Z"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456789+0100"));
+        formatter.format(formatter.parse("2018-05-15T17:14:56,123456789+01:00"));
+    }
+
     public void testRoundupFormatterWithEpochDates() {
         assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second

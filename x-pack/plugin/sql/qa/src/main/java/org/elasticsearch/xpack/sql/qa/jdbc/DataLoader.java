@@ -49,6 +49,9 @@ public class DataLoader {
         loadLogsDatasetIntoEs(client, "logs", "logs");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
+        // frozen index
+        loadEmpDatasetIntoEs(client, "frozen_emp", "employees");
+        freeze(client, "frozen_emp");
     }
 
     public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {
@@ -289,6 +292,12 @@ public class DataLoader {
     protected static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
         for (String index : indices) {
             client.performRequest(new Request("POST", "/" + index + "/_alias/" + aliasName));
+        }
+    }
+
+    protected static void freeze(RestClient client, String... indices) throws Exception {
+        for (String index : indices) {
+            client.performRequest(new Request("POST", "/" + index + "/_freeze"));
         }
     }
 

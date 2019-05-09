@@ -67,7 +67,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        long id = in.readLong();
+        readFromWithId(id, in);
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
@@ -254,19 +256,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public boolean hasSearchContext() {
         return hasScoreDocs || hasSuggestHits();
-    }
-
-    public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
-        QuerySearchResult result = new QuerySearchResult();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        long id = in.readLong();
-        readFromWithId(id, in);
     }
 
     public void readFromWithId(long id, StreamInput in) throws IOException {

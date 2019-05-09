@@ -3,7 +3,7 @@
 
 [role="exclude",id="painless-api-reference-score-org-elasticsearch-index-query"]
 === Score API for package org.elasticsearch.index.query
-See the <<painless-api-reference-score, Score API>> for a high-level overview of all packages.
+See the <<painless-api-reference-score, Score API>> for a high-level overview of all packages and classes.
 
 [[painless-api-reference-score-VectorScriptDocValues]]
 ==== VectorScriptDocValues

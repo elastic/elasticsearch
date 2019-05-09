@@ -158,13 +158,17 @@ def deb_common(config, name, extra: '')
       s.privileged = false
       s.inline = "sudo sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
   end
+  extra_with_lintian = <<-SHELL
+    install lintian
+    #{extra}
+  SHELL
   linux_common(
     config,
     name,
     update_command: 'apt-get update',
     update_tracking_file: '/var/cache/apt/archives/last_update',
     install_command: 'apt-get install -y',
-    extra: extra
+    extra: extra_with_lintian
   )
 end
 

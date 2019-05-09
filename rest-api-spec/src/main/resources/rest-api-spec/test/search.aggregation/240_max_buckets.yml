@@ -75,6 +75,9 @@ setup:
 
 ---
 "Max bucket":
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix: https://github.com/elastic/elasticsearch/issues/41947"
   - do:
       cluster.put_settings:
         body:

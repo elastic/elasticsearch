@@ -143,7 +143,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk) {
       }
       if (jdk) {
         into('jdk') {
-          with jdkFiles('linux')
+          with jdkFiles(project, 'linux')
         }
       }
       // we need to specify every intermediate directory in these paths so the package managers know they are explicitly
@@ -270,13 +270,13 @@ apply plugin: 'nebula.ospackage-base'
 // this is package indepdendent configuration
 ospackage {
   maintainer 'Elasticsearch Team <info@elastic.co>'
-  summary '''
-    Elasticsearch is a distributed RESTful search engine built for the cloud.
+  summary 'Distributed RESTful search engine built for the cloud'
+  packageDescription '''
     Reference documentation can be found at
     https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
     and the 'Elasticsearch: The Definitive Guide' book can be found at
     https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
-    '''.stripIndent().replace('\n', ' ').trim()
+  '''.stripIndent().trim()
   url 'https://www.elastic.co/'
 
   // signing setup
@@ -288,7 +288,8 @@ ospackage {
             new File(new File(System.getProperty('user.home'), '.gnupg'), 'secring.gpg')
   }
 
-  requires('coreutils')
+  // version found on oldest supported distro, centos-6
+  requires('coreutils', '8.4', GREATER | EQUAL)
 
   fileMode 0644
   dirMode 0755
@@ -312,12 +313,18 @@ Closure commonDebConfig(boolean oss, boolean jdk) {
 
     version = project.version.replace('-', '~')
     packageGroup 'web'
-    requires 'bash'
+
+    // versions found on oldest supported distro, centos-6
+    requires('bash', '4.1', GREATER | EQUAL)
+    requires('lsb-base', '4', GREATER | EQUAL)
     requires 'libc6'
     requires 'adduser'
 
     into('/usr/share/lintian/overrides') {
       from('src/deb/lintian/elasticsearch')
+      if (oss) {
+        rename('elasticsearch', 'elasticsearch-oss')
+      }
     }
   }
 }

@@ -27,6 +27,7 @@ import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileTree;
@@ -95,24 +96,34 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         // add fake ivy repo for jdk url
         String repoName = "jdk_repo_" + version;
+        RepositoryHandler repositories = rootProject.getRepositories();
         if (rootProject.getRepositories().findByName(repoName) == null) {
-            // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
-            rootProject.getRepositories().ivy(ivyRepo -> {
-                ivyRepo.setName(repoName);
-                ivyRepo.setUrl("https://download.oracle.com");
-                ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                ivyRepo.patternLayout(layout ->
-                    layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
-                ivyRepo.content(content -> content.includeGroup("jdk"));
-            });
-            // current pattern since 12.0.1
-            rootProject.getRepositories().ivy(ivyRepo -> {
-                ivyRepo.setName(repoName + "_with_hash");
-                ivyRepo.setUrl("https://download.oracle.com");
-                ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                ivyRepo.patternLayout(layout -> layout.artifact(
-                    "java/GA/jdk" + jdkVersion + "/" + hash + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
-                ivyRepo.content(content -> content.includeGroup("jdk"));
+            if (Integer.parseInt(jdkMajor) >= 12 && jdkVersion.equals("12") == false) {
+                // current pattern since 12.0.1
+                repositories.ivy(ivyRepo -> {
+                    ivyRepo.setName(repoName);
+                    ivyRepo.setUrl("https://download.oracle.com");
+                    ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+                    ivyRepo.patternLayout(layout -> layout.artifact(
+                        "java/GA/jdk" + jdkVersion + "/" + hash + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
+                    ivyRepo.content(content -> content.includeGroup("jdk"));
+                });
+            } else {
+                // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
+                repositories.ivy(ivyRepo -> {
+                    ivyRepo.setName(repoName);
+                    ivyRepo.setUrl("https://download.oracle.com");
+                    ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+                    ivyRepo.patternLayout(layout ->
+                        layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
+                    ivyRepo.content(content -> content.includeGroup("jdk"));
+                });
+            }
+            // all other repos should ignore the special jdk artifacts
+            repositories.all(repo -> {
+               if (repo.getName().equals(repoName) == false) {
+                   repo.content(content -> content.excludeGroup("jdk"));
+               }
             });
         }
 

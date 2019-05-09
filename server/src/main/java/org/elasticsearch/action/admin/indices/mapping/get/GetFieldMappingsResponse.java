@@ -93,7 +93,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
 
-    // TODO(talevy): remove dependency on empty constructor from GetFieldMappingsResponseTests
     GetFieldMappingsResponse() {
     }
 

@@ -19,38 +19,70 @@
 
 package org.elasticsearch.tools.launchers;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasToString;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class JvmErgonomicsTests extends LaunchersTestCase {
-    public void testExtractValidHeapSize() {
-        assertEquals(Long.valueOf(1024), JvmErgonomics.extractHeapSize(Collections.singletonList("-Xmx1024")));
-        assertEquals(Long.valueOf(2L * 1024 * 1024 * 1024), JvmErgonomics.extractHeapSize(Collections.singletonList("-Xmx2g")));
-        assertEquals(Long.valueOf(32 * 1024 * 1024), JvmErgonomics.extractHeapSize(Collections.singletonList("-Xmx32M")));
-        assertEquals(Long.valueOf(32 * 1024 * 1024), JvmErgonomics.extractHeapSize(Collections.singletonList("-XX:MaxHeapSize=32M")));
+
+    public void testExtractValidHeapSizeUsingXmx() throws InterruptedException, IOException {
+        assertThat(
+                JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.singletonList("-Xmx2g"))),
+                equalTo(2L << 30));
     }
 
-    public void testExtractInvalidHeapSize() {
+    public void testExtractValidHeapSizeUsingMaxHeapSize() throws InterruptedException, IOException {
+        assertThat(
+                JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.singletonList("-XX:MaxHeapSize=2g"))),
+                equalTo(2L << 30));
+    }
+
+    public void testExtractValidHeapSizeNoOptionPresent() throws InterruptedException, IOException {
+        assertThat(
+                JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.emptyList())),
+                greaterThan(0L));
+    }
+
+    public void testHeapSizeInvalid() throws InterruptedException, IOException {
         try {
-            JvmErgonomics.extractHeapSize(Collections.singletonList("-Xmx2T"));
-            fail("Expected IllegalArgumentException to be raised");
-        } catch (IllegalArgumentException expected) {
-            assertEquals("Unknown unit [T] for max heap size in [-Xmx2T]", expected.getMessage());
+            JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.singletonList("-Xmx2Z")));
+            fail("expected starting java to fail");
+        } catch (final RuntimeException e) {
+            assertThat(e, hasToString(containsString(("starting java failed"))));
+            assertThat(e, hasToString(containsString(("Invalid maximum heap size: -Xmx2Z"))));
         }
     }
 
-    public void testExtractNoHeapSize() {
-        assertNull("No spaces allowed", JvmErgonomics.extractHeapSize(Collections.singletonList("-Xmx 1024")));
-        assertNull("JVM option is not present", JvmErgonomics.extractHeapSize(Collections.singletonList("")));
-        assertNull("Multiple JVM options per line", JvmErgonomics.extractHeapSize(Collections.singletonList("-Xms2g -Xmx2g")));
+    public void testHeapSizeTooSmall() throws InterruptedException, IOException {
+        try {
+            JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.singletonList("-Xmx1024")));
+            fail("expected starting java to fail");
+        } catch (final RuntimeException e) {
+            assertThat(e, hasToString(containsString(("starting java failed"))));
+            assertThat(e, hasToString(containsString(("Too small maximum heap"))));
+        }
+    }
+
+    public void testHeapSizeWithSpace() throws InterruptedException, IOException {
+        try {
+            JvmErgonomics.extractHeapSize(JvmErgonomics.finalJvmOptions(Collections.singletonList("-Xmx 1024")));
+            fail("expected starting java to fail");
+        } catch (final RuntimeException e) {
+            assertThat(e, hasToString(containsString(("starting java failed"))));
+            assertThat(e, hasToString(containsString(("Invalid maximum heap size: -Xmx 1024"))));
+        }
     }
 
     public void testExtractSystemProperties() {
@@ -69,15 +101,16 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         assertTrue(parsedSystemProperties.isEmpty());
     }
 
-    public void testLittleMemoryErgonomicChoices() {
+    public void testLittleMemoryErgonomicChoices() throws InterruptedException, IOException {
         String smallHeap = randomFrom(Arrays.asList("64M", "512M", "1024M", "1G"));
         List<String> expectedChoices = Collections.singletonList("-Dio.netty.allocator.type=unpooled");
         assertEquals(expectedChoices, JvmErgonomics.choose(Arrays.asList("-Xms" + smallHeap, "-Xmx" + smallHeap)));
     }
 
-    public void testPlentyMemoryErgonomicChoices() {
+    public void testPlentyMemoryErgonomicChoices() throws InterruptedException, IOException {
         String largeHeap = randomFrom(Arrays.asList("1025M", "2048M", "2G", "8G"));
         List<String> expectedChoices = Collections.singletonList("-Dio.netty.allocator.type=pooled");
         assertEquals(expectedChoices, JvmErgonomics.choose(Arrays.asList("-Xms" + largeHeap, "-Xmx" + largeHeap)));
     }
+
 }

@@ -17,27 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search;
+package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable;
+public class HtmlStripProcessorTests extends AbstractStringProcessorTestCase<String> {
 
-public class SearchScrollAction extends Action<SearchResponse> {
-
-    public static final SearchScrollAction INSTANCE = new SearchScrollAction();
-    public static final String NAME = "indices:data/read/scroll";
-
-    private SearchScrollAction() {
-        super(NAME);
+    @Override
+    protected AbstractStringProcessor<String> newProcessor(String field, boolean ignoreMissing, String targetField) {
+        return new HtmlStripProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
     }
 
     @Override
-    public SearchResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    protected String modifyInput(String input) {
+        return "<p><b>test</b>" + input + "<p><b>test</b>";
     }
 
     @Override
-    public Writeable.Reader<SearchResponse> getResponseReader() {
-        return SearchResponse::new;
+    protected String expectedResult(String input) {
+        return "\ntest" + input + "\ntest";
     }
 }

@@ -92,8 +92,8 @@ public class ShardFollowTask extends ImmutableFollowParameters implements XPackP
 
     public static ShardFollowTask readFrom(StreamInput in) throws IOException {
         String remoteCluster = in.readString();
-        ShardId followShardId = ShardId.readShardId(in);
-        ShardId leaderShardId = ShardId.readShardId(in);
+        ShardId followShardId = new ShardId(in);
+        ShardId leaderShardId = new ShardId(in);
         return new ShardFollowTask(remoteCluster, followShardId, leaderShardId, in);
     }
 

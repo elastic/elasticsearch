@@ -67,7 +67,6 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_ENDSESSION_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_ISSUER;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_JWKSET_PATH;
-import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_NAME;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_TOKEN_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.OP_USERINFO_ENDPOINT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.POPULATE_USER_METADATA;
@@ -263,7 +262,6 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
     }
 
     private OpenIdConnectProviderConfiguration buildOpenIdConnectProviderConfiguration(RealmConfig config) {
-        String providerName = require(config, OP_NAME);
         Issuer issuer = new Issuer(require(config, OP_ISSUER));
 
         String jwkSetUrl = require(config, OP_JWKSET_PATH);
@@ -299,7 +297,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             throw new SettingsException("Invalid URI: " + OP_ENDSESSION_ENDPOINT.getKey(), e);
         }
 
-        return new OpenIdConnectProviderConfiguration(providerName, issuer, jwkSetUrl, authorizationEndpoint, tokenEndpoint,
+        return new OpenIdConnectProviderConfiguration(issuer, jwkSetUrl, authorizationEndpoint, tokenEndpoint,
             userinfoEndpoint, endsessionEndpoint);
     }
 

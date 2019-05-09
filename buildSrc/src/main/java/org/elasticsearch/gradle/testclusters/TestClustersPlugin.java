@@ -283,7 +283,10 @@ public class TestClustersPlugin implements Plugin<Project> {
         Boilerplate.maybeCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
             onCreate.getOutputs().dir(getExtractDir(rootProject));
             onCreate.getInputs().files(
-                project.getConfigurations().matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+                project.getRootProject().getConfigurations().matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+            );
+            onCreate.dependsOn(project.getRootProject().getConfigurations()
+                .matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
             );
             // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
             onCreate.doFirst(new Action<Task>() {
@@ -299,7 +302,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     public void execute(Task task) {
                         project.getRootProject().getConfigurations()
                             .matching(config -> config.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
-                            .forEach(config -> project.copy(spec ->
+                            .forEach(config -> project.sync(spec ->
                                 config.getResolvedConfiguration()
                                     .getResolvedArtifacts()
                                     .forEach(resolvedArtifact -> {

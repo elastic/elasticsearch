@@ -61,7 +61,7 @@ public interface UserRoleMapper {
             this.username = username;
             this.dn = dn;
             this.groups = Set.copyOf(groups);
-            this.metadata = metadata;
+            this.metadata = Map.copyOf(metadata);
             this.realm = realm;
         }
 

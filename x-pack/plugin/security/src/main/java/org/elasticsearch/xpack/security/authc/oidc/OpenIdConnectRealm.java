@@ -415,7 +415,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                 values = (List<String>) claimValueObject;
                             } else {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String List value but found a "
+                                    + " expects a claim with String or a String Array value but found a "
                                     + claimValueObject.getClass().getName());
                             }
                             return values.stream().map(s -> {
@@ -449,7 +449,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
                                 return List.of((String) claimValueObject);
                             } else if (claimValueObject instanceof List == false) {
                                 throw new SettingsException("Setting [" + RealmSettings.getFullSettingKey(realmConfig, setting.getClaim())
-                                    + " expects a claim with String or a String List value but found a "
+                                    + " expects a claim with String or a String Array value but found a "
                                     + claimValueObject.getClass().getName());
                             }
                             return ((List<String>) claimValueObject).stream()

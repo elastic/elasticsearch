@@ -13,11 +13,17 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map.Entry;
 import java.util.Objects;
 
@@ -141,7 +147,63 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return groups.isValid() && aggregationConfig.isValid();
     }
 
+    public List<String> aggFieldValidation() {
+        if ((aggregationConfig.isValid() && groups.isValid()) == false) {
+            return Collections.emptyList();
+        }
+        List<String> usedNames = new ArrayList<>();
+        // TODO this will need to change once we allow multi-bucket aggs + field merging
+        aggregationConfig.getAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
+        aggregationConfig.getPipelineAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
+        usedNames.addAll(groups.getGroups().keySet());
+        return aggFieldValidation(usedNames);
+    }
+
     public static PivotConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
+    }
+
+    /**
+     * Does the following checks:
+     *
+     *  - determines if there are any full duplicate names between the aggregation names and the group by names.
+     *  - finds if there are conflicting name paths that could cause a failure later when the config is started.
+     *
+     * Examples showing conflicting field name paths:
+     *
+     * aggName1: foo.bar.baz
+     * aggName2: foo.bar
+     *
+     * This should fail as aggName1 will cause foo.bar to be an object, causing a conflict with the use of foo.bar in aggName2.
+     * @param usedNames The aggregation and group_by names
+     * @return List of validation failure messages
+     */
+    static List<String> aggFieldValidation(List<String> usedNames) {
+        if (usedNames == null || usedNames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> validationFailures = new ArrayList<>();
+
+        usedNames.sort(String::compareTo);
+        for (int i = 0; i < usedNames.size() - 1; i++) {
+            if (usedNames.get(i+1).startsWith(usedNames.get(i) + ".")) {
+                validationFailures.add("field [" + usedNames.get(i) + "] cannot be both an object and a field");
+            }
+            if (usedNames.get(i+1).equals(usedNames.get(i))) {
+                validationFailures.add("duplicate field [" + usedNames.get(i) + "] detected");
+            }
+        }
+        return validationFailures;
+    }
+
+
+    private static void addAggNames(AggregationBuilder aggregationBuilder, Collection<String> names) {
+        names.add(aggregationBuilder.getName());
+        aggregationBuilder.getSubAggregations().forEach(agg -> addAggNames(agg, names));
+        aggregationBuilder.getPipelineAggregations().forEach(agg -> addAggNames(agg, names));
+    }
+
+    private static void addAggNames(PipelineAggregationBuilder pipelineAggregationBuilder, Collection<String> names) {
+        names.add(pipelineAggregationBuilder.getName());
     }
 }

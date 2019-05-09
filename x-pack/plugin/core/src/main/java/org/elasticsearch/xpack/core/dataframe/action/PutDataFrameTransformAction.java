@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
     public static final PutDataFrameTransformAction INSTANCE = new PutDataFrameTransformAction();
@@ -53,7 +55,11 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            for(String failure : config.getPivotConfig().aggFieldValidation()) {
+                validationException = addValidationError(failure, validationException);
+            }
+            return validationException;
         }
 
         @Override

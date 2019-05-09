@@ -17,27 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.analyze;
+package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.common.io.stream.Writeable;
+public class HtmlStripProcessorTests extends AbstractStringProcessorTestCase<String> {
 
-public class AnalyzeAction extends Action<AnalyzeResponse> {
-
-    public static final AnalyzeAction INSTANCE = new AnalyzeAction();
-    public static final String NAME = "indices:admin/analyze";
-
-    private AnalyzeAction() {
-        super(NAME);
+    @Override
+    protected AbstractStringProcessor<String> newProcessor(String field, boolean ignoreMissing, String targetField) {
+        return new HtmlStripProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
     }
 
     @Override
-    public Writeable.Reader<AnalyzeResponse> getResponseReader() {
-        return AnalyzeResponse::new;
+    protected String modifyInput(String input) {
+        return "<p><b>test</b>" + input + "<p><b>test</b>";
     }
 
     @Override
-    public AnalyzeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    protected String expectedResult(String input) {
+        return "\ntest" + input + "\ntest";
     }
 }

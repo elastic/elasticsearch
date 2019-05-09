@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -71,7 +72,9 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
             fail("expected starting java to fail");
         } catch (final RuntimeException e) {
             assertThat(e, hasToString(containsString(("starting java failed"))));
-            assertThat(e, hasToString(containsString(("Too small maximum heap"))));
+            assertThat(
+                    e,
+                    anyOf(hasToString(containsString("Too small initial heap")), hasToString(containsString("Too small maximum heap"))));
         }
     }
 

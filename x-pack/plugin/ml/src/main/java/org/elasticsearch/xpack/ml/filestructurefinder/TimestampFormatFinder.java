@@ -21,7 +21,6 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -383,7 +382,7 @@ public final class TimestampFormatFinder {
                 return new TimestampMatch(candidate, "", text, "");
             }
         } else {
-            // Since an search in a long string that has sections that nearly match will be very slow, it's
+            // Since a search in a long string that has sections that nearly match will be very slow, it's
             // worth doing an initial sanity check to see if the relative positions of digits necessary to
             // get a match exist first
             Tuple<Integer, Integer> boundsForCandidate = findBoundsForCandidate(candidate, numberPosBitSet);
@@ -475,13 +474,12 @@ public final class TimestampFormatFinder {
         }
 
         int remainingMatches = matches.size();
-        Map<Integer, Double> timestampMatches = new HashMap<>();
+        double[] weights = new double[matchedFormats.size()];
         for (TimestampMatch match : matches) {
 
-            int matchedFormatIndex = 0;
-            for (TimestampFormat matchedFormat : matchedFormats) {
-                if (matchedFormat.canMergeWith(match.timestampFormat)) {
-                    timestampMatches.compute(matchedFormatIndex, (k, v) -> weightForMatch(match.preface) + ((v == null) ? 0.0 : v));
+            for (int matchedFormatIndex = 0; matchedFormatIndex < matchedFormats.size(); ++matchedFormatIndex) {
+                if (matchedFormats.get(matchedFormatIndex).canMergeWith(match.timestampFormat)) {
+                    weights[matchedFormatIndex] += weightForMatch(match.preface);
                     break;
                 }
                 ++matchedFormatIndex;
@@ -489,7 +487,7 @@ public final class TimestampFormatFinder {
 
             // The highest possible weight is 1, so if the difference between the two highest weights
             // is less than the number of lines remaining then the leader cannot possibly be overtaken
-            if (findDifferenceBetweenTwoHighestWeights(timestampMatches.values()) > --remainingMatches) {
+            if (findDifferenceBetweenTwoHighestWeights(weights) > --remainingMatches) {
                 break;
             }
         }
@@ -498,11 +496,11 @@ public final class TimestampFormatFinder {
 
         double highestWeight = 0.0;
         int highestWeightFormatIndex = -1;
-        for (Map.Entry<Integer, Double> entry : timestampMatches.entrySet()) {
-            double weight = entry.getValue();
+        for (int index = 0; index < weights.length; ++index) {
+            double weight = weights[index];
             if (weight > highestWeight) {
                 highestWeight = weight;
-                highestWeightFormatIndex = entry.getKey();
+                highestWeightFormatIndex = index;
             }
         }
 
@@ -827,10 +825,10 @@ public final class TimestampFormatFinder {
         return Math.pow(1.0 + preface.length() / 15.0, -1.1);
     }
 
-    private static double findDifferenceBetweenTwoHighestWeights(Collection<Double> weights) {
+    private static double findDifferenceBetweenTwoHighestWeights(double[] weights) {
         double highestWeight = 0.0;
         double secondHighestWeight = 0.0;
-        for (Double weight : weights) {
+        for (double weight : weights) {
             if (weight > highestWeight) {
                 secondHighestWeight = highestWeight;
                 highestWeight = weight;

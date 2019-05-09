@@ -5,21 +5,10 @@
     "url" : {
       "path" : "/_mtermvectors",
       "paths" : ["/_mtermvectors", "/{index}/_mtermvectors"],
-      "deprecated_paths" : [
-        {
-          "version" : "7.0.0",
-          "path" : "/{index}/{type}/_mtermvectors",
-          "description" : "Specifying types in urls has been deprecated"
-        }
-      ],
       "parts" : {
         "index" : {
          "type" : "string",
          "description" : "The index in which the document resides."
-        },
-        "type" : {
-          "type" : "string",
-          "description" : "The type of the document."
         }
       },
       "params" : {

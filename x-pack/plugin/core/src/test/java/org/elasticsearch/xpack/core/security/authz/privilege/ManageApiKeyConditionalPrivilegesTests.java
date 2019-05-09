@@ -116,12 +116,16 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
         assertThat(accessAllowed, is(true));
 
-        // Username is always required to evaluate condition if authenticated by user
+        // Username and realm name is always required to evaluate condition if authenticated by user
         accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName("realm1", "user1"), authentication);
         assertThat(accessAllowed, is(true));
         accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName("realm1", randomAlphaOfLength(4)),
                 authentication);
         assertThat(accessAllowed, is(false));
+        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(4), "user1"),
+                authentication);
+        assertThat(accessAllowed, is(false));
+
         accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "user1"),
                 authentication);
         assertThat(accessAllowed, is(true));
@@ -163,10 +167,13 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
         assertThat(accessAllowed, is(false));
 
-        // Username is always required to evaluate condition if authenticated by user
+        // Username and realm name is always required to evaluate condition if authenticated by user
         accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName("realm1", "user1"), authentication);
         assertThat(accessAllowed, is(true));
         accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName("realm1", randomAlphaOfLength(4)),
+                authentication);
+        assertThat(accessAllowed, is(false));
+        accessAllowed = checkAccess(condPrivilege, GET_ACTION, GetApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(4), "user1"),
                 authentication);
         assertThat(accessAllowed, is(false));
         accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "user1"),

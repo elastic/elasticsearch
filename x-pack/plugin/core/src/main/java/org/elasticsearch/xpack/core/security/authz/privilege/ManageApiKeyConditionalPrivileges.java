@@ -82,7 +82,8 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
             } else if (request instanceof GetApiKeyRequest && privilege.predicate().test(GET_API_KEY_PATTERN)) {
                 final GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
                 if (this.realms.isEmpty() && this.users.isEmpty()) {
-                    return checkIfUserIsOwnerOfApiKeys(authentication, getApiKeyRequest.getApiKeyId(), getApiKeyRequest.getUserName());
+                    return checkIfUserIsOwnerOfApiKeys(authentication, getApiKeyRequest.getApiKeyId(), getApiKeyRequest.getUserName(),
+                            getApiKeyRequest.getRealmName());
                 } else {
                     return checkIfAccessAllowed(realms, getApiKeyRequest.getRealmName(), realmsPredicate)
                             && checkIfAccessAllowed(users, getApiKeyRequest.getUserName(), usersPredicate);
@@ -91,7 +92,7 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
                 final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
                 if (this.realms.isEmpty() && this.users.isEmpty()) {
                     return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
-                            invalidateApiKeyRequest.getUserName());
+                            invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName());
                 } else {
                     return checkIfAccessAllowed(realms, invalidateApiKeyRequest.getRealmName(), realmsPredicate)
                             && checkIfAccessAllowed(users, invalidateApiKeyRequest.getUserName(), usersPredicate);
@@ -101,7 +102,7 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
         };
     }
 
-    private boolean checkIfUserIsOwnerOfApiKeys(Authentication authentication, String apiKeyId, String username) {
+    private boolean checkIfUserIsOwnerOfApiKeys(Authentication authentication, String apiKeyId, String username, String realmName) {
         if (authentication.getAuthenticatedBy().getType().equals("_es_api_key")) {
             // API key id from authentication must match the id from request
             String authenticatedApiKeyId = (String) authentication.getMetadata().get("_security_api_key_id");
@@ -110,8 +111,9 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
             }
         } else {
             String authenticatedUserPrincipal = authentication.getUser().principal();
-            if (Strings.hasText(username)) {
-                return username.equals(authenticatedUserPrincipal);
+            String authenticatedUserRealm = authentication.getAuthenticatedBy().getName();
+            if (Strings.hasText(username) && Strings.hasText(realmName)) {
+                return username.equals(authenticatedUserPrincipal) && realmName.equals(authenticatedUserRealm);
             }
         }
         return false;

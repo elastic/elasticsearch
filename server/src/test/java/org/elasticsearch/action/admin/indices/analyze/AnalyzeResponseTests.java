@@ -62,21 +62,24 @@ public class AnalyzeResponseTests extends AbstractSerializingTestCase<AnalyzeRes
         for (int i = 0; i < tokenCount; i++) {
             tokens[i] = randomToken();
         }
-        DetailAnalyzeResponse dar = null;
         if (randomBoolean()) {
-            dar = new DetailAnalyzeResponse();
+            DetailAnalyzeResponse.CharFilteredText[] charfilters = null;
+            DetailAnalyzeResponse.AnalyzeTokenList[] tokenfilters = null;
             if (randomBoolean()) {
-                dar.charfilters(new DetailAnalyzeResponse.CharFilteredText[]{
+                charfilters = new DetailAnalyzeResponse.CharFilteredText[]{
                     new DetailAnalyzeResponse.CharFilteredText("my_charfilter", new String[]{"one two"})
-                });
+                };
             }
-            dar.tokenizer(new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenizer", tokens));
             if (randomBoolean()) {
-                dar.tokenfilters(new DetailAnalyzeResponse.AnalyzeTokenList[]{
+                tokenfilters = new DetailAnalyzeResponse.AnalyzeTokenList[]{
                     new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_1", tokens),
                     new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_2", tokens)
-                });
+                };
             }
+            DetailAnalyzeResponse dar = new DetailAnalyzeResponse(
+                charfilters,
+                new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenizer", tokens),
+                tokenfilters);
             return new AnalyzeResponse(null, dar);
         }
         return new AnalyzeResponse(Arrays.asList(tokens), null);

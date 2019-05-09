@@ -68,7 +68,7 @@ class ShardUpgradeResult implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         primary = in.readBoolean();
         upgradeVersion = Version.readVersion(in);
         try {

@@ -32,12 +32,12 @@ public class AnalyzeAction extends Action<AnalyzeResponse> {
     }
 
     @Override
-    public AnalyzeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    public Writeable.Reader<AnalyzeResponse> getResponseReader() {
+        return AnalyzeResponse::new;
     }
 
     @Override
-    public Writeable.Reader<AnalyzeResponse> getResponseReader() {
-        return AnalyzeResponse::new;
+    public AnalyzeResponse newResponse() {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 }

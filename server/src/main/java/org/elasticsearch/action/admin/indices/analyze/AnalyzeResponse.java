@@ -52,21 +52,6 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         private final Map<String, Object> attributes;
         private final String type;
 
-        AnalyzeToken(StreamInput in) throws IOException {
-            term = in.readString();
-            startOffset = in.readInt();
-            endOffset = in.readInt();
-            position = in.readVInt();
-            Integer len = in.readOptionalVInt();
-            if (len != null) {
-                positionLength = len;
-            } else {
-                positionLength = 1;
-            }
-            type = in.readOptionalString();
-            attributes = in.readMap();
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -86,7 +71,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             return Objects.hash(term, startOffset, endOffset, position, positionLength, attributes, type);
         }
 
-        public AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength,
+        AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength,
                             String type, Map<String, Object> attributes) {
             this.term = term;
             this.position = position;
@@ -95,6 +80,21 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             this.positionLength = positionLength;
             this.type = type;
             this.attributes = attributes;
+        }
+
+        AnalyzeToken(StreamInput in) throws IOException {
+            term = in.readString();
+            startOffset = in.readInt();
+            endOffset = in.readInt();
+            position = in.readVInt();
+            Integer len = in.readOptionalVInt();
+            if (len != null) {
+                positionLength = len;
+            } else {
+                positionLength = 1;
+            }
+            type = in.readOptionalString();
+            attributes = in.readMap();
         }
 
         public String getTerm() {
@@ -203,26 +203,31 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     }
 
     private final DetailAnalyzeResponse detail;
-
     private final List<AnalyzeToken> tokens;
 
-    AnalyzeResponse(StreamInput in) throws IOException {
-        super(in);
+    public AnalyzeResponse(List<AnalyzeToken> tokens, DetailAnalyzeResponse detail) {
+        this.tokens = tokens;
+        this.detail = detail;
+    }
+
+    public AnalyzeResponse(StreamInput in) throws IOException {
+        super.readFrom(in);
         int size = in.readVInt();
         if (size > 0) {
             tokens = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 tokens.add(new AnalyzeToken(in));
             }
-        } else {
+        }
+        else {
             tokens = null;
         }
-        detail = in.readOptionalStreamable(DetailAnalyzeResponse::new);
+        detail = in.readOptionalWriteable(DetailAnalyzeResponse::new);
     }
 
-    public AnalyzeResponse(List<AnalyzeToken> tokens, DetailAnalyzeResponse detail) {
-        this.tokens = tokens;
-        this.detail = detail;
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public List<AnalyzeToken> getTokens() {
@@ -270,11 +275,6 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (tokens != null) {
@@ -285,7 +285,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         } else {
             out.writeVInt(0);
         }
-        out.writeOptionalStreamable(detail);
+        out.writeOptionalWriteable(detail);
     }
 
     @Override

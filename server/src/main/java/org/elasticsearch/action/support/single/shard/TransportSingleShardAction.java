@@ -184,11 +184,12 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         public void start() {
             if (shardIt == null) {
                 // just execute it on the local node
+                final Writeable.Reader<Response> reader = getResponseReader();
                 transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(),
                     new TransportResponseHandler<Response>() {
                     @Override
                     public Response read(StreamInput in) throws IOException {
-                        return getResponseReader().read(in);
+                        return reader.read(in);
                     }
 
                     @Override
@@ -251,12 +252,13 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                             node
                     );
                 }
+                final Writeable.Reader<Response> reader = getResponseReader();
                 transportService.sendRequest(node, transportShardAction, internalRequest.request(),
                     new TransportResponseHandler<Response>() {
 
                         @Override
                         public Response read(StreamInput in) throws IOException {
-                            return getResponseReader().read(in);
+                            return reader.read(in);
                         }
 
                         @Override

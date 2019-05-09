@@ -300,32 +300,6 @@ class BuildPlugin implements Plugin<Project> {
         return javaVersions.find { it.version == version }.javaHome.absolutePath
     }
 
-    /** Runs the given javascript using jjs from the jdk, and returns the output */
-    private static String runJavaAsScript(Project project, String javaHome, String script) {
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream()
-        ByteArrayOutputStream stderr = new ByteArrayOutputStream()
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            // gradle/groovy does not properly escape the double quote for windows
-            script = script.replace('"', '\\"')
-        }
-        File jrunscriptPath = new File(javaHome, 'bin/jrunscript')
-        ExecResult result = project.exec { ExecSpec spec ->
-            spec.executable = jrunscriptPath
-            spec.args '-e', script
-            spec.standardOutput = stdout
-            spec.errorOutput = stderr
-            spec.ignoreExitValue = true
-        }
-        if (result.exitValue != 0) {
-            project.logger.error("STDOUT:")
-            stdout.toString('UTF-8').eachLine { line -> project.logger.error(line) }
-            project.logger.error("STDERR:")
-            stderr.toString('UTF-8').eachLine { line -> project.logger.error(line) }
-            result.rethrowFailure()
-        }
-        return stdout.toString('UTF-8').trim()
-    }
-
     /** Return the configuration name used for finding transitive deps of the given dependency. */
     private static String transitiveDepConfigName(String groupId, String artifactId, String version) {
         return "_transitive_${groupId}_${artifactId}_${version}"

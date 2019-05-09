@@ -564,8 +564,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testTranslateStAsWktForPoints() {
-        LogicalPlan p = plan("SELECT ST_AsWKT(point), ST_AsWKT(shape) FROM test " +
-            "WHERE ST_AsWKT(point) = 'point (10 20)'");
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_AsWKT(point) = 'point (10 20)'");
         assertThat(p, instanceOf(Project.class));
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
@@ -579,24 +578,6 @@ public class QueryTranslatorTests extends ESTestCase {
                 ")",
             aggFilter.scriptTemplate().toString());
         assertEquals("[{v=point}, {v=point (10 20)}]", aggFilter.scriptTemplate().params().toString());
-    }
-
-    public void testTranslateStAsWktForShapes() {
-        LogicalPlan p = plan("SELECT ST_AsWKT(point), ST_AsWKT(shape) FROM test " +
-            "WHERE ST_AsWKT(shape) = 'point (10 20)'");
-        assertThat(p, instanceOf(Project.class));
-        assertThat(p.children().get(0), instanceOf(Filter.class));
-        Expression condition = ((Filter) p.children().get(0)).condition();
-        assertFalse(condition.foldable());
-        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
-        assertNull(translation.query);
-        AggFilter aggFilter = translation.aggFilter;
-        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
-                "InternalSqlScriptUtils.stAswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0))," +
-                "params.v1)" +
-                ")",
-            aggFilter.scriptTemplate().toString());
-        assertEquals("[{v=shape}, {v=point (10 20)}]", aggFilter.scriptTemplate().params().toString());
     }
 
     public void testTranslateStWktToSql() {
@@ -618,7 +599,7 @@ public class QueryTranslatorTests extends ESTestCase {
     public void testTranslateStDistanceToScript() {
         String operator = randomFrom(">", ">=");
         String operatorFunction = operator.equalsIgnoreCase(">") ? "gt" : "gte";
-        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) " + operator + " 20");
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) " + operator + " 20");
         assertThat(p, instanceOf(Project.class));
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
@@ -632,12 +613,12 @@ public class QueryTranslatorTests extends ESTestCase {
                 "InternalSqlScriptUtils.stDistance(" +
                 "InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))",
             sc.script().toString());
-        assertEquals("[{v=shape}, {v=point (10.0 20.0)}, {v=20}]", sc.script().params().toString());
+        assertEquals("[{v=point}, {v=point (10.0 20.0)}, {v=20}]", sc.script().params().toString());
     }
 
     public void testTranslateStDistanceToQuery() {
         String operator = randomFrom("<", "<=");
-        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(shape, ST_WKTToSQL('point (10 20)')) " + operator + " 25");
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) " + operator + " 25");
         assertThat(p, instanceOf(Project.class));
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
@@ -646,7 +627,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.aggFilter);
         assertTrue(translation.query instanceof GeoDistanceQuery);
         GeoDistanceQuery gq = (GeoDistanceQuery) translation.query;
-        assertEquals("shape", gq.field());
+        assertEquals("point", gq.field());
         assertEquals(20.0, gq.lat(), 0.00001);
         assertEquals(10.0, gq.lon(), 0.00001);
         assertEquals(25.0, gq.distance(), 0.00001);
@@ -670,7 +651,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     public void testTranslateStGeometryType() {
-        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_GEOMETRYTYPE(shape) = 'POLYGON'");
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_GEOMETRYTYPE(point) = 'POINT'");
         assertThat(p, instanceOf(Project.class));
         assertThat(p.children().get(0), instanceOf(Filter.class));
         Expression condition = ((Filter) p.children().get(0)).condition();
@@ -682,7 +663,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stGeometryType(" +
                 "InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))",
             sc.script().toString());
-        assertEquals("[{v=shape}, {v=POLYGON}]", sc.script().params().toString());
+        assertEquals("[{v=point}, {v=POINT}]", sc.script().params().toString());
     }
 
     public void testTranslateCoalesce_GroupBy_Painless() {

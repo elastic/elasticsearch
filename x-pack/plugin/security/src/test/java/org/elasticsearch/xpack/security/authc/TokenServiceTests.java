@@ -688,11 +688,11 @@ public class TokenServiceTests extends ESTestCase {
         final byte[] iv = tokenService.getRandomBytes(TokenService.IV_BYTES);
         final byte[] salt = tokenService.getRandomBytes(TokenService.SALT_BYTES);
         final Version version = tokenService.getTokenVersionCompatibility();
-        Tuple<String, String> encryptedTokens = tokenService.encryptSupersedingTokens(newAccessToken, newRefreshToken, refrehToken, iv,
+        String encryptedTokens = tokenService.encryptSupersedingTokens(newAccessToken, newRefreshToken, refrehToken, iv,
             salt);
         TokenService.RefreshTokenStatus refreshTokenStatus = new TokenService.RefreshTokenStatus(false,
             authentication.getUser().principal(), authentication.getAuthenticatedBy().getName(), true, Instant.now().minusSeconds(5L),
-            encryptedTokens.v1(), encryptedTokens.v2(), Base64.getEncoder().encodeToString(iv), Base64.getEncoder().encodeToString(salt));
+            encryptedTokens, Base64.getEncoder().encodeToString(iv), Base64.getEncoder().encodeToString(salt));
         refreshTokenStatus.setVersion(version);
         tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, tokenFuture);
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {

@@ -244,9 +244,8 @@ public final class TokenService {
      * auto-generated values. The created tokens are stored in the security index for versions up to
      * {@link #VERSION_TOKENS_INDEX_INTRODUCED} and to a specific security tokens index for later versions.
      */
-    public void createOAuth2Tokens(Authentication authentication, Authentication originatingClientAuth,
-                                   Map<String, Object> metadata, boolean includeRefreshToken,
-                                   ActionListener<Tuple<String, String>> listener) {
+    public void createOAuth2Tokens(Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
+                                   boolean includeRefreshToken, ActionListener<Tuple<String, String>> listener) {
         // the created token is compatible with the oldest node version in the cluster
         final Version tokenVersion = getTokenVersionCompatibility();
         // tokens moved to a separate index in newer versions
@@ -258,9 +257,9 @@ public final class TokenService {
     }
 
     /**
-     * Creates an access token and optionally a refresh token as well, based on the provided authentication and metadata. The created
-     * tokens are stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED} and to a specific security
-     * tokens index for later versions.
+     * Creates an access token and optionally a refresh token as well from predefined values, based on the provided authentication and
+     * metadata. The created tokens are stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED} and to a
+     * specific security tokens index for later versions.
      */
     //public for testing
     public void createOAuth2Tokens(String accessToken, String refreshToken, Authentication authentication,
@@ -274,9 +273,32 @@ public final class TokenService {
     }
 
     /**
-     * Create an access token and optionally a refresh token as well, based on the provided authentication and metadata. The created
-     * tokens are stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED} and to a specific security tokens
-     * index for later versions.
+     * Create an access token and optionally a refresh token as well from predefined values, based on the provided authentication and
+     * metadata.
+     *
+     * @param accessToken The predefined seed value for the access token. This will then be
+     *                    <ul>
+     *                      <li> Encrypted before stored for versions before {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
+     *                      <li> Hashed before stored for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
+     *                      <li> Stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                      <li> Stored in a specific security tokens index for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                      <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs</li>
+     *                    </ul>
+     * @param refreshToken The predefined seed value for the access token. This will then be
+     *                    <ul>
+     *                      <li> Hashed before stored for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED} </li>
+     *                      <li> Stored in the security index for versions up to {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                      <li> Stored in a specific security tokens index for versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                      <li> Prepended with a version ID and encoded with Base64 before returned to the caller of the APIs for
+     *                      versions after {@link #VERSION_TOKENS_INDEX_INTRODUCED}</li>
+     *                    </ul>
+     * @param tokenVersion The version of the nodes with which these tokens will be compatible.
+     * @param tokensIndex The security tokens index
+     * @param authentication The authentication object representing the user for which the tokens are created
+     * @param originatingClientAuth The authentication object representing the client that called the related API
+     * @param metadata A map with metadata to be stored in the token document
+     * @param listener The listener to call upon completion with a {@link Tuple<>} containing the
+     *                 serialized access token and serialized refresh token as these will be returned to the client
      */
     private void createOAuth2Tokens(String accessToken, String refreshToken, Version tokenVersion, SecurityIndexManager tokensIndex,
                                     Authentication authentication, Authentication originatingClientAuth, Map<String, Object> metadata,
@@ -758,6 +780,10 @@ public final class TokenService {
 
     /**
      * Called by the transport action in order to start the process of refreshing a token.
+     *
+     * @param refreshToken The refresh token as provided by the client
+     * @param listener The listener to call upon completion with a {@link Tuple<>} containing the
+     *                 serialized access token and serialized refresh token as these will be returned to the client
      */
     public void refreshToken(String refreshToken, ActionListener<Tuple<String, String>> listener) {
         ensureEnabled();
@@ -784,27 +810,22 @@ public final class TokenService {
                 + " prior to the introduction of the version-header format.", refreshToken);
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         } else {
-            if (refreshToken.length() == HASHED_TOKEN_LENGTH) {
-                logger.debug("Assuming a hashed refresh token [{}] retrieved from the tokens index", refreshToken);
-                findTokenFromRefreshToken(refreshToken, securityTokensIndex, backoff, listener);
-            } else {
-                logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
-                try {
-                    final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
-                    final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
-                    final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
-                    if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
-                        logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken,
-                            refreshTokenVersion);
-                        listener.onFailure(malformedTokenException());
-                    } else {
-                        final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
-                    }
-                } catch (IOException e) {
-                    logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
+            logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
+            try {
+                final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
+                final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
+                final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
+                if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
+                    logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken,
+                        refreshTokenVersion);
                     listener.onFailure(malformedTokenException());
+                } else {
+                    final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                    findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
                 }
+            } catch (IOException e) {
+                logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
+                listener.onFailure(malformedTokenException());
             }
         }
     }
@@ -910,12 +931,11 @@ public final class TokenService {
                 try {
                     final byte[] iv = getRandomBytes(IV_BYTES);
                     final byte[] salt = getRandomBytes(SALT_BYTES);
-                    Tuple<String, String> encryptedAccessAndRefreshToken = encryptSupersedingTokens(newAccessTokenString,
+                    String encryptedAccessAndRefreshToken = encryptSupersedingTokens(newAccessTokenString,
                         newRefreshTokenString, refreshToken, iv, salt);
-                    updateMap.put("superseding_access_token", encryptedAccessAndRefreshToken.v1());
-                    updateMap.put("superseding_refresh_token", encryptedAccessAndRefreshToken.v2());
-                    updateMap.put("superseding_encryption_iv", Base64.getEncoder().encodeToString(iv));
-                    updateMap.put("superseding_encryption_salt", Base64.getEncoder().encodeToString(salt));
+                    updateMap.put("superseding.encrypted_tokens", encryptedAccessAndRefreshToken);
+                    updateMap.put("superseding.encryption_iv", Base64.getEncoder().encodeToString(iv));
+                    updateMap.put("superseding.encryption_salt", Base64.getEncoder().encodeToString(salt));
                 } catch (GeneralSecurityException e) {
                     logger.warn("could not encrypt access token and refresh token string", e);
                     onFailure.accept(invalidGrantException("could not refresh the requested token"));
@@ -1009,24 +1029,29 @@ public final class TokenService {
 
     /**
      * Decrypts the values of the superseding access token and the refresh token, using a key derived from the superseded refresh token. It
-     * encodes the version and serializes the tokens before calling the listener, in the same manner as {@link #createOAuth2Tokens } does
-     **/
+     * encodes the version and serializes the tokens before calling the listener, in the same manner as {@link #createOAuth2Tokens } does.
+     *
+     * @param refreshToken The refresh token that the user sent in the request, used to derive the decryption key
+     * @param refreshTokenStatus The {@link RefreshTokenStatus} containing information about the superseding tokens as retrieved from the
+     *                          index
+     * @param listener The listener to call upon completion with a {@link Tuple<>} containing the
+     *                 serialized access token and serialized refresh token as these will be returned to the client
+     */
     void decryptAndReturnSupersedingTokens(String refreshToken, RefreshTokenStatus refreshTokenStatus,
                                            ActionListener<Tuple<String, String>> listener) {
         final byte[] iv = Base64.getDecoder().decode(refreshTokenStatus.getIv());
         final byte[] salt = Base64.getDecoder().decode(refreshTokenStatus.getSalt());
-        final byte[] encryptedSupersedingAccessToken = Base64.getDecoder().decode(refreshTokenStatus.getSupersedingAccessToken());
-        final byte[] encryptedSupersedingRefreshToken = Base64.getDecoder().decode(refreshTokenStatus.getSupersedingRefreshToken());
+        final byte[] encryptedSupersedingTokens = Base64.getDecoder().decode(refreshTokenStatus.getSupersedingTokens());
         try {
             Cipher cipher = getDecryptionCipher(iv, refreshToken, salt);
-            final String supersedingAccessToken = new String(cipher.doFinal(encryptedSupersedingAccessToken), StandardCharsets.UTF_8);
-            byte[] iv2 = new byte[iv.length];
-            System.arraycopy(iv, iv.length / 2, iv2, 0, iv.length / 2);
-            System.arraycopy(iv, 0, iv2, iv.length / 2, iv.length / 2);
-            cipher = getDecryptionCipher(iv2, refreshToken, salt);
-            final String supersedingRefreshToken = new String(cipher.doFinal(encryptedSupersedingRefreshToken), StandardCharsets.UTF_8);
-            listener.onResponse(new Tuple<>(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(), supersedingAccessToken),
-                prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), supersedingRefreshToken)));
+            final String supersedingTokens = new String(cipher.doFinal(encryptedSupersedingTokens), StandardCharsets.UTF_8);
+            final String[] decryptedTokens = supersedingTokens.split("\\|");
+            if (decryptedTokens.length != 2) {
+                logger.warn("Decrypted tokens string is not correctly formatted");
+                listener.onFailure(invalidGrantException("could not refresh the requested token"));
+            }
+            listener.onResponse(new Tuple<>(prependVersionAndEncodeAccessToken(refreshTokenStatus.getVersion(), decryptedTokens[0]),
+                prependVersionAndEncodeRefreshToken(refreshTokenStatus.getVersion(), decryptedTokens[1])));
         } catch (GeneralSecurityException | IOException e) {
             logger.warn("Could not get stored superseding token values", e);
             listener.onFailure(invalidGrantException("could not refresh the requested token"));
@@ -1035,21 +1060,14 @@ public final class TokenService {
 
     /*
      * Encrypts the values of the superseding access token and the refresh token, using a key derived from the superseded refresh token.
+     * The tokens are concatenated to a string separated with `|` before encryption so that we only perform one encryption operation
+     * and that we only need to store one field
      */
-    Tuple<String, String> encryptSupersedingTokens(String supersedingAccessToken, String supersedingRefreshToken,
-                                                   String refreshToken, byte[] iv, byte[] salt) throws GeneralSecurityException {
+    String encryptSupersedingTokens(String supersedingAccessToken, String supersedingRefreshToken,
+                                    String refreshToken, byte[] iv, byte[] salt) throws GeneralSecurityException {
         Cipher cipher = getEncryptionCipher(iv, refreshToken, salt);
-        final String encryptedSupersedingAccessToken =
-            Base64.getEncoder().encodeToString(cipher.doFinal(supersedingAccessToken.getBytes(StandardCharsets.UTF_8)));
-        // In AES GCM we cannot reuse the same IV. We predictably generate the IV for the second decryption instead of
-        // storing an extra field, since it doesn't have to be unpredictable, just not reused with the same key.
-        byte[] iv2 = new byte[iv.length];
-        System.arraycopy(iv, iv.length / 2, iv2, 0, iv.length / 2);
-        System.arraycopy(iv, 0, iv2, iv.length / 2, iv.length / 2);
-        cipher = getEncryptionCipher(iv2, refreshToken, salt);
-        final String encryptedSupersedingRefreshToken =
-            Base64.getEncoder().encodeToString(cipher.doFinal(supersedingRefreshToken.getBytes(StandardCharsets.UTF_8)));
-        return new Tuple<>(encryptedSupersedingAccessToken, encryptedSupersedingRefreshToken);
+        final String supersedingTokens = supersedingAccessToken + "|" + supersedingRefreshToken;
+        return Base64.getEncoder().encodeToString(cipher.doFinal(supersedingTokens.getBytes(StandardCharsets.UTF_8)));
     }
 
     private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
@@ -2134,9 +2152,7 @@ public final class TokenService {
         private final boolean refreshed;
         @Nullable private final Instant refreshInstant;
         @Nullable
-        private final String supersedingAccessToken;
-        @Nullable
-        private final String supersedingRefreshToken;
+        private final String supersedingTokens;
         @Nullable
         private final String iv;
         @Nullable
@@ -2144,16 +2160,14 @@ public final class TokenService {
         private Version version;
 
         // pkg-private for testing
-        RefreshTokenStatus(boolean invalidated, String associatedUser, String associatedRealm, boolean refreshed,
-                           Instant refreshInstant, String supersedingAccessToken, String supersedingRefreshToken,
-                           String iv, String salt) {
+        RefreshTokenStatus(boolean invalidated, String associatedUser, String associatedRealm, boolean refreshed, Instant refreshInstant,
+                           String supersedingTokens, String iv, String salt) {
             this.invalidated = invalidated;
             this.associatedUser = associatedUser;
             this.associatedRealm = associatedRealm;
             this.refreshed = refreshed;
             this.refreshInstant = refreshInstant;
-            this.supersedingAccessToken = supersedingAccessToken;
-            this.supersedingRefreshToken = supersedingRefreshToken;
+            this.supersedingTokens = supersedingTokens;
             this.iv = iv;
             this.salt = salt;
         }
@@ -2179,13 +2193,8 @@ public final class TokenService {
         }
 
         @Nullable
-        String getSupersedingAccessToken() {
-            return supersedingAccessToken;
-        }
-
-        @Nullable
-        String getSupersedingRefreshToken() {
-            return supersedingRefreshToken;
+        String getSupersedingTokens() {
+            return supersedingTokens;
         }
 
         @Nullable
@@ -2229,12 +2238,11 @@ public final class TokenService {
             }
             final Long refreshEpochMilli = (Long) refreshTokenSource.get("refresh_time");
             final Instant refreshInstant = refreshEpochMilli == null ? null : Instant.ofEpochMilli(refreshEpochMilli);
-            final String supersedingAccessToken = (String) refreshTokenSource.get("superseding_access_token");
-            final String supersedingRefreshToken = (String) refreshTokenSource.get("superseding_refresh_token");
-            final String iv = (String) refreshTokenSource.get("superseding_encryption_iv");
-            final String salt = (String) refreshTokenSource.get("superseding_encryption_salt");
-            return new RefreshTokenStatus(invalidated, associatedUser, associatedRealm, refreshed, refreshInstant, supersedingAccessToken,
-                supersedingRefreshToken, iv, salt);
+            final String supersedingTokens = (String) refreshTokenSource.get("superseding.encrypted_tokens");
+            final String iv = (String) refreshTokenSource.get("superseding.encryption_iv");
+            final String salt = (String) refreshTokenSource.get("superseding.encryption_salt");
+            return new RefreshTokenStatus(invalidated, associatedUser, associatedRealm, refreshed, refreshInstant, supersedingTokens,
+                iv, salt);
         }
     }
 

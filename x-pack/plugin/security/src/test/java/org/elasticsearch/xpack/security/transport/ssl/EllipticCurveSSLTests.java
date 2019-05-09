@@ -33,7 +33,9 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class EllipticCurveSSLTests extends SecurityIntegTestCase {
 
@@ -106,7 +108,8 @@ public class EllipticCurveSSLTests extends SecurityIntegTestCase {
             Certificate[] peerChain = session.getPeerCertificates();
             assertEquals(1, peerChain.length);
             assertEquals(certs[0], peerChain[0]);
-            assertThat(session.getCipherSuite(), containsString("ECDSA"));
+            assertThat(session.getCipherSuite(),
+                anyOf(containsString("ECDSA"), is("TLS_AES_256_GCM_SHA384"), is("TLS_AES_128_GCM_SHA256")));
         }
     }
 

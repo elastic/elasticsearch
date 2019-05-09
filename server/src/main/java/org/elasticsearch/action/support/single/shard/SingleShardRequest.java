@@ -97,7 +97,7 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            internalShardId = ShardId.readShardId(in);
+            internalShardId = new ShardId(in);
         }
         index = in.readOptionalString();
         // no need to pass threading over the network, they are always false when coming throw a thread pool
@@ -106,9 +106,8 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(internalShardId);
+        out.writeOptionalWriteable(internalShardId);
         out.writeOptionalString(index);
     }
-
 }
 

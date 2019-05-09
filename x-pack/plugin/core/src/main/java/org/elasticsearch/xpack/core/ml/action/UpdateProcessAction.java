@@ -121,10 +121,8 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
             if (in.readBoolean()) {
                 detectorUpdates = in.readList(JobUpdate.DetectorUpdate::new);
             }
-            if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-                filter = in.readOptionalWriteable(MlFilter::new);
-                updateScheduledEvents = in.readBoolean();
-            }
+            filter = in.readOptionalWriteable(MlFilter::new);
+            updateScheduledEvents = in.readBoolean();
         }
 
         @Override
@@ -136,10 +134,8 @@ public class UpdateProcessAction extends Action<UpdateProcessAction.Response> {
             if (hasDetectorUpdates) {
                 out.writeList(detectorUpdates);
             }
-            if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-                out.writeOptionalWriteable(filter);
-                out.writeBoolean(updateScheduledEvents);
-            }
+            out.writeOptionalWriteable(filter);
+            out.writeBoolean(updateScheduledEvents);
         }
 
         public Request(String jobId, ModelPlotConfig modelPlotConfig, List<JobUpdate.DetectorUpdate> detectorUpdates, MlFilter filter,

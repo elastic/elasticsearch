@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -93,7 +94,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         parser = createParser(YamlXContent.yamlXContent,
                 "\"First test section\": \n" +
                         "  - skip:\n" +
-                        "      version:  \"6.0.0 - 6.2.0\"\n" +
+                        "      version:  \"" + VersionUtils.getPreviousVersion() + " - " + Version.CURRENT + "\"\n" +
                         "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +
                         "  - do :\n" +
                         "      catch: missing\n" +
@@ -108,9 +109,9 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
         assertThat(testSection, notNullValue());
         assertThat(testSection.getName(), equalTo("First test section"));
         assertThat(testSection.getSkipSection(), notNullValue());
-        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(Version.V_6_0_0));
+        assertThat(testSection.getSkipSection().getLowerVersion(), equalTo(VersionUtils.getPreviousVersion()));
         assertThat(testSection.getSkipSection().getUpperVersion(),
-                equalTo(Version.V_6_2_0));
+                equalTo(Version.CURRENT));
         assertThat(testSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
         assertThat(testSection.getExecutableSections().size(), equalTo(2));
         DoSection doSection = (DoSection)testSection.getExecutableSections().get(0);

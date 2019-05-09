@@ -63,6 +63,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -461,7 +462,7 @@ public class SliceBuilderTests extends ESTestCase {
 
         SliceBuilder copy62 = copyWriteable(sliceBuilder,
                 new NamedWriteableRegistry(Collections.emptyList()),
-                SliceBuilder::new, Version.V_6_2_0);
+                SliceBuilder::new, VersionUtils.getPreviousVersion(Version.V_6_3_0));
         assertEquals(sliceBuilder, copy62);
 
         SliceBuilder copy63 = copyWriteable(copy62,
@@ -496,7 +497,8 @@ public class SliceBuilderTests extends ESTestCase {
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
             query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.CURRENT);
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
-            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.V_6_2_0);
+            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context,
+                VersionUtils.getPreviousVersion(Version.V_6_3_0));
             assertEquals(new DocValuesSliceQuery("field", 1, 2), query);
         }
     }

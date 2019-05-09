@@ -455,7 +455,6 @@ public class ReservedRealmTests extends ESTestCase {
                 assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
             case BeatsSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_6_2_3), is(false));
                 assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
                 break;
             case APMSystemUser.NAME:

@@ -222,16 +222,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
-        } else {
-            this.headers = Collections.emptyMap();
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
-        } else {
-            delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
-        }
+        this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
     }
 
     /**
@@ -432,9 +424,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
-        }
+        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeOptionalWriteable(delayedDataCheckConfig);
         }

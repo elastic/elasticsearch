@@ -13,7 +13,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Set;
 
 /*
  * A terms aggregation source for group_by
@@ -52,7 +52,12 @@ public class TermsGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public QueryBuilder getFilterQuery(List<String> changedBuckets) {
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
         return new TermsQueryBuilder(field, changedBuckets);
+    }
+
+    @Override
+    public boolean supportsIncrementalBucketUpdate() {
+        return true;
     }
 }

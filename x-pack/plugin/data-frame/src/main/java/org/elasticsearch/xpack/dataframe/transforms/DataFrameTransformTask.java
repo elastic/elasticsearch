@@ -275,10 +275,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             logger.warn("Data frame task [{}] triggered with an unintialized indexer", getTransformId());
             return;
         }
-        //  for now no rerun, so only trigger if checkpoint == 0
         if (event.getJobName().equals(SCHEDULE_NAME + "_" + transform.getId())) {
             logger.info("Data frame indexer [{}] schedule has triggered, state: [{}]", event.getJobName(), getIndexer().getState());
 
+            // if it runs for the 1st time we just do it, if not we check for changes
             if (currentCheckpoint.get() == 0 ) {
                 logger.debug("Trigger initial run");
                 getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());

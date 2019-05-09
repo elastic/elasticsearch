@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransfo
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
-import org.elasticsearch.xpack.core.dataframe.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -37,13 +36,10 @@ import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -66,7 +62,7 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     private Pivot pivot;
     private int pageSize = 0;
     protected volatile DataFrameTransformCheckpoint inProgressOrLastCheckpoint;
-    private volatile Map<String, List<String>> changedBuckets;
+    private volatile Map<String, Set<String>> changedBuckets;
 
     public DataFrameIndexer(Executor executor,
                             DataFrameAuditor auditor,
@@ -294,12 +290,22 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
     }
 
     private void getChangedBuckets(DataFrameTransformCheckpoint oldCheckpoint, DataFrameTransformCheckpoint newCheckpoint,
-            ActionListener<Map<String, List<String>>> listener) {
+            ActionListener<Map<String, Set<String>>> listener) {
+
+        // initialize the map of changed buckets, the map might be empty if source do not require/implement
+        // changed bucket detection
+        Map<String, Set<String>> keys = pivot.initialIncrementalBucketUpdateMap();
+        if (keys.isEmpty()) {
+            logger.trace("This data frame does not implement changed bucket detection, returning");
+            listener.onResponse(null);
+            return;
+        }
+
         SearchRequest searchRequest = new SearchRequest(getConfig().getSource().getIndex());
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
 
         // we do not need the sub-aggs
-        CompositeAggregationBuilder changesAgg = pivot.buildChangedBucketsAggregation(pageSize);
+        CompositeAggregationBuilder changesAgg = pivot.buildIncrementalBucketUpdateAggregation(pageSize);
         sourceBuilder.aggregation(changesAgg);
         sourceBuilder.size(0);
 
@@ -322,13 +328,6 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         searchRequest.source(sourceBuilder);
         searchRequest.allowPartialSearchResults(false);
 
-        // pre-fill the hashmap with the expected keys
-        // note that changed bucket might be empty due to the query
-        HashMap<String, List<String>> keys = new HashMap<>();
-        for(Entry<String, SingleGroupSource> entry: config.getPivotConfig().getGroupConfig().getGroups().entrySet()) {
-            keys.put(entry.getKey(), new ArrayList<>());
-        }
-
         collectChangedBuckets(searchRequest, changesAgg, keys, ActionListener.wrap(listener::onResponse, e -> {
             // fall back if bucket collection failed
             logger.error("Failed to retrieve changed buckets, fall back to complete retrieval", e);
@@ -336,8 +335,8 @@ public abstract class DataFrameIndexer extends AsyncTwoPhaseIndexer<Map<String, 
         }));
     }
 
-    void collectChangedBuckets(SearchRequest searchRequest, CompositeAggregationBuilder changesAgg, Map<String, List<String>> keys,
-            ActionListener<Map<String, List<String>>> finalListener) {
+    void collectChangedBuckets(SearchRequest searchRequest, CompositeAggregationBuilder changesAgg, Map<String, Set<String>> keys,
+            ActionListener<Map<String, Set<String>>> finalListener) {
 
         // re-using the existing search hook
         doNextSearch(searchRequest, ActionListener.wrap(searchResponse -> {

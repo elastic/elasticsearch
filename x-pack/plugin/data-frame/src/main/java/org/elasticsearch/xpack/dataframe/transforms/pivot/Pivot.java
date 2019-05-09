@@ -15,7 +15,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -35,9 +34,11 @@ import org.elasticsearch.xpack.core.dataframe.transforms.pivot.SingleGroupSource
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -112,12 +113,24 @@ public class Pivot {
         return cachedCompositeAggregation;
     }
 
-    public CompositeAggregationBuilder buildChangedBucketsAggregation(int pageSize) {
+    public CompositeAggregationBuilder buildIncrementalBucketUpdateAggregation(int pageSize) {
 
-        CompositeAggregationBuilder compositeAgg = createCompositeAggregationSources(config);
+        CompositeAggregationBuilder compositeAgg = createCompositeAggregationSources(config, true);
         compositeAgg.size(pageSize);
 
         return compositeAgg;
+    }
+
+    public Map<String, Set<String>> initialIncrementalBucketUpdateMap() {
+
+        Map<String, Set<String>> changedBuckets = new HashMap<>();
+        for(Entry<String, SingleGroupSource> entry: config.getGroupConfig().getGroups().entrySet()) {
+            if (entry.getValue().supportsIncrementalBucketUpdate()) {
+                changedBuckets.put(entry.getKey(), new HashSet<>());
+            }
+        }
+
+        return changedBuckets;
     }
 
     public Stream<Map<String, Object>> extractResults(CompositeAggregation agg,
@@ -154,7 +167,7 @@ public class Pivot {
         }));
     }
 
-    public QueryBuilder filterBuckets(Map<String, List<String>> changedBuckets) {
+    public QueryBuilder filterBuckets(Map<String, Set<String>> changedBuckets) {
 
         if (changedBuckets == null || changedBuckets.isEmpty()) {
             return null;
@@ -162,9 +175,12 @@ public class Pivot {
 
         if (config.getGroupConfig().getGroups().size() == 1) {
             Entry<String, SingleGroupSource> entry = config.getGroupConfig().getGroups().entrySet().iterator().next();
+            // it should not be possible to get into this code path
+            assert (entry.getValue().supportsIncrementalBucketUpdate());
+
             logger.trace("filter by bucket: " + entry.getKey() + "/" + entry.getValue().getField());
             if (changedBuckets.containsKey(entry.getKey())) {
-                return entry.getValue().getFilterQuery(changedBuckets.get(entry.getKey()));
+                return entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
             } else {
                 // should never happen
                 throw new RuntimeException("Could not find bucket value for key " + entry.getKey());
@@ -174,11 +190,12 @@ public class Pivot {
         // else: more than 1 group by, need to nest it
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
         for (Entry<String, SingleGroupSource> entry : config.getGroupConfig().getGroups().entrySet()) {
-            String field = entry.getValue().getField();
-            logger.trace("filter by bucket: " + entry.getKey() + "/" + field);
+            if (entry.getValue().supportsIncrementalBucketUpdate() == false) {
+                continue;
+            }
 
             if (changedBuckets.containsKey(entry.getKey())) {
-                QueryBuilder sourceQueryFilter = entry.getValue().getFilterQuery(changedBuckets.get(entry.getKey()));
+                QueryBuilder sourceQueryFilter = entry.getValue().getIncrementalBucketUpdateFilterQuery(changedBuckets.get(entry.getKey()));
                 // the source might not define an filter optimization
                 if (sourceQueryFilter != null) {
                     filteredQuery.filter(sourceQueryFilter);
@@ -194,7 +211,7 @@ public class Pivot {
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config) {
-        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config);
+        final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config, false);
 
         config.getAggregationConfig().getAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
         config.getAggregationConfig().getPipelineAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
@@ -202,11 +219,11 @@ public class Pivot {
         return compositeAggregation;
     }
 
-    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config) {
+    private static CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config, boolean forChangeDetection) {
         CompositeAggregationBuilder compositeAggregation;
 
         try (XContentBuilder builder = jsonBuilder()) {
-            config.toCompositeAggXContent(builder, ToXContentObject.EMPTY_PARAMS);
+            config.toCompositeAggXContent(builder, forChangeDetection);
             XContentParser parser = builder.generator().contentType().xContent().createParser(NamedXContentRegistry.EMPTY,
                     LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
             compositeAggregation = CompositeAggregationBuilder.parse(COMPOSITE_AGGREGATION_NAME, parser);

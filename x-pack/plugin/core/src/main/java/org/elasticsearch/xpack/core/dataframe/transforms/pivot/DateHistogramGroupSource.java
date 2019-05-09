@@ -18,8 +18,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 
 public class DateHistogramGroupSource extends SingleGroupSource {
@@ -183,8 +183,13 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     }
 
     @Override
-    public QueryBuilder getFilterQuery(List<String> changedBuckets) {
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
         // no need for an extra range filter as this is already done by checkpoints
         return null;
+    }
+
+    @Override
+    public boolean supportsIncrementalBucketUpdate() {
+        return false;
     }
 }

@@ -39,11 +39,11 @@ public class PivotConfig implements ToXContentObject {
 
     private static final ParseField GROUP_BY = new ParseField("group_by");
     private static final ParseField AGGREGATIONS = new ParseField("aggregations");
-    private static final ParseField SIZE = new ParseField("size");
+    private static final ParseField MAX_PAGE_SEARCH_SIZE = new ParseField("max_page_search_size");
 
     private final GroupConfig groups;
     private final AggregationConfig aggregationConfig;
-    private final Integer size;
+    private final Integer maxPageSearchSize;
 
     private static final ConstructingObjectParser<PivotConfig, Void> PARSER = new ConstructingObjectParser<>("pivot_config", true,
                 args -> new PivotConfig((GroupConfig) args[0], (AggregationConfig) args[1], (Integer) args[2]));
@@ -51,17 +51,17 @@ public class PivotConfig implements ToXContentObject {
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> (GroupConfig.fromXContent(p)), GROUP_BY);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> AggregationConfig.fromXContent(p), AGGREGATIONS);
-        PARSER.declareInt(optionalConstructorArg(), SIZE);
+        PARSER.declareInt(optionalConstructorArg(), MAX_PAGE_SEARCH_SIZE);
     }
 
     public static PivotConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    PivotConfig(GroupConfig groups, final AggregationConfig aggregationConfig, Integer size) {
+    PivotConfig(GroupConfig groups, final AggregationConfig aggregationConfig, Integer maxPageSearchSize) {
         this.groups = groups;
         this.aggregationConfig = aggregationConfig;
-        this.size = size;
+        this.maxPageSearchSize = maxPageSearchSize;
     }
 
     @Override
@@ -69,8 +69,8 @@ public class PivotConfig implements ToXContentObject {
         builder.startObject();
         builder.field(GROUP_BY.getPreferredName(), groups);
         builder.field(AGGREGATIONS.getPreferredName(), aggregationConfig);
-        if (size != null) {
-            builder.field(SIZE.getPreferredName(), size);
+        if (maxPageSearchSize != null) {
+            builder.field(MAX_PAGE_SEARCH_SIZE.getPreferredName(), maxPageSearchSize);
         }
         builder.endObject();
         return builder;
@@ -84,8 +84,8 @@ public class PivotConfig implements ToXContentObject {
         return groups;
     }
 
-    public Integer getSize() {
-        return size;
+    public Integer getMaxPageSearchSize() {
+        return maxPageSearchSize;
     }
 
     @Override
@@ -102,12 +102,12 @@ public class PivotConfig implements ToXContentObject {
 
         return Objects.equals(this.groups, that.groups)
             && Objects.equals(this.aggregationConfig, that.aggregationConfig)
-            && Objects.equals(this.size, that.size);
+            && Objects.equals(this.maxPageSearchSize, that.maxPageSearchSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(groups, aggregationConfig, size);
+        return Objects.hash(groups, aggregationConfig, maxPageSearchSize);
     }
 
     public static Builder builder() {
@@ -117,7 +117,7 @@ public class PivotConfig implements ToXContentObject {
     public static class Builder {
         private GroupConfig groups;
         private AggregationConfig aggregationConfig;
-        private Integer size;
+        private Integer maxPageSearchSize;
 
         /**
          * Set how to group the source data
@@ -150,21 +150,21 @@ public class PivotConfig implements ToXContentObject {
         }
 
         /**
-         * Sets the paging maximum paging size that date frame transform can use when
+         * Sets the paging maximum paging maxPageSearchSize that date frame transform can use when
          * pulling the data from the source index.
          *
-         * If OOM is triggered, the paging size is dynamically reduced so that the transform can continue to gather data.
+         * If OOM is triggered, the paging maxPageSearchSize is dynamically reduced so that the transform can continue to gather data.
          *
-         * @param size Integer value between 10 and 10_000
-         * @return the {@link Builder} with the paging size set.
+         * @param maxPageSearchSize Integer value between 10 and 10_000
+         * @return the {@link Builder} with the paging maxPageSearchSize set.
          */
-        public Builder setSize(Integer size) {
-            this.size = size;
+        public Builder setMaxPageSearchSize(Integer maxPageSearchSize) {
+            this.maxPageSearchSize = maxPageSearchSize;
             return this;
         }
 
         public PivotConfig build() {
-            return new PivotConfig(groups, aggregationConfig, size);
+            return new PivotConfig(groups, aggregationConfig, maxPageSearchSize);
         }
     }
 }

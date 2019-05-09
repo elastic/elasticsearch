@@ -139,7 +139,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         PivotConfig pivotConfig = PivotConfig.builder()
             .setGroups(groupConfig) // <1>
             .setAggregationConfig(aggConfig) // <2>
-            .setSize(1000) // <3>
+            .setMaxPageSearchSize(1000) // <3>
             .build();
         // end::put-data-frame-transform-pivot-config
         // tag::put-data-frame-transform-config

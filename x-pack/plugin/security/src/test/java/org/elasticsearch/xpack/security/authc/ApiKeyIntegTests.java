@@ -649,7 +649,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     .basicAuthHeaderValue("user_with_owner_manage_api_key_role", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
             final SecurityClient securityClient = new SecurityClient(client);
             PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
-            securityClient.getApiKey(GetApiKeyRequest.usingUserName("user_with_owner_manage_api_key_role"), listener);
+            GetApiKeyRequest getApiKeyRequest = new GetApiKeyRequest("file", "user_with_owner_manage_api_key_role", null, null);
+            securityClient.getApiKey(getApiKeyRequest, listener);
             GetApiKeyResponse response = listener.actionGet();
             assertThat(response.getApiKeyInfos().length, is(2));
 
@@ -702,7 +703,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     .basicAuthHeaderValue("user_with_owner_manage_api_key_role", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
             final SecurityClient securityClient = new SecurityClient(client);
             final PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-            InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(null, "user_with_owner_manage_api_key_role", null,
+            InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest("file", "user_with_owner_manage_api_key_role", null,
                     userWithOwnerManageApiKeyRoleApiKeys.get(1).getName());
             securityClient.invalidateApiKey(invalidateApiKeyRequest, listener);
             invalidateApiKeyResponse = listener.actionGet();

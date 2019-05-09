@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -29,7 +30,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil.isNumericType;
 
-final class AggregationResultUtils {
+public final class AggregationResultUtils {
     private static final Logger logger = LogManager.getLogger(AggregationResultUtils.class);
 
     /**
@@ -100,16 +101,24 @@ final class AggregationResultUtils {
     @SuppressWarnings("unchecked")
     static void updateDocument(Map<String, Object> document, String fieldName, Object value) {
         String[] fieldTokens = fieldName.split("\\.");
+        if (fieldTokens.length == 1) {
+            document.put(fieldName, value);
+            return;
+        }
         Map<String, Object> internalMap = document;
         for (int i = 0; i < fieldTokens.length; i++) {
             String token = fieldTokens[i];
             if (i == fieldTokens.length - 1) {
                 if (internalMap.containsKey(token)) {
-                    logger.error("duplicate key value pairs key {} old value {} duplicate value {}",
-                        token,
-                        internalMap.get(token),
-                        value);
-                    assert false;
+                    if (internalMap.get(token) instanceof Map) {
+                        throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]",
+                            fieldName);
+                    } else {
+                        throw new AggregationExtractionException("duplicate key value pairs key [{}] old value [{}] duplicate value [{}]",
+                            fieldName,
+                            internalMap.get(token),
+                            value);
+                    }
                 }
                 internalMap.put(token, value);
             } else {
@@ -117,8 +126,8 @@ final class AggregationResultUtils {
                     if (internalMap.get(token) instanceof Map) {
                         internalMap = (Map<String, Object>)internalMap.get(token);
                     } else {
-                        logger.error("mixed object types of nested {} and non-nested fields {}", fieldName, token);
-                        assert false;
+                        throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]",
+                            fieldName);
                     }
                 } else {
                     Map<String, Object> newMap = new HashMap<>();
@@ -126,6 +135,12 @@ final class AggregationResultUtils {
                     internalMap = newMap;
                 }
             }
+        }
+    }
+
+    public static class AggregationExtractionException extends ElasticsearchException {
+        AggregationExtractionException(String msg, Object... args) {
+            super(msg, args);
         }
     }
 }

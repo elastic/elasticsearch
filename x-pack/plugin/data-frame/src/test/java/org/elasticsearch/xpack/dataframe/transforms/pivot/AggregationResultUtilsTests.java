@@ -759,6 +759,29 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertThat(foobar.get("baz2"), equalTo(2000L));
     }
 
+    public void testUpdateDocumentWithDuplicate() {
+        Map<String, Object> document = new HashMap<>();
+
+        AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
+        AggregationResultUtils.AggregationExtractionException exception =
+            expectThrows(AggregationResultUtils.AggregationExtractionException.class,
+                () -> AggregationResultUtils.updateDocument(document, "foo.bar.baz", 2000L));
+        assertThat(exception.getMessage(),
+            equalTo("duplicate key value pairs key [foo.bar.baz] old value [1000] duplicate value [2000]"));
+    }
+
+    public void testUpdateDocumentWithObjectAndNotObject() {
+        Map<String, Object> document = new HashMap<>();
+
+        AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
+        AggregationResultUtils.AggregationExtractionException exception =
+            expectThrows(AggregationResultUtils.AggregationExtractionException.class,
+                () -> AggregationResultUtils.updateDocument(document, "foo.bar", 2000L));
+        assertThat(exception.getMessage(),
+            equalTo("mixed object types of nested and non-nested fields [foo.bar]"));
+    }
+
+
     private void executeTest(GroupConfig groups,
                              Collection<AggregationBuilder> aggregationBuilders,
                              Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,

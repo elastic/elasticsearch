@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -68,7 +69,7 @@ public class DataFrameIndexerTests extends ESTestCase {
                 Function<BulkRequest, BulkResponse> bulkFunction,
                 Consumer<Exception> failureConsumer) {
             super(executor, auditor, transformConfig, fieldMappings, initialState, initialPosition, jobStats,
-                    /* DataFrameTransformProgress */ null);
+                    /* DataFrameTransformProgress */ null, DataFrameTransformCheckpoint.EMPTY);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -79,8 +80,8 @@ public class DataFrameIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void createCheckpoint(ActionListener<Void> listener) {
-            listener.onResponse(null);
+        protected void createCheckpoint(ActionListener<DataFrameTransformCheckpoint> listener) {
+            listener.onResponse(DataFrameTransformCheckpoint.EMPTY);
         }
 
         @Override
@@ -158,6 +159,11 @@ public class DataFrameIndexerTests extends ESTestCase {
             fail("failIndexer should not be called, received error: " + message);
         }
 
+        @Override
+        protected boolean sourceHasChanged() {
+            return false;
+        }
+
     }
 
     @Before
@@ -180,7 +186,7 @@ public class DataFrameIndexerTests extends ESTestCase {
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
         Consumer<Exception> failureConsumer = e -> {
-            fail("expected circuit breaker exception to be handled");
+            fail("expected circuit breaker exception to be handled, got " + e);
         };
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
@@ -218,4 +224,5 @@ public class DataFrameIndexerTests extends ESTestCase {
             executor.shutdownNow();
         }
     }
+
 }

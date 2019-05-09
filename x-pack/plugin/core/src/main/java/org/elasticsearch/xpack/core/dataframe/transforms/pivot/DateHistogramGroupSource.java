@@ -12,12 +12,14 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
+import java.util.Set;
 
 
 public class DateHistogramGroupSource extends SingleGroupSource {
@@ -178,5 +180,16 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     @Override
     public int hashCode() {
         return Objects.hash(field, interval, dateHistogramInterval, timeZone, format);
+    }
+
+    @Override
+    public QueryBuilder getIncrementalBucketUpdateFilterQuery(Set<String> changedBuckets) {
+        // no need for an extra range filter as this is already done by checkpoints
+        return null;
+    }
+
+    @Override
+    public boolean supportsIncrementalBucketUpdate() {
+        return false;
     }
 }

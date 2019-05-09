@@ -267,19 +267,23 @@ public class Joda {
         return new JodaDateFormatter(input, formatter, formatter);
     }
 
-    private static void maybeLogJodaDeprecation(String input) {
-        if (input.contains("CC")) {
-            deprecationLogger.deprecatedAndMaybeLog("joda-century-of-era-format",
-                "Use of 'C' (century-of-era) is deprecated and will not be supported in the next major version of Elasticsearch.");
+    private static void maybeLogJodaDeprecation(String format) {
+        if (JodaDeprecationPatterns.isDeprecatedFormat(format)) {
+            String suggestion = JodaDeprecationPatterns.formatSuggestion(format);
+            deprecationLogger.deprecatedAndMaybeLog("joda-century-of-era-format", suggestion);
         }
-        if (input.contains("YY")) {
-            deprecationLogger.deprecatedAndMaybeLog("joda-year-of-era-format", "Use of 'Y' (year-of-era) will change to 'y' in the" +
-                " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
-        }
-        if (input.contains("xx")) {
-            deprecationLogger.deprecatedAndMaybeLog("joda-week-based-year-format","Use of 'x' (week-based-year) will change" +
-                " to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
-        }
+//        if (format.contains("CC")) {
+//            deprecationLogger.deprecatedAndMaybeLog("joda-century-of-era-format",
+//                "Use of 'C' (century-of-era) is deprecated and will not be supported in the next major version of Elasticsearch.");
+//        }
+//        if (format.contains("YY")) {
+//            deprecationLogger.deprecatedAndMaybeLog("joda-year-of-era-format", "Use of 'Y' (year-of-era) will change to 'y' in the" +
+//                " next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+//        }
+//        if (format.contains("xx")) {
+//            deprecationLogger.deprecatedAndMaybeLog("joda-week-based-year-format","Use of 'x' (week-based-year) will change" +
+//                " to 'Y' in the next major version of Elasticsearch. Prefix your date format with '8' to use the new specifier.");
+//        }
     }
 
     public static DateFormatter getStrictStandardDateFormatter() {

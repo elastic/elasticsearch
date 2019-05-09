@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -20,9 +21,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,11 +52,13 @@ public class IndexDeprecationChecks {
      * @param type the document type
      * @param parentMap the mapping to read properties from
      * @param predicate the predicate to check against for issues, issue is returned if predicate evaluates to true
+     * @param fieldFormatter a function that takes a type and mapping field entry and returns a formatted field representation
      * @return a list of issues found in fields
      */
     @SuppressWarnings("unchecked")
     static List<String> findInPropertiesRecursively(String type, Map<String, Object> parentMap,
-                                                    Function<Map<?,?>, Boolean> predicate, BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter) {
+                                                    Function<Map<?,?>, Boolean> predicate,
+                                                    BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter) {
         List<String> issues = new ArrayList<>();
         Map<?, ?> properties = (Map<?, ?>) parentMap.get("properties");
         if (properties == null) {
@@ -92,7 +93,7 @@ public class IndexDeprecationChecks {
     private static String formatDateField(String type, Map.Entry<?, ?> entry) {
         Map<?,?> value = (Map<?, ?>) entry.getValue();
         return "type: " + type + ", field: " + entry.getKey() +", format: "+ value.get("format") +", suggestion: "
-            + formatSuggestion((String)value.get("format"));
+            + JodaDeprecationPatterns.formatSuggestion((String)value.get("format"));
     }
 
     private static String formatField(String type, Map.Entry<?, ?> entry) {
@@ -293,54 +294,7 @@ public class IndexDeprecationChecks {
     private static boolean isDateFieldWithDeprecatedPattern(Map<?, ?> property) {
         return "date".equals(property.get("type")) &&
                 property.containsKey("format") &&
-            isDeprecatedFormat((String) property.get("format"));
-    }
-
-    static Map<String, String> JODA_PATTERNS_DEPRECATIONS = new LinkedHashMap<>();
-    static {
-        JODA_PATTERNS_DEPRECATIONS.put("Y", "'Y' year-of-era becomes 'y'. 'Y' means week-based-year.");
-        JODA_PATTERNS_DEPRECATIONS.put("y", "'y' year changes meaning to year-of-era (cannot be <0 anymore).");
-        JODA_PATTERNS_DEPRECATIONS.put("C", "'C' century of era is no longer supported.");
-        JODA_PATTERNS_DEPRECATIONS.put("x", "'x' weak-year becomes 'Y'. 'x' means now zone-offset.");
-        JODA_PATTERNS_DEPRECATIONS.put("Z", "'Z' time zone offset/id is now 'Z' or 'X'. 'Z' might fail when parsing 'Z for Zulu time zone'. Consider using 'X'.");
-        JODA_PATTERNS_DEPRECATIONS.put("z", "'z' time zone text. Has the same meaing now. Will print 'Z for Zulu time zone' given UTC timezone.");
-    }
-
-    private static boolean isDeprecatedFormat(String format) {
-
-        return JODA_PATTERNS_DEPRECATIONS.keySet().stream()
-                                  .filter(s -> format.contains(s))
-                                  .findAny()
-                                  .isPresent();
-//        return format.contains("Y") ||
-//            format.contains("C") ||
-//            format.contains("x") ||
-//            format.contains("y") ||
-//            format.contains("Z") ||
-//            format.contains("z");
-    }
-
-    private static String formatSuggestion(String format) {
-        return JODA_PATTERNS_DEPRECATIONS.entrySet().stream()
-                                  .filter(s-> format.contains(s.getKey()))
-                                  .map(s->s.getValue())
-                                  .collect(Collectors.joining("; "));
-//        String concat = new ArrayList<String>().stream().collect(StringBuilder::new, StringBuilder::append);
-//     *                                 .toString();
-//        StringJoiner joiner = new StringJoiner("; ");
-//        if (format.contains("Y"))
-//            joiner.add( "'Y' year-of-era becomes 'y'. 'Y' means week-based-year.");
-//        if (format.contains("y"))
-//            joiner.add( "'y' year changes meaning to year-of-era (cannot be <0 anymore).");
-//        if (format.contains("C"))
-//            joiner.add( "'C' century of era is no longer supported.");
-//        if (format.contains("x"))
-//            joiner.add( "'x' weak-year becomes 'Y'. 'x' means now zone-offset.");
-//        if (format.contains("Z"))
-//            joiner.add( "'Z' time zone offset/id is now 'Z' or 'X'. 'Z' might fail when parsing 'Z for Zulu time zone'. Consider using 'X'.");
-//        if (format.contains("z"))
-//            joiner.add( "'z' time zone text. Has the same meaing now. Will print 'Z for Zulu time zone' given UTC timezone.");
-//        return joiner.toString();
+            JodaDeprecationPatterns.isDeprecatedFormat((String) property.get("format"));
     }
 
     private static final Set<String> TYPES_THAT_DONT_COUNT;

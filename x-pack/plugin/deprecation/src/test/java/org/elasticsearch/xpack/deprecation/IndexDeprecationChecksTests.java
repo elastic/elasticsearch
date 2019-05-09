@@ -450,7 +450,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
                                                  .settings(settings(
-                                                     VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT))))
+                                                     VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
+                                                         VersionUtils.getPreviousVersion(Version.CURRENT))))
                                                  .numberOfShards(randomIntBetween(1,100))
                                                  .numberOfReplicas(randomIntBetween(1, 100))
                                                  .putMapping("_doc", simpleMapping)
@@ -460,12 +461,18 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Date time field format likely contain deprecated pattern",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
-                 "[type: _doc, field: date_time_field_Y, format: MM-YYYY, suggestion: 'Y' year-of-era becomes 'y'. 'Y' means week-based-year.], "+
-                 "[type: _doc, field: date_time_field_C, format: CC, suggestion: 'C' century of era is no longer supported.], "+
-                 "[type: _doc, field: date_time_field_x, format: xx-MM, suggestion: 'x' weak-year becomes 'Y'. 'x' means now zone-offset.], "+
-                 "[type: _doc, field: date_time_field_y, format: yy-MM, suggestion: 'y' year changes meaning to year-of-era (cannot be <0 anymore).], "+
-                 "[type: _doc, field: date_time_field_Z, format: HH:mmZ, suggestion: 'Z' time zone offset/id is now 'Z' or 'X'. 'Z' might fail when parsing 'Z for Zulu time zone'. Consider using 'X'.], "+
-                 "[type: _doc, field: date_time_field_z, format: HH:mmz, suggestion: 'z' time zone text. Has the same meaing now. Will print 'Z for Zulu time zone' given UTC timezone.]"+
+                 "[type: _doc, field: date_time_field_Y, format: MM-YYYY, " +
+                "suggestion: 'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year.], "+
+                 "[type: _doc, field: date_time_field_C, format: CC, " +
+                "suggestion: 'C' century of era is no longer supported.], "+
+                 "[type: _doc, field: date_time_field_x, format: xx-MM, " +
+                "suggestion: 'x' weak-year becomes 'Y'. Use 'x' for zone-offset.], "+
+                 "[type: _doc, field: date_time_field_y, format: yy-MM, " +
+                "suggestion: 'y' year becomes 'u'. Use 'y' for year-of-era.], "+
+                 "[type: _doc, field: date_time_field_Z, format: HH:mmZ, " +
+                "suggestion: 'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'.], "+
+                 "[type: _doc, field: date_time_field_z, format: HH:mmz, " +
+                "suggestion: 'z' time zone text. Will print 'Z' for Zulu given UTC timezone.]"+
                 "]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertEquals(singletonList(expected), issues);
@@ -483,7 +490,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
 
         IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
                                                  .settings(settings(
-                                                     VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, VersionUtils.getPreviousVersion(Version.CURRENT))))
+                                                     VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
+                                                         VersionUtils.getPreviousVersion(Version.CURRENT))))
                                                  .numberOfShards(randomIntBetween(1,100))
                                                  .numberOfReplicas(randomIntBetween(1, 100))
                                                  .putMapping("_doc", simpleMapping)
@@ -493,10 +501,11 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Date time field format likely contain deprecated pattern",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
-                "[type: _doc, field: date_time_field, format: Y-C-x-y, suggestion: 'Y' year-of-era becomes 'y'. 'Y' means week-based-year.; " +
-                "'y' year changes meaning to year-of-era (cannot be <0 anymore).; " +
+                "[type: _doc, field: date_time_field, format: Y-C-x-y, " +
+                "suggestion: 'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year.; " +
+                "'y' year becomes 'u'. Use 'y' for year-of-era.; " +
                 "'C' century of era is no longer supported.; " +
-                "'x' weak-year becomes 'Y'. 'x' means now zone-offset." +
+                "'x' weak-year becomes 'Y'. Use 'x' for zone-offset." +
                 "]"+
                 "]");
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));

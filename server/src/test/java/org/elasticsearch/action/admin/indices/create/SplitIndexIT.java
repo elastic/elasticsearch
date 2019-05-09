@@ -367,7 +367,8 @@ public class SplitIndexIT extends ESIntegTestCase {
 
     public void testCreateSplitIndex() {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_rc2, Version.CURRENT);
+
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
             .put("number_of_shards", 1)
             .put("index.version.created", version)

@@ -21,6 +21,7 @@ package org.elasticsearch.index.seqno;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -758,10 +759,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
      * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
      * @param routingTable                the shard routing table
-     * @param pre60AllocationIds          the allocation IDs of shards that are allocated to pre-6.0 nodes
      */
     public synchronized void updateFromMaster(final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds,
-                                              final IndexShardRoutingTable routingTable, final Set<String> pre60AllocationIds) {
+                                              final IndexShardRoutingTable routingTable) {
         assert invariant();
         if (applyingClusterStateVersion > appliedClusterStateVersion) {
             // check that the master does not fabricate new in-sync entries out of thin air once we are in primary mode
@@ -782,8 +782,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         final boolean inSync = inSyncAllocationIds.contains(initializingId);
                         assert inSync == false : "update from master in primary mode has " + initializingId +
                             " as in-sync but it does not exist locally";
-                        final long localCheckpoint = pre60AllocationIds.contains(initializingId) ?
-                            SequenceNumbers.PRE_60_NODE_CHECKPOINT : SequenceNumbers.UNASSIGNED_SEQ_NO;
+                        final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                         final long globalCheckpoint = localCheckpoint;
                         checkpoints.put(initializingId, new CheckpointState(localCheckpoint, globalCheckpoint, inSync, inSync));
                     }
@@ -794,8 +793,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             } else {
                 for (String initializingId : initializingAllocationIds) {
                     if (shardAllocationId.equals(initializingId) == false) {
-                        final long localCheckpoint = pre60AllocationIds.contains(initializingId) ?
-                            SequenceNumbers.PRE_60_NODE_CHECKPOINT : SequenceNumbers.UNASSIGNED_SEQ_NO;
+                        final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                         final long globalCheckpoint = localCheckpoint;
                         checkpoints.put(initializingId, new CheckpointState(localCheckpoint, globalCheckpoint, false, false));
                     }
@@ -807,8 +805,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                         checkpointState.inSync = true;
                         checkpointState.tracked = true;
                     } else {
-                        final long localCheckpoint = pre60AllocationIds.contains(inSyncId) ?
-                            SequenceNumbers.PRE_60_NODE_CHECKPOINT : SequenceNumbers.UNASSIGNED_SEQ_NO;
+                        final long localCheckpoint = SequenceNumbers.UNASSIGNED_SEQ_NO;
                         final long globalCheckpoint = localCheckpoint;
                         checkpoints.put(inSyncId, new CheckpointState(localCheckpoint, globalCheckpoint, true, true));
                     }
@@ -1082,17 +1079,13 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert primaryMode == false;
         final long lastAppliedClusterStateVersion = appliedClusterStateVersion;
         final Set<String> inSyncAllocationIds = new HashSet<>();
-        final Set<String> pre60AllocationIds = new HashSet<>();
         checkpoints.entrySet().forEach(entry -> {
             if (entry.getValue().inSync) {
                 inSyncAllocationIds.add(entry.getKey());
             }
-            if (entry.getValue().getLocalCheckpoint() == SequenceNumbers.PRE_60_NODE_CHECKPOINT) {
-                pre60AllocationIds.add(entry.getKey());
-            }
         });
         final IndexShardRoutingTable lastAppliedRoutingTable = routingTable;
-        return () -> updateFromMaster(lastAppliedClusterStateVersion, inSyncAllocationIds, lastAppliedRoutingTable, pre60AllocationIds);
+        return () -> updateFromMaster(lastAppliedClusterStateVersion, inSyncAllocationIds, lastAppliedRoutingTable);
     }
 
     /**

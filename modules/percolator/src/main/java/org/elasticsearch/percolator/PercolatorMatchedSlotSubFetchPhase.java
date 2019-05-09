@@ -20,10 +20,7 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -34,6 +31,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -47,7 +45,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-import static org.elasticsearch.common.lucene.search.Queries.newNestedFilter;
 import static org.elasticsearch.percolator.PercolatorHighlightSubFetchPhase.locatePercolatorQuery;
 
 /**
@@ -63,7 +60,9 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         innerHitsExecute(context.query(), context.searcher(), hits);
     }
 
-    static void innerHitsExecute(Query mainQuery, IndexSearcher indexSearcher, SearchHit[] hits) throws IOException {
+    static void innerHitsExecute(Query mainQuery,
+                                 IndexSearcher indexSearcher,
+                                 SearchHit[] hits) throws IOException {
         List<PercolateQuery> percolateQueries = locatePercolatorQuery(mainQuery);
         if (percolateQueries.isEmpty()) {
             return;
@@ -73,12 +72,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         for (PercolateQuery percolateQuery : percolateQueries) {
             String fieldName = singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
-            // TODO: followup with mvg, Queries.nonNestedFilter() should work now after https://issues.apache.org/jira/browse/LUCENE-8055?
-            Query nonNestedFilter = new BooleanQuery.Builder()
-                .add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER)
-                .add(newNestedFilter(), BooleanClause.Occur.MUST_NOT)
-                .build();
-            Weight weight = percolatorIndexSearcher.createWeight(percolatorIndexSearcher.rewrite(nonNestedFilter),
+            Weight weight = percolatorIndexSearcher.createWeight(percolatorIndexSearcher.rewrite(Queries.newNonNestedFilter()),
                     ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(percolatorIndexSearcher.getIndexReader().leaves().get(0));
             int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();

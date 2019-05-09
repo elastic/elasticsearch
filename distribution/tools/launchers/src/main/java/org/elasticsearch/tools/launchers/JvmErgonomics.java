@@ -68,7 +68,7 @@ final class JvmErgonomics {
     }
 
     private static final Pattern OPTION =
-            Pattern.compile("^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}\\s+\\{[^}]+}");
+            Pattern.compile("^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}(\\s+\\{[^}]+})?");
 
     static Map<String, Optional<String>> finalJvmOptions(
             final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {

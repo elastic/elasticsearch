@@ -14,7 +14,7 @@ The javadoc for the low level REST client can be found at {rest-client-javadoc}/
 
 The low-level Java REST client is hosted on
 http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
-Central]. The minimum Java version required is `1.7`.
+Central]. The minimum Java version required is `1.8`.
 
 The low-level REST client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version, first

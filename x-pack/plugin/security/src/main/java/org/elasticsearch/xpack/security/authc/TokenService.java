@@ -74,6 +74,8 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.XPackField;
@@ -180,9 +182,9 @@ public final class TokenService {
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
-    static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_1_0;
-    static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_1_0;
-    static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_1_0;
+    static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_2_0;
+    static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
+    static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_ID_LENGTH = 22;
     private static final Logger logger = LogManager.getLogger(TokenService.class);
@@ -198,6 +200,7 @@ public final class TokenService {
     private final SecurityIndexManager securityTokensIndex;
     private final ExpiredTokenRemover expiredTokenRemover;
     private final boolean enabled;
+    private final XPackLicenseState licenseState;
     private volatile TokenKeys keyCache;
     private volatile long lastExpirationRunMs;
     private final AtomicLong createdTimeStamps = new AtomicLong(-1);
@@ -205,8 +208,9 @@ public final class TokenService {
     /**
      * Creates a new token service
      */
-    public TokenService(Settings settings, Clock clock, Client client, SecurityIndexManager securityMainIndex,
-                        SecurityIndexManager securityTokensIndex, ClusterService clusterService) throws GeneralSecurityException {
+    public TokenService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState,
+                        SecurityIndexManager securityMainIndex, SecurityIndexManager securityTokensIndex,
+                        ClusterService clusterService) throws GeneralSecurityException {
         byte[] saltArr = new byte[SALT_BYTES];
         secureRandom.nextBytes(saltArr);
         final SecureString tokenPassphrase = generateTokenKey();
@@ -214,12 +218,13 @@ public final class TokenService {
         this.clock = clock.withZone(ZoneOffset.UTC);
         this.expirationDelay = TOKEN_EXPIRATION.get(settings);
         this.client = client;
+        this.licenseState = licenseState;
         this.securityMainIndex = securityMainIndex;
         this.securityTokensIndex = securityTokensIndex;
         this.lastExpirationRunMs = client.threadPool().relativeTimeInMillis();
         this.deleteInterval = DELETE_INTERVAL.get(settings);
         this.enabled = isTokenServiceEnabled(settings);
-        this.expiredTokenRemover = new ExpiredTokenRemover(settings, client, securityMainIndex, securityTokensIndex);
+        this.expiredTokenRemover = new ExpiredTokenRemover(settings, client, this.securityMainIndex, securityTokensIndex);
         ensureEncryptionCiphersSupported();
         KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenPassphrase, createdTimeStamps.incrementAndGet()),
                 new BytesKey(saltArr));
@@ -302,7 +307,7 @@ public final class TokenService {
      * has not been revoked or is expired.
      */
     void getAndValidateToken(ThreadContext ctx, ActionListener<UserToken> listener) {
-        if (enabled) {
+        if (isEnabled()) {
             final String token = getFromHeader(ctx);
             if (token == null) {
                 listener.onResponse(null);
@@ -347,13 +352,12 @@ public final class TokenService {
             logger.warn("failed to get access token [{}] because index [{}] is not available", userTokenId, tokensIndex.aliasName());
             listener.onResponse(null);
         } else {
+            final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME,
+                    getTokenDocumentId(userTokenId)).request();
+            final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
             tokensIndex.checkIndexVersionThenExecute(
                 ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() +"]", userTokenId, ex)),
-                () -> {
-                    final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME,
-                        getTokenDocumentId(userTokenId)).request();
-                    Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("decode token", userTokenId, ex));
-                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                         ActionListener.<GetResponse>wrap(response -> {
                             if (response.isExists()) {
                                 Map<String, Object> accessTokenSource =
@@ -384,8 +388,8 @@ public final class TokenService {
                                 logger.error(new ParameterizedMessage("failed to get access token [{}]", userTokenId), e);
                                 listener.onFailure(e);
                             }
-                        }), client::get);
-                });
+                        }), client::get)
+                );
         }
     }
 
@@ -862,7 +866,9 @@ public final class TokenService {
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                     .setIfSeqNo(seqNo)
                     .setIfPrimaryTerm(primaryTerm);
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
+            refreshedTokenIndex.prepareIndexIfNeededThenExecute(
+                    ex -> listener.onFailure(traceLog("prepare index [" + refreshedTokenIndex.aliasName() + "]", ex)),
+                    () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
                         if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                             logger.debug(() -> new ParameterizedMessage("updated the original token document to {}",
@@ -931,7 +937,7 @@ public final class TokenService {
                         } else {
                             onFailure.accept(e);
                         }
-                    }), client::update);
+                    }), client::update));
         }
     }
 
@@ -1005,7 +1011,9 @@ public final class TokenService {
 
     private void getTokenDocAsync(String tokenDocId, SecurityIndexManager tokensIndex, ActionListener<GetResponse> listener) {
         final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, tokenDocId).request();
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get);
+        tokensIndex.checkIndexVersionThenExecute(
+                ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", tokenDocId, ex)),
+                () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest, listener, client::get));
     }
 
     private Version getTokenVersionCompatibility() {
@@ -1357,9 +1365,16 @@ public final class TokenService {
         }
     }
 
+    private boolean isEnabled() {
+        return enabled && licenseState.isTokenServiceAllowed();
+    }
+
     private void ensureEnabled() {
+        if (licenseState.isTokenServiceAllowed() == false) {
+            throw LicenseUtils.newComplianceException("security tokens");
+        }
         if (enabled == false) {
-            throw new IllegalStateException("tokens are not enabled");
+            throw new IllegalStateException("security tokens are not enabled");
         }
     }
 
@@ -1392,10 +1407,10 @@ public final class TokenService {
             logger.warn("failed to validate access token because the index [" + tokensIndex.aliasName() + "] doesn't exist");
             listener.onResponse(null);
         } else {
+            final GetRequest getRequest = client
+                    .prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(userToken)).request();
+            Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
             tokensIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final GetRequest getRequest = client
-                        .prepareGet(tokensIndex.aliasName(), SINGLE_MAPPING_NAME, getTokenDocumentId(userToken)).request();
-                Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, getRequest,
                     ActionListener.<GetResponse>wrap(response -> {
                         if (response.isExists()) {

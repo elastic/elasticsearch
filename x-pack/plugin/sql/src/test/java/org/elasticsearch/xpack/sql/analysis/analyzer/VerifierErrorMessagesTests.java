@@ -241,6 +241,21 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT INTERVAL 1 MONTH - CAST('12:23:56.789' AS TIME)"));
     }
 
+    public void testAddIntervalAndNumberNotAllowed() {
+        assertEquals("1:8: [+] has arguments with incompatible types [INTERVAL_DAY] and [INTEGER]",
+            error("SELECT INTERVAL 1 DAY + 100"));
+    }
+
+    public void testSubtractIntervalAndNumberNotAllowed() {
+        assertEquals("1:8: [-] has arguments with incompatible types [INTERVAL_MINUTE] and [DOUBLE]",
+            error("SELECT INTERVAL 10 MINUTE - 100.0"));
+    }
+
+    public void testMultiplyIntervalWithDecimalNotAllowed() {
+        assertEquals("1:8: [*] has arguments with incompatible types [INTERVAL_MONTH] and [DOUBLE]",
+            error("SELECT INTERVAL 1 MONTH * 1.234"));
+    }
+
     public void testMultipleColumns() {
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));

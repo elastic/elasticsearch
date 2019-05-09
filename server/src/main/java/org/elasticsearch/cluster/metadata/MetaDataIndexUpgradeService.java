@@ -181,6 +181,13 @@ public class MetaDataIndexUpgradeService {
             });
 
             final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
+
+                @Override
+                public boolean containsKey(Object key) {
+                    assert key instanceof String : "key must be a string but was: " + key.getClass();
+                    return true;
+                }
+
                 @Override
                 public NamedAnalyzer get(Object key) {
                     assert key instanceof String : "key must be a string but was: " + key.getClass();
@@ -195,7 +202,7 @@ public class MetaDataIndexUpgradeService {
                 }
             };
             try (IndexAnalyzers fakeIndexAnalzyers =
-                     new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap, analyzerMap)) {
+                     new IndexAnalyzers(indexSettings, analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
                         mapperRegistry, () -> null);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);

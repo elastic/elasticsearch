@@ -143,7 +143,7 @@ public class TokenServiceTests extends ESTestCase {
         // tokens docs on a separate index), let's test the TokenService works in a mixed cluster with nodes with versions prior to these
         // developments
         if (randomBoolean()) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
+            oldNode = addAnotherDataNodeWithVersion(this.clusterService,  Version.V_7_0_0);
         }
     }
 

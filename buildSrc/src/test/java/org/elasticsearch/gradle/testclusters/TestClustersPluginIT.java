@@ -21,10 +21,18 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
+import org.junit.Before;
 
 import java.util.Arrays;
 
 public class TestClustersPluginIT extends GradleIntegrationTestCase {
+
+    private GradleRunner testclusters;
+
+    @Before
+    public void setUp() throws Exception {
+        testclusters = getGradleRunner("testclusters");
+    }
 
     public void testListClusters() {
         BuildResult result = getTestClustersRunner("listTestClusters").build();
@@ -187,10 +195,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         arguments[tasks.length] = "-s";
         arguments[tasks.length + 1] = "-i";
         arguments[tasks.length + 2] = "-Dlocal.repo.path=" + getLocalTestRepoPath();
-        return GradleRunner.create()
-            .withProjectDir(getProjectDir("testclusters"))
-            .withArguments(arguments)
-            .withPluginClasspath();
+        return testclusters.withArguments(arguments);
     }
 
     private void assertStartedAndStoppedOnce(BuildResult result, String nodeName) {

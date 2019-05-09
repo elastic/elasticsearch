@@ -86,6 +86,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
         GradleRunner.create()
             .withProjectDir(tmpDir.getRoot())
+            .withTestKitDir(tmpDir.newFolder("testkit"))
             .withArguments("clean", "check", "-s", "-i", "--warning-mode=all", "--scan")
             .withPluginClasspath()
             .build();

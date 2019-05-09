@@ -102,7 +102,7 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
     RecoveryTranslogOperationsRequest(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         operations = Translog.readOperations(in, "recovery");
         totalTranslogOps = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_6_5_0)) {

@@ -54,7 +54,14 @@ public class DiscoverySettings {
      */
     public static final Setting<TimeValue> COMMIT_TIMEOUT_SETTING =
         new Setting<>("discovery.zen.commit_timeout", (s) -> PUBLISH_TIMEOUT_SETTING.getRaw(s),
-            (s) -> TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout"),
+            (s) -> {
+                TimeValue timeValue = TimeValue.parseTimeValue(s, TimeValue.timeValueSeconds(30), "discovery.zen.commit_timeout");
+                if (timeValue.millis() < 0) {
+                    throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [discovery.zen.commit_timeout]," +
+                                                       " must be >= [0ms]");
+                }
+                return timeValue;
+            },
             Property.Dynamic, Property.NodeScope);
     public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING =
         new Setting<>("discovery.zen.no_master_block", "write", DiscoverySettings::parseNoMasterBlock,

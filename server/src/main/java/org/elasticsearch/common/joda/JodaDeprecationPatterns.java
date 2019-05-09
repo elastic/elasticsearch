@@ -28,16 +28,11 @@ public class JodaDeprecationPatterns {
 
     static {
         JODA_PATTERNS_DEPRECATIONS.put("Y", "'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year.");
-
         JODA_PATTERNS_DEPRECATIONS.put("y", "'y' year becomes 'u'. Use 'y' for year-of-era.");
-
         JODA_PATTERNS_DEPRECATIONS.put("C", "'C' century of era is no longer supported.");
-
         JODA_PATTERNS_DEPRECATIONS.put("x", "'x' weak-year becomes 'Y'. Use 'x' for zone-offset.");
-
         JODA_PATTERNS_DEPRECATIONS.put("Z",
             "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'.");
-
         JODA_PATTERNS_DEPRECATIONS.put("z",
             "'z' time zone text. Will print 'Z' for Zulu given UTC timezone.");
     }

@@ -118,6 +118,7 @@ class BuildPlugin implements Plugin<Project> {
         configureDependenciesInfo(project)
 
         // Common config when running with a FIPS-140 runtime JVM
+        // Need to do it here to support external plugins 
         if (project.ext.inFipsJvm) {
             project.tasks.withType(Test) {
                 systemProperty 'javax.net.ssl.trustStorePassword', 'password'

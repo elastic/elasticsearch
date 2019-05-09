@@ -302,3 +302,35 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+---
+"Test creation failures due to duplicate and conflicting field names":
+  - do:
+      catch: /duplicate field \[airline\] detected/
+      data_frame.put_data_frame_transform:
+        transform_id: "duplicate-field-transform"
+        body: >
+          {
+            "source": {
+              "index": "source-index"
+            },
+            "dest": { "index": "dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"airline": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      catch: /field \[airline\] cannot be both an object and a field/
+      data_frame.put_data_frame_transform:
+        transform_id: "duplicate-field-transform"
+        body: >
+          {
+            "source": {
+              "index": "source-index"
+            },
+            "dest": { "index": "dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"airline.responsetime": {"avg": {"field": "responsetime"}}}
+            }
+          }

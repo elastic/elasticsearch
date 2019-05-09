@@ -132,7 +132,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return schedule;
     }
 
-    public String getBaseName(String policyName) {
+    public static String getBaseName(String policyName) {
         return ENRICH_INDEX_NAME_BASE + policyName;
     }
 

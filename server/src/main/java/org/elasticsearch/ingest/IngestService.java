@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.IngestPlugin;
@@ -127,7 +129,8 @@ public class IngestService implements ClusterStateApplier {
                     }
 
                     IndexShard indexShard = indexService.getShard(0);
-                    return indexShard.acquireSearcher("ingest");
+                    IndexMetaData imd = state.metaData().index(index);
+                    return new Tuple<>(imd, indexShard.acquireSearcher("ingest"));
                 }
             )
         );

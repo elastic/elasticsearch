@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardChangesAction.Response> {
+public class ShardChangesResponseTests extends AbstractWireSerializingTestCase<ShardChangesAction.Response> {
 
     @Override
     protected ShardChangesAction.Response createTestInstance() {
@@ -34,8 +35,7 @@ public class ShardChangesResponseTests extends AbstractStreamableTestCase<ShardC
     }
 
     @Override
-    protected ShardChangesAction.Response createBlankInstance() {
-        return new ShardChangesAction.Response();
+    protected Writeable.Reader<ShardChangesAction.Response> instanceReader() {
+        return ShardChangesAction.Response::new;
     }
-
 }

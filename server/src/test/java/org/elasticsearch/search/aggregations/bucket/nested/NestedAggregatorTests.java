@@ -37,7 +37,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -65,7 +64,6 @@ import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -356,7 +354,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 fieldType.setName(VALUE_FIELD_NAME);
 
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                bq.add(Queries.newNonNestedFilter(VersionUtils.randomVersion(random())), BooleanClause.Occur.MUST);
+                bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
                 InternalNested nested = search(newSearcher(indexReader, false, true),
@@ -638,7 +636,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 fieldType2.setHasDocValues(true);
 
                 Filter filter = search(newSearcher(indexReader, false, true),
-                    Queries.newNonNestedFilter(Version.CURRENT), filterAggregationBuilder, fieldType1, fieldType2);
+                    Queries.newNonNestedFilter(), filterAggregationBuilder, fieldType1, fieldType2);
 
                 assertEquals("filterAgg", filter.getName());
                 assertEquals(3L, filter.getDocCount());

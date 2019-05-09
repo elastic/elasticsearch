@@ -341,7 +341,7 @@ final class ShardSplittingQuery extends Query {
      */
     private static BitSetProducer newParentDocBitSetProducer(Version indexVersionCreated) {
         return context -> {
-                Query query = Queries.newNonNestedFilter(indexVersionCreated);
+                Query query = Queries.newNonNestedFilter();
                 final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
                 final IndexSearcher searcher = new IndexSearcher(topLevelContext);
                 searcher.setQueryCache(null);

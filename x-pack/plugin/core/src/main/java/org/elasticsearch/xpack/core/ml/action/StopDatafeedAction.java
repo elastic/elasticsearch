@@ -96,9 +96,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             resolvedStartedDatafeedIds = in.readStringArray();
             stopTimeout = in.readTimeValue();
             force = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
-            }
+            allowNoDatafeeds = in.readBoolean();
         }
 
         public String getDatafeedId() {
@@ -160,9 +158,7 @@ public class StopDatafeedAction extends Action<StopDatafeedAction.Response> {
             out.writeStringArray(resolvedStartedDatafeedIds);
             out.writeTimeValue(stopTimeout);
             out.writeBoolean(force);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoDatafeeds);
-            }
+            out.writeBoolean(allowNoDatafeeds);
         }
 
         @Override

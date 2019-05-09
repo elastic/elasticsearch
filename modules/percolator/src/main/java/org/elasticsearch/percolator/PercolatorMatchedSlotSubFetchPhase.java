@@ -30,7 +30,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.SearchHit;
@@ -73,7 +72,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
         for (PercolateQuery percolateQuery : percolateQueries) {
             String fieldName = singlePercolateQuery ? FIELD_NAME_PREFIX : FIELD_NAME_PREFIX + "_" + percolateQuery.getName();
             IndexSearcher percolatorIndexSearcher = percolateQuery.getPercolatorIndexSearcher();
-            Query nonNestedQuery = Queries.newNonNestedFilter(Version.CURRENT);
+            Query nonNestedQuery = Queries.newNonNestedFilter();
             Weight weight = percolatorIndexSearcher.createWeight(percolatorIndexSearcher.rewrite(nonNestedQuery),
                     ScoreMode.COMPLETE_NO_SCORES, 1f);
             Scorer s = weight.scorer(percolatorIndexSearcher.getIndexReader().leaves().get(0));

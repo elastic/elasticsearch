@@ -97,11 +97,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     }
 
     @Override
-    protected AnalyzeResponse newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
     protected Writeable.Reader<AnalyzeResponse> getResponseReader() {
         return AnalyzeResponse::new;
     }

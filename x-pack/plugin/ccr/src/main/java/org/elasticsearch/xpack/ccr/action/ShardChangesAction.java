@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -61,7 +62,12 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends SingleShardRequest<Request> {
@@ -246,6 +252,17 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         Response() {
         }
 
+        Response(StreamInput in) throws IOException {
+            super(in);
+            mappingVersion = in.readVLong();
+            settingsVersion = in.readVLong();
+            globalCheckpoint = in.readZLong();
+            maxSeqNo = in.readZLong();
+            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
+            operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
+            tookInMillis = in.readVLong();
+        }
+
         Response(
             final long mappingVersion,
             final long settingsVersion,
@@ -265,15 +282,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         @Override
-        public void readFrom(final StreamInput in) throws IOException {
-            super.readFrom(in);
-            mappingVersion = in.readVLong();
-            settingsVersion = in.readVLong();
-            globalCheckpoint = in.readZLong();
-            maxSeqNo = in.readZLong();
-            maxSeqNoOfUpdatesOrDeletes = in.readZLong();
-            operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
-            tookInMillis = in.readVLong();
+        public void readFrom(final StreamInput in) {
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -459,8 +469,8 @@ public class ShardChangesAction extends Action<ShardChangesAction.Response> {
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected Writeable.Reader<Response> getResponseReader() {
+            return Response::new;
         }
 
     }

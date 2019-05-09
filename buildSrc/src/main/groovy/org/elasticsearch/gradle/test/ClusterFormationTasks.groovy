@@ -397,16 +397,17 @@ class ClusterFormationTasks {
         if (node.nodeVersion.major >= 7) {
             esConfig['indices.breaker.total.use_real_memory'] = false
         }
-        for (Map.Entry<String, Object> setting : node.config.settings) {
-            if (setting.value == null) {
-                esConfig.remove(setting.key)
-            } else {
-                esConfig.put(setting.key, setting.value)
-            }
-        }
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
+            for (Map.Entry<String, Object> setting : node.config.settings) {
+                if (setting.value == null) {
+                    esConfig.remove(setting.key)
+                } else {
+                    esConfig.put(setting.key, setting.value)
+                }
+            }
+
             esConfig = configFilter.call(esConfig)
             File configFile = new File(node.pathConf, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")

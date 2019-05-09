@@ -201,7 +201,7 @@ public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<Pivot
                 "field [" + dotJoin(prefix, nestedField1) + "] cannot be both an object and a field"));
     }
 
-    private String dotJoin(String... fields) {
+    private static String dotJoin(String... fields) {
         return Strings.arrayToDelimitedString(fields, ".");
     }
 

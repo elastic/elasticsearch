@@ -23,11 +23,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -186,17 +184,13 @@ public class PivotConfig implements Writeable, ToXContentObject {
         }
         List<String> validationFailures = new ArrayList<>();
 
-        Set<String> leafNames = new HashSet<>(usedNames.size());
-        for(String name : usedNames) {
-            if (leafNames.contains(name)) {
-                validationFailures.add("duplicate field [" + name + "] detected");
-            }
-            leafNames.add(name);
-        }
         usedNames.sort(String::compareTo);
         for (int i = 0; i < usedNames.size() - 1; i++) {
             if (usedNames.get(i+1).startsWith(usedNames.get(i) + ".")) {
                 validationFailures.add("field [" + usedNames.get(i) + "] cannot be both an object and a field");
+            }
+            if (usedNames.get(i+1).equals(usedNames.get(i))) {
+                validationFailures.add("duplicate field [" + usedNames.get(i) + "] detected");
             }
         }
         return validationFailures;

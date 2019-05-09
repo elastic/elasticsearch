@@ -48,8 +48,9 @@ public class SysTablesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final Map<String, EsField> mapping = TypesTests.loadMapping("mapping-multi-field-with-nested.json", true);
-    private final IndexInfo index = new IndexInfo("test", IndexType.INDEX);
+    private final IndexInfo index = new IndexInfo("test", IndexType.STANDARD_INDEX);
     private final IndexInfo alias = new IndexInfo("alias", IndexType.ALIAS);
+    private final IndexInfo frozen = new IndexInfo("frozen", IndexType.FROZEN_INDEX);
 
     //
     // catalog enumeration
@@ -107,7 +108,7 @@ public class SysTablesTests extends ESTestCase {
         executeCommand("SYS TABLES CATALOG LIKE '' LIKE '' TYPE '%'", r -> {
             assertEquals(2, r.size());
 
-            Iterator<IndexType> it = IndexType.VALID.stream().sorted(Comparator.comparing(IndexType::toSql)).iterator();
+            Iterator<IndexType> it = IndexType.VALID_REGULAR.stream().sorted(Comparator.comparing(IndexType::toSql)).iterator();
 
             for (int t = 0; t < r.size(); t++) {
                 assertEquals(it.next().toSql(), r.column(3));
@@ -171,6 +172,20 @@ public class SysTablesTests extends ESTestCase {
         }, index, alias);
     }
 
+    public void testSysTablesWithProperTypesAndFrozen() throws Exception {
+        executeCommand("SYS TABLES TYPE 'BASE TABLE', 'ALIAS'", r -> {
+            assertEquals(3, r.size());
+            assertEquals("frozen", r.column(2));
+            assertEquals("BASE TABLE", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("test", r.column(2));
+            assertEquals("BASE TABLE", r.column(3));
+            assertTrue(r.advanceRow());
+            assertEquals("alias", r.column(2));
+            assertEquals("VIEW", r.column(3));
+        }, index, frozen, alias);
+    }
+
     public void testSysTablesPattern() throws Exception {
         executeCommand("SYS TABLES LIKE '%'", r -> {
             assertEquals(2, r.size());
@@ -211,6 +226,15 @@ public class SysTablesTests extends ESTestCase {
             assertEquals(1, r.size());
             assertEquals("test", r.column(2));
         }, index);
+    }
+
+    public void testSysTablesOnlyIndicesWithFrozen() throws Exception {
+        executeCommand("SYS TABLES LIKE 'test' TYPE 'BASE TABLE'", r -> {
+            assertEquals(2, r.size());
+            assertEquals("frozen", r.column(2));
+            assertTrue(r.advanceRow());
+            assertEquals("test", r.column(2));
+        }, index, frozen);
     }
 
     public void testSysTablesOnlyIndicesInLegacyMode() throws Exception {

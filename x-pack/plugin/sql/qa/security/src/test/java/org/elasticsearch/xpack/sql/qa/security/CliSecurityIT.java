@@ -145,7 +145,8 @@ public class CliSecurityIT extends SqlSecurityTestCase {
                 String tablesOutput = cli.command("SHOW TABLES");
                 assertThat(tablesOutput, containsString("name"));
                 assertThat(tablesOutput, containsString("type"));
-                assertEquals("---------------+---------------", cli.readLine());
+                assertThat(tablesOutput, containsString("kind"));
+                assertEquals("---------------+---------------+---------------", cli.readLine());
                 for (String table : tables) {
                     String line = null;
                     /*

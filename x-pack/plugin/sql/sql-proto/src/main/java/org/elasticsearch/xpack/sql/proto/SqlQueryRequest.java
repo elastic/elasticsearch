@@ -33,12 +33,11 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final Boolean columnar;
     private final List<SqlTypedParamValue> params;
     private final boolean fieldMultiValueLeniency;
-
+    private final boolean indexIncludeFrozen;
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
                            TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
-                           String cursor, RequestInfo requestInfo,
-                           boolean fieldMultiValueLeniency) {
+                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -50,11 +49,12 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.columnar = columnar;
         this.cursor = cursor;
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
+        this.indexIncludeFrozen = indexIncludeFrozen;
     }
 
     public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
         this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
-             null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY);
+                null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN);
     }
 
     /**
@@ -127,6 +127,10 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         return fieldMultiValueLeniency;
     }
     
+    public boolean indexIncludeFrozen() {
+        return indexIncludeFrozen;
+    }
+    
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -148,13 +152,14 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             Objects.equals(filter, that.filter) &&
             Objects.equals(columnar,  that.columnar) &&
             Objects.equals(cursor, that.cursor) &&
-            fieldMultiValueLeniency == that.fieldMultiValueLeniency;
+            fieldMultiValueLeniency == that.fieldMultiValueLeniency &&
+            indexIncludeFrozen == that.indexIncludeFrozen;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout,
-                filter, columnar, cursor, fieldMultiValueLeniency);
+                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen);
     }
 
     @Override
@@ -194,6 +199,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         if (fieldMultiValueLeniency) {
             builder.field("field_multi_value_leniency", fieldMultiValueLeniency);
+        }
+        if (indexIncludeFrozen) {
+            builder.field("index_include_frozen", indexIncludeFrozen);
         }
         if (cursor != null) {
             builder.field("cursor", cursor);

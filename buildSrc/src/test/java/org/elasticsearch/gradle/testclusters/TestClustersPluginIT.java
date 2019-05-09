@@ -22,7 +22,7 @@ import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.Before;
-
+import org.junit.Ignore;
 
 import java.util.Arrays;
 
@@ -90,6 +90,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         );
     }
 
+    @Ignore // https://github.com/elastic/elasticsearch/issues/41256
     public void testMultiProject() {
         BuildResult result = getTestClustersRunner(
             "user1", "user2", "-s", "-i", "--parallel", "-Dlocal.repo.path=" + getLocalTestRepoPath()

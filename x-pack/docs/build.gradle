@@ -21,6 +21,9 @@ dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
     testCompile project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
 }
 
@@ -741,11 +744,11 @@ setups['app0102_privileges'] = '''
                   "name": "read",
                   "actions": [
                     "data:read/*",
-                    "action:login" ], 
+                    "action:login" ],
                   "metadata": {
                     "description": "Read access to myapp"
                   }
                 }
-              } 
+              }
             }
 '''

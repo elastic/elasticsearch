@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -43,6 +44,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -472,10 +474,79 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, searchRequest.routing(),
             searchRequest.indices());
         routingMap = routingMap == null ? Collections.emptyMap() : Collections.unmodifiableMap(routingMap);
-        String[] concreteIndices = new String[indices.length];
-        for (int i = 0; i < indices.length; i++) {
-            concreteIndices[i] = indices[i].getName();
+        Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
+
+        if (searchRequest.scroll() != null || searchRequest.searchType() == DFS_QUERY_THEN_FETCH
+            || searchRequest.indicesOptions().ignoreThrottled()) {
+            String[] concreteIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
+            executeSearch(task, timeProvider, searchRequest, localIndices, concreteIndices, routingMap,
+                aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
+        } else {
+            List<String> throttledIndices = new ArrayList<>();
+            List<String> nonThrottledIndices = new ArrayList<>();
+            for (Index index : indices) {
+                IndexMetaData indexMetaData = clusterState.getMetaData().index(index);
+                if (IndexSettings.INDEX_SEARCH_THROTTLED.get(indexMetaData.getSettings())) {
+                    throttledIndices.add(index.getName());
+                } else {
+                    nonThrottledIndices.add(index.getName());
+                }
+            }
+            if (throttledIndices.isEmpty()) {
+                executeSearch(task, timeProvider, searchRequest, localIndices, nonThrottledIndices.toArray(new String[0]), routingMap,
+                    aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
+            } else if (nonThrottledIndices.isEmpty() && remoteShardIterators.isEmpty()) {
+                executeSearch(task, timeProvider, searchRequest, localIndices, throttledIndices.toArray(new String[0]), routingMap,
+                    aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, listener, clusters);
+            } else {
+                //Split the search in two whenever throttled indices are searched together with ordinary indices (local or remote), so
+                //that we don't keep the search context open for too long between query and fetch for ordinary indices due to slow indices.
+                CountDown countDown = new CountDown(2);
+                AtomicReference<Exception> exceptions = new AtomicReference<>();
+                SearchResponseMerger searchResponseMerger = createSearchResponseMerger(searchRequest.source(), timeProvider,
+                    searchService::createReduceContext);
+                CountDownActionListener<SearchResponse, SearchResponse> countDownActionListener =
+                    new CountDownActionListener<>(countDown, exceptions, listener) {
+                    @Override
+                    void innerOnResponse(SearchResponse searchResponse) {
+                        searchResponseMerger.add(searchResponse);
+                    }
+
+                    @Override
+                    SearchResponse createFinalResponse() {
+                        return searchResponseMerger.getMergedResponse(clusters);
+                    }
+                };
+
+                String[] ordinaryIndices = nonThrottledIndices.toArray(new String[0]);
+                //Note that the indices set to the new SearchRequest won't be retrieved from it, as they have been already resolved and
+                //will be provided separately to executeSearch.
+                SearchRequest nonThrottledRequest = SearchRequest.subSearchRequest(searchRequest, ordinaryIndices,
+                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
+                executeSearch(task, timeProvider, nonThrottledRequest, localIndices, ordinaryIndices, routingMap,
+                    aliasFilter, concreteIndexBoosts, remoteShardIterators, remoteConnections, clusterState, countDownActionListener,
+                    SearchResponse.Clusters.EMPTY);
+
+                String[] throttled = throttledIndices.toArray(new String[0]);
+                //Note that the indices set to the new SearchRequest won't be retrieved from it, as they have been already resolved and
+                //will be provided separately to executeSearch.
+                SearchRequest throttledRequest = SearchRequest.subSearchRequest(searchRequest, throttled,
+                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
+                //as we are searching throttled indices only, we can set this to 1 automatically so the can match phase is always run
+                throttledRequest.setPreFilterShardSize(1);
+                executeSearch(task, timeProvider, throttledRequest, localIndices, throttled, routingMap,
+                    aliasFilter, concreteIndexBoosts, Collections.emptyList(), (alias, id) -> null, clusterState, countDownActionListener,
+                    SearchResponse.Clusters.EMPTY);
+            }
         }
+    }
+
+    private void executeSearch(SearchTask task, SearchTimeProvider timeProvider, SearchRequest searchRequest,
+                               OriginalIndices localIndices, String[] concreteIndices, Map<String, Set<String>> routingMap,
+                               Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
+                               List<SearchShardIterator> remoteShardIterators, BiFunction<String, String, DiscoveryNode> remoteConnections,
+                               ClusterState clusterState, ActionListener<SearchResponse> listener, SearchResponse.Clusters clusters) {
+
         Map<String, Long> nodeSearchCounts = searchTransportService.getPendingSearchRequests();
         GroupShardsIterator<ShardIterator> localShardsIterator = clusterService.operationRouting().searchShards(clusterState,
                 concreteIndices, routingMap, searchRequest.preference(), searchService.getResponseCollectorService(), nodeSearchCounts);
@@ -483,8 +554,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.getLocalClusterAlias(), remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
-
-        Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
 
         // optimize search type for cases where there is only one shard group to search on
         if (shardIterators.size() == 1) {
@@ -498,11 +567,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (searchRequest.isSuggestOnly()) {
             // disable request cache if we have only suggest
             searchRequest.requestCache(false);
-            switch (searchRequest.searchType()) {
-                case DFS_QUERY_THEN_FETCH:
-                    // convert to Q_T_F if we have only suggest
-                    searchRequest.searchType(QUERY_THEN_FETCH);
-                    break;
+            if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
+                // convert to Q_T_F if we have only suggest
+                searchRequest.searchType(QUERY_THEN_FETCH);
             }
         }
 
@@ -611,22 +678,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
     }
 
-    abstract static class CCSActionListener<Response, FinalResponse> implements ActionListener<Response> {
-        private final String clusterAlias;
-        private final boolean skipUnavailable;
+    abstract static class CountDownActionListener<Response, FinalResponse> implements ActionListener<Response> {
         private final CountDown countDown;
-        private final AtomicInteger skippedClusters;
         private final AtomicReference<Exception> exceptions;
-        private final ActionListener<FinalResponse> originalListener;
+        private final ActionListener<FinalResponse> delegateListener;
 
-        CCSActionListener(String clusterAlias, boolean skipUnavailable, CountDown countDown, AtomicInteger skippedClusters,
-                          AtomicReference<Exception> exceptions, ActionListener<FinalResponse> originalListener) {
-            this.clusterAlias = clusterAlias;
-            this.skipUnavailable = skipUnavailable;
+        CountDownActionListener(CountDown countDown, AtomicReference<Exception> exceptions,
+                                ActionListener<FinalResponse> delegateListener) {
             this.countDown = countDown;
-            this.skippedClusters = skippedClusters;
             this.exceptions = exceptions;
-            this.originalListener = originalListener;
+            this.delegateListener = delegateListener;
         }
 
         @Override
@@ -637,26 +698,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         abstract void innerOnResponse(Response response);
 
-        @Override
-        public final void onFailure(Exception e) {
-            if (skipUnavailable) {
-                skippedClusters.incrementAndGet();
-            } else {
-                Exception exception = e;
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
-                    exception = wrapRemoteClusterFailure(clusterAlias, e);
-                }
-                if (exceptions.compareAndSet(null, exception) == false) {
-                    exceptions.accumulateAndGet(exception, (previous, current) -> {
-                        current.addSuppressed(previous);
-                        return current;
-                    });
-                }
-            }
-            maybeFinish();
-        }
-
-        private void maybeFinish() {
+        final void maybeFinish() {
             if (countDown.countDown()) {
                 Exception exception = exceptions.get();
                 if (exception == null) {
@@ -664,17 +706,56 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     try {
                         response = createFinalResponse();
                     } catch(Exception e) {
-                        originalListener.onFailure(e);
+                        delegateListener.onFailure(e);
                         return;
                     }
-                    originalListener.onResponse(response);
+                    delegateListener.onResponse(response);
                 } else {
-                    originalListener.onFailure(exceptions.get());
+                    delegateListener.onFailure(exceptions.get());
                 }
             }
         }
 
         abstract FinalResponse createFinalResponse();
+
+        @Override
+        public void onFailure(Exception e) {
+            if (exceptions.compareAndSet(null, e) == false) {
+                exceptions.accumulateAndGet(e, (previous, current) -> {
+                    current.addSuppressed(previous);
+                    return current;
+                });
+            }
+            maybeFinish();
+        }
+    }
+
+    abstract static class CCSActionListener<Response, FinalResponse> extends CountDownActionListener<Response, FinalResponse> {
+        private final String clusterAlias;
+        private final boolean skipUnavailable;
+        private final AtomicInteger skippedClusters;
+
+        CCSActionListener(String clusterAlias, boolean skipUnavailable, CountDown countDown, AtomicInteger skippedClusters,
+                          AtomicReference<Exception> exceptions, ActionListener<FinalResponse> originalListener) {
+            super(countDown, exceptions, originalListener);
+            this.clusterAlias = clusterAlias;
+            this.skipUnavailable = skipUnavailable;
+            this.skippedClusters = skippedClusters;
+        }
+
+        @Override
+        public final void onFailure(Exception e) {
+            if (skipUnavailable) {
+                skippedClusters.incrementAndGet();
+                maybeFinish();
+            } else {
+                Exception exception = e;
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
+                    exception = wrapRemoteClusterFailure(clusterAlias, e);
+                }
+                super.onFailure(exception);
+            }
+        }
     }
 
     private static RemoteTransportException wrapRemoteClusterFailure(String clusterAlias, Exception e) {

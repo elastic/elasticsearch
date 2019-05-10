@@ -323,7 +323,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         return DataFrameTransformTask.SCHEDULE_NAME + "_" + getTransformId();
     }
 
-    static SchedulerEngine.Schedule next() {
+    private SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
             return now + 1000; // to be fixed, hardcode something
         };

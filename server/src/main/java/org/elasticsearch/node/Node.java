@@ -378,7 +378,6 @@ public class Node implements Closeable {
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
-            resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
@@ -841,13 +840,13 @@ public class Node implements Closeable {
         // Don't call shutdownNow here, it might break ongoing operations on Lucene indices.
         // See https://issues.apache.org/jira/browse/LUCENE-7248. We call shutdownNow in
         // awaitClose if the node doesn't finish closing within the specified time.
-        toClose.add(() -> stopWatch.stop());
+        toClose.add(() -> stopWatch.stop().start("node_environment"));
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
-        toClose.add(injector.getInstance(PageCacheRecycler.class));
+        toClose.add(stopWatch::stop);
 
         if (logger.isTraceEnabled()) {
-            logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
+            toClose.add(() -> logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint()));
         }
         IOUtils.close(toClose);
         logger.info("closed");

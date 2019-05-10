@@ -28,7 +28,8 @@ class CompositeAggsRowSet extends ResultRowSet<BucketExtractor> {
     private final int size;
     private int row = 0;
 
-    CompositeAggsRowSet(List<BucketExtractor> exts, BitSet mask, SearchResponse response, int limit, byte[] next, String... indices) {
+    CompositeAggsRowSet(List<BucketExtractor> exts, BitSet mask, SearchResponse response, int limit, byte[] next,
+            boolean includeFrozen, String... indices) {
         super(exts, mask);
 
         CompositeAggregation composite = CompositeAggregationCursor.getComposite(response);
@@ -53,7 +54,7 @@ class CompositeAggsRowSet extends ResultRowSet<BucketExtractor> {
             if (next == null || size == 0 || remainingLimit == 0) {
                 cursor = Cursor.EMPTY;
             } else {
-                cursor = new CompositeAggregationCursor(next, exts, mask, remainingLimit, indices);
+                cursor = new CompositeAggregationCursor(next, exts, mask, remainingLimit, includeFrozen, indices);
             }
         }
     }

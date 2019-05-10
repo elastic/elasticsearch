@@ -37,6 +37,7 @@ int managementPort
 repositories {
     // the Wildfly distribution is not available via a repository, so we fake an Ivy repository on top of the download site
     ivy {
+        name "wildfly"
         url "https://download.jboss.org"
         metadataSources {
             artifact()

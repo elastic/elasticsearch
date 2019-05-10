@@ -252,7 +252,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
         // Mark successful third party audit check
         getSuccessMarker().getParentFile().mkdirs();
-        Files.write(getSuccessMarker().toPath(), new byte[]{}, StandardOpenOption.CREATE);
+        Files.write(getSuccessMarker().toPath(), new byte[]{});
     }
 
     private void logForbiddenAPIsOutput(String forbiddenApisOutput) {

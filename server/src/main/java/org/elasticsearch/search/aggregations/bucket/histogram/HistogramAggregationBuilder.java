@@ -118,7 +118,7 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     /** Read from a stream, for internal use only. */
     // TODO: Fix this for new variable value type
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(in, ValuesSourceType.ANY);
         order = InternalOrder.Streams.readHistogramOrder(in);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
@@ -126,6 +126,11 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         offset = in.readDouble();
         minBound = in.readDouble();
         maxBound = in.readDouble();
+    }
+
+    @Override
+    protected boolean serializeTargetValueType() {
+        return true;
     }
 
     @Override

@@ -181,6 +181,7 @@ public final class TokenService {
             TimeValue.MINUS_ONE, Property.NodeScope);
 
     static final String TOKEN_DOC_TYPE = "token";
+    private static final int HASHED_TOKEN_LENGTH = 44;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
@@ -815,27 +816,32 @@ public final class TokenService {
                 + " prior to the introduction of the version-header format.", refreshToken);
             findTokenFromRefreshToken(refreshToken, securityMainIndex, backoff, listener);
         } else {
-            logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
-            try {
-                final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
-                final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
-                final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
-                if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
-                    logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken,
-                        refreshTokenVersion);
-                    listener.onFailure(malformedTokenException());
-                } else {
-                    // TODO Remove this conditional after backporting to 7.x
-                    if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
-                        final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+            if (refreshToken.length() == HASHED_TOKEN_LENGTH) {
+                logger.debug("Assuming a hashed refresh token [{}] retrieved from the tokens index", refreshToken);
+                findTokenFromRefreshToken(refreshToken, securityTokensIndex, backoff, listener);
+            } else {
+                logger.debug("Assuming a refresh token [{}] provided from a client", refreshToken);
+                try {
+                    final Tuple<Version, String> versionAndRefreshTokenTuple = unpackVersionAndPayload(refreshToken);
+                    final Version refreshTokenVersion = versionAndRefreshTokenTuple.v1();
+                    final String unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
+                    if (refreshTokenVersion.before(VERSION_TOKENS_INDEX_INTRODUCED) || unencodedRefreshToken.length() != TOKEN_LENGTH) {
+                        logger.debug("Decoded refresh token [{}] with version [{}] is invalid.", unencodedRefreshToken,
+                            refreshTokenVersion);
+                        listener.onFailure(malformedTokenException());
                     } else {
-                        findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
+                        // TODO Remove this conditional after backporting to 7.x
+                        if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+                            final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                            findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                        } else {
+                            findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
+                        }
                     }
+                } catch (IOException e) {
+                    logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
+                    listener.onFailure(malformedTokenException());
                 }
-            } catch (IOException e) {
-                logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
-                listener.onFailure(malformedTokenException());
             }
         }
     }

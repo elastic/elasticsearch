@@ -173,7 +173,7 @@ public class BulkProcessorTests extends ESTestCase {
         for (Future f : futures) {
             try {
                 f.get(10, TimeUnit.SECONDS);
-            }catch (Exception e){
+            } catch (Exception e){
                 failureCount.incrementAndGet();
                 logger.error("failure while getting future", e);
             }
@@ -252,7 +252,7 @@ public class BulkProcessorTests extends ESTestCase {
         for (Future f : futures) {
             try {
                 f.get(10, TimeUnit.SECONDS);
-            }catch (Exception e){
+            } catch (Exception e){
                 failureCount.incrementAndGet();
                 logger.error("failure while getting future", e);
             }

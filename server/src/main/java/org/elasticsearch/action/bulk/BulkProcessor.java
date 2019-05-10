@@ -221,7 +221,7 @@ public class BulkProcessor implements Closeable {
 
     private final AtomicLong executionIdGen = new AtomicLong();
 
-    private volatile BulkRequest bulkRequest;
+    private BulkRequest bulkRequest;
     private final Supplier<BulkRequest> bulkRequestSupplier;
     private final BulkRequestHandler bulkRequestHandler;
     private final Runnable onClose;
@@ -268,8 +268,8 @@ public class BulkProcessor implements Closeable {
      * @throws InterruptedException If the current thread is interrupted
      */
     public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+        lock.lock();
         try {
-            lock.lock();
             if (closed) {
                 return true;
             }
@@ -285,7 +285,7 @@ public class BulkProcessor implements Closeable {
             } finally {
                 onClose.run();
             }
-        }finally {
+        } finally {
             lock.unlock();
         }
     }
@@ -327,8 +327,8 @@ public class BulkProcessor implements Closeable {
         //bulkRequest and instance swapping is not threadsafe, so execute the mutations under a lock.
         //once the bulk request is ready to be shipped swap the instance reference unlock and send the local reference to the handler.
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
+        lock.lock();
         try {
-            lock.lock();
             ensureOpen();
             bulkRequest.add(request);
             bulkRequestToExecute = newBulkRequestIfNeeded();
@@ -356,8 +356,8 @@ public class BulkProcessor implements Closeable {
                                           @Nullable String defaultPipeline,
                                           XContentType xContentType) throws Exception {
         Tuple<BulkRequest, Long> bulkRequestToExecute = null;
+        lock.lock();
         try {
-            lock.lock();
             ensureOpen();
             bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline,
                 true, xContentType);
@@ -430,13 +430,13 @@ public class BulkProcessor implements Closeable {
      * Flush pending delete or index requests.
      */
     public void flush() {
+        lock.lock();
         try {
-            lock.lock();
             ensureOpen();
             if (bulkRequest.numberOfActions() > 0) {
                 execute();
             }
-        }finally {
+        } finally {
             lock.unlock();
         }
     }
@@ -444,8 +444,8 @@ public class BulkProcessor implements Closeable {
     class Flush implements Runnable {
         @Override
         public void run() {
+            lock.lock();
             try {
-                lock.lock();
                 if (closed) {
                     return;
                 }

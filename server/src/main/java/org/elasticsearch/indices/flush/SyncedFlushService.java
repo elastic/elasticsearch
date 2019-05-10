@@ -598,10 +598,6 @@ public class SyncedFlushService implements IndexEventListener {
             return version.onOrAfter(Version.V_6_2_2);
         }
 
-        boolean includeExistingSyncId(Version version) {
-            return version.onOrAfter(Version.V_6_3_0);
-        }
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
@@ -611,9 +607,7 @@ public class SyncedFlushService implements IndexEventListener {
             } else {
                 numDocs = UNKNOWN_NUM_DOCS;
             }
-            if (includeExistingSyncId(in.getVersion())) {
-                existingSyncId = in.readOptionalString();
-            }
+            existingSyncId = in.readOptionalString();
         }
 
         @Override
@@ -623,9 +617,7 @@ public class SyncedFlushService implements IndexEventListener {
             if (includeNumDocs(out.getVersion())) {
                 out.writeInt(numDocs);
             }
-            if (includeExistingSyncId(out.getVersion())) {
-                out.writeOptionalString(existingSyncId);
-            }
+            out.writeOptionalString(existingSyncId);
         }
     }
 

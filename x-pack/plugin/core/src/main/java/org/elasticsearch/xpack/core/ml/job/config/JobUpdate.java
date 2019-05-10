@@ -135,7 +135,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0)) {
             in.readOptionalLong();
         }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             jobVersion = Version.readVersion(in);
         } else {
             jobVersion = null;
@@ -180,13 +180,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0)) {
             out.writeOptionalLong(null);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            if (jobVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(jobVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (jobVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(jobVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeOptionalBoolean(clearJobFinishTime);

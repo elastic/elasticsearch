@@ -76,47 +76,31 @@ class PostStartTrialResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         status = in.readEnum(Status.class);
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            acknowledgeMessage = in.readOptionalString();
-            int size = in.readVInt();
-            Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                String feature = in.readString();
-                int nMessages = in.readVInt();
-                String[] messages = new String[nMessages];
-                for (int j = 0; j < nMessages; j++) {
-                    messages[j] = in.readString();
-                }
-                acknowledgeMessages.put(feature, messages);
+        acknowledgeMessage = in.readOptionalString();
+        int size = in.readVInt();
+        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            String feature = in.readString();
+            int nMessages = in.readVInt();
+            String[] messages = new String[nMessages];
+            for (int j = 0; j < nMessages; j++) {
+                messages[j] = in.readString();
             }
-            this.acknowledgeMessages = acknowledgeMessages;
-        } else {
-            this.acknowledgeMessages = Collections.emptyMap();
+            acknowledgeMessages.put(feature, messages);
         }
+        this.acknowledgeMessages = acknowledgeMessages;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Version version = Version.V_6_3_0;
-        if (out.getVersion().onOrAfter(version)) {
-            out.writeEnum(status);
-            out.writeOptionalString(acknowledgeMessage);
-            out.writeVInt(acknowledgeMessages.size());
-            for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeVInt(entry.getValue().length);
-                for (String message : entry.getValue()) {
-                    out.writeString(message);
-                }
-            }
-        } else {
-            if (status == Status.UPGRADED_TO_TRIAL) {
-                out.writeEnum(Pre63Status.UPGRADED_TO_TRIAL);
-            } else if (status == Status.TRIAL_ALREADY_ACTIVATED) {
-                out.writeEnum(Pre63Status.TRIAL_ALREADY_ACTIVATED);
-            } else {
-                throw new IllegalArgumentException("Starting trial on node with version [" + Version.CURRENT + "] requires " +
-                        "acknowledgement parameter.");
+        out.writeEnum(status);
+        out.writeOptionalString(acknowledgeMessage);
+        out.writeVInt(acknowledgeMessages.size());
+        for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeVInt(entry.getValue().length);
+            for (String message : entry.getValue()) {
+                out.writeString(message);
             }
         }
     }

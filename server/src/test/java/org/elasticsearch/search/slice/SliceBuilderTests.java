@@ -63,6 +63,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -440,34 +441,19 @@ public class SliceBuilderTests extends ESTestCase {
         }
     }
 
-    public void testToFilterDeprecationMessage() throws IOException {
-        Directory dir = new RAMDirectory();
-        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
-            writer.commit();
-        }
-        try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(Version.V_6_3_0, reader, "_uid", null, 1,0);
-            SliceBuilder builder = new SliceBuilder("_uid", 5, 10);
-            Query query = builder.toFilter(null, createRequest(0), context, Version.CURRENT);
-            assertThat(query, instanceOf(TermsSliceQuery.class));
-            assertThat(builder.toFilter(null, createRequest(0), context, Version.CURRENT), equalTo(query));
-            assertWarnings("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
-        }
-    }
-
     public void testSerializationBackcompat() throws IOException {
         SliceBuilder sliceBuilder = new SliceBuilder(1, 5);
         assertEquals(IdFieldMapper.NAME, sliceBuilder.getField());
 
-        SliceBuilder copy62 = copyWriteable(sliceBuilder,
+        SliceBuilder copyPrev = copyWriteable(sliceBuilder,
                 new NamedWriteableRegistry(Collections.emptyList()),
-                SliceBuilder::new, Version.V_6_2_0);
-        assertEquals(sliceBuilder, copy62);
+                SliceBuilder::new, VersionUtils.getPreviousVersion(Version.CURRENT));
+        assertEquals(sliceBuilder, copyPrev);
 
-        SliceBuilder copy63 = copyWriteable(copy62,
+        SliceBuilder copyCurr = copyWriteable(copyPrev,
                 new NamedWriteableRegistry(Collections.emptyList()),
-                SliceBuilder::new, Version.V_6_3_0);
-        assertEquals(sliceBuilder, copy63);
+                SliceBuilder::new, Version.CURRENT);
+        assertEquals(sliceBuilder, copyCurr);
     }
 
     public void testToFilterWithRouting() throws IOException {

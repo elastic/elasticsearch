@@ -199,10 +199,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
 
     private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
-        if (userIsDefinedForCurrentSecurityMapping(username) == false) {
-            logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
-            listener.onResponse(disabledDefaultUserInfo.deepClone());
-        } else if (securityIndex.indexExists() == false) {
+        if (securityIndex.indexExists() == false) {
             listener.onResponse(getDefaultUserInfo(username));
         } else {
             nativeUsersStore.getReservedUserInfo(username, ActionListener.wrap((userInfo) -> {
@@ -224,24 +221,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             return bootstrapUserInfo.deepClone();
         } else {
             return enabledDefaultUserInfo.deepClone();
-        }
-    }
-
-    private boolean userIsDefinedForCurrentSecurityMapping(String username) {
-        final Version requiredVersion = getDefinedVersion(username);
-        return securityIndex.checkMappingVersion(requiredVersion::onOrBefore);
-    }
-
-    private Version getDefinedVersion(String username) {
-        switch (username) {
-            case BeatsSystemUser.NAME:
-                return BeatsSystemUser.DEFINED_SINCE;
-            case APMSystemUser.NAME:
-                return APMSystemUser.DEFINED_SINCE;
-            case RemoteMonitoringUser.NAME:
-                return RemoteMonitoringUser.DEFINED_SINCE;
-            default:
-                return Version.V_6_0_0;
         }
     }
 

@@ -97,9 +97,6 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             } else {
                 isInternal = false;
             }
-            if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.getVersion().before(Version.V_7_0_0)) {
-                in.readBoolean(); // was waitForAck
-            }
         }
 
         @Override
@@ -109,9 +106,6 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             update.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_6_2_2)) {
                 out.writeBoolean(isInternal);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_3_0) && out.getVersion().before(Version.V_7_0_0)) {
-                out.writeBoolean(false); // was waitForAck
             }
         }
 

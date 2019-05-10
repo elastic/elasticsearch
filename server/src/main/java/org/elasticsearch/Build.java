@@ -224,18 +224,10 @@ public class Build {
     public static Build readBuild(StreamInput in) throws IOException {
         final Flavor flavor;
         final Type type;
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-            flavor = Flavor.fromDisplayName(in.readString(), false);
-        } else {
-            flavor = Flavor.OSS;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-            type = Type.fromDisplayName(in.readString(), false);
-        } else {
-            type = Type.UNKNOWN;
-        }
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        flavor = Flavor.fromDisplayName(in.readString(), false);
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
@@ -250,18 +242,14 @@ public class Build {
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeString(build.flavor().displayName());
+        out.writeString(build.flavor().displayName());
+        final Type buildType;
+        if (out.getVersion().before(Version.V_6_7_0) && build.type() == Type.DOCKER) {
+            buildType = Type.TAR;
+        } else {
+            buildType = build.type();
         }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            final Type buildType;
-            if (out.getVersion().before(Version.V_6_7_0) && build.type() == Type.DOCKER) {
-                buildType = Type.TAR;
-            } else {
-                buildType = build.type();
-            }
-            out.writeString(buildType.displayName());
-        }
+        out.writeString(buildType.displayName());
         out.writeString(build.shortHash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());

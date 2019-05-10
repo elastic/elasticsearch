@@ -704,8 +704,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     .basicAuthHeaderValue("user_with_owner_manage_api_key_role", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
             final SecurityClient securityClient = new SecurityClient(client);
             final PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-            InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest("file", "user_with_owner_manage_api_key_role", null,
-                    userWithOwnerManageApiKeyRoleApiKeys.get(1).getName());
+            final InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest("file",
+                    "user_with_owner_manage_api_key_role", null, userWithOwnerManageApiKeyRoleApiKeys.get(1).getName());
             securityClient.invalidateApiKey(invalidateApiKeyRequest, listener);
             invalidateApiKeyResponse = listener.actionGet();
             verifyInvalidateResponse(1, Collections.singletonList(userWithOwnerManageApiKeyRoleApiKeys.get(1)), invalidateApiKeyResponse);

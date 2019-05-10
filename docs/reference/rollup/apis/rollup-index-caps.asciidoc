@@ -53,7 +53,7 @@ PUT _rollup/job/sensor
     "groups" : {
       "date_histogram": {
         "field": "timestamp",
-        "interval": "1h",
+        "fixed_interval": "1h",
         "delay": "7d"
       },
       "terms": {
@@ -118,7 +118,7 @@ This  will yield the following response:
             {
               "agg" : "date_histogram",
               "time_zone" : "UTC",
-              "interval" : "1h",
+              "fixed_interval" : "1h",
               "delay": "7d"
             }
           ],

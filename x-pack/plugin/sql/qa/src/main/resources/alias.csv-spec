@@ -82,20 +82,20 @@ salary              |INTEGER        |integer
 showAlias
 SHOW TABLES LIKE 'test\_alias' ESCAPE '\';
 
-name:s               | type:s
+name:s               | type:s  | kind:s
 
-test_alias           | VIEW
+test_alias           | VIEW    | ALIAS
 ;
 
 showPattern
 SHOW TABLES LIKE 'test_%';
 
-name:s               | type:s
+name:s               | type:s      | kind :s
 
-test_alias           | VIEW
-test_alias_emp       | VIEW
-test_emp             | BASE TABLE
-test_emp_copy        | BASE TABLE
+test_alias           | VIEW        | ALIAS
+test_alias_emp       | VIEW        | ALIAS
+test_emp             | BASE TABLE  | INDEX
+test_emp_copy        | BASE TABLE  | INDEX
 ;
 
 groupByOnAlias

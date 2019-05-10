@@ -63,7 +63,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -95,7 +95,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -127,7 +127,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -159,7 +159,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -186,7 +186,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -213,7 +213,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -240,7 +240,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -267,7 +267,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:
@@ -293,7 +293,7 @@ setup:
             the_histo:
               date_histogram:
                 field: "date"
-                interval: "1d"
+                calendar_interval: "1d"
               aggs:
                 the_avg:
                   avg:

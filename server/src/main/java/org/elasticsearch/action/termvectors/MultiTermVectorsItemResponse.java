@@ -105,8 +105,7 @@ public class MultiTermVectorsItemResponse implements Streamable {
         if (in.readBoolean()) {
             failure = MultiTermVectorsResponse.Failure.readFailure(in);
         } else {
-            response = new TermVectorsResponse();
-            response.readFrom(in);
+            response = new TermVectorsResponse(in);
         }
     }
 

@@ -52,10 +52,6 @@ public class IndexAnalyzersTests extends ESTestCase {
         }
     }
 
-    /**
-     * test the checks in the constructor
-     * @throws IOException
-     */
     public void testAnalyzerDefaults() throws IOException {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         NamedAnalyzer analyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());

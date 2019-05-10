@@ -181,13 +181,6 @@ public class MetaDataIndexUpgradeService {
             });
 
             final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
-
-                @Override
-                public boolean containsKey(Object key) {
-                    assert key instanceof String : "key must be a string but was: " + key.getClass();
-                    return true;
-                }
-
                 @Override
                 public NamedAnalyzer get(Object key) {
                     assert key instanceof String : "key must be a string but was: " + key.getClass();

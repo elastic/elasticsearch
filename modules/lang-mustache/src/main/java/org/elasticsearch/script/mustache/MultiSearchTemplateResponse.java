@@ -49,8 +49,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
         private Item(StreamInput in) throws IOException {
             if (in.readBoolean()) {
-                this.response = new SearchTemplateResponse();
-                response.readFrom(in);
+                this.response = new SearchTemplateResponse(in);
                 this.exception = null;
             } else {
                 exception = in.readException();

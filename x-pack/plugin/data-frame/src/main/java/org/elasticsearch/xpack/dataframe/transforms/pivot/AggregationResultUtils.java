@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetric;
@@ -84,6 +85,8 @@ public final class AggregationResultUtils {
                     }
                 } else if (aggResult instanceof ScriptedMetric) {
                     updateDocument(document, aggName, ((ScriptedMetric) aggResult).aggregation());
+                } else if (aggResult instanceof GeoCentroid) {
+                    updateDocument(document, aggName, ((GeoCentroid) aggResult).centroid().toString());
                 } else {
                     // Execution should never reach this point!
                     // Creating transforms with unsupported aggregations shall not be possible

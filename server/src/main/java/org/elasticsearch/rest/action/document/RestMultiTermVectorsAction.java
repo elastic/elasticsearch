@@ -19,12 +19,10 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -38,10 +36,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiTermVectorsAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestTermVectorsAction.class));
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
-        "Specifying types in multi term vector requests is deprecated.";
 
     public RestMultiTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
@@ -49,10 +43,6 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_mtermvectors", this);
         controller.registerHandler(GET, "/{index}/_mtermvectors", this);
         controller.registerHandler(POST, "/{index}/_mtermvectors", this);
-
-        // Deprecated typed endpoints.
-        controller.registerHandler(GET, "/{index}/{type}/_mtermvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_mtermvectors", this);
     }
 
     @Override
@@ -66,12 +56,8 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         TermVectorsRequest template = new TermVectorsRequest()
             .index(request.param("index"));
 
-        if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("mtermvectors_with_types", TYPES_DEPRECATION_MESSAGE);
-            template.type(request.param("type"));
-        } else {
-            template.type(MapperService.SINGLE_MAPPING_NAME);
-        }
+
+        template.type(MapperService.SINGLE_MAPPING_NAME);
 
         RestTermVectorsAction.readURIParameters(template, request);
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));

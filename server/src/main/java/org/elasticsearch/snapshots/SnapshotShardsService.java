@@ -448,7 +448,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             snapshot = new Snapshot(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             status = new ShardSnapshotStatus(in);
         }
 

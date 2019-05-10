@@ -67,7 +67,10 @@ Vagrant.configure(2) do |config|
   'debian-8'.tap do |box|
     config.vm.define box, define_opts do |config|
       config.vm.box = 'elastic/debian-8-x86_64'
-      deb_common config, box
+      deb_common config, box, extra: <<-SHELL
+        # this sometimes gets a bad ip, and doesn't appear to be needed
+        rm /etc/apt/sources.list.d/http_debian_net_debian.list
+      SHELL
     end
   end
   'debian-9'.tap do |box|
@@ -158,13 +161,17 @@ def deb_common(config, name, extra: '')
       s.privileged = false
       s.inline = "sudo sed -i '/tty/!s/mesg n/tty -s \\&\\& mesg n/' /root/.profile"
   end
+  extra_with_lintian = <<-SHELL
+    #{extra}
+    install lintian
+  SHELL
   linux_common(
     config,
     name,
     update_command: 'apt-get update',
     update_tracking_file: '/var/cache/apt/archives/last_update',
     install_command: 'apt-get install -y',
-    extra: extra
+    extra: extra_with_lintian
   )
 end
 

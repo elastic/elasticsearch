@@ -58,6 +58,9 @@ public class DataLoader {
         loadEmpDatasetIntoEs(client, "emp", "employees");
         loadLibDatasetIntoEs(client, "library");
         makeAlias(client, "employees", "emp");
+        // frozen index
+        loadLibDatasetIntoEs(client, "archive");
+        freeze(client, "archive");
     }
 
     private static void createString(String name, XContentBuilder builder) throws Exception {

@@ -39,6 +39,7 @@ import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
+import org.elasticsearch.client.ml.DeleteDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
@@ -61,6 +62,10 @@ import org.elasticsearch.client.ml.GetCalendarsRequest;
 import org.elasticsearch.client.ml.GetCalendarsResponse;
 import org.elasticsearch.client.ml.GetCategoriesRequest;
 import org.elasticsearch.client.ml.GetCategoriesResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsResponse;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsRequest;
+import org.elasticsearch.client.ml.GetDataFrameAnalyticsStatsResponse;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
 import org.elasticsearch.client.ml.GetDatafeedRequest;
@@ -92,6 +97,8 @@ import org.elasticsearch.client.ml.PreviewDatafeedResponse;
 import org.elasticsearch.client.ml.PutCalendarJobRequest;
 import org.elasticsearch.client.ml.PutCalendarRequest;
 import org.elasticsearch.client.ml.PutCalendarResponse;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.PutDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutDatafeedResponse;
 import org.elasticsearch.client.ml.PutFilterRequest;
@@ -101,6 +108,7 @@ import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
+import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -118,6 +126,14 @@ import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.client.ml.datafeed.DatafeedStats;
 import org.elasticsearch.client.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.client.ml.datafeed.DelayedDataCheckConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalysis;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsDest;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsSource;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
+import org.elasticsearch.client.ml.dataframe.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.QueryConfig;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
@@ -142,6 +158,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -870,18 +887,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
         String datafeedId = job.getId() + "-feed";
         String indexName = "preview_data_2";
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
             .setIndices(indexName)
             .build();
@@ -938,18 +944,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
         String datafeedId = job.getId() + "-feed";
         String indexName = "start_data_2";
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
             .setIndices(indexName)
             .build();
@@ -1067,18 +1062,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         client.machineLearning().putJob(new PutJobRequest(secondJob), RequestOptions.DEFAULT);
         String datafeedId1 = job.getId() + "-feed";
         String indexName = "datafeed_stats_data_2";
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties")
-                .startObject("timestamp")
-                    .field("type", "date")
-                .endObject()
-                .startObject("total")
-                    .field("type", "long")
-                .endObject()
-            .endObject()
-        .endObject());
-        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        createIndex(indexName);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId())
             .setIndices(indexName)
             .build();
@@ -2802,6 +2786,298 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testGetDataFrameAnalytics() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
+        {
+            // tag::get-data-frame-analytics-request
+            GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            // end::get-data-frame-analytics-request
+
+            // tag::get-data-frame-analytics-execute
+            GetDataFrameAnalyticsResponse response = client.machineLearning().getDataFrameAnalytics(request, RequestOptions.DEFAULT);
+            // end::get-data-frame-analytics-execute
+
+            // tag::get-data-frame-analytics-response
+            List<DataFrameAnalyticsConfig> configs = response.getAnalytics();
+            // end::get-data-frame-analytics-response
+
+            assertThat(configs.size(), equalTo(1));
+        }
+        {
+            GetDataFrameAnalyticsRequest request = new GetDataFrameAnalyticsRequest("my-analytics-config");
+
+            // tag::get-data-frame-analytics-execute-listener
+            ActionListener<GetDataFrameAnalyticsResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(GetDataFrameAnalyticsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-data-frame-analytics-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-data-frame-analytics-execute-async
+            client.machineLearning().getDataFrameAnalyticsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-data-frame-analytics-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetDataFrameAnalyticsStats() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
+        {
+            // tag::get-data-frame-analytics-stats-request
+            GetDataFrameAnalyticsStatsRequest request = new GetDataFrameAnalyticsStatsRequest("my-analytics-config"); // <1>
+            // end::get-data-frame-analytics-stats-request
+
+            // tag::get-data-frame-analytics-stats-execute
+            GetDataFrameAnalyticsStatsResponse response =
+                client.machineLearning().getDataFrameAnalyticsStats(request, RequestOptions.DEFAULT);
+            // end::get-data-frame-analytics-stats-execute
+
+            // tag::get-data-frame-analytics-stats-response
+            List<DataFrameAnalyticsStats> stats = response.getAnalyticsStats();
+            // end::get-data-frame-analytics-stats-response
+
+            assertThat(stats.size(), equalTo(1));
+        }
+        {
+            GetDataFrameAnalyticsStatsRequest request = new GetDataFrameAnalyticsStatsRequest("my-analytics-config");
+
+            // tag::get-data-frame-analytics-stats-execute-listener
+            ActionListener<GetDataFrameAnalyticsStatsResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(GetDataFrameAnalyticsStatsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-data-frame-analytics-stats-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-data-frame-analytics-stats-execute-async
+            client.machineLearning().getDataFrameAnalyticsStatsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-data-frame-analytics-stats-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    private static final DataFrameAnalyticsConfig DF_ANALYTICS_CONFIG =
+        DataFrameAnalyticsConfig.builder("my-analytics-config")
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+    public void testPutDataFrameAnalytics() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::put-data-frame-analytics-query-config
+            QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
+            // end::put-data-frame-analytics-query-config
+
+            // tag::put-data-frame-analytics-source-config
+            DataFrameAnalyticsSource sourceConfig = DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .setQueryConfig(queryConfig)
+                .build();
+            // end::put-data-frame-analytics-source-config
+
+            // tag::put-data-frame-analytics-dest-config
+            DataFrameAnalyticsDest destConfig = DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build();
+            // end::put-data-frame-analytics-dest-config
+
+            // tag::put-data-frame-analytics-analysis
+            DataFrameAnalysis analysis = OutlierDetection.createDefault();
+            // end::put-data-frame-analytics-analysis
+
+            // tag::put-data-frame-analytics-config
+            DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder("my-analytics-config") // <1>
+                .setSource(sourceConfig) // <2>
+                .setDest(destConfig) // <3>
+                .setAnalysis(analysis) // <4>
+                .build();
+            // end::put-data-frame-analytics-config
+
+            // tag::put-data-frame-analytics-request
+            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(config); // <1>
+            // end::put-data-frame-analytics-request
+
+            // tag::put-data-frame-analytics-execute
+            PutDataFrameAnalyticsResponse response = client.machineLearning().putDataFrameAnalytics(request, RequestOptions.DEFAULT);
+            // end::put-data-frame-analytics-execute
+
+            // tag::put-data-frame-analytics-response
+            DataFrameAnalyticsConfig createdConfig = response.getConfig();
+            // end::put-data-frame-analytics-response
+
+            assertThat(createdConfig.getId(), equalTo("my-analytics-config"));
+        }
+        {
+            PutDataFrameAnalyticsRequest request = new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG);
+            // tag::put-data-frame-analytics-execute-listener
+            ActionListener<PutDataFrameAnalyticsResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(PutDataFrameAnalyticsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::put-data-frame-analytics-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::put-data-frame-analytics-execute-async
+            client.machineLearning().putDataFrameAnalyticsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::put-data-frame-analytics-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testDeleteDataFrameAnalytics() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
+        {
+            // tag::delete-data-frame-analytics-request
+            DeleteDataFrameAnalyticsRequest request = new DeleteDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            // end::delete-data-frame-analytics-request
+
+            // tag::delete-data-frame-analytics-execute
+            AcknowledgedResponse response = client.machineLearning().deleteDataFrameAnalytics(request, RequestOptions.DEFAULT);
+            // end::delete-data-frame-analytics-execute
+
+            // tag::delete-data-frame-analytics-response
+            boolean acknowledged = response.isAcknowledged();
+            // end::delete-data-frame-analytics-response
+
+            assertThat(acknowledged, is(true));
+        }
+        client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
+        {
+            DeleteDataFrameAnalyticsRequest request = new DeleteDataFrameAnalyticsRequest("my-analytics-config");
+
+            // tag::delete-data-frame-analytics-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-data-frame-analytics-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::delete-data-frame-analytics-execute-async
+            client.machineLearning().deleteDataFrameAnalyticsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-data-frame-analytics-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testStartDataFrameAnalytics() throws Exception {
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        highLevelClient().index(
+            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()).source(XContentType.JSON, "total", 10000), RequestOptions.DEFAULT);
+        RestHighLevelClient client = highLevelClient();
+        client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
+        {
+            // tag::start-data-frame-analytics-request
+            StartDataFrameAnalyticsRequest request = new StartDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            // end::start-data-frame-analytics-request
+
+            // tag::start-data-frame-analytics-execute
+            AcknowledgedResponse response = client.machineLearning().startDataFrameAnalytics(request, RequestOptions.DEFAULT);
+            // end::start-data-frame-analytics-execute
+
+            // tag::start-data-frame-analytics-response
+            boolean acknowledged = response.isAcknowledged();
+            // end::start-data-frame-analytics-response
+
+            assertThat(acknowledged, is(true));
+        }
+        assertBusy(
+            () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
+            30, TimeUnit.SECONDS);
+        {
+            StartDataFrameAnalyticsRequest request = new StartDataFrameAnalyticsRequest("my-analytics-config");
+
+            // tag::start-data-frame-analytics-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::start-data-frame-analytics-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::start-data-frame-analytics-execute-async
+            client.machineLearning().startDataFrameAnalyticsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::start-data-frame-analytics-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+        assertBusy(
+            () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
+            30, TimeUnit.SECONDS);
+    }
+
+    private DataFrameAnalyticsState getAnalyticsState(String configId) throws IOException {
+        GetDataFrameAnalyticsStatsResponse statsResponse =
+            highLevelClient().machineLearning().getDataFrameAnalyticsStats(
+                new GetDataFrameAnalyticsStatsRequest(configId), RequestOptions.DEFAULT);
+        assertThat(statsResponse.getAnalyticsStats(), hasSize(1));
+        DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
+        return stats.getState();
+    }
 
     public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();
@@ -3139,5 +3415,20 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         MlFilter createdFilter = putFilterResponse.getResponse();
         assertThat(createdFilter.getId(), equalTo("my_safe_domains"));
         return createdFilter.getId();
+    }
+
+    private void createIndex(String indexName) throws IOException {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
     }
 }

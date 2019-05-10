@@ -2483,7 +2483,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 } else {
                     logger.info("--> close index while partial snapshot is running");
                     closedOnPartial = true;
-                    client.admin().indices().prepareClose("test-idx-1").get();
+                    client.admin().indices().prepareClose("test-idx-1").setWaitForActiveShards(ActiveShardCount.DEFAULT).get();
                 }
             } else {
                 // non-partial snapshots do not allow close / delete operations on indices where snapshot has not been completed

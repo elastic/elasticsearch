@@ -9,7 +9,7 @@ edit distance is the number of one-character changes needed to turn one term
 into another. These changes can include:
 
 * Changing a character (**b**ox → **f**ox)
-* Removing a character (**b**lack → back)
+* Removing a character (**b**lack → lack)
 * Inserting a character (sic → sic**k**)
 * Transposing two adjacent characters (**ac**t → **ca**t)
 

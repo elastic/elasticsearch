@@ -553,9 +553,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return {@code true} if the current generation should be rolled to a new generation
      */
     public boolean shouldRollGeneration() {
-        final long size = this.current.sizeInBytes();
         final long threshold = this.indexSettings.getGenerationThresholdSize().getBytes();
-        return size > threshold;
+        try (ReleasableLock ignored = readLock.acquire()) {
+            return this.current.sizeInBytes() > threshold;
+        }
     }
 
     /**

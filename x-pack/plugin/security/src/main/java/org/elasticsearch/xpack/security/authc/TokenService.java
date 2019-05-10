@@ -183,12 +183,12 @@ public final class TokenService {
     static final String TOKEN_DOC_TYPE = "token";
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
-    private static final int HASHED_TOKEN_LENGTH = 44;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";
     static final int LEGACY_MINIMUM_BYTES = VERSION_BYTES + SALT_BYTES + IV_BYTES + 1;
     static final int MINIMUM_BYTES = VERSION_BYTES + TOKEN_LENGTH + 1;
     static final int LEGACY_MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * LEGACY_MINIMUM_BYTES) / 3)).intValue();
     static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
+    static final Version VERSION_HASHED_TOKENS = Version.V_8_0_0;
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_2_0;
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
@@ -297,7 +297,7 @@ public final class TokenService {
      * @param authentication The authentication object representing the user for which the tokens are created
      * @param originatingClientAuth The authentication object representing the client that called the related API
      * @param metadata A map with metadata to be stored in the token document
-     * @param listener The listener to call upon completion with a {@link Tuple<>} containing the
+     * @param listener The listener to call upon completion with a {@link Tuple} containing the
      *                 serialized access token and serialized refresh token as these will be returned to the client
      */
     private void createOAuth2Tokens(String accessToken, String refreshToken, Version tokenVersion, SecurityIndexManager tokensIndex,
@@ -316,7 +316,7 @@ public final class TokenService {
                 authentication.getLookedUpBy(), tokenVersion, AuthenticationType.TOKEN, authentication.getMetadata());
             final String storedAccessToken;
             final String storedRefreshToken;
-            if (tokenVersion.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
                 storedAccessToken = hashTokenString(accessToken);
                 storedRefreshToken = (null == refreshToken) ? null : hashTokenString(refreshToken);
             } else {
@@ -478,8 +478,13 @@ public final class TokenService {
                     return;
                 }
                 final String accessToken = in.readString();
-                final String userTokenId = hashTokenString(accessToken);
-                getUserTokenFromId(userTokenId, version, listener);
+                // TODO Remove this conditional after backporting to 7.x
+                if (version.onOrAfter(VERSION_HASHED_TOKENS)) {
+                    final String userTokenId = hashTokenString(accessToken);
+                    getUserTokenFromId(userTokenId, version, listener);
+                } else {
+                    getUserTokenFromId(accessToken, version, listener);
+                }
             } else {
                 // The token was created in a < VERSION_ACCESS_TOKENS_UUIDS cluster so we need to decrypt it to get the tokenId
                 if (in.available() < LEGACY_MINIMUM_BYTES) {
@@ -782,7 +787,7 @@ public final class TokenService {
      * Called by the transport action in order to start the process of refreshing a token.
      *
      * @param refreshToken The refresh token as provided by the client
-     * @param listener The listener to call upon completion with a {@link Tuple<>} containing the
+     * @param listener The listener to call upon completion with a {@link Tuple} containing the
      *                 serialized access token and serialized refresh token as these will be returned to the client
      */
     public void refreshToken(String refreshToken, ActionListener<Tuple<String, String>> listener) {
@@ -820,8 +825,13 @@ public final class TokenService {
                         refreshTokenVersion);
                     listener.onFailure(malformedTokenException());
                 } else {
-                    final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
-                    findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                    // TODO Remove this conditional after backporting to 7.x
+                    if (refreshTokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+                        final String hashedRefreshToken = hashTokenString(unencodedRefreshToken);
+                        findTokenFromRefreshToken(hashedRefreshToken, securityTokensIndex, backoff, listener);
+                    } else {
+                        findTokenFromRefreshToken(unencodedRefreshToken, securityTokensIndex, backoff, listener);
+                    }
                 }
             } catch (IOException e) {
                 logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
@@ -906,7 +916,7 @@ public final class TokenService {
         final Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("refresh token", tokenDocId, ex));
         final Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkRefreshResult;
         try {
-            checkRefreshResult = checkTokenDocumentForRefresh(clock.instant(), clientAuth, source);
+            checkRefreshResult = checkTokenDocumentForRefresh(refreshRequested, clientAuth, source);
         } catch (DateTimeException | IllegalStateException e) {
             onFailure.accept(new ElasticsearchSecurityException("invalid token document", e));
             return;
@@ -926,7 +936,7 @@ public final class TokenService {
             final Version newTokenVersion = getTokenVersionCompatibility();
             final Map<String, Object> updateMap = new HashMap<>();
             updateMap.put("refreshed", true);
-            if (newTokenVersion.onOrAfter(VERSION_TOKENS_INDEX_INTRODUCED)) {
+            if (newTokenVersion.onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
                 updateMap.put("refresh_time", clock.instant().toEpochMilli());
                 try {
                     final byte[] iv = getRandomBytes(IV_BYTES);
@@ -1034,7 +1044,7 @@ public final class TokenService {
      * @param refreshToken The refresh token that the user sent in the request, used to derive the decryption key
      * @param refreshTokenStatus The {@link RefreshTokenStatus} containing information about the superseding tokens as retrieved from the
      *                          index
-     * @param listener The listener to call upon completion with a {@link Tuple<>} containing the
+     * @param listener The listener to call upon completion with a {@link Tuple} containing the
      *                 serialized access token and serialized refresh token as these will be returned to the client
      */
     void decryptAndReturnSupersedingTokens(String refreshToken, RefreshTokenStatus refreshTokenStatus,
@@ -1090,13 +1100,13 @@ public final class TokenService {
      * A refresh token has a fixed maximum lifetime of {@code ExpiredTokenRemover#MAXIMUM_TOKEN_LIFETIME_HOURS} hours. This checks if the
      * token document represents a valid token wrt this time interval.
      */
-    private static Optional<ElasticsearchSecurityException> checkTokenDocumentExpired(Instant now, Map<String, Object> source) {
+    private static Optional<ElasticsearchSecurityException> checkTokenDocumentExpired(Instant refreshRequested, Map<String, Object> source) {
         final Long creationEpochMilli = (Long) source.get("creation_time");
         if (creationEpochMilli == null) {
             throw new IllegalStateException("token document is missing creation time value");
         } else {
             final Instant creationTime = Instant.ofEpochMilli(creationEpochMilli);
-            if (now.isAfter(creationTime.plus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
+            if (refreshRequested.isAfter(creationTime.plus(ExpiredTokenRemover.MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))) {
                 return Optional.of(invalidGrantException("token document has expired"));
             } else {
                 return Optional.empty();
@@ -1109,17 +1119,17 @@ public final class TokenService {
      * parsed {@code RefreshTokenStatus} together with an {@code Optional} validation exception that encapsulates the various logic about
      * when and by who a token can be refreshed.
      */
-    private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(Instant now,
-            Authentication clientAuth, Map<String, Object> source) throws IllegalStateException, DateTimeException {
+    private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(Instant refreshRequested,
+                                                                                                                    Authentication clientAuth, Map<String, Object> source) throws IllegalStateException, DateTimeException {
         final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
         final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
         refreshTokenStatus.setVersion(userToken.getVersion());
-        final ElasticsearchSecurityException validationException = checkTokenDocumentExpired(now, source).orElseGet(() -> {
+        final ElasticsearchSecurityException validationException = checkTokenDocumentExpired(refreshRequested, source).orElseGet(() -> {
             if (refreshTokenStatus.isInvalidated()) {
                 return invalidGrantException("token has been invalidated");
             } else {
                 return checkClientCanRefresh(refreshTokenStatus, clientAuth)
-                        .orElse(checkMultipleRefreshes(now, refreshTokenStatus).orElse(null));
+                    .orElse(checkMultipleRefreshes(refreshRequested, refreshTokenStatus).orElse(null));
             }
         });
         return new Tuple<>(refreshTokenStatus, Optional.ofNullable(validationException));
@@ -1172,13 +1182,13 @@ public final class TokenService {
      * @return An {@code Optional} containing the exception in case this refresh token cannot be reused, or an empty <b>Optional</b> if
      *         refreshing is allowed.
      */
-    private static Optional<ElasticsearchSecurityException> checkMultipleRefreshes(Instant now, RefreshTokenStatus refreshTokenStatus) {
+    private static Optional<ElasticsearchSecurityException> checkMultipleRefreshes(Instant refreshRequested, RefreshTokenStatus refreshTokenStatus) {
         if (refreshTokenStatus.isRefreshed()) {
             if (refreshTokenStatus.getVersion().onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
-                if (now.isAfter(refreshTokenStatus.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
+                if (refreshRequested.isAfter(refreshTokenStatus.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {
                     return Optional.of(invalidGrantException("token has already been refreshed more than 30 seconds in the past"));
                 }
-                if (now.isBefore(refreshTokenStatus.getRefreshInstant().minus(30L, ChronoUnit.SECONDS))) {
+                if (refreshRequested.isBefore(refreshTokenStatus.getRefreshInstant().minus(30L, ChronoUnit.SECONDS))) {
                     return Optional
                             .of(invalidGrantException("token has been refreshed more than 30 seconds in the future, clock skew too great"));
                 }
@@ -1559,6 +1569,7 @@ public final class TokenService {
                      StreamOutput encryptedStreamOutput = new OutputStreamStreamOutput(encryptedOutput)) {
                     encryptedStreamOutput.setVersion(version);
                     encryptedStreamOutput.writeString(accessToken);
+                    // StreamOutput needs to be closed explicitly because it wraps CipherOutputStream
                     encryptedStreamOutput.close();
                     return new String(os.toByteArray(), StandardCharsets.UTF_8);
                 }

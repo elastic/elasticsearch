@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -32,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -42,6 +44,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 
 public class XContentParserTests extends ESTestCase {
 
@@ -326,6 +329,54 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(
                     Arrays.asList(singletonMap("foo", "bar"), emptyMap()),
                     parser.list());
+        }
+    }
+
+    public void testGenericMap() throws IOException {
+        String content = "{" +
+            "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
+            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }, " +
+            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }" +
+            "}";
+        Map<String, SimpleStruct> expectedMap =
+            Map.of(
+                "a", new SimpleStruct(1, 0.1, "aaa"),
+                "b", new SimpleStruct(2, 0.2, "bbb"),
+                "c", new SimpleStruct(3, 0.3, "ccc"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            assertThat(parser.genericMap(p -> SimpleStruct.fromXContent(p)), equalTo(expectedMap));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testGenericMapOrdered() throws IOException {
+        String content = "{" +
+            "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
+            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }, " +
+            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }" +
+            "}";
+        Map<String, SimpleStruct> expectedMap =
+            Map.of(
+                "a", new SimpleStruct(1, 0.1, "aaa"),
+                "b", new SimpleStruct(2, 0.2, "bbb"),
+                "c", new SimpleStruct(3, 0.3, "ccc"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            assertThat(parser.genericMapOrdered(p -> SimpleStruct.fromXContent(p)), equalTo(expectedMap));
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testGenericMap_Failure_MapContainingUnparsableValue() throws IOException {
+        String content = "{" +
+            "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
+            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": 666 }, " +
+            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }" +
+            "}";
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
+            XContentParseException exception = expectThrows(
+                XContentParseException.class,
+                () -> parser.genericMap(p -> SimpleStruct.fromXContent(p)));
+            assertThat(exception, hasMessage(containsString("s doesn't support values of type: VALUE_NUMBER")));
         }
     }
 

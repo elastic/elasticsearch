@@ -117,6 +117,10 @@ public interface XContentParser extends Closeable {
         INT, LONG, FLOAT, DOUBLE
     }
 
+    interface MapValueParser<T> {
+        T apply(XContentParser parser, String key) throws IOException;
+    }
+
     XContentType contentType();
 
     Token nextToken() throws IOException;
@@ -134,6 +138,10 @@ public interface XContentParser extends Closeable {
     Map<String, String> mapStrings() throws IOException;
 
     Map<String, String> mapStringsOrdered() throws IOException;
+
+    <T> Map<String, T> genericMap(MapValueParser<T> mapValueParser) throws IOException;
+
+    <T> Map<String, T> genericMapOrdered(MapValueParser<T> mapValueParser) throws IOException;
 
     List<Object> list() throws IOException;
 

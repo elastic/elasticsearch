@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -77,7 +75,4 @@ public final class HighlightUtils {
         public static final Encoder HTML = new SimpleHTMLEncoder();
     }
     
-    static Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
-        return docMapper.mappers().indexAnalyzer();
-    }    
 }

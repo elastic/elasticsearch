@@ -27,11 +27,11 @@ import java.util.Arrays;
 
 public class TestClustersPluginIT extends GradleIntegrationTestCase {
 
-    private GradleRunner testclusters;
+    private GradleRunner runner;
 
     @Before
     public void setUp() throws Exception {
-        testclusters = getGradleRunner("testclusters");
+        runner = getGradleRunner("testclusters");
     }
 
     public void testListClusters() {
@@ -195,7 +195,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         arguments[tasks.length] = "-s";
         arguments[tasks.length + 1] = "-i";
         arguments[tasks.length + 2] = "-Dlocal.repo.path=" + getLocalTestRepoPath();
-        return testclusters.withArguments(arguments);
+        return runner.withArguments(arguments);
     }
 
     private void assertStartedAndStoppedOnce(BuildResult result, String nodeName) {

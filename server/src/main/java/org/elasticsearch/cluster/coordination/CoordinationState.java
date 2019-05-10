@@ -480,7 +480,7 @@ public class CoordinationState {
                     metaDataBuilder = MetaData.builder(lastAcceptedState.metaData());
                 }
                 metaDataBuilder.clusterUUIDCommitted(true);
-                logger.info("cluster UUID [{}]", lastAcceptedState.metaData().clusterUUID());
+                logger.info("cluster UUID set to [{}]", lastAcceptedState.metaData().clusterUUID());
             }
             if (metaDataBuilder != null) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metaData(metaDataBuilder).build());

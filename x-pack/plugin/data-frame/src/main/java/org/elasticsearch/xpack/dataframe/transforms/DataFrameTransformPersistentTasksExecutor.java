@@ -128,7 +128,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
 
         Long previousCheckpoint = transformPTaskState != null ? transformPTaskState.getCheckpoint() : null;
 
-                // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
+        // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
         ActionListener<DataFrameTransformStateAndStats> transformStatsActionListener = ActionListener.wrap(

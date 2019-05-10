@@ -617,7 +617,18 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         protected void onStop() {
             auditor.info(transformConfig.getId(), "Indexer has stopped");
             logger.info("Data frame transform [{}] indexer has stopped", transformConfig.getId());
-            transformTask.shutdown();
+            transformsConfigManager.putOrUpdateTransformStats(
+                    new DataFrameTransformStateAndStats(transformId, transformTask.getState(), getStats(),
+                            DataFrameTransformCheckpointingInfo.EMPTY), // TODO should this be null
+                    ActionListener.wrap(
+                            r -> {
+                                transformTask.shutdown();
+                            },
+                            statsExc -> {
+                                transformTask.shutdown();
+                                logger.error("Updating saving stats of transform [" + transformConfig.getId() + "] failed", statsExc);
+                            }
+                    ));
         }
 
         @Override

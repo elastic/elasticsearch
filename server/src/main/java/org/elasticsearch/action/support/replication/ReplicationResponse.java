@@ -269,7 +269,7 @@ public class ReplicationResponse extends ActionResponse {
 
             @Override
             public void readFrom(StreamInput in) throws IOException {
-                shardId = ShardId.readShardId(in);
+                shardId = new ShardId(in);
                 super.shardId = shardId.getId();
                 index = shardId.getIndexName();
                 nodeId = in.readOptionalString();

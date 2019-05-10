@@ -103,7 +103,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
@@ -388,10 +388,13 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         private Object result;
 
-        Response() {}
-
         Response(Object result) {
             this.result = result;
+        }
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+            result = in.readGenericValue();
         }
 
         public Object getResult() {
@@ -400,8 +403,7 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            result = in.readGenericValue();
+            throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
         }
 
         @Override
@@ -476,8 +478,8 @@ public class PainlessExecuteAction extends Action<PainlessExecuteAction.Response
         }
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected Writeable.Reader<Response> getResponseReader() {
+            return Response::new;
         }
 
         @Override

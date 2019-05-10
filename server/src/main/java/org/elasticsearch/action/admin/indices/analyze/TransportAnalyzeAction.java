@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -96,8 +97,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     }
 
     @Override
-    protected AnalyzeResponse newResponse() {
-        return new AnalyzeResponse();
+    protected Writeable.Reader<AnalyzeResponse> getResponseReader() {
+        return AnalyzeResponse::new;
     }
 
     @Override

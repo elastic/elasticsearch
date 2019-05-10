@@ -6,6 +6,7 @@ if (System.env.ELASTIC_ARTIFACTORY_USERNAME == null || System.env.ELASTIC_ARTIFA
         settings.pluginManagement {
             repositories {
                 maven {
+                    name "artifactory-gradle-plugins"
                     url "https://artifactory.elstc.co/artifactory/gradle-plugins"
                     credentials {
                         username System.env.ELASTIC_ARTIFACTORY_USERNAME
@@ -21,6 +22,7 @@ if (System.env.ELASTIC_ARTIFACTORY_USERNAME == null || System.env.ELASTIC_ARTIFA
             buildscript {
                 repositories {
                     maven {
+                        name "artifactory-gradle-release"
                         url "https://artifactory.elstc.co/artifactory/gradle-release/"
                         credentials {
                             username System.env.ELASTIC_ARTIFACTORY_USERNAME
@@ -31,6 +33,7 @@ if (System.env.ELASTIC_ARTIFACTORY_USERNAME == null || System.env.ELASTIC_ARTIFA
             }
             repositories {
                 maven {
+                    name "artifactory-gradle-release"
                     url "https://artifactory.elstc.co/artifactory/gradle-release/"
                     credentials {
                         username System.env.ELASTIC_ARTIFACTORY_USERNAME

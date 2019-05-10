@@ -103,6 +103,20 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     TermVectorsResponse() {
     }
 
+    TermVectorsResponse(StreamInput in) throws IOException {
+        index = in.readString();
+        type = in.readString();
+        id = in.readString();
+        docVersion = in.readVLong();
+        exists = in.readBoolean();
+        artificial = in.readBoolean();
+        tookInMillis = in.readVLong();
+        if (in.readBoolean()) {
+            headerRef = in.readBytesReference();
+            termVectors = in.readBytesReference();
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
@@ -127,17 +141,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readString();
-        type = in.readString();
-        id = in.readString();
-        docVersion = in.readVLong();
-        exists = in.readBoolean();
-        artificial = in.readBoolean();
-        tookInMillis = in.readVLong();
-        if (in.readBoolean()) {
-            headerRef = in.readBytesReference();
-            termVectors = in.readBytesReference();
-        }
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     public Fields getFields() throws IOException {

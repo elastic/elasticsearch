@@ -445,6 +445,7 @@ public final class GrokPatternCreator {
          * for the pre and/or post breaks.
          *
          * @param grokPatternName Name of the Grok pattern to try to match - must match one defined in Logstash.
+         * @param mappingType     Data type for field in Elasticsearch mappings.
          * @param fieldName       Name of the field to extract from the match.
          */
         ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName) {
@@ -453,6 +454,7 @@ public final class GrokPatternCreator {
 
         /**
          * @param grokPatternName        Name of the Grok pattern to try to match - must match one defined in Logstash.
+         * @param mappingType            Data type for field in Elasticsearch mappings.
          * @param fieldName              Name of the field to extract from the match.
          * @param grokPatternDefinitions Definitions of Grok patterns to be used.
          */

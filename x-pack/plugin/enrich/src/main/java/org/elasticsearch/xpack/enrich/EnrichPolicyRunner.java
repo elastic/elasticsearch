@@ -105,19 +105,59 @@ public class EnrichPolicyRunner implements Runnable {
         logger.debug("Policy [{}]: Validating [{}] source mappings", policyName, sourceIndices);
         for (String sourceIndex : sourceIndices) {
             Map<String, Object> mapping = getMappings(getIndexResponse, sourceIndex);
-            Set<?> properties = ((Map<?, ?>) mapping.get("properties")).keySet();
-            if (properties == null) {
+            // First ensure mapping is set
+            if (mapping.get("properties") == null) {
                 listener.onFailure(
                     new ElasticsearchException(
                         "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
                         policyName, sourceIndex, policy.getIndices()));
             }
-            if (properties.contains(policy.getEnrichKey()) == false) {
+            // Validate the key
+            try {
+                validateField(mapping, policy.getEnrichKey());
+            } catch (ElasticsearchException e) {
                 listener.onFailure(
                     new ElasticsearchException(
-                        "Enrich policy execution for [{}] failed. Could not locate enrich key field [{}] on mapping for index [{}]",
-                        policyName, policy.getEnrichKey(), sourceIndex));
+                        "Enrich policy execution for [{}] failed while validating field mappings for index [{}]",
+                        e, policyName, sourceIndex));
             }
+        }
+    }
+
+    private void validateField(Map<?, ?> properties, String fieldName) {
+        assert fieldName != null && !fieldName.isEmpty() : "Field name cannot be null or empty";
+        String[] fieldParts = fieldName.split("\\.");
+        StringBuilder parent = new StringBuilder("root");
+        Map<?, ?> currentField = properties;
+        for (String fieldPart : fieldParts) {
+            // Ensure that the current field is of object type only (not a nested type or a non compound field)
+            String type = currentField.get("type").toString();
+            if (type != null) {
+                throw new ElasticsearchException(
+                    "Could not traverse mapping to field [{}]. The [{}] field must be regular object but was [{}].",
+                    fieldName,
+                    parent.toString(),
+                    type
+                );
+            }
+            Map<?, ?> currentProperties = ((Map<?, ?>) currentField.get("properties"));
+            if (currentProperties == null) {
+                throw new ElasticsearchException(
+                    "Could not traverse mapping to field [{}]. Expected the [{}] field to have sub fields but none were configured.",
+                    fieldName,
+                    parent.toString()
+                );
+            }
+            currentField = ((Map<?, ?>) currentProperties.get(fieldPart));
+            if (currentField == null) {
+                throw new ElasticsearchException(
+                    "Could not traverse mapping to field [{}]. Could not find the [{}] field under [{}]",
+                    fieldName,
+                    fieldPart,
+                    parent.toString()
+                );
+            }
+            parent.append(".").append(fieldPart);
         }
     }
 

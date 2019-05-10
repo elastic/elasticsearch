@@ -1,36 +1,46 @@
 [[query-dsl-multi-term-rewrite]]
 == `rewrite` Parameter
 
-WARNING: This parameter is for expert users only. Changing the value of this
-parameter can impact search performance and relevance.
+WARNING: This parameter is for expert users only. Changing the value of
+this parameter can impact search performance and relevance.
 
-To improve performance, {es} rewrites the following queries:
+{es} uses https://lucene.apache.org/core/[Apache Lucene] internally to power
+indexing and searching. In their original form, Lucene cannot execute the
+following queries:
 
+* <<query-dsl-fuzzy-query, `fuzzy`>>
 * <<query-dsl-prefix-query, `prefix`>>
 * <<query-dsl-query-string-query, `query_string`>>
+* <<query-dsl-regexp-query, `regexp`>>
 * <<query-dsl-wildcard-query, `wildcard`>>
 
-In their original form, these queries are expensive. {es} changes the
-original query to a less expensive <<query-dsl-bool-query, `bool` query>>. This
-`bool` query contains a `should` clause and <<query-dsl-term-query, `term`
-query>> for each matching term.
+To execute them, Lucene changes these queries to a simpler form, such as a
+<<query-dsl-bool-query, `bool` query>> or a
+https://en.wikipedia.org/wiki/Bit_array[bit set].
 
 The `rewrite` parameter determines:
 
-* How {es} calculates the relevance scores for each matching document
-* Which `term` queries are included in the final `bool` query
+* How Lucene calculates the relevance scores for each matching document
+* Whether Lucene changes the original query to a `bool`
+query or bit set
+* If changed to a `bool` query, which `term` query clauses are included
 
 [float]
 [[rewrite-param-valid-values]]
 === Valid values
 
 `constant_score` (Default)::
-Automatically uses the `constant_score_boolean` or `scoring_boolean` method,
-based on the number of matching terms. For fewer matching terms, the
-`constant_score_boolean` method is used.
+Uses the `constant_score_boolean` method for fewer matching terms. Otherwise,
+this method finds all matching terms in sequence and returns matching documents
+using a bit set.
 
 `constant_score_boolean`::
-Assigns each document a relevance score equal to the `boost` parameter.
+Assigns each document a relevance score equal to the `boost`
+parameter.
++
+This method changes the original query to a <<query-dsl-bool-query, `bool`
+query>>. This `bool` query contains a `should` clause and
+<<query-dsl-term-query, `term` query>> for each matching term.
 +
 This method can cause the final `bool` query to exceed the clause limit in the
 <<indices-query-bool-max-clause-count, `indices.query.bool.max_clause_count`>>
@@ -39,6 +49,10 @@ setting. If the query exceeds this limit, {es} returns an error.
 `scoring_boolean`::
 Calculates a relevance score for each matching document.
 +
+This method changes the original query to a <<query-dsl-bool-query, `bool`
+query>>. This `bool` query contains a `should` clause and
+<<query-dsl-term-query, `term` query>> for each matching term.
++
 This method can cause the final `bool` query to exceed the clause limit in the
 <<indices-query-bool-max-clause-count, `indices.query.bool.max_clause_count`>>
 setting. If the query exceeds this limit, {es} returns an error.
@@ -46,6 +60,11 @@ setting. If the query exceeds this limit, {es} returns an error.
 `top_terms_blended_freqs_N`::
 Calculates a relevance score for each matching document as if all terms had the
 same frequency. This frequency is the maximum frequency of all matching terms.
++
+This method changes the original query to a <<query-dsl-bool-query, `bool`
+query>>. This `bool` query contains a `should` clause and
+<<query-dsl-term-query, `term` query>> for each matching term.
++
 The final `bool` query only includes `term` queries for the top `N` scoring
 terms.
 +
@@ -55,6 +74,11 @@ setting.
 
 `top_terms_boost_N`::
 Assigns each matching document a relevance score equal to the `boost` parameter.
++
+This method changes the original query to a <<query-dsl-bool-query, `bool`
+query>>. This `bool` query contains a `should` clause and
+<<query-dsl-term-query, `term` query>> for each matching term.
++
 The final `bool` query only includes `term` queries for the top `N` terms.
 +
 You can use this method to avoid exceeding the clause limit in the
@@ -62,7 +86,13 @@ You can use this method to avoid exceeding the clause limit in the
 setting.
 
 `top_terms_N`::
-Calculates a relevance score for each matching document. The final `bool` query
+Calculates a relevance score for each matching document.
++
+This method changes the original query to a <<query-dsl-bool-query, `bool`
+query>>. This `bool` query contains a `should` clause and
+<<query-dsl-term-query, `term` query>> for each matching term.
++
+The final `bool` query
 only includes `term` queries for the top `N` scoring terms.
 +
 You can use this method to avoid exceeding the clause limit in the
@@ -72,8 +102,8 @@ setting.
 [float]
 [[rewrite-param-perf-considerations]]
 === Performance considerations for the `rewrite` parameter
-In most uses, we recommend using the `constant_score`,
+For most uses, we recommend using the `constant_score`,
 `constant_score_boolean`, or `top_terms_boost_N` rewrite methods.
 
 Other methods calculate relevance scores. These score calculations are often
-expensive and do not improve the query results.
+expensive and do not improve query results.

@@ -27,6 +27,7 @@ import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileTree;
@@ -44,6 +45,8 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 
 public class JdkDownloadPlugin implements Plugin<Project> {
+
+    private static final String REPO_NAME_PREFIX = "jdk_repo_";
 
     @Override
     public void apply(Project project) {
@@ -67,6 +70,13 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
                 // ensure a root level jdk download task exists
                 setupRootJdkDownload(project.getRootProject(), platform, version);
+            }
+        });
+
+        // all other repos should ignore the special jdk artifacts
+        project.getRootProject().getRepositories().all(repo -> {
+            if (repo.getName().startsWith(REPO_NAME_PREFIX) == false) {
+                repo.content(content -> content.excludeGroup("jdk"));
             }
         });
     }
@@ -94,26 +104,30 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         String hash = jdkVersionMatcher.group(5);
 
         // add fake ivy repo for jdk url
-        String repoName = "jdk_repo_" + version;
+        String repoName = REPO_NAME_PREFIX + version;
+        RepositoryHandler repositories = rootProject.getRepositories();
         if (rootProject.getRepositories().findByName(repoName) == null) {
-            // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
-            rootProject.getRepositories().ivy(ivyRepo -> {
-                ivyRepo.setName(repoName);
-                ivyRepo.setUrl("https://download.oracle.com");
-                ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                ivyRepo.patternLayout(layout ->
-                    layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
-                ivyRepo.content(content -> content.includeGroup("jdk"));
-            });
-            // current pattern since 12.0.1
-            rootProject.getRepositories().ivy(ivyRepo -> {
-                ivyRepo.setName(repoName + "_with_hash");
-                ivyRepo.setUrl("https://download.oracle.com");
-                ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
-                ivyRepo.patternLayout(layout -> layout.artifact(
-                    "java/GA/jdk" + jdkVersion + "/" + hash + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
-                ivyRepo.content(content -> content.includeGroup("jdk"));
-            });
+            if (hash != null) {
+                // current pattern since 12.0.1
+                repositories.ivy(ivyRepo -> {
+                    ivyRepo.setName(repoName);
+                    ivyRepo.setUrl("https://download.oracle.com");
+                    ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+                    ivyRepo.patternLayout(layout -> layout.artifact(
+                        "java/GA/jdk" + jdkVersion + "/" + hash + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
+                    ivyRepo.content(content -> content.includeGroup("jdk"));
+                });
+            } else {
+                // simpler legacy pattern from JDK 9 to JDK 12 that we are advocating to Oracle to bring back
+                repositories.ivy(ivyRepo -> {
+                    ivyRepo.setName(repoName);
+                    ivyRepo.setUrl("https://download.oracle.com");
+                    ivyRepo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
+                    ivyRepo.patternLayout(layout ->
+                        layout.artifact("java/GA/jdk" + jdkMajor + "/" + jdkBuild + "/GPL/openjdk-[revision]_[module]-x64_bin.[ext]"));
+                    ivyRepo.content(content -> content.includeGroup("jdk"));
+                });
+            }
         }
 
         // add the jdk as a "dependency"

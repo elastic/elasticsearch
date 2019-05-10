@@ -97,15 +97,15 @@ public class ActionWrapperTests extends ESTestCase {
         when(executableAction.execute(eq("_action"), eq(ctx), eq(thirdPayload))).thenReturn(thirdResult);
 
         ActionWrapperResult result = wrapper.execute(ctx);
-        assertThat(result.action().status(), is(Action.Result.Status.SUCCESS));
+        assertThat(result.action().status(), is(Action.Result.Status.FAILURE));
         // check that action toXContent contains all the results
         try (XContentBuilder builder = jsonBuilder()) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             final String json = Strings.toString(builder);
             final Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, true);
-            assertThat(map, hasKey("actions"));
-            assertThat(map.get("actions"), instanceOf(List.class));
-            List<Map<String, Object>> actions = (List) map.get("actions");
+            assertThat(map, hasKey("foreach"));
+            assertThat(map.get("foreach"), instanceOf(List.class));
+            List<Map<String, Object>> actions = (List) map.get("foreach");
             assertThat(actions, hasSize(3));
         }
     }

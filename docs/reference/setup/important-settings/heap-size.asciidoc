@@ -18,7 +18,7 @@ server:
   space for this. For instance, {es} uses off-heap buffers for efficient
   network communication, relies on the operating system's filesystem cache for
   efficient access to files, and the JVM itself requires some memory too. It is
-  not unusual to observe the {es} process using more memory than the limit
+  normal to observe the {es} process using more memory than the limit
   configured with the `Xmx` setting.
 
 * Set `Xmx` and `Xms` to no more than the threshold that the JVM uses for
@@ -46,8 +46,8 @@ oops are not enabled then you will see a line like the following instead:
 
 The more heap available to {es}, the more memory it can use for its internal
 caches, but the less memory it leaves available for the operating system to use
-for the file system cache. Also, larger heaps can sometimes cause longer
-garbage collection pauses.
+for the filesystem cache. Also, larger heaps can sometimes cause longer garbage
+collection pauses.
 
 Here are examples of how to set the heap size via the jvm.options file:
 

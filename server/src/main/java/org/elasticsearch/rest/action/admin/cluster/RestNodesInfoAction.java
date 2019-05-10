@@ -90,11 +90,11 @@ public class RestNodesInfoAction extends BaseRestHandler {
                 nodeIds = new String[]{"_all"};
                 metrics = metricsOrNodeIds;
             } else {
-                nodeIds = Strings.splitStringByCommaToArray(nodeId);
+                nodeIds = Strings.tokenizeToStringArray(nodeId, ",");
                 metrics = Sets.newHashSet("_all");
             }
         } else {
-            nodeIds = Strings.splitStringByCommaToArray(request.param("nodeId", "_all"));
+            nodeIds = Strings.tokenizeToStringArray(request.param("nodeId", "_all"), ",");
             metrics = Strings.tokenizeByCommaToSet(request.param("metrics", "_all"));
         }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexSettings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -47,14 +48,10 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     public IndexAnalyzers(IndexSettings indexSettings, Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> normalizers,
             Map<String, NamedAnalyzer> whitespaceNormalizers) {
         super(indexSettings);
-        // check the defaults are set, although the values might be null (except for the default analyzer which needs to be set)
-        assert analyzers.containsKey(DEFAULT_ANALYZER_NAME);
-        assert analyzers.containsKey(DEFAULT_SEARCH_ANALYZER_NAME);
-        assert analyzers.containsKey(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
-        NamedAnalyzer defaultIndexAnalyzer = analyzers.get(DEFAULT_ANALYZER_NAME);
-        assert defaultIndexAnalyzer != null : "the default analyzer must be set";
-        if (defaultIndexAnalyzer.name().equals(DEFAULT_ANALYZER_NAME) == false) {
-            throw new IllegalStateException("default analyzer must have the name [default] but was: [" + defaultIndexAnalyzer.name() + "]");
+        Objects.requireNonNull(analyzers.get(DEFAULT_ANALYZER_NAME), "the default analyzer must be set");
+        if (analyzers.get(DEFAULT_ANALYZER_NAME).name().equals(DEFAULT_ANALYZER_NAME) == false) {
+            throw new IllegalStateException(
+                    "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]");
         }
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
@@ -90,17 +87,17 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     }
 
     /**
-     * Returns the default search analyzer for this index
+     * Returns the default search analyzer for this index. If not set, this will return the default analyzer
      */
     public NamedAnalyzer getDefaultSearchAnalyzer() {
-        return analyzers.get(DEFAULT_SEARCH_ANALYZER_NAME);
+        return analyzers.getOrDefault(DEFAULT_SEARCH_ANALYZER_NAME, getDefaultIndexAnalyzer());
     }
 
     /**
      * Returns the default search quote analyzer for this index
      */
     public NamedAnalyzer getDefaultSearchQuoteAnalyzer() {
-        return analyzers.get(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
+        return analyzers.getOrDefault(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME, getDefaultSearchAnalyzer());
     }
 
     @Override

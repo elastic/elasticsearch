@@ -455,12 +455,6 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
-        if (!analyzers.containsKey(DEFAULT_SEARCH_ANALYZER_NAME)) {
-            analyzers.put(DEFAULT_SEARCH_ANALYZER_NAME, analyzers.get(DEFAULT_ANALYZER_NAME));
-        }
-        if (!analyzers.containsKey(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME)) {
-            analyzers.put(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME, analyzers.get(DEFAULT_SEARCH_ANALYZER_NAME));
-        }
 
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +

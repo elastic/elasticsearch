@@ -50,6 +50,11 @@ import static org.hamcrest.Matchers.not;
 
 // TODO: make this a real unit test
 public class DocumentParserTests extends ESSingleNodeTestCase {
+    @Override
+    protected boolean enableWarningsCheck() {
+        // disable warning checks as deprecated patterns are used to compare Joda vs Java results (y - year and Z zone offset)
+        return false;
+    }
 
     public void testFieldDisabled() throws Exception {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();

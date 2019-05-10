@@ -16,6 +16,11 @@ public class LicenseScheduleTests extends ESTestCase {
 
     private License license;
     private SchedulerEngine.Schedule schedule;
+    @Override
+    protected boolean enableWarningsCheck() {
+        // disable warning checks as deprecated patterns are used to compare Joda vs Java results (y - year and Z zone offset)
+        return false;
+    }
 
     @Before
     public void setuo() throws Exception {

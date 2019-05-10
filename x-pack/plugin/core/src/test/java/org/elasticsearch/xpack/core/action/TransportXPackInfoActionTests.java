@@ -40,6 +40,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportXPackInfoActionTests extends ESTestCase {
+    @Override
+    protected boolean enableWarningsCheck() {
+        // disable warning checks as deprecated patterns are used to compare Joda vs Java results (y - year and Z zone offset)
+        return false;
+    }
 
     public void testDoExecute() throws Exception {
 

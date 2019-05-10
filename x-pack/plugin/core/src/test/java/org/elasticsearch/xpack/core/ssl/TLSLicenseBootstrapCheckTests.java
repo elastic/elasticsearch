@@ -15,6 +15,11 @@ import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import java.util.EnumSet;
 
 public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
+    @Override
+    protected boolean enableWarningsCheck() {
+        // disable warning checks as deprecated patterns are used to compare Joda vs Java results (y - year and Z zone offset)
+        return false;
+    }
     public void testBootstrapCheck() throws Exception {
         assertTrue(new TLSLicenseBootstrapCheck().check(emptyContext).isSuccess());
         assertTrue(new TLSLicenseBootstrapCheck().check(createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled"

@@ -25,6 +25,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -33,9 +34,85 @@ import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class JavaJodaTimeDuellingTests extends ESTestCase {
+    @Override
+    protected boolean enableWarningsCheck() {
+        // disable warning checks as deprecated patterns are used to compare Joda vs Java results (y - year and Z zone offset)
+        return false;
+    }
+
+    public void testIncompatiblePatterns() {
+        // in joda 'y' means year, this is changed to 'u' in java.time. difference is in before era yeaers
+        assertSameMillis("-0001-01-01", "yyyy-MM-dd", "8uuuu-MM-dd");
+        assertSameMillis("-1", "y", "8u");
+
+        // year-of-era in joda becomes 'y' in java.time
+        assertSameMillis("2019-01-01", "YYYY-MM-dd", "8yyyy-MM-dd");
+
+
+        //in joda 'Z' was able to parse 'Z' zulu but in java it fails. You have to use 'X' to do that.
+        //Caused by: java.time.format.DateTimeParseException: Text '2019-01-01T01:01:01.001Z' could not be parsed at index 23
+//        assertSameMillis("2019-01-01T01:01:01.001Z","YYYY-MM-dd'T'HH:mm:ss.SSSZ","8yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+        assertSameMillis("2019-01-01T01:01:01.001Z", "YYYY-MM-dd'T'HH:mm:ss.SSSZ", "8yyyy-MM-dd'T'HH:mm:ss.SSSX");
+        assertSameMillis("2019-01-01T01:01:01.001+0000", "YYYY-MM-dd'T'HH:mm:ss.SSSZ", "8yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+
+
+        // 'z' zoneId in joda prints UTC whereas joda prints 'Z' for zulu
+        TemporalAccessor parse = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz",Locale.getDefault())
+                                                  .parse("2019-01-01T01:01:01.001+00:00");
+        String javaZoneId = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz",Locale.getDefault())
+                                             .format(parse);
+
+        DateTime dateTime = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSZ").withOffsetParsed()
+                                          .parseDateTime("2019-01-01T01:01:01.001+0000");
+        String jodaZoneId = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSz").print(dateTime);
+        assertThat(javaZoneId, equalTo("2019-01-01T01:01:01.001Z"));
+        assertThat(jodaZoneId, equalTo("2019-01-01T01:01:01.001UTC"));
+
+        // for some zones it will fail, but mostly passes. for instance
+        //Expected :2018-12-31T18:01:01.001∅∅∅
+        //Actual   :2018-12-31T18:01:01.001GMT-07:00
+//        ZoneId zoneId = randomZone();
+//        if (zoneId != ZoneOffset.UTC) {
+//            parse = ZonedDateTime.from(parse)
+//                                 .withZoneSameInstant(zoneId);
+//            javaZoneId = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz")
+//                                          .format(parse);
+//
+//            dateTime = dateTime.withZone(DateTimeZone.forID(zoneId.getId()));
+//            jodaZoneId = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSz").print(dateTime);
+//            assertThat(javaZoneId, equalTo(jodaZoneId));
+//        }
+
+        //week year 'x' in joda becomes 'Y' in java.time. Parsing fails at the moment
+//        assertSameMillis("2019-01", "xxxx-ww", "8YYYY-ww");
+        //java.lang.IllegalArgumentException: temporal accessor [
+        // {WeekOfWeekBasedYear[WeekFields[SUNDAY,1]]=1, WeekBasedYear[WeekFields[SUNDAY,1]]=2019},ISO]
+        // cannot be converted to zoned date time
+        ZonedDateTime now = ZonedDateTime.now();
+        DateFormatter jodaFormatter = Joda.forPattern("xxxx-ww");
+        DateFormatter javaFormatter = DateFormatter.forPattern("8YYYY-ww");
+        assertThat(jodaFormatter.format(now), equalTo(javaFormatter.format(now)));
+        //TODO in progress..
+    }
+
+    private void assertSameMillis(String input, String jodaFormat, String javaFormat) {
+        DateFormatter jodaFormatter = Joda.forPattern(jodaFormat);
+        DateFormatter javaFormatter = DateFormatter.forPattern(javaFormat);
+
+        DateTime jodaDateTime = jodaFormatter.parseJoda(input);
+
+        TemporalAccessor javaTimeAccessor = javaFormatter.parse(input);
+        ZonedDateTime zonedDateTime = DateFormatters.from(javaTimeAccessor);
+
+        String msg = String.format(Locale.ROOT, "Input [%s] JodaFormat [%s] JavaFormat [%s] Joda [%s], Java [%s]",
+            input, jodaFormat, javaFormat, jodaDateTime, DateTimeFormatter.ISO_INSTANT.format(zonedDateTime.toInstant()));
+
+        assertThat(msg, jodaDateTime.getMillis(), is(zonedDateTime.toInstant().toEpochMilli()));
+    }
 
     public void testTimeZoneFormatting() {
         assertSameDate("2001-01-01T00:00:00Z", "date_time_no_millis");
@@ -360,14 +437,14 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSameDate("2012-W1-1", "weekyear_week_day");
     }
 
-    public void testCompositeParsing(){
+    public void testCompositeParsing() {
         //in all these examples the second pattern will be used
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertSameDate("2014-06-06T12:01:02.123", "strictDateTimeNoMillis||yyyy-MM-dd'T'HH:mm:ss.SSS");
         assertSameDate("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss+HH:MM||yyyy-MM-dd'T'HH:mm:ss.SSS");
     }
 
-    public void testExceptionWhenCompositeParsingFails(){
+    public void testExceptionWhenCompositeParsingFails() {
         assertParseException("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS");
     }
 
@@ -691,7 +768,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
             jodaTimeOut += ".0";
         }
         String message = String.format(Locale.ROOT, "expected string representation to be equal for format [%s]: joda [%s], java [%s]",
-                format, jodaTimeOut, javaTimeOut);
+            format, jodaTimeOut, javaTimeOut);
         assertThat(message, javaTimeOut, is(jodaTimeOut));
     }
 
@@ -725,7 +802,7 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     }
 
     private void assertJavaTimeParseException(String input, String format) {
-        DateFormatter javaTimeFormatter = DateFormatter.forPattern("8"+format);
+        DateFormatter javaTimeFormatter = DateFormatter.forPattern("8" + format);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
         assertThat(e.getMessage(), containsString(input));
         assertThat(e.getMessage(), containsString(format));

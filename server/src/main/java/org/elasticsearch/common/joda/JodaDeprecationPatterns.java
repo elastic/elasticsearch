@@ -37,7 +37,6 @@ public class JodaDeprecationPatterns {
             "'z' time zone text. Will print 'Z' for Zulu given UTC timezone.");
     }
 
-
     public static final String USE_PREFIX_8_WARNING = "Prefix your date format with '8' to use the new specifier.";
 
     public static boolean isDeprecatedFormat(String format) {

@@ -22,6 +22,12 @@ public class LicenseVerificationToolTests extends CommandTestCase {
     protected Path pubKeyPath = null;
     protected Path priKeyPath = null;
 
+    @Override
+    protected boolean enableWarningsCheck() {
+        // disable warning checks as deprecated patterns are used to compare Joda vs Java results (y - year and Z zone offset)
+        return false;
+    }
+
     @Before
     public void setup() throws Exception {
         logger.error("project.basedir [{}]", System.getProperty("project.basedir"));

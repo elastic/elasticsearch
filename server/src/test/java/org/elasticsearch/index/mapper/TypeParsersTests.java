@@ -40,6 +40,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
+import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
+import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -57,27 +60,33 @@ public class TypeParsersTests extends ESTestCase {
         Mapper.TypeParser.ParserContext parserContext = mock(Mapper.TypeParser.ParserContext.class);
 
         // check AnalysisMode.ALL works
-        Map<String, NamedAnalyzer> analyzers = new HashMap<>();
+        Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
         analyzers.put("my_analyzer",
                 new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", AnalysisMode.ALL)));
 
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null,
-                null, analyzers, Collections.emptyMap(), Collections.emptyMap());
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
 
         // check that "analyzer" set to something that only supports AnalysisMode.SEARCH_TIME or AnalysisMode.INDEX_TIME is blocked
         AnalysisMode mode = randomFrom(AnalysisMode.SEARCH_TIME, AnalysisMode.INDEX_TIME);
-        analyzers = new HashMap<>();
+        analyzers = defaultAnalyzers();
         analyzers.put("my_analyzer", new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX,
                 createAnalyzerWithMode("my_analyzer", mode)));
-        indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null, analyzers,
-                Collections.emptyMap(), Collections.emptyMap());
+        indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         MapperException ex = expectThrows(MapperException.class,
                 () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
         assertEquals("analyzer [my_named_analyzer] contains filters [my_analyzer] that are not allowed to run in all mode.",
                 ex.getMessage());
+    }
+
+    private static Map<String, NamedAnalyzer> defaultAnalyzers() {
+        Map<String, NamedAnalyzer> analyzers = new HashMap<>();
+        analyzers.put(DEFAULT_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, null));
+        analyzers.put(DEFAULT_SEARCH_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, null));
+        analyzers.put(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, null));
+        return analyzers;
     }
 
     public void testParseTextFieldCheckSearchAnalyzerAnalysisMode() {
@@ -92,25 +101,23 @@ public class TypeParsersTests extends ESTestCase {
             Mapper.TypeParser.ParserContext parserContext = mock(Mapper.TypeParser.ParserContext.class);
 
             // check AnalysisMode.ALL and AnalysisMode.SEARCH_TIME works
-            Map<String, NamedAnalyzer> analyzers = new HashMap<>();
+            Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
             AnalysisMode mode = randomFrom(AnalysisMode.ALL, AnalysisMode.SEARCH_TIME);
             analyzers.put("my_analyzer",
                     new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
             analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
 
-            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null,
-                    null, analyzers, Collections.emptyMap(), Collections.emptyMap());
+            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
             when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
 
             // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked
             mode = AnalysisMode.INDEX_TIME;
-            analyzers = new HashMap<>();
+            analyzers = defaultAnalyzers();
             analyzers.put("my_analyzer",
                     new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
             analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
-            indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null,
-                    analyzers, Collections.emptyMap(), Collections.emptyMap());
+            indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
             when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             MapperException ex = expectThrows(MapperException.class,
                     () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
@@ -127,11 +134,10 @@ public class TypeParsersTests extends ESTestCase {
 
         // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked if there is no search analyzer
         AnalysisMode mode = AnalysisMode.INDEX_TIME;
-        Map<String, NamedAnalyzer> analyzers = new HashMap<>();
+        Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
         analyzers.put("my_analyzer",
                 new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null,
-                null, analyzers, Collections.emptyMap(), Collections.emptyMap());
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         MapperException ex = expectThrows(MapperException.class,
                 () -> TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext));
@@ -140,14 +146,13 @@ public class TypeParsersTests extends ESTestCase {
 
         // check AnalysisMode.INDEX_TIME is okay if search analyzer is also set
         fieldNode.put("search_analyzer", "standard");
-        analyzers = new HashMap<>();
+        analyzers = defaultAnalyzers();
         mode = randomFrom(AnalysisMode.ALL, AnalysisMode.INDEX_TIME);
         analyzers.put("my_analyzer",
                 new NamedAnalyzer("my_named_analyzer", AnalyzerScope.INDEX, createAnalyzerWithMode("my_analyzer", mode)));
         analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
 
-        indexAnalyzers = new IndexAnalyzers(indexSettings, new NamedAnalyzer("default", AnalyzerScope.INDEX, null), null, null, analyzers,
-                Collections.emptyMap(), Collections.emptyMap());
+        indexAnalyzers = new IndexAnalyzers(indexSettings, analyzers, Collections.emptyMap(), Collections.emptyMap());
         when(parserContext.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         TypeParsers.parseTextField(builder, "name", new HashMap<>(fieldNode), parserContext);
     }

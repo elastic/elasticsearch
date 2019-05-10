@@ -48,5 +48,5 @@ Boost values are relative to the default value of `1.0`. A boost value between
 increases the relevance score.
 
 `rewrite` (Expert)::
-Method used to rewrite the query to improve performance. For valid values,
-see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>. Optional.
+Method used to rewrite the query. For valid values and more information, see the
+<<query-dsl-multi-term-rewrite, `rewrite` parameter>>. Optional.

@@ -62,6 +62,11 @@ class SimpleStruct implements ToXContentObject {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(i, d, s);
+    }
+
+    @Override
     public String toString() {
         return Strings.toString(this);
     }

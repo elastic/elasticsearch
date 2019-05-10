@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.snapshotlifecycle;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -14,11 +15,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -30,14 +33,19 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryItem;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
 
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -82,8 +90,10 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                  fail("should not have tried to take a snapshot");
                  return null;
              })) {
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, ZoneOffset.UTC,
+                item -> fail("should not have tried to store an item"));
 
-            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService);
+            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
 
             // Trigger the event, but since the job name does not match, it should
             // not run the function to create a snapshot
@@ -128,14 +138,15 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             "  }" +
             "}";
 
-        final AtomicBoolean called = new AtomicBoolean(false);
+        final AtomicBoolean clientCalled = new AtomicBoolean(false);
+        final SetOnce<String> snapshotName = new SetOnce<>();
         try (ClusterService clusterService = ClusterServiceUtils.createClusterService(state, threadPool);
              // This verifying client will verify that we correctly invoked
              // client.admin().createSnapshot(...) with the appropriate
              // request. It also returns a mock real response
              VerifyingClient client = new VerifyingClient(threadPool,
                  (action, request, listener) -> {
-                     assertFalse(called.getAndSet(true));
+                     assertFalse(clientCalled.getAndSet(true));
                      assertThat(action, instanceOf(CreateSnapshotAction.class));
                      assertThat(request, instanceOf(CreateSnapshotRequest.class));
 
@@ -144,6 +155,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                      SnapshotLifecyclePolicy policy = slpm.getPolicy();
                      assertThat(req.snapshot(), startsWith(policy.getName() + "-"));
                      assertThat(req.repository(), equalTo(policy.getRepository()));
+                     snapshotName.set(req.snapshot());
                      if (req.indices().length > 0) {
                          assertThat(Arrays.asList(req.indices()), equalTo(policy.getConfig().get("indices")));
                      }
@@ -158,13 +170,24 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                          return null;
                      }
                  })) {
+            final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);
+            SnapshotHistoryStore historyStore = new VerifyingHistoryStore(null, ZoneOffset.UTC,
+                item -> {
+                    assertFalse(historyStoreCalled.getAndSet(true));
+                    final SnapshotLifecyclePolicy policy = slpm.getPolicy();
+                    assertEquals(policy.getId(), item.getPolicyId());
+                    assertEquals(policy.getRepository(), item.getRepository());
+                    assertEquals(policy.getConfig(), item.getSnapshotConfiguration());
+                    assertEquals(snapshotName.get(), item.getSnapshotName());
+                });
 
-            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService);
+            SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);
             // Trigger the event with a matching job name for the policy
             task.triggered(new SchedulerEngine.Event(SnapshotLifecycleService.getJobId(slpm),
                 System.currentTimeMillis(), System.currentTimeMillis()));
 
-            assertTrue("snapshot should be triggered once", called.get());
+            assertTrue("snapshot should be triggered once", clientCalled.get());
+            assertTrue("history store should be called once", historyStoreCalled.get());
         }
 
         threadPool.shutdownNow();
@@ -202,5 +225,20 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             .setVersion(1)
             .setModifiedDate(1)
             .build();
+    }
+
+    public static class VerifyingHistoryStore extends SnapshotHistoryStore {
+
+        Consumer<SnapshotHistoryItem> verifier;
+
+        public VerifyingHistoryStore(Client client, ZoneId timeZone, Consumer<SnapshotHistoryItem> verifier) {
+            super(Settings.EMPTY, client, timeZone);
+            this.verifier = verifier;
+        }
+
+        @Override
+        public void putAsync(SnapshotHistoryItem item) {
+            verifier.accept(item);
+        }
     }
 }

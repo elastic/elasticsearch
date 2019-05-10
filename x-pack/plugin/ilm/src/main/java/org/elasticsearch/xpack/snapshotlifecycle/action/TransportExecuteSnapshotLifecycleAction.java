@@ -25,6 +25,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.snapshotlifecycle.action.ExecuteSnapshotLifecycleAction;
+import org.elasticsearch.xpack.core.snapshotlifecycle.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleService;
 import org.elasticsearch.xpack.snapshotlifecycle.SnapshotLifecycleTask;
 
@@ -37,14 +38,16 @@ public class TransportExecuteSnapshotLifecycleAction
     private static final Logger logger = LogManager.getLogger(TransportExecuteSnapshotLifecycleAction.class);
 
     private final Client client;
+    private final SnapshotHistoryStore historyStore;
 
     @Inject
     public TransportExecuteSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   Client client) {
+                                                   Client client, SnapshotHistoryStore historyStore) {
         super(ExecuteSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
             ExecuteSnapshotLifecycleAction.Request::new);
         this.client = client;
+        this.historyStore = historyStore;
     }
     @Override
     protected String executor() {
@@ -80,7 +83,7 @@ public class TransportExecuteSnapshotLifecycleAction
             }
 
             final Optional<String> snapshotName = SnapshotLifecycleTask.maybeTakeSnapshot(SnapshotLifecycleService.getJobId(policyMetadata),
-                client, clusterService);
+                client, clusterService, historyStore);
             if (snapshotName.isPresent()) {
                 listener.onResponse(new ExecuteSnapshotLifecycleAction.Response(snapshotName.get()));
             } else {

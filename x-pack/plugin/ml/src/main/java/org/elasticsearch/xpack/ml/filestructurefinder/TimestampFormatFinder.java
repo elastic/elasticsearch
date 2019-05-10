@@ -531,11 +531,9 @@ public final class TimestampFormatFinder {
      */
     public String getGrokPatternName() {
         if (matchedFormats.isEmpty()) {
-            if (errorOnNoTimestamp) {
-                throw new IllegalStateException("No matched timestamp formats");
-            } else {
-                return null;
-            }
+            // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
+            assert errorOnNoTimestamp == false;
+            return null;
         }
         return matchedFormats.get(0).grokPatternName;
     }
@@ -547,11 +545,9 @@ public final class TimestampFormatFinder {
      */
     public String getCustomGrokPatternDefinition() {
         if (matchedFormats.isEmpty()) {
-            if (errorOnNoTimestamp) {
-                throw new IllegalStateException("No matched timestamp formats");
-            } else {
-                return null;
-            }
+            // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
+            assert errorOnNoTimestamp == false;
+            return null;
         }
         // This may be null
         return matchedFormats.get(0).customGrokPatternDefinition;
@@ -564,11 +560,9 @@ public final class TimestampFormatFinder {
      */
     public List<String> getPrefaces() {
         if (matchedFormats.isEmpty()) {
-            if (errorOnNoTimestamp) {
-                throw new IllegalStateException("No matched timestamp formats");
-            } else {
-                return Collections.emptyList();
-            }
+            // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
+            assert errorOnNoTimestamp == false;
+            return Collections.emptyList();
         }
         return matches.stream().filter(match -> matchedFormats.size() < 2 || matchedFormats.get(0).canMergeWith(match.timestampFormat))
             .map(match -> match.preface).collect(Collectors.toList());
@@ -581,11 +575,9 @@ public final class TimestampFormatFinder {
      */
     public Pattern getSimplePattern() {
         if (matchedFormats.isEmpty()) {
-            if (errorOnNoTimestamp) {
-                throw new IllegalStateException("No matched timestamp formats");
-            } else {
-                return null;
-            }
+            // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
+            assert errorOnNoTimestamp == false;
+            return null;
         }
         return matchedFormats.get(0).simplePattern;
     }
@@ -597,11 +589,9 @@ public final class TimestampFormatFinder {
      */
     public List<String> getRawJavaTimestampFormats() {
         if (matchedFormats.isEmpty()) {
-            if (errorOnNoTimestamp) {
-                throw new IllegalStateException("No matched timestamp formats");
-            } else {
-                return Collections.emptyList();
-            }
+            // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
+            assert errorOnNoTimestamp == false;
+            return Collections.emptyList();
         }
         return matchedFormats.get(0).rawJavaTimestampFormats;
     }
@@ -773,11 +763,9 @@ public final class TimestampFormatFinder {
      */
     public boolean hasTimezoneDependentParsing() {
         if (matchedFormats.isEmpty()) {
-            if (errorOnNoTimestamp) {
-                throw new IllegalStateException("No matched timestamp formats");
-            } else {
-                return false;
-            }
+            // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
+            assert errorOnNoTimestamp == false;
+            return false;
         }
         return matches.stream().filter(match -> matchedFormats.size() < 2 || matchedFormats.get(0).canMergeWith(match.timestampFormat))
             .anyMatch(match -> match.hasTimezoneDependentParsing);

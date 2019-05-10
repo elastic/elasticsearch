@@ -865,7 +865,6 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, NOOP_TIMEOUT_CHECKER);
         expectThrows(IllegalArgumentException.class, () -> strictTimestampFormatFinder.addSample(text));
-        expectThrows(IllegalStateException.class, strictTimestampFormatFinder::getGrokPatternName);
         assertEquals(0, strictTimestampFormatFinder.getNumMatchedFormats());
 
         TimestampFormatFinder lenientTimestampFormatFinder = new TimestampFormatFinder(explanation, false, false, false,

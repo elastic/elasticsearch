@@ -46,7 +46,7 @@ oops are not enabled then you will see a line like the following instead:
 
 The more heap available to {es}, the more memory it can use for its internal
 caches, but the less memory it leaves available for the operating system to use
-for the filesystem cache. Also, larger heaps can sometimes cause longer garbage
+for the filesystem cache. Also, larger heaps can cause longer garbage
 collection pauses.
 
 Here are examples of how to set the heap size via the jvm.options file:

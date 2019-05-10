@@ -31,7 +31,7 @@ server:
 * Ideally set `Xmx` and `Xms` to no more than the threshold for zero-based
   compressed oops; the exact threshold varies but 26 GB is safe on most
   systems, but can be as large as 30 GB on some systems. You can verify that
-  you are under this threshold by starting Elasticsearch with the JVM options
+  you are under this threshold by starting {es} with the JVM options
   `-XX:+UnlockDiagnosticVMOptions -XX:+PrintCompressedOopsMode` and looking for
   a line like the following:
 +
@@ -44,10 +44,10 @@ oops are not enabled then you will see a line like the following instead:
     heap address: 0x0000000118400000, size: 28672 MB, Compressed Oops with base: 0x00000001183ff000
 --
 
-The more heap available to Elasticsearch, the more memory it can use for its
-internal caches, but the less memory it leaves available for the operating
-system to use for the file system cache. Also, larger heaps can sometimes cause
-longer garbage collection pauses.
+The more heap available to {es}, the more memory it can use for its internal
+caches, but the less memory it leaves available for the operating system to use
+for the file system cache. Also, larger heaps can sometimes cause longer
+garbage collection pauses.
 
 Here are examples of how to set the heap size via the jvm.options file:
 

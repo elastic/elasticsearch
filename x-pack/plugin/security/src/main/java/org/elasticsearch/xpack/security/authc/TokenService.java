@@ -1106,8 +1106,8 @@ public final class TokenService {
      * A refresh token has a fixed maximum lifetime of {@code ExpiredTokenRemover#MAXIMUM_TOKEN_LIFETIME_HOURS} hours. This checks if the
      * token document represents a valid token wrt this time interval.
      */
-    private static Optional<ElasticsearchSecurityException> checkTokenDocumentExpired(Instant refreshRequested, Map<String, Object> source) {
-        final Long creationEpochMilli = (Long) source.get("creation_time");
+    private static Optional<ElasticsearchSecurityException> checkTokenDocumentExpired(Instant refreshRequested, Map<String, Object> src) {
+        final Long creationEpochMilli = (Long) src.get("creation_time");
         if (creationEpochMilli == null) {
             throw new IllegalStateException("token document is missing creation time value");
         } else {
@@ -1125,8 +1125,8 @@ public final class TokenService {
      * parsed {@code RefreshTokenStatus} together with an {@code Optional} validation exception that encapsulates the various logic about
      * when and by who a token can be refreshed.
      */
-    private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(Instant refreshRequested,
-                                                                                                                    Authentication clientAuth, Map<String, Object> source) throws IllegalStateException, DateTimeException {
+    private static Tuple<RefreshTokenStatus, Optional<ElasticsearchSecurityException>> checkTokenDocumentForRefresh(
+        Instant refreshRequested, Authentication clientAuth, Map<String, Object> source) throws IllegalStateException, DateTimeException {
         final RefreshTokenStatus refreshTokenStatus = RefreshTokenStatus.fromSourceMap(getRefreshTokenSourceMap(source));
         final UserToken userToken = UserToken.fromSourceMap(getUserTokenSourceMap(source));
         refreshTokenStatus.setVersion(userToken.getVersion());
@@ -1188,7 +1188,8 @@ public final class TokenService {
      * @return An {@code Optional} containing the exception in case this refresh token cannot be reused, or an empty <b>Optional</b> if
      *         refreshing is allowed.
      */
-    private static Optional<ElasticsearchSecurityException> checkMultipleRefreshes(Instant refreshRequested, RefreshTokenStatus refreshTokenStatus) {
+    private static Optional<ElasticsearchSecurityException> checkMultipleRefreshes(Instant refreshRequested,
+                                                                                   RefreshTokenStatus refreshTokenStatus) {
         if (refreshTokenStatus.isRefreshed()) {
             if (refreshTokenStatus.getVersion().onOrAfter(VERSION_MULTIPLE_CONCURRENT_REFRESHES)) {
                 if (refreshRequested.isAfter(refreshTokenStatus.getRefreshInstant().plus(30L, ChronoUnit.SECONDS))) {

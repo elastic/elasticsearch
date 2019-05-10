@@ -19,22 +19,26 @@
 
 package org.elasticsearch.gradle;
 
-import org.gradle.api.DefaultTask;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Set;
+
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask;
+import org.gradle.api.DefaultTask;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
-import org.gradle.api.artifacts.DependencyResolutionListener;
 import org.gradle.api.artifacts.DependencySet;
+import org.gradle.api.artifacts.ResolvedArtifact;
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
-
-import java.io.File;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * A task to gather information about the dependencies and export them into a csv file.
@@ -53,6 +57,8 @@ public class DependenciesInfoTask extends DefaultTask {
     public DependenciesInfoTask() {
         setDescription("Create a CSV file with dependencies information.");
     }
+    
+    private final Logger logger = Logging.getLogger(getClass());
     
     /** Dependencies to gather information from. */
     private Configuration runtimeConfiguration;
@@ -112,16 +118,16 @@ public class DependenciesInfoTask extends DefaultTask {
         this.outputFile = outputFile;
     }
     @TaskAction
-    public void generateDependenciesInfo() {
+    public void generateDependenciesInfo() throws IOException {
 
         final DependencySet runtimeDependencies = runtimeConfiguration.getAllDependencies();
         // we have to resolve the transitive dependencies and create a group:artifactId:version map
-        final Set<ResolvedArtifacts> compileOnlyArtifactsSet =
+        final Set<ResolvedArtifact> compileOnlyArtifactsSet =
                 compileOnlyConfiguration
                 .getResolvedConfiguration()
                 .getResolvedArtifacts();
         final Set<String> compileOnlyArtifacts = new HashSet<>();
-        compileOnlyArtifacts.forEach(ra -> compileOnlyArtifacts.add(
+        compileOnlyArtifactsSet.forEach(ra -> compileOnlyArtifacts.add(
                 ra.getModuleVersion().getId().getGroup() + ":" +
                 ra.getModuleVersion().getId().getName() + ":" + 
                 ra.getModuleVersion().getId().getVersion()));
@@ -144,11 +150,11 @@ public class DependenciesInfoTask extends DefaultTask {
             final String dependencyName = DependencyLicensesTask.getDependencyName(mappings, dependency.getName());
             logger.info("mapped dependency " + dependency.getGroup() + ":" + dependency.getName() + " to " + dependencyName + " for license info");
 
-            final String licenseType = getLicenseType(dependency.group, dependencyName);
+            final String licenseType = getLicenseType(dependency.getGroup(), dependencyName);
             output.append(dependency.getGroup() + ":" + dependency.getName() + "," + dependency.getVersion() + "," + url + "," + licenseType + "\n");
 
         }
-        Files.write(outputfile.toPath(), output.toString().getBytes(StandardCharset.UTF_8));
+        Files.write(outputFile.toPath(), output.toString().getBytes(StandardCharsets.UTF_8));
     }
     
     /**
@@ -176,10 +182,10 @@ public class DependenciesInfoTask extends DefaultTask {
      * @return SPDX identifier, UNKNOWN or a Custom license
      */
     protected String getLicenseType(final String group, final String name) throws IOException {
-        File license;
+        File license = null;
 
         if (licensesDir.exists()) {
-            File[] matchedfiles = licensesDir.listFiles((dir, name) -> name.contains("-LICENSE"));
+            File[] matchedfiles = licensesDir.listFiles((dir, fname) -> fname.contains("-LICENSE"));
             for(File file : matchedfiles) {
                 String prefix = file.getName().split("-LICENSE.*")[0];
                 if (group.contains(prefix) || name.contains(prefix)) {
@@ -190,7 +196,8 @@ public class DependenciesInfoTask extends DefaultTask {
 
         if (license != null) {
             // replace * because they are sometimes used at the beginning lines as if the license was a multi-line comment
-            final String content = new String(Files.readAllBytes(license.toPath()), StandardCharsets.UTF_8).replaceAll("\\s+", " ").replaceAll("\\*", " ");
+            final String content = new String(Files.readAllBytes(outputFile.toPath()), StandardCharsets.UTF_8);
+            content.replaceAll("\\s+", " ").replaceAll("\\*", " ");
             final String spdx = checkSPDXLicense(content);
             if (spdx ==  null) {
                 // License has not be identified as SPDX.
@@ -308,7 +315,5 @@ public class DependenciesInfoTask extends DefaultTask {
         }
         return spdx;
     }
-    
-    
-
 }
+

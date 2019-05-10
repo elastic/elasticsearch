@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
@@ -94,7 +95,9 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
         fieldStats.put("message", FileStructureUtils.calculateFieldStats(sampleMessages, timeoutChecker));
 
-        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, fieldStats, timeoutChecker);
+        Map<String, String> customGrokPatternDefinitions = timestampFormatFinder.getCustomGrokPatternDefinitions();
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, fieldStats,
+            customGrokPatternDefinitions, timeoutChecker);
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField = overrides.getTimestampField();
         String grokPattern = overrides.getGrokPattern();
@@ -127,7 +130,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
             .setIngestPipeline(FileStructureUtils.makeIngestPipelineDefinition(grokPattern,
-                timestampFormatFinder.getCustomGrokPatternDefinition(), interimTimestampField,
+                customGrokPatternDefinitions, interimTimestampField,
                 timestampFormatFinder.getJavaTimestampFormats(), needClientTimeZone))
             .setMappings(mappings)
             .setFieldStats(fieldStats)

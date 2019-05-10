@@ -53,6 +53,47 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         }
     }
 
+    public void testCreateConfigsGivenElasticsearchLogAndTimestampFormatOverride() throws Exception {
+
+        String sample = "12/31/2018 1:40PM INFO foo\n" +
+            "1/31/2019 11:40AM DEBUG bar\n" +
+            "2/1/2019 11:00PM INFO foo\n" +
+            "2/2/2019 1:23AM DEBUG bar\n";
+
+        FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampFormat("M/d/yyyy h:mma").build();
+
+        assertTrue(factory.canCreateFromSample(explanation, sample));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        FileStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker, overrides,
+            NOOP_TIMEOUT_CHECKER);
+
+        FileStructure structure = structureFinder.getStructure();
+
+        assertEquals(FileStructure.Format.SEMI_STRUCTURED_TEXT, structure.getFormat());
+        assertEquals(charset, structure.getCharset());
+        if (hasByteOrderMarker == null) {
+            assertNull(structure.getHasByteOrderMarker());
+        } else {
+            assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
+        }
+        assertNull(structure.getExcludeLinesPattern());
+        assertEquals("^\\d{1,2}/\\d{1,2}/\\d{4} \\d{1,2}:\\d{2}[AP]M\\b", structure.getMultilineStartPattern());
+        assertNull(structure.getDelimiter());
+        assertNull(structure.getQuote());
+        assertNull(structure.getHasHeaderRow());
+        assertNull(structure.getShouldTrimFields());
+        assertEquals("%{CUSTOM_TIMESTAMP:timestamp} %{LOGLEVEL:loglevel} .*", structure.getGrokPattern());
+        assertEquals("timestamp", structure.getTimestampField());
+        assertEquals(Collections.singletonList("M/d/YYYY h:mma"), structure.getJodaTimestampFormats());
+        FieldStats messageFieldStats = structure.getFieldStats().get("message");
+        assertNotNull(messageFieldStats);
+        for (String statMessage : messageFieldStats.getTopHits().stream().map(m -> (String) m.get("value")).collect(Collectors.toList())) {
+            assertThat(structureFinder.getSampleMessages(), hasItem(statMessage));
+        }
+    }
+
     public void testCreateConfigsGivenElasticsearchLogAndTimestampFieldOverride() throws Exception {
 
         FileStructureOverrides overrides = FileStructureOverrides.builder().setTimestampField("my_time").build();

@@ -340,8 +340,8 @@ public final class FileStructureUtils {
      * Create an ingest pipeline definition appropriate for the file structure.
      * @param grokPattern The Grok pattern used for parsing semi-structured text formats.  <code>null</code> for
      *                    fully structured formats.
-     * @param customGrokPatternDefinition The custom timestamp Grok pattern definition if {@code grokPattern} uses
-     *                                    one.  Otherwise <code>null</code>.
+     * @param customGrokPatternDefinitions Custom timestamp Grok pattern definitions if {@code grokPattern} uses
+     *                                     them.  Otherwise <code>null</code>.
      * @param timestampField The input field containing the timestamp to be parsed into <code>@timestamp</code>.
      *                       <code>null</code> if there is no timestamp.
      * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.
@@ -349,7 +349,7 @@ public final class FileStructureUtils {
      * @param needClientTimezone Is the timezone of the client supplying data to ingest required to uniquely parse the timestamp?
      * @return The ingest pipeline definition, or <code>null</code> if none is required.
      */
-    public static Map<String, Object> makeIngestPipelineDefinition(String grokPattern, String customGrokPatternDefinition,
+    public static Map<String, Object> makeIngestPipelineDefinition(String grokPattern, Map<String, String> customGrokPatternDefinitions,
                                                                    String timestampField, List<String> timestampFormats,
                                                                    boolean needClientTimezone) {
 
@@ -366,14 +366,12 @@ public final class FileStructureUtils {
             Map<String, Object> grokProcessorSettings = new LinkedHashMap<>();
             grokProcessorSettings.put("field", "message");
             grokProcessorSettings.put("patterns", Collections.singletonList(grokPattern));
-            if (customGrokPatternDefinition != null) {
-                assert grokPattern.contains(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME);
-                grokProcessorSettings.put("pattern_definitions",
-                    Collections.singletonMap(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, customGrokPatternDefinition));
+            if (customGrokPatternDefinitions != null && customGrokPatternDefinitions.isEmpty() == false) {
+                grokProcessorSettings.put("pattern_definitions", customGrokPatternDefinitions);
             }
             processors.add(Collections.singletonMap("grok", grokProcessorSettings));
         } else {
-            assert customGrokPatternDefinition == null;
+            assert customGrokPatternDefinitions == null;
         }
 
         if (timestampField != null) {

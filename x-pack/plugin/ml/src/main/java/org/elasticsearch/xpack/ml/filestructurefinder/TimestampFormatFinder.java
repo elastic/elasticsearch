@@ -86,7 +86,7 @@ public final class TimestampFormatFinder {
         VALID_LETTER_GROUPS = Collections.unmodifiableMap(validLetterGroups);
     }
 
-    public static final String CUSTOM_TIMESTAMP_GROK_NAME = "CUSTOM_TIMESTAMP";
+    static final String CUSTOM_TIMESTAMP_GROK_NAME = "CUSTOM_TIMESTAMP";
 
     /**
      * Candidates for the special format strings (ISO8601, UNIX_MS, UNIX and TAI64N)
@@ -539,18 +539,18 @@ public final class TimestampFormatFinder {
     }
 
     /**
-     * Get the custom Grok pattern definition derived from the override format, if any.
-     * @return The custom Grok pattern definition for the selected timestamp format, or
+     * Get the custom Grok pattern definitions derived from the override format, if any.
+     * @return The custom Grok pattern definitions for the selected timestamp format, or
      *         <code>null</code> if there is none.
      */
-    public String getCustomGrokPatternDefinition() {
+    public Map<String, String> getCustomGrokPatternDefinitions() {
         if (matchedFormats.isEmpty()) {
             // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
             assert errorOnNoTimestamp == false;
             return null;
         }
         // This may be null
-        return matchedFormats.get(0).customGrokPatternDefinition;
+        return matchedFormats.get(0).customGrokPatternDefinitions;
     }
 
     /**
@@ -973,7 +973,7 @@ public final class TimestampFormatFinder {
         /**
          * If {@link #grokPatternName} is not an out-of-the-box Grok pattern, then its definition.
          */
-        final String customGrokPatternDefinition;
+        final Map<String, String> customGrokPatternDefinitions;
 
         /**
          * The punctuation characters in the text preceeding the timestamp in the samples.
@@ -981,11 +981,11 @@ public final class TimestampFormatFinder {
         final String prefacePunctuation;
 
         TimestampFormat(List<String> rawJavaTimestampFormats, Pattern simplePattern, String grokPatternName,
-                        String customGrokPatternDefinition, String prefacePunctuation) {
+                        Map<String, String> customGrokPatternDefinitions, String prefacePunctuation) {
             this.rawJavaTimestampFormats = Collections.unmodifiableList(rawJavaTimestampFormats);
             this.simplePattern = Objects.requireNonNull(simplePattern);
             this.grokPatternName = Objects.requireNonNull(grokPatternName);
-            this.customGrokPatternDefinition = customGrokPatternDefinition;
+            this.customGrokPatternDefinitions = customGrokPatternDefinitions;
             this.prefacePunctuation = prefacePunctuation;
         }
 
@@ -994,7 +994,7 @@ public final class TimestampFormatFinder {
             return other != null &&
                 this.simplePattern.pattern().equals(other.simplePattern.pattern()) &&
                 this.grokPatternName.equals(other.grokPatternName) &&
-                Objects.equals(this.customGrokPatternDefinition, other.customGrokPatternDefinition) &&
+                Objects.equals(this.customGrokPatternDefinitions, other.customGrokPatternDefinitions) &&
                 this.prefacePunctuation.equals(other.prefacePunctuation);
         }
 
@@ -1006,7 +1006,7 @@ public final class TimestampFormatFinder {
                     Set<String> mergedJavaTimestampFormats = new LinkedHashSet<>(rawJavaTimestampFormats);
                     if (mergedJavaTimestampFormats.addAll(other.rawJavaTimestampFormats)) {
                         return new TimestampFormat(new ArrayList<>(mergedJavaTimestampFormats), simplePattern, grokPatternName,
-                            customGrokPatternDefinition, prefacePunctuation);
+                            customGrokPatternDefinitions, prefacePunctuation);
                     }
                 }
                 // The merged format is exactly the same as this format, so there's no need to create a new object
@@ -1018,7 +1018,7 @@ public final class TimestampFormatFinder {
 
         @Override
         public int hashCode() {
-            return Objects.hash(rawJavaTimestampFormats, simplePattern.pattern(), grokPatternName, customGrokPatternDefinition,
+            return Objects.hash(rawJavaTimestampFormats, simplePattern.pattern(), grokPatternName, customGrokPatternDefinitions,
                 prefacePunctuation);
         }
 
@@ -1035,7 +1035,7 @@ public final class TimestampFormatFinder {
             return Objects.equals(this.rawJavaTimestampFormats, that.rawJavaTimestampFormats) &&
                 Objects.equals(this.simplePattern.pattern(), that.simplePattern.pattern()) &&
                 Objects.equals(this.grokPatternName, that.grokPatternName) &&
-                Objects.equals(this.customGrokPatternDefinition, that.customGrokPatternDefinition) &&
+                Objects.equals(this.customGrokPatternDefinitions, that.customGrokPatternDefinitions) &&
                 Objects.equals(this.prefacePunctuation, that.prefacePunctuation);
         }
 
@@ -1043,7 +1043,7 @@ public final class TimestampFormatFinder {
         public String toString() {
             return "Java timestamp formats = " + rawJavaTimestampFormats.stream().collect(Collectors.joining("', '", "[ '", "' ]"))
                 + ", simple pattern = '" + simplePattern.pattern() + "', grok pattern = '" + grokPatternName + "'"
-                + ((customGrokPatternDefinition != null) ? ", custom grok pattern definition = '" + customGrokPatternDefinition + "'" : "")
+                + ((customGrokPatternDefinitions != null) ? ", custom grok pattern definitions = " + customGrokPatternDefinitions : "")
                 + ", preface punctuation = '" + prefacePunctuation + "'";
         }
     }
@@ -1088,7 +1088,8 @@ public final class TimestampFormatFinder {
             this.preface = preface;
             this.timestampFormat = new TimestampFormat(chosenTimestampFormat.javaTimestampFormatSupplier.apply(matchedDate),
                 chosenTimestampFormat.simplePattern, chosenTimestampFormat.outputGrokPatternName,
-                chosenTimestampFormat.isCustomFormat() ? chosenTimestampFormat.strictGrokPattern : null,
+                chosenTimestampFormat.isCustomFormat() ?
+                    Collections.singletonMap(CUSTOM_TIMESTAMP_GROK_NAME, chosenTimestampFormat.strictGrokPattern) : null,
                 preface.isEmpty() ? preface : NON_PUNCTUATION_PATTERN.matcher(preface).replaceAll(""));
             int[] indeterminateDateNumbers = parseIndeterminateDateNumbers(matchedDate, timestampFormat.rawJavaTimestampFormats);
             this.firstIndeterminateDateNumber = indeterminateDateNumbers[0];

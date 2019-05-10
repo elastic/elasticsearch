@@ -158,7 +158,7 @@ public class TransportStopDataFrameTransformAction extends
             }
             return true;
 
-        }, timeout, new ActionListener<>() {
+        }, timeout, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean result) {
                 listener.onResponse(new StopDataFrameTransformAction.Response(Boolean.TRUE));

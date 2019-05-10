@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.dataframe.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -29,7 +30,7 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.dataframe.transforms.pivot.SchemaUtil.isNumericType;
 
-final class AggregationResultUtils {
+public final class AggregationResultUtils {
     private static final Logger logger = LogManager.getLogger(AggregationResultUtils.class);
 
     /**
@@ -77,17 +78,18 @@ final class AggregationResultUtils {
                     //    gather the `value` type, otherwise utilize `getValueAsString` so we don't lose formatted outputs.
                     if (isNumericType(fieldType) ||
                         (aggResultSingleValue.getValueAsString().equals(String.valueOf(aggResultSingleValue.value())))) {
-                        document.put(aggName, aggResultSingleValue.value());
+                        updateDocument(document, aggName, aggResultSingleValue.value());
                     } else {
-                        document.put(aggName, aggResultSingleValue.getValueAsString());
+                        updateDocument(document, aggName, aggResultSingleValue.getValueAsString());
                     }
                 } else if (aggResult instanceof ScriptedMetric) {
-                    document.put(aggName, ((ScriptedMetric) aggResult).aggregation());
+                    updateDocument(document, aggName, ((ScriptedMetric) aggResult).aggregation());
                 } else {
                     // Execution should never reach this point!
                     // Creating transforms with unsupported aggregations shall not be possible
-                    logger.error("Dataframe Internal Error: unsupported aggregation ["+ aggResult.getName() +"], ignoring");
-                    assert false;
+                    throw new AggregationExtractionException("unsupported aggregation [{}] with name [{}]",
+                        aggResult.getType(),
+                        aggResult.getName());
                 }
             }
 
@@ -97,4 +99,49 @@ final class AggregationResultUtils {
         });
     }
 
+    @SuppressWarnings("unchecked")
+    static void updateDocument(Map<String, Object> document, String fieldName, Object value) {
+        String[] fieldTokens = fieldName.split("\\.");
+        if (fieldTokens.length == 1) {
+            document.put(fieldName, value);
+            return;
+        }
+        Map<String, Object> internalMap = document;
+        for (int i = 0; i < fieldTokens.length; i++) {
+            String token = fieldTokens[i];
+            if (i == fieldTokens.length - 1) {
+                if (internalMap.containsKey(token)) {
+                    if (internalMap.get(token) instanceof Map) {
+                        throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]",
+                            fieldName);
+                    } else {
+                        throw new AggregationExtractionException("duplicate key value pairs key [{}] old value [{}] duplicate value [{}]",
+                            fieldName,
+                            internalMap.get(token),
+                            value);
+                    }
+                }
+                internalMap.put(token, value);
+            } else {
+                if (internalMap.containsKey(token)) {
+                    if (internalMap.get(token) instanceof Map) {
+                        internalMap = (Map<String, Object>)internalMap.get(token);
+                    } else {
+                        throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]",
+                            fieldName);
+                    }
+                } else {
+                    Map<String, Object> newMap = new HashMap<>();
+                    internalMap.put(token, newMap);
+                    internalMap = newMap;
+                }
+            }
+        }
+    }
+
+    public static class AggregationExtractionException extends ElasticsearchException {
+        AggregationExtractionException(String msg, Object... args) {
+            super(msg, args);
+        }
+    }
 }

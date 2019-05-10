@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.analysis.index.IndexResolution;
 import org.elasticsearch.xpack.sql.capabilities.Resolvables;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.AttributeMap;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -69,6 +70,7 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
@@ -332,6 +334,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
                     AttributeMap<Expression> resolved = Expressions.asAttributeMap(a.aggregates());
+                    if(a.aggregates().stream().filter(s -> (s instanceof Literal) == false
+                        && (s instanceof Function) == false).collect(toSet()).isEmpty()){
+                        resolved = Expressions.asAttributeMap(plan.inputSet().stream().map(NamedExpression.class::cast)
+                            .collect(toList()));
+                    }
                     boolean changed = false;
                     for (Expression grouping : groupings) {
                         if (grouping instanceof UnresolvedAttribute) {
@@ -344,7 +351,6 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         }
                         newGroupings.add(grouping);
                     }
-
                     return changed ? new Aggregate(a.source(), a.child(), newGroupings, a.aggregates()) : a;
                 }
             }

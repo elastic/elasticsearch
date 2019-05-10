@@ -70,6 +70,13 @@ The following properties can be updated after the {dfeed} is created:
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
+`delayed_data_check_config`::
+  (object) Specifies if and with how large a window should the data feed check
+  for missing data. See <<ml-datafeed-delayed-data-check-config>>.
+
+NOTE: When updating the `delayed_data_check_config` the {dfeed} will have to be
+stopped and started again for the change to be applied.
+
 For more information about these properties,
 see <<ml-datafeed-resource>>.
 

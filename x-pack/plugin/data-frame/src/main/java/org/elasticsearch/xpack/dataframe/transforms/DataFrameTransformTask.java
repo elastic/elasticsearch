@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Event;
 import org.elasticsearch.xpack.dataframe.checkpoint.DataFrameTransformsCheckpointService;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameTransformsConfigManager;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -606,7 +607,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
 
         private boolean isIrrecoverableFailure(Exception e) {
-            return e instanceof IndexNotFoundException;
+            return e instanceof IndexNotFoundException || e instanceof AggregationResultUtils.AggregationExtractionException;
         }
 
         synchronized void handleFailure(Exception e) {

@@ -110,7 +110,6 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }
 
-        // Validate input shard and index values
         try {
             allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
@@ -119,7 +118,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
 
         ShardRouting shardRouting = null;
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-        for (ShardRouting shard: unassigned) {
+        for (ShardRouting shard : unassigned) {
             if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary()) {
                 shardRouting = shard;
                 break;

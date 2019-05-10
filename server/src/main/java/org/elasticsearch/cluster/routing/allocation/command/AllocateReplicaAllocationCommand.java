@@ -102,7 +102,6 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
             return explainOrThrowMissingRoutingNode(allocation, explain, discoNode);
         }
 
-        // Validate input shard and index values
         try {
             allocation.routingTable().shardRoutingTable(index, shardId).primaryShard();
         } catch (IndexNotFoundException | ShardNotFoundException e) {
@@ -110,8 +109,8 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
         }
 
         ShardRouting primaryShardRouting = null;
-        for (RoutingNode node: allocation.routingNodes()) {
-            for (ShardRouting shard: node) {
+        for (RoutingNode node : allocation.routingNodes()) {
+            for (ShardRouting shard : node) {
                 if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary()) {
                     primaryShardRouting = shard;
                     break;
@@ -126,8 +125,8 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
 
         List<ShardRouting> replicaShardRoutings = new ArrayList<>();
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-        for (ShardRouting shard: unassigned) {
-            if (shard.getIndexName().equals(index) && shard.getId() == shardId && !shard.primary()) {
+        for (ShardRouting shard : unassigned) {
+            if (shard.getIndexName().equals(index) && shard.getId() == shardId && shard.primary() == false) {
                 replicaShardRoutings.add(shard);
             }
         }

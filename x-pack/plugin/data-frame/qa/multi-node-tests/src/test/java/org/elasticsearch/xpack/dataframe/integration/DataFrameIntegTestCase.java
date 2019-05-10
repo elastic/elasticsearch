@@ -172,7 +172,13 @@ abstract class DataFrameIntegTestCase extends ESIntegTestCase {
 
     protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups,
                                             AggregatorFactories.Builder aggregations) throws Exception {
-        return new PivotConfig(createGroupConfig(groups), createAggConfig(aggregations));
+        return createPivotConfig(groups, aggregations, null);
+    }
+
+    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups,
+                                            AggregatorFactories.Builder aggregations,
+                                            Integer size) throws Exception {
+        return new PivotConfig(createGroupConfig(groups), createAggConfig(aggregations), size);
     }
 
     protected DataFrameTransformConfig createTransformConfig(String id,

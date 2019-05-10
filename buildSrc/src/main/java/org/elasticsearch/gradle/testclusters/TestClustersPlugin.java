@@ -182,8 +182,9 @@ public class TestClustersPlugin implements Plugin<Project> {
                         claimsInventory.put(elasticsearchCluster, claimsInventory.getOrDefault(elasticsearchCluster, 0) + 1);
                     }
                 }));
-
-            logger.info("Claims inventory: {}", claimsInventory);
+            if (claimsInventory.isEmpty() == false) {
+                logger.info("Claims inventory: {}", claimsInventory);
+            }
         });
     }
 
@@ -279,8 +280,14 @@ public class TestClustersPlugin implements Plugin<Project> {
         // the clusters will look for artifacts there based on the naming conventions.
         // Tasks that use a cluster will add this as a dependency automatically so it's guaranteed to run early in
         // the build.
-        Task sync = Boilerplate.maybeCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
+        Boilerplate.maybeCreate(rootProject.getTasks(), SYNC_ARTIFACTS_TASK_NAME, onCreate -> {
             onCreate.getOutputs().dir(getExtractDir(rootProject));
+            onCreate.getInputs().files(
+                project.getRootProject().getConfigurations().matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+            );
+            onCreate.dependsOn(project.getRootProject().getConfigurations()
+                .matching(conf -> conf.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+            );
             // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
             onCreate.doFirst(new Action<Task>() {
                 @Override
@@ -289,6 +296,31 @@ public class TestClustersPlugin implements Plugin<Project> {
                     // previous builds of the same distribution
                     project.delete(getExtractDir(rootProject));
                 }
+            });
+            onCreate.doLast(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        project.getRootProject().getConfigurations()
+                            .matching(config -> config.getName().startsWith(HELPER_CONFIGURATION_PREFIX))
+                            .forEach(config -> project.copy(spec ->
+                                config.getResolvedConfiguration()
+                                    .getResolvedArtifacts()
+                                    .forEach(resolvedArtifact -> {
+                                        final FileTree files;
+                                        File file = resolvedArtifact.getFile();
+                                        if (file.getName().endsWith(".zip")) {
+                                            files = project.zipTree(file);
+                                        } else if (file.getName().endsWith("tar.gz")) {
+                                            files = project.tarTree(file);
+                                        } else {
+                                            throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
+                                        }
+                                        logger.info("Extracting {}@{}", resolvedArtifact, config);
+                                        spec.from(files, s -> s.into(resolvedArtifact.getModuleVersion().getId().getGroup()));
+                                        spec.into(getExtractDir(project));
+                                    }))
+                            );
+                    }
             });
         });
 
@@ -347,29 +379,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                             distribution.getFileExtension());
 
                 }
-
-                sync.getInputs().files(helperConfiguration);
-                // NOTE: Gradle doesn't allow a lambda here ( fails at runtime )
-                sync.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        project.copy(spec ->
-                            helperConfiguration.getResolvedConfiguration().getResolvedArtifacts().forEach(resolvedArtifact -> {
-                                final FileTree files;
-                                File file = resolvedArtifact.getFile();
-                                if (file.getName().endsWith(".zip")) {
-                                    files = project.zipTree(file);
-                                } else if (file.getName().endsWith("tar.gz")) {
-                                    files = project.tarTree(file);
-                                } else {
-                                    throw new IllegalArgumentException("Can't extract " + file + " unknown file extension");
-                                }
-
-                                spec.from(files, s -> s.into(resolvedArtifact.getModuleVersion().getId().getGroup()));
-                                spec.into(getExtractDir(project));
-                            }));
-                    }
-                });
             })));
     }
 

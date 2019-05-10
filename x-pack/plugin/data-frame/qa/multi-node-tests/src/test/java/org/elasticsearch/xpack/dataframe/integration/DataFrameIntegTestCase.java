@@ -93,11 +93,11 @@ abstract class DataFrameIntegTestCase extends ESIntegTestCase {
             new StartDataFrameTransformAction.Request(id, false)).actionGet();
     }
 
-    protected DeleteDataFrameTransformAction.Response deleteDataFrameTransform(String id) {
-        DeleteDataFrameTransformAction.Response response = client().execute(DeleteDataFrameTransformAction.INSTANCE,
+    protected AcknowledgedResponse deleteDataFrameTransform(String id) {
+        AcknowledgedResponse response = client().execute(DeleteDataFrameTransformAction.INSTANCE,
             new DeleteDataFrameTransformAction.Request(id))
             .actionGet();
-        if (response.isDeleted()) {
+        if (response.isAcknowledged()) {
             transformConfigs.remove(id);
         }
         return response;

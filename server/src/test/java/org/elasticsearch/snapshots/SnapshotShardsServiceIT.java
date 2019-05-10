@@ -77,7 +77,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
         waitForBlock(blockedNode, "test-repo", TimeValue.timeValueSeconds(60));
 
         final SnapshotId snapshotId = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap")
-            .get().getSnapshots().get(0).snapshotId();
+            .get().getSnapshots("test-repo").get(0).snapshotId();
 
         logger.info("--> start disrupting cluster");
         final NetworkDisruption networkDisruption = new NetworkDisruption(new NetworkDisruption.TwoPartitions(masterNode, dataNode),
@@ -106,7 +106,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                 .prepareGetSnapshots("test-repo")
                 .setSnapshots("test-snap").get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
             logger.info("Snapshot status [{}], successfulShards [{}]", snapshotInfo.state(), snapshotInfo.successfulShards());
             assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
             assertThat(snapshotInfo.successfulShards(), equalTo(shards));

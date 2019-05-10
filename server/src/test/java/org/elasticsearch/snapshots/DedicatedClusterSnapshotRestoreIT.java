@@ -219,8 +219,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), equalTo(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(0));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
-                .getSnapshots().get(0).state(),
-            equalTo(SnapshotState.SUCCESS));
+                .getSnapshots("test-repo").get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> change the test persistent setting and break it");
         setSettingValue.accept("new value 2");
@@ -272,7 +271,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
             equalTo(createSnapshotResponse.getSnapshotInfo().successfulShards()));
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
-                .getSnapshots().get(0).state(),
+                .getSnapshots("test-repo").get(0).state(),
             equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> change custom persistent metadata");
@@ -584,8 +583,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertBusy(() -> {
                 GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots("test-repo")
                     .setSnapshots("test-snap-2").get();
-                assertThat(response.getSnapshots().size(), equalTo(1));
-                SnapshotInfo snapshotInfo = response.getSnapshots().get(0);
+                assertThat(response.getSnapshots("test-repo").size(), equalTo(1));
+                SnapshotInfo snapshotInfo = response.getSnapshots("test-repo").get(0);
                 assertTrue(snapshotInfo.state().completed());
                 assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
             }, 1, TimeUnit.MINUTES);
@@ -600,7 +599,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), lessThan(16));
             assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(10));
             assertThat(client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").execute().actionGet()
-                    .getSnapshots().get(0).state(),
+                    .getSnapshots("test-repo").get(0).state(),
                 equalTo(SnapshotState.PARTIAL));
         }
 
@@ -841,7 +840,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertBusy(() -> {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo")
                 .setSnapshots("test-snap").get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
             assertTrue(snapshotInfo.state().completed());
         }, 1, TimeUnit.MINUTES);
 
@@ -849,7 +848,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo")
             .setSnapshots("test-snap").get();
-        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
@@ -901,7 +900,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertBusy(() -> {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo")
                 .setSnapshots("test-snap").get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
             assertTrue(snapshotInfo.state().completed());
         }, 1, TimeUnit.MINUTES);
 
@@ -909,7 +908,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster().prepareGetSnapshots("test-repo")
             .setSnapshots("test-snap").get();
-        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
         assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
         assertNotEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
         assertThat(snapshotInfo.failedShards(), greaterThan(0));
@@ -967,8 +966,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertBusy(() -> {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                 .prepareGetSnapshots("test-repo").setSnapshots("test-snap").setIgnoreUnavailable(true).get();
-            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            assertEquals(1, snapshotsStatusResponse.getSnapshots("test-repo").size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
             assertTrue(snapshotInfo.state().completed());
             ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             SnapshotsInProgress snapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
@@ -978,7 +977,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("-->  verify that snapshot failed");
         GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
             .prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
-        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
         assertEquals(SnapshotState.FAILED, snapshotInfo.state());
     }
 
@@ -1216,8 +1215,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertBusy(() -> {
             GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
                 .prepareGetSnapshots("test-repo").setSnapshots("test-snap").setIgnoreUnavailable(true).get();
-            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            assertEquals(1, snapshotsStatusResponse.getSnapshots("test-repo").size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
         }, 60L, TimeUnit.SECONDS);
     }

@@ -89,7 +89,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         // Getting a snapshot does not load any metadata
         GetSnapshotsResponse getSnapshotsResponse =
             client().admin().cluster().prepareGetSnapshots("repository").addSnapshots("snap").setVerbose(randomBoolean()).get();
-        assertThat(getSnapshotsResponse.getSnapshots(), hasSize(1));
+        assertThat(getSnapshotsResponse.getSnapshots("repository"), hasSize(1));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 0);
         assertIndexMetadataLoads("snap", "others", 0);

@@ -49,6 +49,10 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
         this.repositories = repositories;
     }
 
+    public GetRepositoriesResponse(StreamInput in) throws IOException {
+        readFrom(in);
+    }
+
     /**
      * List of repositories to return
      *

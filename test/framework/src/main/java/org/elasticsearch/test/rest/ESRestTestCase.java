@@ -540,7 +540,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
                 Request listRequest = new Request("GET", "/_snapshot/" + repoName + "/_all");
                 listRequest.addParameter("ignore_unavailable", "true");
-                List<?> snapshots = (List<?>) entityAsMap(adminClient.performRequest(listRequest)).get("snapshots");
+                List<?> snapshots =
+                        (List<?>)((Map<?,?>)((List<?>) entityAsMap(adminClient.performRequest(listRequest)).get("responses")).get(0))
+                                .get("snapshots");
                 for (Object snapshot : snapshots) {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");

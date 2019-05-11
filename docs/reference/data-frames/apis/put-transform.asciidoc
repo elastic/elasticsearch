@@ -21,7 +21,7 @@ IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
             Do not put a {dataframe-transform} directly into any
             `.data-frame-internal*` indices using the Elasticsearch index API.
             If {es} {security-features} are enabled, do not give users any
-            privileges to any `.data-frame-internal*` indices.
+            privileges on `.data-frame-internal*` indices.
 
 ==== Path Parameters
 

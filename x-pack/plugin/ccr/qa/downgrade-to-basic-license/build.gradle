@@ -19,7 +19,6 @@ task "leader-cluster"(type: RestIntegTestTask) {
     }
 }
 testClusters."leader-cluster" {
-    //clusterName = 'leader-cluster'
     distribution = "DEFAULT"
     setting 'xpack.license.self_generated.type', 'trial'
 }

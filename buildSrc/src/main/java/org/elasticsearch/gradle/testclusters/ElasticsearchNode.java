@@ -122,7 +122,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
     }
 
-    public String getName() {
+     public String getName() {
         return name;
     }
 
@@ -518,8 +518,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return getTransportPortInternal();
     }
 
+    public File getServerLog() {
+        return confPathLogs.resolve(getName().replaceAll("-[0-9]+$", "") + "_server.json").toFile();
+    }
+
     @Override
     public synchronized void stop(boolean tailLogs) {
+        tailLogs = false;
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.

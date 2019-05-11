@@ -92,7 +92,31 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         this.mappings = mappings;
     }
 
+
     GetFieldMappingsResponse() {
+    }
+
+    GetFieldMappingsResponse(StreamInput in) throws IOException {
+        super(in);
+        int size = in.readVInt();
+        Map<String, Map<String, Map<String, FieldMappingMetaData>>> indexMapBuilder = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            String index = in.readString();
+            int typesSize = in.readVInt();
+            Map<String, Map<String, FieldMappingMetaData>> typeMapBuilder = new HashMap<>(typesSize);
+            for (int j = 0; j < typesSize; j++) {
+                String type = in.readString();
+                int fieldSize = in.readVInt();
+                Map<String, FieldMappingMetaData> fieldMapBuilder = new HashMap<>(fieldSize);
+                for (int k = 0; k < fieldSize; k++) {
+                    fieldMapBuilder.put(in.readString(), new FieldMappingMetaData(in.readString(), in.readBytesReference()));
+                }
+                typeMapBuilder.put(type, unmodifiableMap(fieldMapBuilder));
+            }
+            indexMapBuilder.put(index, unmodifiableMap(typeMapBuilder));
+        }
+        mappings = unmodifiableMap(indexMapBuilder);
+
     }
 
     /** returns the retrieved field mapping. The return map keys are index, type, field (as specified in the request). */
@@ -269,25 +293,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        int size = in.readVInt();
-        Map<String, Map<String, Map<String, FieldMappingMetaData>>> indexMapBuilder = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            String index = in.readString();
-            int typesSize = in.readVInt();
-            Map<String, Map<String, FieldMappingMetaData>> typeMapBuilder = new HashMap<>(typesSize);
-            for (int j = 0; j < typesSize; j++) {
-                String type = in.readString();
-                int fieldSize = in.readVInt();
-                Map<String, FieldMappingMetaData> fieldMapBuilder = new HashMap<>(fieldSize);
-                for (int k = 0; k < fieldSize; k++) {
-                    fieldMapBuilder.put(in.readString(), new FieldMappingMetaData(in.readString(), in.readBytesReference()));
-                }
-                typeMapBuilder.put(type, unmodifiableMap(fieldMapBuilder));
-            }
-            indexMapBuilder.put(index, unmodifiableMap(typeMapBuilder));
-        }
-        mappings = unmodifiableMap(indexMapBuilder);
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

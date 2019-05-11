@@ -30,7 +30,7 @@ public class ShowTablesTestCase extends JdbcIntegrationTestCase {
             for (int i = 0; i < indices; i++) {
                 String index = String.format(Locale.ROOT, "test%02d", i);
                 index(index, builder -> builder.field("name", "bob"));
-                h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('" + index + "', 'BASE TABLE');");
+                h2.createStatement().executeUpdate("INSERT INTO mock VALUES ('" + index + "', 'BASE TABLE', 'INDEX');");
             }
 
             ResultSet expected = h2.createStatement().executeQuery("SELECT * FROM mock ORDER BY name");

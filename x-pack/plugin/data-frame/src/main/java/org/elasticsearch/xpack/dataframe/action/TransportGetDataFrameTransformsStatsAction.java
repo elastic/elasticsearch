@@ -132,7 +132,6 @@ public class TransportGetDataFrameTransformsStatsAction extends
             },
             e -> {
                 // If the index to search, or the individual config is not there, just return empty
-                logger.error("failed to expand ids", e);
                 if (e instanceof ResourceNotFoundException) {
                     finalListener.onResponse(new Response(Collections.emptyList()));
                 } else {

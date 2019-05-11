@@ -3,7 +3,7 @@
 
 == Configuring single sign-on to the {stack} using OpenID Connect
 
-The Elastic Stack supports Single Sign On using OpenID Connect via {kib} using
+The Elastic Stack supports single sign-on (SSO) using OpenID Connect via {kib} using
 {es} as the backend service that holds most of the functionality. {kib} and {es}
 together represent an OpenID Connect Relying Party (RP) that supports the Authorization
 Code Flow and the Implicit Flow as these are defined in the OpenID Connect specification.

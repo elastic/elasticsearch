@@ -1,7 +1,7 @@
 [role="xpack"]
 [[oidc-guide]]
 
-== Configuring Single Sign On to the {stack} using OpenID Connect
+== Configuring single sign-on to the {stack} using OpenID Connect
 
 The Elastic Stack supports Single Sign On using OpenID Connect via {kib} using
 {es} as the backend service that holds most of the functionality. {kib} and {es}

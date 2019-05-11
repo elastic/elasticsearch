@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.Order;
+import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.ScoreAttribute;
@@ -360,7 +361,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             }
                         }
                     // not an Alias or Function means it's an Attribute so apply the same logic as above
-                    } else {
+                    } else if(ne instanceof Literal == false){
                         GroupByKey matchingGroup = null;
                         if (groupingContext != null) {
                             matchingGroup = groupingContext.groupFor(ne);

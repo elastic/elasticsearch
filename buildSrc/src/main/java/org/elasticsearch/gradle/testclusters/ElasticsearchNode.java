@@ -36,16 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -85,6 +76,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Map<String, FileSupplier> keystoreFiles = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> systemProperties = new LinkedHashMap<>();
     private final Map<String, Supplier<CharSequence>> environment = new LinkedHashMap<>();
+    private final List<Supplier<List<CharSequence>>> jvmArgs = new ArrayList<>();
     private final Map<String, File> extraConfigFiles = new HashMap<>();
     final LinkedHashMap<String, String> defaultConfig = new LinkedHashMap<>();
     private final List<Map<String, String>> credentials = new ArrayList<>();
@@ -218,6 +210,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         addSupplier("Environment variable", environment, key, valueSupplier);
     }
 
+
+    public void jvmArgs(String... values) {
+        for (String value : values) {
+            requireNonNull(value, "jvm argument was null when configuring test cluster `" + this + "`");
+        }
+        jvmArgs.add(() -> Arrays.asList(values));
+    }
+
+    public void jvmArgs(Supplier<String[]> valueSupplier) {
+        requireNonNull(valueSupplier, "jvm argument supplier was null when configuring test cluster `" + this + "`");
+        jvmArgs.add(() -> Arrays.asList(valueSupplier.get()));
+    }
+
     private void addSupplier(String name, Map<String, Supplier<CharSequence>> collector, String key, Supplier<CharSequence> valueSupplier) {
         requireNonNull(key, name + " key was null when configuring test cluster `" + this + "`");
         requireNonNull(valueSupplier, name + " value supplier was null when configuring test cluster `" + this + "`");
@@ -229,10 +234,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         addSupplier(name, collector, key, () -> actualValue);
     }
 
-    private void checkSuppliers(String name, Map<String, Supplier<CharSequence>> collector) {
-        collector.forEach((key, value) -> {
-            requireNonNull(value.get().toString(), name + " supplied value was null when configuring test cluster `" + this + "`");
-        });
+    private void checkSuppliers(String name, Collection<Supplier<CharSequence>> collector) {
+        collector.forEach(value ->
+            requireNonNull(
+                value.toString(),
+                name + " supplied value was null when configuring test cluster `" + this + "`"
+            )
+        );
     }
 
     public Path getConfigDir() {
@@ -301,7 +309,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             runElaticsearchBinScript("elasticsearch-keystore", "create");
 
-            checkSuppliers("Keystore", keystoreSettings);
+            checkSuppliers("Keystore", keystoreSettings.values());
             keystoreSettings.forEach((key, value) ->
                 runElaticsearchBinScriptWithInput(value.get().toString(), "elasticsearch-keystore", "add", "-x", key)
             );
@@ -451,12 +459,30 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";
         if (systemProperties.isEmpty() == false) {
-            checkSuppliers("Java System property", systemProperties);
+            checkSuppliers("Java System property", systemProperties.values());
             systemPropertiesString = " " + systemProperties.entrySet().stream()
                 .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue().get())
                 .collect(Collectors.joining(" "));
         }
-        defaultEnv.put("ES_JAVA_OPTS", "-Xms512m -Xmx512m -ea -esa" + systemPropertiesString);
+        String jvmArgsString = "";
+        if (jvmArgs.isEmpty() == false) {
+            jvmArgsString = " " + jvmArgs.stream()
+                .map(Supplier::get)
+                .peek(charSequences -> requireNonNull(charSequences, "Jvm argument supplier returned null while configuring " + this))
+                .flatMap(Collection::stream)
+                .peek(argument -> {
+                    requireNonNull(argument, "Jvm argument supplier returned null while configuring " + this);
+                    if (argument.toString().startsWith("-D")) {
+                        throw new TestClustersException("Invalid jvm argument `" + argument +
+                            "` configure as systemPropery instead for " + this
+                        );
+                    }
+                })
+                .collect(Collectors.joining(" "));
+        }
+        defaultEnv.put("ES_JAVA_OPTS", "-Xms512m -Xmx512m -ea -esa" +
+            systemPropertiesString + jvmArgsString
+        );
         defaultEnv.put("ES_TMPDIR", tmpDir.toString());
         // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
         defaultEnv.put("TMP", tmpDir.toString());
@@ -469,7 +495,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             );
         }
 
-        checkSuppliers("Environment variable", environment);
+        checkSuppliers("Environment variable", environment.values());
         environment.forEach((key, value) -> defaultEnv.put(key, value.get().toString()));
         return defaultEnv;
     }
@@ -691,7 +717,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
         defaultConfig.put("discovery.initial_state_timeout",  "0s");
 
-        checkSuppliers("Settings", settings);
+        checkSuppliers("Settings", settings.values());
         Map<String, String> userConfig = settings.entrySet().stream()
             .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().get().toString()));
         HashSet<String> overriden = new HashSet<>(defaultConfig.keySet());

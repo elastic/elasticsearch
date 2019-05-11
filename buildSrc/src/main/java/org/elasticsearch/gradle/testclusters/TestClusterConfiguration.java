@@ -65,6 +65,10 @@ public interface TestClusterConfiguration {
 
     void environment(String key, Supplier<CharSequence> valueSupplier);
 
+    void jvmArgs(String... values);
+
+    void jvmArgs(Supplier<String[]> valueSupplier);
+
     void freeze();
 
     void setJavaHome(File javaHome);

@@ -26,10 +26,10 @@
  * {@link org.elasticsearch.repositories.Repository} on top of a blob store. A blobstore can be used as the basis for an implementation
  * as long as it provides for GET, PUT and (except for in the case of read-only repositories) LIST operations.
  * These operations are formally defined as specified by the {@link org.elasticsearch.common.blobstore.BlobContainer} interface that
- * any {@code BlobStoreRepository} when implementation must provide via its implementation of
+ * any {@code BlobStoreRepository} implementation must provide via its implementation of
  * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#getBlobContainer()}.</p>
  *
- * <p>The blob store is written to and read from both the master node as well as the data nodes. All metadata related to the snapshots'
+ * <p>The blob store is written to and read from by both the master node as well as the data nodes. All metadata related to the snapshots'
  * scope and health (i.e. the indices a snapshot contains, a snapshot of the cluster state, index metadata and the status of the snapshot)
  * are written by the master node.</p>
  * <p>For each shard, the data-node holding the shard's primary writes the actual data in form of the shard's segment files to the

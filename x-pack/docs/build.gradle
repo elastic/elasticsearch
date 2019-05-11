@@ -73,7 +73,7 @@ File xpackResources = new File(xpackProject('plugin').projectDir, 'src/test/reso
 project.copyRestSpec.from(xpackResources) {
   include 'rest-api-spec/api/**'
 }
-integTestCluster {
+testClusters.integTest {
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.authc.api_key.enabled', 'true'
     setting 'xpack.security.authc.token.enabled', 'true'
@@ -81,11 +81,8 @@ integTestCluster {
     setting 'xpack.monitoring.exporters._local.type', 'local'
     setting 'xpack.monitoring.exporters._local.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
-    setupCommand 'setupTestAdmin',
-            'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
-    waitCondition = waitWithAuth
+    user username: 'test_admin', role: 'superuser'
 }
-
 
 
 buildRestTests.docs = fileTree(projectDir) {

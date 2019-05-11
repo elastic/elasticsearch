@@ -581,7 +581,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                     remoteCommand "export SYSTEM_JAVA_HOME=\"${-> convertPath(project, linuxSystemJdk.toString())}\"; " + BATS_TEST_COMMAND
                     boxName box
                     environmentVars vagrantEnvVars
-                    dependsOn up, setupPackagingTest
+                    dependsOn up, setupPackagingTest, linuxSystemJdk
                     finalizedBy halt
                 }
 

@@ -85,29 +85,29 @@
  *
  * <h1>Getting the Repository's RepositoryData</h1>
  *
- * <p>Loading the {@link org.elasticsearch.repositories.RepositoryData} holding a list of all snapshots as well as the mapping of indices'
- * names to their repository {@link org.elasticsearch.repositories.IndexId} by invoking
- * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#getRepositoryData} is implemented as follows:</p>
+ * <p>Loading the {@link org.elasticsearch.repositories.RepositoryData} that holds the list of all snapshots as well as the mapping of
+ * indices' names to their repository {@link org.elasticsearch.repositories.IndexId} is done by invoking
+ * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#getRepositoryData} and implemented as follows:</p>
  * <ol>
  * <li>
  * <ol>
- * <li>The blobstore repository stores the {@code RepositoryData} in blobs named {@code /index-N} directly under the
+ * <li>The blobstore repository stores the {@code RepositoryData} in blobs named with incrementing suffix {@code N} at {@code /index-N}
+ * directly under the repositories' root.</li>
+ * <li>The blobstore also stores the most recent {@code N} as a 64bit long in the blob {@code /index.latest} directly under the
  * repositories' root.</li>
- * <li>The blobstore also stores the most recent {@code N} as a signed 64bit long in the blob {@code /index.latest} directly
- * under the repositories' root.</li>
  * </ol>
  * </li>
  * <li>
  * <ol>
- * <li>Find the most recent {@code RepositoryData} by getting a list of all index-N blobs through listing all blobs with prefix "index-"
- * under the repository root and selecting the one with the highest value for N.</li>
- * <li>If this operation fails because the repositories' {@code BlobContainer} does not support list operations in the case of read-only
- * repositories, read the highest value of N from the the index.latest blob.</li>
+ * <li>First, find the most recent {@code RepositoryData} by getting a list of all index-N blobs through listing all blobs with prefix
+ * "index-" under the repository root and then selecting the one with the highest value for N.</li>
+ * <li>If this operation fails because the repositories' {@code BlobContainer} does not support list operations (in the case of read-only
+ * repositories), read the highest value of N from the the index.latest blob.</li>
  * </ol>
  * </li>
  * <li>
  * <ol>
- * <li>Use the just determined value of {@code N} and get the "/index-N" blob and deserialize the {@code RepositoryData} from it.</li>
+ * <li>Use the just determined value of {@code N} and get the {@code /index-N} blob and deserialize the {@code RepositoryData} from it.</li>
  * <li>If no value of {@code N} could be found since neither an {@code index.latest} nor any {@code index-N} blobs exist in the repository,
  * it is assumed to be empty and {@link org.elasticsearch.repositories.RepositoryData#EMPTY} is returned.</li>
  * </ol>
@@ -115,54 +115,60 @@
  * </ol>
  * <h1>Creating a Snapshot</h1>
  *
+ * <p>Creating a snapshot in the repository happens in the three steps described in detail below.</p>
+ *
  * <h2>Initializing a Snapshot in the Repository</h2>
  *
- * <p>Creating a snapshot in the repository begins by a call to {@link org.elasticsearch.repositories.Repository#initializeSnapshot} which
- * the blob store repository implements as such:</p>
+ * <p>Creating a snapshot in the repository starts with a call to {@link org.elasticsearch.repositories.Repository#initializeSnapshot} which
+ * the blob store repository implements via the following actions:</p>
  * <ol>
  * <li>Verify that no snapshot by the requested name exists.</li>
- * <li>Write a blob containing the cluster metadata to the root of the blob store repository at /meta-${snapshot-uuid}.dat</li>
- * <li>Write the metadata for each index to a blob in that index's directory at /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}.dat
- * </li>
+ * <li>Write a blob containing the cluster metadata to the root of the blob store repository at {@code /meta-${snapshot-uuid}.dat}</li>
+ * <li>Write the metadata for each index to a blob in that index's directory at
+ * {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}.dat}</li>
  * </ol>
  * TODO: This behavior is problematic, adjust these docs once https://github.com/elastic/elasticsearch/issues/41581 is fixed
  *
  * <h2>Writing Shard Data (Segments)</h2>
  *
- * <p>Once all the metadata was written by the snapshot initialization the snapshot process moves on to writing the actual shard data to the
- * repository by invoking {@link org.elasticsearch.repositories.Repository#snapshotShard} which is implemented as follows:</p>
+ * <p>Once all the metadata has been written by the snapshot initialization, the snapshot process moves on to writing the actual shard data
+ * to the repository by invoking {@link org.elasticsearch.repositories.Repository#snapshotShard} on the data-nodes that hold the primaries
+ * for the shards in the current snapshot. It is implemented as follows:</p>
  *
  * <p>Note:</p>
  * <ul>
- * <li>For each shard {@code i} in a given index its path in the blob store is located at {@code /indices/${index-snapshot-uuid}/{i}}</li>
- * <li>All the following steps on the shard's primary's data node.</li>
+ * <li>For each shard {@code i} in a given index, its path in the blob store is located at {@code /indices/${index-snapshot-uuid}/${i}}</li>
+ * <li>All the following steps are executed exclusively on the shard's primary's data node.</li>
  * </ul>
+ *
  * <ol>
- * <li>Create the {@link org.apache.lucene.index.IndexCommit} for each shard to snapshot on the shard's primary.</li>
- * <li>List all blobs in the shard's path.</li>
- * <li>Find the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob with name "index-${N}" for the
- * highest possible value of N in the list to get the information of what segment files are already available in the blobstore.</li>
+ * <li>Create the {@link org.apache.lucene.index.IndexCommit} for the shard to snapshot.</li>
+ * <li>List all blobs in the shard's path. Find the {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots} blob
+ * with name {@code index-${N}} for the highest possible value of {@code N} in the list to get the information of what segment files are
+ * already available in the blobstore.</li>
  * <li>By comparing the files in the {@code IndexCommit} and the available file list from the previous step, determine the segment files
- * that need to be written to the blob store. For each segment to be written to the blob store, the logic generates a unique name by
- * combining the segment data blob prefix "__" and a UUID and writes the segment to the blobstore.</li>
+ * that need to be written to the blob store. For each segment that needs to be added to the blob store, generate a unique name by combining
+ * the segment data blob prefix {@code __} and a UUID and write the segment to the blobstore.</li>
  * <li>After completing all segment writes, a blob containing a
- * {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} with name "snap-${snapshot-uuid}.dat" is written to the
- * shard's path, containing a list of all the files referenced by the snapshot as well as some metadata about the snapshot.</li>
+ * {@link org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot} with name {@code snap-${snapshot-uuid}.dat} is written to
+ * the shard's path and contains a list of all the files referenced by the snapshot as well as some metadata about the snapshot. See the
+ * documentation of {@code BlobStoreIndexShardSnapshot} for details on its contents.</li>
  * <li>Once all the segments and the {@code BlobStoreIndexShardSnapshot} blob have been written, an updated
- * {@code BlobStoreIndexShardSnapshots} blob is written to the shard's path with name "index-${(N+1)}".</li>
+ * {@code BlobStoreIndexShardSnapshots} blob is written to the shard's path with name {@code index-${N+1}}.</li>
  * </ol>
  *
  * <h2>Finalizing the Snapshot</h2>
  *
- * <p>After all primaries have finished writing the necessary segment files to the blob store in the previous step the master node moves on
- * to finalize the snapshot by invoking {@link org.elasticsearch.repositories.Repository#finalizeSnapshot}.</p>
- *
- * This method executes the following actions in order:
+ * <p>After all primaries have finished writing the necessary segment files to the blob store in the previous step, the master node moves on
+ * to finalizing the snapshot by invoking {@link org.elasticsearch.repositories.Repository#finalizeSnapshot}. This method executes the
+ * following actions in order:</p>
  * <ol>
  * <li>Write the {@link org.elasticsearch.snapshots.SnapshotInfo} blob for the given snapshot to the key {@code /snap-${snapshot-uuid}.dat}
  * directly under the repository root.</li>
- * <li>Write an updated {@code RepositoryData} blob to the key {@code /index-${N+1}} using the {@code N} derived when initializing the
- * snapshot in the first step.</li>
+ * <li>Write an updated {@code RepositoryData} blob to the key {@code /index-${N+1}} using the {@code N} determined when initializing the
+ * snapshot in the first step. When doing this, the implementation checks that the blob for generation {@code N + 1} has not yet been
+ * written to prevent concurrent updates to the repository. If the blob for {@code N + 1} already exists the execution of finalization
+ * stops under the assumption that a master failover occurred and the snapshot has already been finalized by the new master.</li>
  * <li>Write the updated {@code /index.latest} blob containing the new repository generation {@code N + 1}.</li>
  * </ol>
  *
@@ -173,11 +179,11 @@
  *
  * <ol>
  * <li>Get the current {@code RepositoryData} from the latest {@code index-N} blob at the repository root.</li>
- * <li>Write an updated {@code RepositoryData} blob with the deleted snapshot removed to key {@code index-${N+1}} under the repository
- * root.</li>
+ * <li>Write an updated {@code RepositoryData} blob with the deleted snapshot removed to key {@code /index-${N+1}} directly under the
+ * repository root.</li>
  * <li>Write an updated {@code index.latest} blob containing {@code N + 1}.</li>
- * <li>Delete the global {@code MetaData} blob {@code meta-${snapshot-uuid}} stored directly under the repository root associated with the
- * snapshot as well as the {@code SnapshotInfo} blob at {@code /snap-${snapshot-uuid}.dat}.</li>
+ * <li>Delete the global {@code MetaData} blob {@code meta-${snapshot-uuid}.dat} stored directly under the repository root for the snapshot
+ * as well as the {@code SnapshotInfo} blob at {@code /snap-${snapshot-uuid}.dat}.</li>
  * <li>For each index referenced by the snapshot:
  * <ol>
  * <li>Delete the snapshot's {@code IndexMetaData} at {@code /indices/${index-snapshot-uuid}/meta-${snapshot-uuid}}.</li>
@@ -185,11 +191,11 @@
  * <ol>
  * <li>Remove the {@code BlobStoreIndexShardSnapshot} blob at {@code /indices/${index-snapshot-uuid}/${i}/snap-${snapshot-uuid}.dat}.</li>
  * <li>List all blobs in the shard path {@code /indices/${index-snapshot-uuid}} and build a new {@code BlobStoreIndexShardSnapshots} from
- * the remaining {@code BlobStoreIndexShardSnapshot} blobs in the shard, then write it to the next shard generation blob at
+ * the remaining {@code BlobStoreIndexShardSnapshot} blobs in the shard. Afterwards, write it to the next shard generation blob at
  * {@code /indices/${index-snapshot-uuid}/${i}/index-${N+1}} (The shard's generation is determined from the list of {@code index-N} blobs
  * in the shard directory).</li>
- * <li>Delete all segment blobs (identified by having the data blob prefix {@code __}) in the shard directory that are not referenced by the
- * just written {@code BlobStoreIndexShardSnapshots}.</li>
+ * <li>Delete all segment blobs (identified by having the data blob prefix {@code __}) in the shard directory which are not referenced by
+ * the new {@code BlobStoreIndexShardSnapshots} that has been written in the previous step.</li>
  * </ol>
  * </li>
  * </ol>

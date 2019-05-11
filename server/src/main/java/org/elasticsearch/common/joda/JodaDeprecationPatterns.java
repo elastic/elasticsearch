@@ -40,10 +40,11 @@ public class JodaDeprecationPatterns {
     public static final String USE_PREFIX_8_WARNING = "Prefix your date format with '8' to use the new specifier.";
 
     public static boolean isDeprecatedFormat(String format) {
-        return JODA_PATTERNS_DEPRECATIONS.keySet().stream()
-                                         .filter(s -> format.contains(s))
-                                         .findAny()
-                                         .isPresent();
+        return format.startsWith("8") == false &&
+            JODA_PATTERNS_DEPRECATIONS.keySet().stream()
+                                      .filter(s -> format.contains(s))
+                                      .findAny()
+                                      .isPresent();
     }
 
     public static String formatSuggestion(String format) {

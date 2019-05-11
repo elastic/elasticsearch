@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,12 +25,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.DEFAULT_MAPPING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
 
@@ -417,6 +420,28 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> withDefaultFieldIssues =
             DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsOk));
         assertEquals(0, withDefaultFieldIssues.size());
+    }
+
+    public void testMigratedPatterns() throws IOException {
+        String simpleMapping = "{\n" +
+            "\"properties\" : {\n" +
+            "   \"date_time_field_Y\" : {\n" +
+            "       \"type\" : \"date\",\n" +
+            "       \"format\" : \"8MM-YYYY\"\n" +
+            "       }\n" +
+            "   }" +
+            "}";
+        IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5,10))
+                                                 .settings(settings(
+                                                     VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
+                                                         VersionUtils.getPreviousVersion(Version.CURRENT))))
+                                                 .numberOfShards(randomIntBetween(1,100))
+                                                 .numberOfReplicas(randomIntBetween(1, 100))
+                                                 .putMapping("_doc", simpleMapping)
+                                                 .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        assertThat(issues, is(emptyList()));
     }
 
     public void testJodaPatternDeprecations() throws IOException {

@@ -343,6 +343,20 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         startElasticsearchProcess();
     }
 
+    @Override
+    public void restart() {
+        LOGGER.info("Restarting {}", this);
+        stop(false);
+        try {
+            Files.delete(httpPortsFile);
+            Files.delete(transportPortFile);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+
+        start();
+    }
+
     private boolean isSettingMissingOrTrue(String name) {
         return Boolean.valueOf(settings.getOrDefault(name, () -> "false").get().toString());
     }
@@ -550,7 +564,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public synchronized void stop(boolean tailLogs) {
-        tailLogs = false;
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.

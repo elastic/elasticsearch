@@ -75,6 +75,8 @@ public interface TestClusterConfiguration {
 
     void start();
 
+    void restart();
+
     void extraConfigFile(String destination, File from);
 
     void user(Map<String, String> userSpec);

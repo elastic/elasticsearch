@@ -226,6 +226,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
+    public void restart() {
+        nodes.forEach(ElasticsearchNode::restart);
+    }
+
+    @Override
     public void extraConfigFile(String destination, File from) {
         nodes.all(node -> node.extraConfigFile(destination, from));
     }

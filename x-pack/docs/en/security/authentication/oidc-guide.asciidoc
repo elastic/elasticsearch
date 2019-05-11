@@ -8,7 +8,7 @@ The Elastic Stack supports single sign-on (SSO) using OpenID Connect via {kib} u
 together represent an OpenID Connect Relying Party (RP) that supports the Authorization
 Code Flow and the Implicit Flow as these are defined in the OpenID Connect specification.
 
-This guide assumes that you have an OpenID Connect Provider that you use and where the
+This guide assumes that you have an OpenID Connect Provider where the
 Elastic Stack Relying Party will be registered.
 
 NOTE: The OpenID Connect realm support in {kib} is designed with the expectation that it

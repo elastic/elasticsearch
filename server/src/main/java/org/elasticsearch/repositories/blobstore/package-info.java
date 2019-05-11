@@ -29,17 +29,18 @@
  * any {@code BlobStoreRepository} implementation must provide via its implementation of
  * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#getBlobContainer()}.</p>
  *
- * <p>The blob store is written to and read from by both the master node as well as the data nodes. All metadata related to the snapshots'
+ * <p>The blob store is written to and read from by both the master- as well as the data-nodes. All metadata related to a snapshots'
  * scope and health (i.e. the indices a snapshot contains, a snapshot of the cluster state, index metadata and the status of the snapshot)
  * are written by the master node.</p>
- * <p>For each shard, the data-node holding the shard's primary writes the actual data in form of the shard's segment files to the
- * repository as well as metadata about all the segment files that the repository stores for a given shard.</p>
+ * <p>The data-nodes on the other hand, write the data for each individual shard but do not write any blobs outside of shard directories for
+ * shards that they hold the primary of. For each shard, the data-node holding the shard's primary writes the actual data in form of
+ * the shard's segment files to the repository as well as metadata about all the segment files that the repository stores for the shard.</p>
  *
- * <p>For the specifics of how the operations on the repository are invoked during the snapshot process please refer to the documentation
- * of the {@link org.elasticsearch.snapshots} package.</p>
+ * <p>For the specifics on how the operations on the repository documented below are invoked during the snapshot process please refer to
+ * the documentation of the {@link org.elasticsearch.snapshots} package.</p>
  *
- * <p>BlobStoreRepository maintains the following structure of blobs containing data and metadata in the blob store. The exact operations
- * executed on these blobs are explained below.</p>
+ * <p>{@code BlobStoreRepository} maintains the following structure of blobs containing data and metadata in the blob store. The exact
+ * operations executed on these blobs are explained below.</p>
  * <pre>
  * {@code
  *   STORE_ROOT

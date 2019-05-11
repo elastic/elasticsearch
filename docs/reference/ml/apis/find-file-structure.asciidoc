@@ -252,8 +252,18 @@ If the request does not encounter errors, you receive the following result:
   "charset" : "UTF-8", <4>
   "has_byte_order_marker" : false, <5>
   "format" : "ndjson", <6>
-  "need_client_timezone" : false, <7>
+  "timestamp_field" : "release_date",
+  "joda_timestamp_formats" : [
+    "YYYY-MM-dd"
+  ],
+  "java_timestamp_formats" : [
+    "yyyy-MM-dd"
+  ],
+  "need_client_timezone" : true, <7>
   "mappings" : { <8>
+    "@timestamp" : {
+      "type" : "date"
+    },
     "author" : {
       "type" : "keyword"
     },
@@ -264,8 +274,23 @@ If the request does not encounter errors, you receive the following result:
       "type" : "long"
     },
     "release_date" : {
-      "type" : "keyword"
+      "type" : "date",
+      "format" : "yyyy-MM-dd"
     }
+  },
+  "ingest_pipeline" : {
+    "description" : "Ingest pipeline created by file structure finder",
+    "processors" : [
+      {
+        "date" : {
+          "field" : "release_date",
+          "timezone" : "{{ beat.timezone }}",
+          "formats" : [
+            "yyyy-MM-dd"
+          ]
+        }
+      }
+    ]
   },
   "field_stats" : { <9>
     "author" : {

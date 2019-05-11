@@ -111,13 +111,13 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
     public void testValidOverrideFormatToGrokAndRegex() {
 
-        assertEquals(new Tuple<>("%{YEAR}-%{MONTHNUM}-%{MONTHDAY}T%{HOUR}:%{MINUTE}:%{SECOND}%{ISO8601_TIMEZONE}",
+        assertEquals(new Tuple<>("%{YEAR}-%{MONTHNUM2}-%{MONTHDAY}T%{HOUR}:%{MINUTE}:%{SECOND}%{ISO8601_TIMEZONE}",
             "\\b\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2},\\d{3}(?:Z|[+-]\\d{4})\\b"),
             TimestampFormatFinder.overrideFormatToGrokAndRegex("yyyy-MM-dd'T'HH:mm:ss,SSSXX"));
-        assertEquals(new Tuple<>("%{MONTHDAY}\\.%{MONTHNUM}\\.%{YEAR} %{HOUR}:%{MINUTE} (?:AM|PM)",
+        assertEquals(new Tuple<>("%{MONTHDAY}\\.%{MONTHNUM2}\\.%{YEAR} %{HOUR}:%{MINUTE} (?:AM|PM)",
             "\\b\\d{2}\\.\\d{2}\\.\\d{2} \\d{1,2}:\\d{2} [AP]M\\b"),
             TimestampFormatFinder.overrideFormatToGrokAndRegex("dd.MM.yy h:mm a"));
-        assertEquals(new Tuple<>("%{MONTHNUM}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}",
+        assertEquals(new Tuple<>("%{MONTHNUM2}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}",
             "\\b\\d{2}/\\d{2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b"),
             TimestampFormatFinder.overrideFormatToGrokAndRegex("MM/dd/yyyy H:mm:ss zzz"));
     }
@@ -175,10 +175,18 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         candidate =
             TimestampFormatFinder.makeCandidateFromOverrideFormat("MM/dd/yyyy H:mm:ss zzz", NOOP_TIMEOUT_CHECKER);
         assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
-        assertEquals("%{MONTHNUM}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
+        assertEquals("%{MONTHNUM2}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
         assertEquals("\\b\\d{2}/\\d{2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
         assertEquals(Collections.singletonList("MM/dd/yyyy H:mm:ss zzz"),
             candidate.javaTimestampFormatSupplier.apply("05/15/2018 16:14:56 UTC"));
+
+        candidate =
+            TimestampFormatFinder.makeCandidateFromOverrideFormat("M/d/yyyy H:mm:ss zzz", NOOP_TIMEOUT_CHECKER);
+        assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
+        assertEquals("%{MONTHNUM}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
+        assertEquals("\\b\\d{1,2}/\\d{1,2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
+        assertEquals(Collections.singletonList("M/d/yyyy H:mm:ss zzz"),
+            candidate.javaTimestampFormatSupplier.apply("5/15/2018 16:14:56 UTC"));
     }
 
     public void testRequiresTimezoneDependentParsing() {
@@ -688,7 +696,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         String expectedGrokPatternName = "CUSTOM_TIMESTAMP";
         Map<String, String> expectedCustomGrokPatternDefinitions =
             Collections.singletonMap(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME,
-                "%{MONTHNUM}/%{MONTHDAY} %{HOUR}\\.%{MINUTE}\\.%{SECOND} in %{YEAR}");
+                "%{MONTHNUM2}/%{MONTHDAY} %{HOUR}\\.%{MINUTE}\\.%{SECOND} in %{YEAR}");
 
         TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(explanation, overrideFormat, true, true, true,
             NOOP_TIMEOUT_CHECKER);

@@ -65,7 +65,7 @@ public final class TimestampFormatFinder {
         validLetterGroups.put("yyyy", new Tuple<>("%{YEAR}", "\\d{4}"));
         validLetterGroups.put("yy", new Tuple<>("%{YEAR}", "\\d{2}"));
         validLetterGroups.put("M", new Tuple<>("%{MONTHNUM}", "\\d{1,2}"));
-        validLetterGroups.put("MM", new Tuple<>("%{MONTHNUM}", "\\d{2}"));
+        validLetterGroups.put("MM", new Tuple<>("%{MONTHNUM2}", "\\d{2}"));
         // The simple regex here is based on the fact that the %{MONTH} Grok pattern only matches English and German month names
         validLetterGroups.put("MMM", new Tuple<>("%{MONTH}", "[A-Z]\\S{2}"));
         validLetterGroups.put("MMMM", new Tuple<>("%{MONTH}", "[A-Z]\\S{2,8}"));
@@ -164,7 +164,11 @@ public final class TimestampFormatFinder {
             "\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}\\b", "\\b%{DATE}\\b", "DATE", "11 11 1111", 0, 0),
         UNIX_MS_CANDIDATE_FORMAT,
         UNIX_CANDIDATE_FORMAT,
-        TAI64N_CANDIDATE_FORMAT
+        TAI64N_CANDIDATE_FORMAT,
+        // This one is an ISO8601 date with no time, but the TIMESTAMP_ISO8601 Grok pattern doesn't cover it
+        new CandidateTimestampFormat(example -> Collections.singletonList("yyyy-MM-dd"),
+            "\\b\\d{4}-\\d{2}-{2}\\b", "\\b%{YEAR}-%{MONTHNUM2}-%{MONTHDAY}\\b", CUSTOM_TIMESTAMP_GROK_NAME,
+            "1111 11 11", 0, 0)
     );
 
     /**
@@ -1088,8 +1092,7 @@ public final class TimestampFormatFinder {
             this.preface = preface;
             this.timestampFormat = new TimestampFormat(chosenTimestampFormat.javaTimestampFormatSupplier.apply(matchedDate),
                 chosenTimestampFormat.simplePattern, chosenTimestampFormat.outputGrokPatternName,
-                chosenTimestampFormat.isCustomFormat() ?
-                    Collections.singletonMap(CUSTOM_TIMESTAMP_GROK_NAME, chosenTimestampFormat.strictGrokPattern) : null,
+                chosenTimestampFormat.customGrokPatternDefinitions(),
                 preface.isEmpty() ? preface : NON_PUNCTUATION_PATTERN.matcher(preface).replaceAll(""));
             int[] indeterminateDateNumbers = parseIndeterminateDateNumbers(matchedDate, timestampFormat.rawJavaTimestampFormats);
             this.firstIndeterminateDateNumber = indeterminateDateNumbers[0];
@@ -1249,8 +1252,10 @@ public final class TimestampFormatFinder {
             this.maxCharsAfterQuickRuleOutMatch = maxCharsAfterQuickRuleOutMatch;
         }
 
-        boolean isCustomFormat() {
-            return CUSTOM_TIMESTAMP_GROK_NAME.equals(outputGrokPatternName);
+        Map<String, String> customGrokPatternDefinitions() {
+            return CUSTOM_TIMESTAMP_GROK_NAME.equals(outputGrokPatternName)
+                ? Collections.singletonMap(CUSTOM_TIMESTAMP_GROK_NAME, strictGrokPattern)
+                : null;
         }
 
         static List<String> iso8601FormatFromExample(String example) {

@@ -369,7 +369,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
                 Path dst = configFile.getParent().resolve(destination);
                 try {
-                    Files.createDirectories(dst);
+                    Files.createDirectories(dst.getParent());
                     Files.copy(from.toPath(), dst, StandardCopyOption.REPLACE_EXISTING);
                     LOGGER.info("Added extra config file {} for {}", destination, this);
                 } catch (IOException e) {

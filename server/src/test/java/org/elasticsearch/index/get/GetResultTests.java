@@ -76,7 +76,7 @@ public class GetResultTests extends ESTestCase {
         {
             GetResult getResult = new GetResult("index", "type", "id", 0, 1, 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
-                    singletonList("value1"))),singletonMap("field1", new DocumentField("metafield",
+                    singletonList("value1"))), singletonMap("field1", new DocumentField("metafield",
                             singletonList("metavalue"))));
             String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1," +

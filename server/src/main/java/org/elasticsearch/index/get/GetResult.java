@@ -412,8 +412,6 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
                 outOther.put(fieldEntry.getKey(), fieldEntry.getValue());                
             }
         }
-        
-        
     }
     
     @Override

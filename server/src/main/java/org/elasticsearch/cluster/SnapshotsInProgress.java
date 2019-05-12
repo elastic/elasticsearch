@@ -314,11 +314,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         MISSING((byte) 5, true, true),
         WAITING((byte) 6, false, false);
 
-        private byte value;
+        private final byte value;
 
-        private boolean completed;
+        private final boolean completed;
 
-        private boolean failed;
+        private final boolean failed;
 
         State(byte value, boolean completed, boolean failed) {
             this.value = value;
@@ -519,18 +519,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
     public enum ShardState {
         INIT((byte) 0, false, false),
-        STARTED((byte) 1, false, false),
         SUCCESS((byte) 2, true, false),
         FAILED((byte) 3, true, true),
         ABORTED((byte) 4, false, true),
         MISSING((byte) 5, true, true),
         WAITING((byte) 6, false, false);
 
-        private byte value;
+        private final byte value;
 
-        private boolean completed;
+        private final boolean completed;
 
-        private boolean failed;
+        private final boolean failed;
 
         ShardState(byte value, boolean completed, boolean failed) {
             this.value = value;
@@ -550,8 +549,6 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             switch (value) {
                 case 0:
                     return INIT;
-                case 1:
-                    return STARTED;
                 case 2:
                     return SUCCESS;
                 case 3:

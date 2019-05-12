@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
@@ -88,7 +89,14 @@ public class NetworkUtilsTests extends ESTestCase {
      */
     public void testAddressInterfaceLookup() throws Exception {
         for (NetworkInterface netIf : NetworkUtils.getInterfaces()) {
-            if (!netIf.isUp() || Collections.list(netIf.getInetAddresses()).isEmpty()) {
+            try {
+                if (!netIf.isUp() || Collections.list(netIf.getInetAddresses()).isEmpty()) {
+                    continue;
+                }
+            } catch (SocketException e) {
+                // On some systems listing all network interfaces returns interfaces that throw
+                // java.net.SocketException: No such device (getFlags() failed) on an isUp check. We just skip those cases here
+                // and test the properly behaved interfaces.
                 continue;
             }
 

@@ -34,10 +34,7 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
-import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.After;
 import org.junit.Before;
@@ -207,24 +204,6 @@ public class LicensingTests extends SecurityIntegTestCase {
         authenticateRequest.setOptions(options);
         Response authorizedAuthenticateResponse = getRestClient().performRequest(authenticateRequest);
         assertThat(authorizedAuthenticateResponse.getStatusLine().getStatusCode(), is(200));
-    }
-
-    public void testSecurityActionsByLicenseType() throws Exception {
-        // security actions should not work!
-        /*ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
-            new SecurityClient(client()).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get());
-        assertThat(e.status(), is(RestStatus.FORBIDDEN));
-        assertThat(e.getMessage(), containsString("non-compliant"));*/
-
-        // enable a license that enables security
-        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD, OperationMode.BASIC);
-        enableLicensing(mode);
-        // security actions should work!
-        expectThrows(ElasticsearchSecurityException.class, () -> {
-            PutUserResponse response = new SecurityClient(client()).preparePutUser("john", "password".toCharArray(), Hasher.BCRYPT).get();
-            assertNotNull(response);
-        });
     }
 
     public void testNodeJoinWithoutSecurityExplicitlyEnabled() throws Exception {

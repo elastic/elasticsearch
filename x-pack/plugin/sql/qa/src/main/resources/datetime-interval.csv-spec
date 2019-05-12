@@ -182,6 +182,13 @@ SELECT -2 * INTERVAL '1 23:45' DAY TO MINUTES AS result;
 -3 23:30:00.0  
 ;
 
+intervalHoursMultiply
+SELECT 4 * -INTERVAL '2' HOURS AS result1, -5 * -INTERVAL '3' HOURS AS result2;
+    result1    |  result2
+---------------+--------------
+-0 08:00:00.0  | +0 15:00:00.0
+;
+
 intervalAndFieldMultiply
 schema::languages:byte|result:string
 SELECT languages, CAST (languages * INTERVAL '1 10:30' DAY TO MINUTES AS string) AS result FROM test_emp ORDER BY emp_no LIMIT 5;

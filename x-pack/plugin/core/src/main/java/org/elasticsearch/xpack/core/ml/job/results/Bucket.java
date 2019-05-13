@@ -134,10 +134,7 @@ public class Bucket implements ToXContentObject, Writeable {
         isInterim = in.readBoolean();
         bucketInfluencers = in.readList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
-        // bwc for perPartitionNormalization
-        if (in.getVersion().before(Version.V_6_5_0)) {
-            in.readList(Bucket::readOldPerPartitionNormalization);
-        }
+        in.readList(Bucket::readOldPerPartitionNormalization);
         if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
             scheduledEvents = in.readStringList();
             if (scheduledEvents.isEmpty()) {
@@ -160,10 +157,7 @@ public class Bucket implements ToXContentObject, Writeable {
         out.writeBoolean(isInterim);
         out.writeList(bucketInfluencers);
         out.writeLong(processingTimeMs);
-        // bwc for perPartitionNormalization
-        if (out.getVersion().before(Version.V_6_5_0)) {
-            out.writeList(Collections.emptyList());
-        }
+        out.writeList(Collections.emptyList());
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeStringCollection(scheduledEvents);
         }

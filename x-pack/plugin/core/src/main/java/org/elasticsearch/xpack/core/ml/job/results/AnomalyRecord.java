@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.time.TimeUtils;
-import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -160,9 +159,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         jobId = in.readString();
         detectorIndex = in.readInt();
         probability = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-            multiBucketImpact = in.readOptionalDouble();
-        }
+        multiBucketImpact = in.readOptionalDouble();
         byFieldName = in.readOptionalString();
         byFieldValue = in.readOptionalString();
         correlatedByFieldValue = in.readOptionalString();
@@ -197,9 +194,7 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         out.writeString(jobId);
         out.writeInt(detectorIndex);
         out.writeDouble(probability);
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-            out.writeOptionalDouble(multiBucketImpact);
-        }
+        out.writeOptionalDouble(multiBucketImpact);
         out.writeOptionalString(byFieldName);
         out.writeOptionalString(byFieldValue);
         out.writeOptionalString(correlatedByFieldValue);

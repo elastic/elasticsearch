@@ -183,6 +183,6 @@ public class ShardFollowTask extends ImmutableFollowParameters implements XPackP
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_5_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 }

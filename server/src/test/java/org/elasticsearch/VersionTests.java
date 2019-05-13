@@ -181,7 +181,7 @@ public class VersionTests extends ESTestCase {
         assertThat(Version.fromString("5.3.0").minimumCompatibilityVersion(), equalTo(major5x));
 
         Version major56x = Version.fromString("5.6.0");
-        assertThat(Version.V_6_5_0.minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(Version.fromString("6.4.0").minimumCompatibilityVersion(), equalTo(major56x));
         assertThat(Version.V_6_3_1.minimumCompatibilityVersion(), equalTo(major56x));
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
@@ -349,7 +349,7 @@ public class VersionTests extends ESTestCase {
         assertFalse(isCompatible(Version.V_6_7_0, Version.V_7_0_0));
         assertTrue(isCompatible(Version.V_6_8_0, Version.V_7_0_0));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_7_0_0));
-        assertFalse(isCompatible(Version.fromId(2000099), Version.V_6_5_0));
+        assertFalse(isCompatible(Version.fromId(2000099), Version.fromString("6.5.0")));
 
         final Version currentMajorVersion = Version.fromId(Version.CURRENT.major * 1000000 + 99);
         final Version currentOrNextMajorVersion;

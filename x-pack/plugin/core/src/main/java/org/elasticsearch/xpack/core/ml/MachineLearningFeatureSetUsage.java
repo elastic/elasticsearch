@@ -44,11 +44,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         super(in);
         this.jobsUsage = in.readMap();
         this.datafeedsUsage = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-            this.nodeCount = in.readInt();
-        } else {
-            this.nodeCount = -1;
-        }
+        this.nodeCount = in.readInt();
     }
 
     @Override
@@ -56,9 +52,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
         super.writeTo(out);
         out.writeMap(jobsUsage);
         out.writeMap(datafeedsUsage);
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-            out.writeInt(nodeCount);
-        }
+        out.writeInt(nodeCount);
     }
 
     @Override

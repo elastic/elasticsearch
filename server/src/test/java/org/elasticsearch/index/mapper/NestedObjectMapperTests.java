@@ -704,49 +704,37 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
             .startObject("nested1").field("type", "nested").endObject()
             .endObject().endObject().endObject());
 
-        Version bwcVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_4_0);
-        for (Version version : new Version[] {Version.V_6_5_0, bwcVersion}) {
-            DocumentMapper docMapper = createIndex("test-" + version,
-                Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), version).build())
-                    .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test",
+            Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT).build())
+            .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
-            assertThat(docMapper.hasNestedObjects(), equalTo(true));
-            ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
-            assertThat(nested1Mapper.nested().isNested(), equalTo(true));
+        assertThat(docMapper.hasNestedObjects(), equalTo(true));
+        ObjectMapper nested1Mapper = docMapper.objectMappers().get("nested1");
+        assertThat(nested1Mapper.nested().isNested(), equalTo(true));
 
-            ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
-                BytesReference.bytes(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .field("field", "value")
-                        .startArray("nested1")
-                            .startObject()
-                                .field("field1", "1")
-                                .field("field2", "2")
-                            .endObject()
-                            .startObject()
-                                .field("field1", "3")
-                                .field("field2", "4")
-                            .endObject()
-                        .endArray()
-                        .endObject()),
-                XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "type", "1",
+            BytesReference.bytes(XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field", "value")
+                .startArray("nested1")
+                .startObject()
+                .field("field1", "1")
+                .field("field2", "2")
+                .endObject()
+                .startObject()
+                .field("field1", "3")
+                .field("field2", "4")
+                .endObject()
+                .endArray()
+                .endObject()),
+            XContentType.JSON));
 
-            assertThat(doc.docs().size(), equalTo(3));
-            if (version.onOrAfter(Version.V_6_5_0)) {
-                assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePathAsString()));
-                assertThat(doc.docs().get(0).get("nested1.field1"), equalTo("1"));
-                assertThat(doc.docs().get(0).get("nested1.field2"), equalTo("2"));
-                assertThat(doc.docs().get(1).get("nested1.field1"), equalTo("3"));
-                assertThat(doc.docs().get(1).get("nested1.field2"), equalTo("4"));
-                assertThat(doc.docs().get(2).get("field"), equalTo("value"));
-            } else {
-                assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePathAsString()));
-                assertThat(doc.docs().get(0).get("nested1.field1"), equalTo("3"));
-                assertThat(doc.docs().get(0).get("nested1.field2"), equalTo("4"));
-                assertThat(doc.docs().get(1).get("nested1.field1"), equalTo("1"));
-                assertThat(doc.docs().get(1).get("nested1.field2"), equalTo("2"));
-                assertThat(doc.docs().get(2).get("field"), equalTo("value"));
-            }
-        }
+        assertThat(doc.docs().size(), equalTo(3));
+        assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePathAsString()));
+        assertThat(doc.docs().get(0).get("nested1.field1"), equalTo("1"));
+        assertThat(doc.docs().get(0).get("nested1.field2"), equalTo("2"));
+        assertThat(doc.docs().get(1).get("nested1.field1"), equalTo("3"));
+        assertThat(doc.docs().get(1).get("nested1.field2"), equalTo("4"));
+        assertThat(doc.docs().get(2).get("field"), equalTo("value"));
     }
 }

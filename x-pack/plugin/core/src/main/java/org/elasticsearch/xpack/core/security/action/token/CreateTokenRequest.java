@@ -186,11 +186,6 @@ public final class CreateTokenRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_6_5_0) && GrantType.CLIENT_CREDENTIALS.getValue().equals(grantType)) {
-            throw new IllegalArgumentException("a request with the client_credentials grant_type cannot be sent to version [" +
-                out.getVersion() + "]");
-        }
-
         out.writeString(grantType);
         if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
             out.writeOptionalString(username);

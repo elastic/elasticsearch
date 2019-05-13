@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -75,11 +76,11 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addMlConfigIndex(metaData, routingTable);
 
-        // mixed 6.5 and 6.6 nodes
+        Version prevVersion = VersionUtils.getPreviousVersion(Version.CURRENT);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_5_0))
-                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
+                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), prevVersion))
+                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.CURRENT)))
                 .routingTable(routingTable.build())
                 .metaData(metaData)
                 .build();
@@ -97,11 +98,11 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addMlConfigIndex(metaData, routingTable);
 
-        // mixed 6.5 and 6.6 nodes
+        Version prevVersion = VersionUtils.getPreviousVersion(Version.CURRENT);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_6_0))
-                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
+                        .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), prevVersion))
+                        .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.CURRENT)))
                 .routingTable(routingTable.build())
                 .metaData(metaData)
                 .build();
@@ -161,11 +162,11 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
 
 
     public void testJobIsEligibleForMigration_givenNodesNotUpToVersion() {
-        // mixed 6.5 and 6.6 nodes
+        Version prevVersion = VersionUtils.getPreviousVersion(Version.CURRENT);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .nodes(DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_5_0))
-                .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
+                .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), prevVersion))
+                .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.CURRENT)))
             .build();
 
         Settings settings = newSettings(true);
@@ -307,11 +308,11 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
     }
 
     public void testDatafeedIsEligibleForMigration_givenNodesNotUpToVersion() {
-        // mixed 6.5 and 6.6 nodes
+        Version prevVersion = VersionUtils.getPreviousVersion(Version.CURRENT);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .nodes(DiscoveryNodes.builder()
-                .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.V_6_5_0))
-                .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.V_6_6_0)))
+                .add(new DiscoveryNode("node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), prevVersion))
+                .add(new DiscoveryNode("node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301), Version.CURRENT)))
             .build();
 
         Settings settings = newSettings(true);

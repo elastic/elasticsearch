@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.restart;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -30,12 +29,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -128,10 +125,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     private void upgradedClusterTests() throws Exception {
-        // wait for the closed and open jobs and datafeed to be migrated
-        waitForMigration(Arrays.asList(OLD_CLUSTER_CLOSED_JOB_ID, OLD_CLUSTER_OPEN_JOB_ID),
-                Arrays.asList(OLD_CLUSTER_STOPPED_DATAFEED_ID, OLD_CLUSTER_STARTED_DATAFEED_ID));
-
         waitForJobToBeAssigned(OLD_CLUSTER_OPEN_JOB_ID);
         waitForDatafeedToBeAssigned(OLD_CLUSTER_STARTED_DATAFEED_ID);
         // The persistent task params for the job & datafeed left open
@@ -182,40 +175,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
     }
 
     @SuppressWarnings("unchecked")
-    private void waitForMigration(List<String> expectedMigratedJobs, List<String> expectedMigratedDatafeeds) throws Exception {
-
-        // After v6.6.0 jobs are created in the index so no migration will take place
-        if (getOldClusterVersion().onOrAfter(Version.V_6_6_0)) {
-            return;
-        }
-
-        assertBusy(() -> {
-            // wait for the eligible configs to be moved from the clusterstate
-            Request getClusterState = new Request("GET", "/_cluster/state/metadata");
-            Response response = client().performRequest(getClusterState);
-            Map<String, Object> responseMap = entityAsMap(response);
-
-            List<Map<String, Object>> jobs =
-                    (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.jobs", responseMap);
-
-            if (jobs != null) {
-                for (String jobId : expectedMigratedJobs) {
-                    assertJobNotPresent(jobId, jobs);
-                }
-            }
-
-            List<Map<String, Object>> datafeeds =
-                    (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.ml.datafeeds", responseMap);
-
-            if (datafeeds != null) {
-                for (String datafeedId : expectedMigratedDatafeeds) {
-                    assertDatafeedNotPresent(datafeedId, datafeeds);
-                }
-            }
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    @SuppressWarnings("unchecked")
     private void checkTaskParamsAreUpdated(String jobId, String datafeedId) throws Exception {
         Request getClusterState = new Request("GET", "/_cluster/state/metadata");
         Response response = client().performRequest(getClusterState);
@@ -238,18 +197,6 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                 assertNotNull(indices);
             }
         }
-    }
-
-    private void assertDatafeedNotPresent(String datafeedId, List<Map<String, Object>> datafeeds) {
-        Optional<Object> config = datafeeds.stream().map(map -> map.get("datafeed_id"))
-                .filter(id -> id.equals(datafeedId)).findFirst();
-        assertFalse(config.isPresent());
-    }
-
-    private void assertJobNotPresent(String jobId, List<Map<String, Object>> jobs) {
-        Optional<Object> config = jobs.stream().map(map -> map.get("job_id"))
-                .filter(id -> id.equals(jobId)).findFirst();
-        assertFalse(config.isPresent());
     }
 
     private void addAggregations(DatafeedConfig.Builder dfBuilder) {

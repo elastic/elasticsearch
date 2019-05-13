@@ -150,8 +150,6 @@ public class ClusterFormationFailureHelper {
 
             if (clusterState.getLastAcceptedConfiguration().isEmpty()) {
 
-                // TODO handle the case that there is a 6.x node around here, when rolling upgrades are supported
-
                 final String bootstrappingDescription;
 
                 if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
@@ -165,7 +163,7 @@ public class ClusterFormationFailureHelper {
 
                 return String.format(Locale.ROOT,
                     "master not discovered yet, this node has not previously joined a bootstrapped (v%d+) cluster, and %s: %s",
-                    Version.V_6_6_0.major + 1, bootstrappingDescription, discoveryStateIgnoringQuorum);
+                    Version.CURRENT.major + 1, bootstrappingDescription, discoveryStateIgnoringQuorum);
             }
 
             assert clusterState.getLastCommittedConfiguration().isEmpty() == false;

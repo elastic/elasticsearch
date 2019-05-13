@@ -96,26 +96,6 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
         assertThat(e.getMessage(), equalTo("Datafeed aggregations are not parsable"));
     }
 
-    public void testSerializationBetweenBugVersion() throws IOException {
-        AggProvider tempAggProvider = createRandomValidAggProvider();
-        AggProvider aggProviderWithEx = new AggProvider(tempAggProvider.getAggs(), tempAggProvider.getParsedAggs(), new IOException("ex"));
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_6_2);
-            aggProviderWithEx.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writableRegistry())) {
-                in.setVersion(Version.V_6_6_2);
-                AggProvider streamedAggProvider = AggProvider.fromStream(in);
-                assertThat(streamedAggProvider.getAggs(), equalTo(aggProviderWithEx.getAggs()));
-                assertThat(streamedAggProvider.getParsingException(), is(nullValue()));
-
-                AggregatorFactories.Builder streamedParsedAggs = XContentObjectTransformer.aggregatorTransformer(xContentRegistry())
-                    .fromMap(streamedAggProvider.getAggs());
-                assertThat(streamedParsedAggs, equalTo(aggProviderWithEx.getParsedAggs()));
-                assertThat(streamedAggProvider.getParsedAggs(), is(nullValue()));
-            }
-        }
-    }
-
     public void testSerializationBetweenEagerVersion() throws IOException {
         AggProvider validAggProvider = createRandomValidAggProvider();
 

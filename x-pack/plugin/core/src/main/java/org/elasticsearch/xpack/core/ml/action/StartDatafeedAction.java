@@ -195,10 +195,8 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
             startTime = in.readVLong();
             endTime = in.readOptionalLong();
             timeout = TimeValue.timeValueMillis(in.readVLong());
-            if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-                jobId = in.readOptionalString();
-                datafeedIndices = in.readStringList();
-            }
+            jobId = in.readOptionalString();
+            datafeedIndices = in.readStringList();
         }
 
         DatafeedParams() {
@@ -272,10 +270,8 @@ public class StartDatafeedAction extends Action<AcknowledgedResponse> {
             out.writeVLong(startTime);
             out.writeOptionalLong(endTime);
             out.writeVLong(timeout.millis());
-            if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-                out.writeOptionalString(jobId);
-                out.writeStringCollection(datafeedIndices);
-            }
+            out.writeOptionalString(jobId);
+            out.writeStringCollection(datafeedIndices);
         }
 
         @Override

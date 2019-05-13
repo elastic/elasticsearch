@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.indexing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -61,14 +60,12 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         this.numInputDocuments = in.readVLong();
         this.numOuputDocuments = in.readVLong();
         this.numInvocations = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            this.indexTime = in.readVLong();
-            this.searchTime = in.readVLong();
-            this.indexTotal = in.readVLong();
-            this.searchTotal = in.readVLong();
-            this.indexFailures = in.readVLong();
-            this.searchFailures = in.readVLong();
-        }
+        this.indexTime = in.readVLong();
+        this.searchTime = in.readVLong();
+        this.indexTotal = in.readVLong();
+        this.searchTotal = in.readVLong();
+        this.indexFailures = in.readVLong();
+        this.searchFailures = in.readVLong();
     }
 
     public long getNumPages() {
@@ -163,14 +160,12 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         out.writeVLong(numInputDocuments);
         out.writeVLong(numOuputDocuments);
         out.writeVLong(numInvocations);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeVLong(indexTime);
-            out.writeVLong(searchTime);
-            out.writeVLong(indexTotal);
-            out.writeVLong(searchTotal);
-            out.writeVLong(indexFailures);
-            out.writeVLong(searchFailures);
-        }
+        out.writeVLong(indexTime);
+        out.writeVLong(searchTime);
+        out.writeVLong(indexTotal);
+        out.writeVLong(searchTotal);
+        out.writeVLong(indexFailures);
+        out.writeVLong(searchFailures);
     }
 
     @Override

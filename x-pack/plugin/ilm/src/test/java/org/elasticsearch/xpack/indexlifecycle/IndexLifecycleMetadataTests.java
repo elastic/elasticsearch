@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.indexlifecycle.AllocateAction;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
 import org.elasticsearch.xpack.core.indexlifecycle.ForceMergeAction;
@@ -137,7 +138,8 @@ public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTe
     }
 
     public void testMinimumSupportedVersion() {
-        assertEquals(Version.V_6_6_0, createTestInstance().getMinimalSupportedVersion());
+        Version min = createTestInstance().getMinimalSupportedVersion();
+        assertTrue(min.onOrBefore(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT)));
     }
 
     public void testcontext() {

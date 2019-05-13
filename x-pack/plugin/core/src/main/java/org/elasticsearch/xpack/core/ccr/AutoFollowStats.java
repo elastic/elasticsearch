@@ -125,11 +125,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
             recentAutoFollowErrors = new TreeMap<>(in.readMap((Writeable.Reader<String>) StreamInput::readString,
                     (Writeable.Reader<Tuple<Long, ElasticsearchException>>) in1 -> new Tuple<>(-1L, in1.readException())));
         }
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            autoFollowedClusters = new TreeMap<>(in.readMap(StreamInput::readString, AutoFollowedCluster::new));
-        } else {
-            autoFollowedClusters = Collections.emptyNavigableMap();
-        }
+        autoFollowedClusters = new TreeMap<>(in.readMap(StreamInput::readString, AutoFollowedCluster::new));
     }
 
     @Override
@@ -145,9 +141,7 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         } else {
             out.writeMap(recentAutoFollowErrors, StreamOutput::writeString, (out1, value) -> out1.writeException(value.v2()));
         }
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeMap(autoFollowedClusters, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
-        }
+        out.writeMap(autoFollowedClusters, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
     }
 
     public long getNumberOfFailedFollowIndices() {

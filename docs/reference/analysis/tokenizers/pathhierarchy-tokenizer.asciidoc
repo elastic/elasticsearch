@@ -170,3 +170,9 @@ If we were to set `reverse` to `true`, it would produce the following:
 ---------------------------
 [ one/two/three/, two/three/, three/ ]
 ---------------------------
+
+[float]
+=== Detailed Examples
+See detailed  <<analysis-pathhierarchy-tokenizer-examples, examples here>>:: 
+
+include::tokenizers/pathhierarchy-tokenizer-examples.asciidoc[]

@@ -1,5 +1,5 @@
 [[analysis-pathhierarchy-tokenizer-examples]]
-=== Example tokenizing file paths
+=== Path Hierarchy Tokenizer Examples
 
 A common use-case for the `path_hierarchy` tokenizer is filtering results by 
 file paths. If indexing a file path along with the data, the use of the 

@@ -5,8 +5,8 @@
 showTables
 SHOW TABLES "ogc";
 
- name:s        | type:s
-ogc       |BASE TABLE
+ name:s        | type:s      | kind:s
+ogc            |BASE TABLE   |INDEX
 ;
 
 // DESCRIBE

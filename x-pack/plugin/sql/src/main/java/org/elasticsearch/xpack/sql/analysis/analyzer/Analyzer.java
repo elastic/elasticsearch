@@ -334,8 +334,11 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<Expression> groupings = a.groupings();
                     List<Expression> newGroupings = new ArrayList<>();
                     AttributeMap<Expression> resolved = Expressions.asAttributeMap(a.aggregates());
+                    //if all we're selecting are functions or literals, even if we're giving them aliases.
                     if(a.aggregates().stream().filter(s -> (s instanceof Literal) == false
-                        && (s instanceof Function) == false).collect(toSet()).isEmpty()){
+                        && (s instanceof Function) == false && (s.children().get(0) instanceof Literal) == false
+                        && (s.children().get(0) instanceof Function) == false)
+                        .collect(toSet()).isEmpty()){
                         resolved = Expressions.asAttributeMap(plan.inputSet().stream().map(NamedExpression.class::cast)
                             .collect(toList()));
                     }

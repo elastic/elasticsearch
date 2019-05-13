@@ -360,7 +360,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 queryC = withAgg.v1().addColumn(withAgg.v2().context(), af.toAttribute());
                             }
                         }
-                    // not an Alias or Function means it's an Attribute so apply the same logic as above
+                    // not an Alias or Function or Literal means it's an Attribute so apply the same logic as above
                     } else if(ne instanceof Literal == false){
                         GroupByKey matchingGroup = null;
                         if (groupingContext != null) {

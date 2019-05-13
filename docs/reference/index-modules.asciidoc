@@ -32,9 +32,15 @@ otherwise it is written in non-compound format.  added[0.90.2]
 
 [[index-compound-on-flush]]`index.compound_on_flush`::
 
-    Should a new segment (create by indexing, not by merging) be written
-    in compound format or non-compound format? Defaults to `true`.
-    added[0.90.4]. This is a dynamic setting. added[0.90.6,Previously not dynamic]
+Should a new segment (create by indexing, not by merging) be written
+in compound format or non-compound format? Defaults to `true`.
+ifdef::asciidoctor[]
+added:[0.90.4]. This is a dynamic setting. added:[0.90.6,Previously not dynamic]
+endif::[]
+ifndef::asciidoctor[]
+added[0.90.4]. This is a dynamic setting. added[0.90.6,Previously not dynamic]
+endif::[]
+
 
 `index.refresh_interval`::
 	A time setting controlling how often the

@@ -340,7 +340,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
 
         TimestampFormatFinder.TimestampFormat expectedPrimaryFormat =
             new TimestampFormatFinder.TimestampFormat(Collections.singletonList("??/??/yyyy HH:mm:ss"),
-                Pattern.compile("\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b"), "DATESTAMP", null, "");
+                Pattern.compile("\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b"), "DATESTAMP", Collections.emptyMap(), "");
 
         TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, false, NOOP_TIMEOUT_CHECKER);
 
@@ -672,7 +672,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
             NOOP_TIMEOUT_CHECKER);
         strictTimestampFormatFinder.addSample(text);
         assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
-        assertNull(strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
+        assertEquals(Collections.emptyMap(), strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
         assertEquals(expectedSimpleRegex, strictTimestampFormatFinder.getSimplePattern().pattern());
         assertEquals(Collections.singletonList(overrideFormat), strictTimestampFormatFinder.getJavaTimestampFormats());
         assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
@@ -682,7 +682,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         lenientTimestampFormatFinder.addSample(text);
         lenientTimestampFormatFinder.selectBestMatch();
         assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
-        assertNull(lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
+        assertEquals(Collections.emptyMap(), lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
         assertEquals(expectedSimpleRegex, lenientTimestampFormatFinder.getSimplePattern().pattern());
         assertEquals(Collections.singletonList(overrideFormat), lenientTimestampFormatFinder.getJavaTimestampFormats());
         assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());

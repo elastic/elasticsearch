@@ -340,8 +340,7 @@ public final class FileStructureUtils {
      * Create an ingest pipeline definition appropriate for the file structure.
      * @param grokPattern The Grok pattern used for parsing semi-structured text formats.  <code>null</code> for
      *                    fully structured formats.
-     * @param customGrokPatternDefinitions Custom timestamp Grok pattern definitions if {@code grokPattern} uses
-     *                                     them.  Otherwise <code>null</code>.
+     * @param customGrokPatternDefinitions The definitions for any custom patterns that {@code grokPattern} uses.
      * @param timestampField The input field containing the timestamp to be parsed into <code>@timestamp</code>.
      *                       <code>null</code> if there is no timestamp.
      * @param timestampFormats Timestamp formats to be used for parsing {@code timestampField}.
@@ -366,12 +365,12 @@ public final class FileStructureUtils {
             Map<String, Object> grokProcessorSettings = new LinkedHashMap<>();
             grokProcessorSettings.put("field", "message");
             grokProcessorSettings.put("patterns", Collections.singletonList(grokPattern));
-            if (customGrokPatternDefinitions != null && customGrokPatternDefinitions.isEmpty() == false) {
+            if (customGrokPatternDefinitions.isEmpty() == false) {
                 grokProcessorSettings.put("pattern_definitions", customGrokPatternDefinitions);
             }
             processors.add(Collections.singletonMap("grok", grokProcessorSettings));
         } else {
-            assert customGrokPatternDefinitions == null;
+            assert customGrokPatternDefinitions.isEmpty();
         }
 
         if (timestampField != null) {

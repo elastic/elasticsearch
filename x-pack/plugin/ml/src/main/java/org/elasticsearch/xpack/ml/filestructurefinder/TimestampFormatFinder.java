@@ -544,16 +544,15 @@ public final class TimestampFormatFinder {
 
     /**
      * Get the custom Grok pattern definitions derived from the override format, if any.
-     * @return The custom Grok pattern definitions for the selected timestamp format, or
-     *         <code>null</code> if there is none.
+     * @return The custom Grok pattern definitions for the selected timestamp format.
+     *         If there are none an empty map is returned.
      */
     public Map<String, String> getCustomGrokPatternDefinitions() {
         if (matchedFormats.isEmpty()) {
             // If errorOnNoTimestamp is set and we get here it means no samples have been added, which is likely a programmer mistake
             assert errorOnNoTimestamp == false;
-            return null;
+            return Collections.emptyMap();
         }
-        // This may be null
         return matchedFormats.get(0).customGrokPatternDefinitions;
     }
 
@@ -989,7 +988,7 @@ public final class TimestampFormatFinder {
             this.rawJavaTimestampFormats = Collections.unmodifiableList(rawJavaTimestampFormats);
             this.simplePattern = Objects.requireNonNull(simplePattern);
             this.grokPatternName = Objects.requireNonNull(grokPatternName);
-            this.customGrokPatternDefinitions = customGrokPatternDefinitions;
+            this.customGrokPatternDefinitions = Objects.requireNonNull(customGrokPatternDefinitions);
             this.prefacePunctuation = prefacePunctuation;
         }
 
@@ -1047,7 +1046,7 @@ public final class TimestampFormatFinder {
         public String toString() {
             return "Java timestamp formats = " + rawJavaTimestampFormats.stream().collect(Collectors.joining("', '", "[ '", "' ]"))
                 + ", simple pattern = '" + simplePattern.pattern() + "', grok pattern = '" + grokPatternName + "'"
-                + ((customGrokPatternDefinitions != null) ? ", custom grok pattern definitions = " + customGrokPatternDefinitions : "")
+                + (customGrokPatternDefinitions.isEmpty() ? "" : ", custom grok pattern definitions = " + customGrokPatternDefinitions)
                 + ", preface punctuation = '" + prefacePunctuation + "'";
         }
     }
@@ -1255,7 +1254,7 @@ public final class TimestampFormatFinder {
         Map<String, String> customGrokPatternDefinitions() {
             return CUSTOM_TIMESTAMP_GROK_NAME.equals(outputGrokPatternName)
                 ? Collections.singletonMap(CUSTOM_TIMESTAMP_GROK_NAME, strictGrokPattern)
-                : null;
+                : Collections.emptyMap();
         }
 
         static List<String> iso8601FormatFromExample(String example) {

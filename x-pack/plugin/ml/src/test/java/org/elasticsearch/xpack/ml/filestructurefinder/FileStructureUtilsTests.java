@@ -348,7 +348,7 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
 
     public void testMakeIngestPipelineDefinitionGivenStructuredWithoutTimestamp() {
 
-        assertNull(FileStructureUtils.makeIngestPipelineDefinition(null, null, null, null, false));
+        assertNull(FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), null, null, false));
     }
 
     @SuppressWarnings("unchecked")
@@ -359,8 +359,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
         boolean needClientTimezone = randomBoolean();
 
-        Map<String, Object> pipeline =
-            FileStructureUtils.makeIngestPipelineDefinition(null, null, timestampField, timestampFormats, needClientTimezone);
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(null, Collections.emptyMap(), timestampField,
+            timestampFormats, needClientTimezone);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
@@ -388,8 +388,8 @@ public class FileStructureUtilsTests extends FileStructureTestCase {
             Arrays.asList("EEE MMM dd HH:mm:ss yyyy", "EEE MMM  d HH:mm:ss yyyy"));
         boolean needClientTimezone = randomBoolean();
 
-        Map<String, Object> pipeline =
-            FileStructureUtils.makeIngestPipelineDefinition(grokPattern, null, timestampField, timestampFormats, needClientTimezone);
+        Map<String, Object> pipeline = FileStructureUtils.makeIngestPipelineDefinition(grokPattern, Collections.emptyMap(), timestampField,
+            timestampFormats, needClientTimezone);
         assertNotNull(pipeline);
 
         assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));

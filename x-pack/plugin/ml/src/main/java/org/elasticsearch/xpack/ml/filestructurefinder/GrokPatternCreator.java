@@ -133,8 +133,7 @@ public final class GrokPatternCreator {
      * @param sampleMessages Sample messages that any Grok pattern found must match.
      * @param mappings Will be updated with mappings appropriate for the returned pattern, if non-<code>null</code>.
      * @param fieldStats Will be updated with field stats for the fields in the returned pattern, if non-<code>null</code>.
-     * @param customGrokPatternDefinitions Custom Grok pattern definitions to add to the built-in ones.  May be
-     *                                     <code>null</code> if none are required.
+     * @param customGrokPatternDefinitions Custom Grok pattern definitions to add to the built-in ones.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      */
     public GrokPatternCreator(List<String> explanation, Collection<String> sampleMessages, Map<String, Object> mappings,
@@ -144,7 +143,7 @@ public final class GrokPatternCreator {
         this.sampleMessages = Collections.unmodifiableCollection(sampleMessages);
         this.mappings = mappings;
         this.fieldStats = fieldStats;
-        if (customGrokPatternDefinitions == null || customGrokPatternDefinitions.isEmpty()) {
+        if (customGrokPatternDefinitions.isEmpty()) {
             grokPatternDefinitions = Grok.getBuiltinPatterns();
         } else {
             grokPatternDefinitions = new HashMap<>(Grok.getBuiltinPatterns());

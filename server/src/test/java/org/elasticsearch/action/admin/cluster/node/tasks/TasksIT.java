@@ -364,7 +364,7 @@ public class TasksIT extends ESIntegTestCase {
         // the search operation should produce one main task
         List<TaskInfo> mainTask = findEvents(SearchAction.NAME, Tuple::v1);
         assertEquals(1, mainTask.size());
-        assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], types[doc], search_type["));
+        assertThat(mainTask.get(0).getDescription(), startsWith("indices[test], search_type["));
         assertThat(mainTask.get(0).getDescription(), containsString("\"query\":{\"match_all\""));
         assertTaskHeaders(mainTask.get(0));
 

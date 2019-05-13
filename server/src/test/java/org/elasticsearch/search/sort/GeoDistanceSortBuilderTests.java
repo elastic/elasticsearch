@@ -251,7 +251,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"nested\" : {\n" +
                 "      \"filter\" : {\n" +
                 "        \"ids\" : {\n" +
-                "          \"type\" : [ ],\n" +
                 "          \"values\" : [ ],\n" +
                 "          \"boost\" : 5.711116\n" +
                 "        }\n" +

@@ -59,7 +59,6 @@ final class RemoteRequestBuilders {
         // It is nasty to build paths with StringBuilder but we'll be careful....
         StringBuilder path = new StringBuilder("/");
         addIndices(path, searchRequest.indices());
-        addTypes(path, searchRequest.types());
         path.append("_search");
         Request request = new Request("POST", path.toString());
 
@@ -176,16 +175,6 @@ final class RemoteRequestBuilders {
         } catch (UnsupportedEncodingException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private static void addTypes(StringBuilder path, String[] types) {
-        if (types == null || types.length == 0) {
-            return;
-        }
-        for (String indexOrType : types) {
-            checkIndexOrType("Type", indexOrType);
-        }
-        path.append(Strings.arrayToCommaDelimitedString(types)).append('/');
     }
 
     private static void checkIndexOrType(String name, String indexOrType) {

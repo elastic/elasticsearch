@@ -181,7 +181,6 @@ final class DefaultSearchContext extends SearchContext {
         this.minNodeVersion = minNodeVersion;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis,
             shardTarget.getClusterAlias());
-        queryShardContext.setTypes(request.types());
         queryBoost = request.indexBoost();
     }
 

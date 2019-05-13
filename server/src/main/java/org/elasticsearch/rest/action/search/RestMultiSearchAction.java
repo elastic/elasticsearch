@@ -134,7 +134,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final Tuple<XContentType, BytesReference> sourceTuple = request.contentOrSourceParam();
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
-        MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, Strings.EMPTY_ARRAY, routing,
+        MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing,
                 searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex);
     }
 

@@ -18,15 +18,10 @@
  */
 package org.elasticsearch.index.mapper;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
-
 import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
+
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -42,6 +37,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 
 public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
@@ -82,7 +83,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         // searching for either of the terms should return both results since they collate to the same value
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -122,7 +122,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         // using sort mode = max, values B and C will be used for the sort
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", "a"))
@@ -139,7 +138,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         // same thing, using different sort mode that will use a for both docs
         request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", "a"))
@@ -183,7 +181,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
         // searching for either of the terms should return both results since they collate to the same value
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -225,7 +222,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -268,7 +264,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))
@@ -312,7 +307,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
@@ -352,7 +346,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
@@ -394,7 +387,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
@@ -435,7 +427,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .sort("collate", SortOrder.ASC)
@@ -487,7 +478,6 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         SearchRequest request = new SearchRequest()
             .indices(index)
-            .types(type)
             .source(new SearchSourceBuilder()
                 .fetchSource(false)
                 .query(QueryBuilders.termQuery("collate", randomBoolean() ? equivalent[0] : equivalent[1]))

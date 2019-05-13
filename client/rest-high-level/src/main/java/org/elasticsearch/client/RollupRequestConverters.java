@@ -95,16 +95,6 @@ final class RollupRequestConverters {
     }
 
     static Request search(final SearchRequest request) throws IOException {
-        if (request.types().length > 0) {
-            /*
-             * Ideally we'd check this with the standard validation framework
-             * but we don't have a special request for rollup search so that'd
-             * be difficult. 
-             */
-            ValidationException ve = new ValidationException();
-            ve.addValidationError("types are not allowed in rollup search");
-            throw ve;
-        }
         return RequestConverters.search(request, "_rollup_search");
     }
 

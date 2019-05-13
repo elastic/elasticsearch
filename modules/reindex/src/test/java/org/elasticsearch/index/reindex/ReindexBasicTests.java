@@ -109,7 +109,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.source().setSize(5);
         assertThat(copy.get(), matcher().created(max).batches(greaterThanOrEqualTo(max / 5)).slices(hasSize(expectedSlices)));
-        assertHitCount(client().prepareSearch("dest").setTypes("type").setSize(0).get(), max);
+        assertHitCount(client().prepareSearch("dest").setSize(0).get(), max);
 
         // Copy some of the docs
         int half = max / 2;

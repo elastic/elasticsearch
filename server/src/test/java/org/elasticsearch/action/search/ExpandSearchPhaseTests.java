@@ -87,7 +87,6 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                         assertThat(groupBuilder.must(), Matchers.contains(QueryBuilders.termQuery("foo", "bar")));
                     }
                     assertArrayEquals(mockSearchPhaseContext.getRequest().indices(), searchRequest.indices());
-                    assertArrayEquals(mockSearchPhaseContext.getRequest().types(), searchRequest.types());
 
 
                     List<MultiSearchResponse.Item> mSearchResponses = new ArrayList<>(numInnerHits);

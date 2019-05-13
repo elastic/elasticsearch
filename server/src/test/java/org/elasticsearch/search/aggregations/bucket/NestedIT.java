@@ -414,7 +414,7 @@ public class NestedIT extends ESIntegTestCase {
                         "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
         indexRandom(true, indexRequests);
 
-        SearchResponse response = client().prepareSearch("idx2").setTypes("provider")
+        SearchResponse response = client().prepareSearch("idx2")
                 .addAggregation(
                         terms("startDate").field("dates.month.start").subAggregation(
                                 terms("endDate").field("dates.month.end").subAggregation(
@@ -499,7 +499,7 @@ public class NestedIT extends ESIntegTestCase {
                 .endObject()).get();
         refresh();
 
-        SearchResponse response = client().prepareSearch("idx4").setTypes("product")
+        SearchResponse response = client().prepareSearch("idx4")
                 .addAggregation(terms("category").field("categories").subAggregation(
                         nested("property", "property").subAggregation(
                                 terms("property_id").field("property.id")

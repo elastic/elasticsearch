@@ -59,17 +59,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     * @deprecated Types are going away, prefer filtering on a field.
-     */
-    @Deprecated
-    public SearchRequestBuilder setTypes(String... types) {
-        request.types(types);
-        return this;
-    }
-
-    /**
      * The search type to execute, defaults to {@link org.elasticsearch.action.search.SearchType#DEFAULT}.
      */
     public SearchRequestBuilder setSearchType(SearchType searchType) {

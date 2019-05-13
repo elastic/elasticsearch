@@ -14,8 +14,8 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.xpack.core.security.SecurityField;
 import org.junit.After;
 import org.junit.Before;
 
@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -75,7 +75,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         MultiSearchRequestBuilder multiSearchRequestBuilder = client().prepareMultiSearch();
         int count = randomIntBetween(5, 15);
         for (int i = 0; i < count; i++) {
-            multiSearchRequestBuilder.add(client().prepareSearch("index").setTypes("type").setScroll("10m").setSize(1));
+            multiSearchRequestBuilder.add(client().prepareSearch("index").setScroll("10m").setSize(1));
         }
         MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
         scrollIds = getScrollIds(multiSearchResponse);

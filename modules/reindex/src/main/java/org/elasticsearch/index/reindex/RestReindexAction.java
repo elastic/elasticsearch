@@ -69,11 +69,6 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             if (indices != null) {
                 request.getSearchRequest().indices(indices);
             }
-            String[] types = extractStringArray(source, "type");
-            if (types != null) {
-                deprecationLogger.deprecatedAndMaybeLog("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
-                request.getSearchRequest().types(types);
-            }
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);

@@ -21,7 +21,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -57,7 +56,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testThatCustomHighlightersAreSupported() throws IOException {
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom"))
                 .get();
@@ -71,7 +70,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         options.put("myFieldOption", "someValue");
         highlightConfig.options(options);
 
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .highlighter(new HighlightBuilder().field(highlightConfig))
                 .get();
@@ -84,7 +83,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         Map<String, Object> options = new HashMap<>();
         options.put("myGlobalOption", "someValue");
 
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .highlighter(new HighlightBuilder().field("name").highlighterType("test-custom").options(options))
                 .get();
 
@@ -93,7 +92,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testThatCustomHighlighterReceivesFieldsInOrder() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).should(QueryBuilders
                         .termQuery("name", "arbitrary")))
                 .highlighter(

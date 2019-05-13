@@ -206,7 +206,6 @@ public class MockClientBuilder {
     @SuppressWarnings("unchecked")
     public MockClientBuilder prepareSearchExecuteListener(String index, SearchResponse response) {
         SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
-        when(builder.setTypes(anyString())).thenReturn(builder);
         when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
         when(builder.setFetchSource(anyBoolean())).thenReturn(builder);
         when(builder.setScroll(anyString())).thenReturn(builder);
@@ -250,10 +249,9 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareSearch(String index, String type, int from, int size, SearchResponse response,
+    public MockClientBuilder prepareSearch(String index, int from, int size, SearchResponse response,
             ArgumentCaptor<QueryBuilder> filter) {
         SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
-        when(builder.setTypes(eq(type))).thenReturn(builder);
         when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
         when(builder.setQuery(filter.capture())).thenReturn(builder);
         when(builder.setPostFilter(filter.capture())).thenReturn(builder);

@@ -161,7 +161,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             // Note: we can't apply any query rewriting or filtering on the query because there
             // are no validated caps, so we have no idea what job is intended here.  The only thing
             // this affects is doc count, since hits and aggs will both be empty it doesn't really matter.
-            msearch.add(new SearchRequest(context.getRollupIndices(), request.source()).types(request.types()));
+            msearch.add(new SearchRequest(context.getRollupIndices(), request.source()));
             return msearch;
         }
 
@@ -208,7 +208,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         new long[]{Rollup.ROLLUP_VERSION_V1, Rollup.ROLLUP_VERSION_V2})));
 
             // And add a new msearch per JobID
-            msearch.add(new SearchRequest(context.getRollupIndices(), copiedSource).types(request.types()));
+            msearch.add(new SearchRequest(context.getRollupIndices(), copiedSource));
         }
 
         return msearch;

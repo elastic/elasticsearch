@@ -113,11 +113,6 @@ public class SliceBuilderTests extends ESTestCase {
         }
 
         @Override
-        public String[] types() {
-            return new String[0];
-        }
-
-        @Override
         public SearchSourceBuilder source() {
             return null;
         }

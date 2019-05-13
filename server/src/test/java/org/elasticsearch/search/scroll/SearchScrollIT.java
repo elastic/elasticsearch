@@ -496,7 +496,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
-                .setTypes("test")
+
                 .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_last"))
                 .setScroll("1m")
                 .get();
@@ -509,7 +509,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertNoSearchHits(response);
 
         response = client().prepareSearch("test")
-                .setTypes("test")
+
                 .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_first"))
                 .setScroll("1m")
                 .get();

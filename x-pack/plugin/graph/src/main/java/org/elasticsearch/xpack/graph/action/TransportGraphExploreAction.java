@@ -181,7 +181,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
             currentHopNumber++;
             Hop currentHop = request.getHop(currentHopNumber);
 
-            final SearchRequest searchRequest = new SearchRequest(request.indices()).types(request.types()).indicesOptions(
+            final SearchRequest searchRequest = new SearchRequest(request.indices()).indicesOptions(
                     request.indicesOptions());
             if (request.routing() != null) {
                 searchRequest.routing(request.routing());
@@ -568,7 +568,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
         public synchronized void start() {
             try {
 
-                final SearchRequest searchRequest = new SearchRequest(request.indices()).types(request.types()).indicesOptions(
+                final SearchRequest searchRequest = new SearchRequest(request.indices()).indicesOptions(
                         request.indicesOptions());
                 if (request.routing() != null) {
                     searchRequest.routing(request.routing());

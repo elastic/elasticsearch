@@ -359,7 +359,7 @@ public class TasksIT extends ESIntegTestCase {
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
         assertSearchResponse(
-            client().filterWithHeader(headers).prepareSearch("test").setTypes("doc").setQuery(QueryBuilders.matchAllQuery()).get());
+                client().filterWithHeader(headers).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).get());
 
         // the search operation should produce one main task
         List<TaskInfo> mainTask = findEvents(SearchAction.NAME, Tuple::v1);
@@ -752,13 +752,12 @@ public class TasksIT extends ESIntegTestCase {
         assertNoFailures(client().admin().indices().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
         SearchResponse searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
-            .setTypes(TaskResultsService.TASK_TYPE)
             .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.getAction())))
             .get();
 
         assertEquals(1L, searchResponse.getHits().getTotalHits().value);
 
-        searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX).setTypes(TaskResultsService.TASK_TYPE)
+        searchResponse = client().prepareSearch(TaskResultsService.TASK_INDEX)
                 .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.getTaskId().getNodeId())))
                 .get();
 

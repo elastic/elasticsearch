@@ -265,9 +265,40 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
     }
 
-    public void testCreateGrokPatternFromExamplesGivenMultiTimestampLogsAndCustomDefintion() {
+    public void testCreateGrokPatternFromExamplesGivenMultiTimestampLogsAndIndeterminateFormat() {
 
-        // Two timestamps: one local, one UTC
+        // Two timestamps: one ISO8601, one indeterminate day/month
+        Collection<String> sampleMessages = Arrays.asList(
+            "559550912540598297\t2016-04-20T14:06:53\t20/04/2016 21:06:53,123456\t38545844\tserv02nw07\t192.168.114.28\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp",
+            "559550912548986880\t2016-04-20T14:06:53\t20/04/2016 21:06:53,123456\t9049724\tserv02nw03\t10.120.48.147\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp",
+            "559550912548986887\t2016-04-20T14:06:53\t20/04/2016 21:06:53,123456\t884343\tserv02tw03\t192.168.121.189\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp",
+            "559550912603512850\t2016-04-20T14:06:53\t20/04/2016 21:06:53,123456\t8907014\tserv02nw01\t192.168.118.208\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp");
+
+        Map<String, Object> mappings = new HashMap<>();
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null, Collections.emptyMap(),
+            NOOP_TIMEOUT_CHECKER);
+
+        assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:timestamp}\\t%{DATESTAMP:extra_timestamp}\\t%{INT:field2}\\t.*?\\t" +
+                "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
+            grokPatternCreator.createGrokPatternFromExamples("TIMESTAMP_ISO8601", "timestamp"));
+        assertEquals(5, mappings.size());
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
+        Map<String, String> expectedDateMapping = new HashMap<>();
+        expectedDateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
+        expectedDateMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "dd/MM/yyyy HH:mm:ss,SSSSSS");
+        assertEquals(expectedDateMapping, mappings.get("extra_timestamp"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
+    }
+
+    public void testCreateGrokPatternFromExamplesGivenMultiTimestampLogsAndCustomDefinition() {
+
+        // Two timestamps: one custom, one built in
         Collection<String> sampleMessages = Arrays.asList(
             "559550912540598297\t4/20/2016 2:06PM\t2016-04-20T21:06:53Z\t38545844\tserv02nw07\t192.168.114.28\tAuthpriv\t" +
                 "Info\tsshd\tsubsystem request for sftp",
@@ -292,6 +323,34 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
         expectedDateMapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, "date");
         expectedDateMapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, "iso8601");
         assertEquals(expectedDateMapping, mappings.get("extra_timestamp"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
+    }
+
+    public void testCreateGrokPatternFromExamplesGivenTimestampAndTimeWithoutDate() {
+
+        // Two timestamps: one with date, one without
+        Collection<String> sampleMessages = Arrays.asList(
+            "559550912540598297\t2016-04-20T14:06:53\t21:06:53.123456\t38545844\tserv02nw07\t192.168.114.28\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp",
+            "559550912548986880\t2016-04-20T14:06:53\t21:06:53.123456\t9049724\tserv02nw03\t10.120.48.147\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp",
+            "559550912548986887\t2016-04-20T14:06:53\t21:06:53.123456\t884343\tserv02tw03\t192.168.121.189\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp",
+            "559550912603512850\t2016-04-20T14:06:53\t21:06:53.123456\t8907014\tserv02nw01\t192.168.118.208\tAuthpriv\t" +
+                "Info\tsshd\tsubsystem request for sftp");
+
+        Map<String, Object> mappings = new HashMap<>();
+        GrokPatternCreator grokPatternCreator = new GrokPatternCreator(explanation, sampleMessages, mappings, null, Collections.emptyMap(),
+            NOOP_TIMEOUT_CHECKER);
+
+        assertEquals("%{INT:field}\\t%{TIMESTAMP_ISO8601:timestamp}\\t%{TIME:time}\\t%{INT:field2}\\t.*?\\t" +
+                "%{IP:ipaddress}\\t.*?\\t%{LOGLEVEL:loglevel}\\t.*",
+            grokPatternCreator.createGrokPatternFromExamples("TIMESTAMP_ISO8601", "timestamp"));
+        assertEquals(5, mappings.size());
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field"));
+        assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("time"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "long"), mappings.get("field2"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "ip"), mappings.get("ipaddress"));
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("loglevel"));
@@ -412,7 +471,7 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
         assertEquals(Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword"), mappings.get("message"));
     }
 
-    public void testValidateFullLineGrokPatternGivenValidAndCustomDefintion() {
+    public void testValidateFullLineGrokPatternGivenValidAndCustomDefinition() {
 
         String timestampField = "local_timestamp";
         String grokPattern = "%{INT:serial_no}\\t%{CUSTOM_TIMESTAMP:local_timestamp}\\t%{TIMESTAMP_ISO8601:utc_timestamp}\\t" +

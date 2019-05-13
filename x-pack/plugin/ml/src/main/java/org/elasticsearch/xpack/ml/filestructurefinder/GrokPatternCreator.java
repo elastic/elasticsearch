@@ -76,10 +76,12 @@ public final class GrokPatternCreator {
         new ValueOnlyGrokPatternCandidate("DATESTAMP_RFC2822", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("DATESTAMP_OTHER", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("DATESTAMP_EVENTLOG", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("HTTPDERROR_DATE", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("SYSLOGTIMESTAMP", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("HTTPDATE", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("CATALINA_DATESTAMP", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("CISCOTIMESTAMP", "date", "extra_timestamp"),
+        new ValueOnlyGrokPatternCandidate("DATESTAMP", "date", "extra_timestamp"),
         new ValueOnlyGrokPatternCandidate("LOGLEVEL", "keyword", "loglevel"),
         new ValueOnlyGrokPatternCandidate("URI", "keyword", "uri"),
         new ValueOnlyGrokPatternCandidate("UUID", "keyword", "uuid"),
@@ -90,7 +92,8 @@ public final class GrokPatternCreator {
         // TODO: would be nice to have IPORHOST here, but HOSTNAME matches almost all words
         new ValueOnlyGrokPatternCandidate("IP", "ip", "ipaddress"),
         new ValueOnlyGrokPatternCandidate("DATE", "date", "date"),
-        new ValueOnlyGrokPatternCandidate("TIME", "date", "time"),
+        // A time with no date cannot be stored in a field of type "date", hence "keyword"
+        new ValueOnlyGrokPatternCandidate("TIME", "keyword", "time"),
         // This already includes pre/post break conditions
         new ValueOnlyGrokPatternCandidate("QUOTEDSTRING", "keyword", "field", "", ""),
         // Disallow +, - and . before numbers, as well as "word" characters, otherwise we'll pick

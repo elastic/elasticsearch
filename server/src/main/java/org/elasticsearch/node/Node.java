@@ -378,7 +378,6 @@ public class Node implements Closeable {
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
-            resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
@@ -844,8 +843,6 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("node_environment"));
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
-        toClose.add(() -> stopWatch.stop().start("page_cache_recycler"));
-        toClose.add(injector.getInstance(PageCacheRecycler.class));
         toClose.add(stopWatch::stop);
 
         if (logger.isTraceEnabled()) {

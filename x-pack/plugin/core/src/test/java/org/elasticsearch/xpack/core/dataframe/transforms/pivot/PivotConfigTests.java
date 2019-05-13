@@ -24,11 +24,15 @@ import static org.hamcrest.Matchers.empty;
 public class PivotConfigTests extends AbstractSerializingDataFrameTestCase<PivotConfig> {
 
     public static PivotConfig randomPivotConfig() {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(),
+            AggregationConfigTests.randomAggregationConfig(),
+            randomBoolean() ? null : randomIntBetween(10, 10_000));
     }
 
     public static PivotConfig randomInvalidPivotConfig() {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomInvalidAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(),
+            AggregationConfigTests.randomInvalidAggregationConfig(),
+            randomBoolean() ? null : randomIntBetween(10, 10_000));
     }
 
     @Override

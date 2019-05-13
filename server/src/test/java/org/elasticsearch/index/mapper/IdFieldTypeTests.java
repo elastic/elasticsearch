@@ -28,9 +28,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.mockito.Mockito;
 
-import java.util.Collection;
-import java.util.Collections;
-
 public class IdFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
@@ -58,8 +55,6 @@ public class IdFieldTypeTests extends FieldTypeTestCase {
         Mockito.when(context.indexVersionCreated()).thenReturn(indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null));
 
         MapperService mapperService = Mockito.mock(MapperService.class);
-        Collection<String> types = Collections.emptySet();
-        Mockito.when(context.queryTypes()).thenReturn(types);
         Mockito.when(context.getMapperService()).thenReturn(mapperService);
 
         MappedFieldType ft = IdFieldMapper.defaultFieldType(mockSettings);
@@ -67,8 +62,6 @@ public class IdFieldTypeTests extends FieldTypeTestCase {
         Query query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
 
-        types = Collections.singleton("type");
-        Mockito.when(context.queryTypes()).thenReturn(types);
         query = ft.termQuery("id", context);
         assertEquals(new TermInSetQuery("_id", Uid.encodeId("id")), query);
     }

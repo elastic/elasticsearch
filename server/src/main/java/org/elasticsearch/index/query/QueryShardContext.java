@@ -31,7 +31,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -57,9 +56,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -84,18 +81,9 @@ public class QueryShardContext extends QueryRewriteContext {
     private final BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
     private final IndexReader reader;
-    private String[] types = Strings.EMPTY_ARRAY;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private final Index fullyQualifiedIndex;
-
-    public void setTypes(String... types) {
-        this.types = types;
-    }
-
-    public String[] getTypes() {
-        return types;
-    }
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private boolean allowUnmappedFields;
@@ -116,7 +104,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
                 source.similarityService, source.scriptService, source.getXContentRegistry(), source.getWriteableRegistry(),
                 source.client, source.reader, source.nowInMillis, source.fullyQualifiedIndex);
-        this.types = source.getTypes();
     }
 
     private QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
@@ -256,24 +243,12 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
-    /**
-     * Returns the narrowed down explicit types, or, if not set, all types.
-     */
-    public Collection<String> queryTypes() {
-        String[] types = getTypes();
-        if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = getMapperService().documentMapper();
-            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
-        }
-        return Arrays.asList(types);
-    }
-
     private SearchLookup lookup = null;
 
     public SearchLookup lookup() {
         if (lookup == null) {
             lookup = new SearchLookup(getMapperService(),
-                mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndex.getName()), types);
+                    mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndex.getName()));
         }
         return lookup;
     }

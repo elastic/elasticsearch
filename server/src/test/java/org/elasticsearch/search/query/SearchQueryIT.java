@@ -490,16 +490,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
-        // no type
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().addIds("1", "3"))).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "3");
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "3")).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "3");
-
-        // no type
         searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "3")).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");

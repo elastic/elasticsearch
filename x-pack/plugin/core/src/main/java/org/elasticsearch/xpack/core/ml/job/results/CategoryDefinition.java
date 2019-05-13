@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -78,9 +77,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         regex = in.readString();
         maxMatchingLength = in.readLong();
         examples = new TreeSet<>(in.readStringList());
-        if (in.getVersion().onOrAfter(Version.V_6_4_0)) {
-            grokPattern = in.readOptionalString();
-        }
+        grokPattern = in.readOptionalString();
     }
 
     @Override
@@ -91,9 +88,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         out.writeString(regex);
         out.writeLong(maxMatchingLength);
         out.writeStringCollection(examples);
-        if (out.getVersion().onOrAfter(Version.V_6_4_0)) {
-            out.writeOptionalString(grokPattern);
-        }
+        out.writeOptionalString(grokPattern);
     }
 
     public String getJobId() {

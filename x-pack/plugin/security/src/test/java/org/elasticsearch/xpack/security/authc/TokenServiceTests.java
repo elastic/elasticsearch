@@ -44,6 +44,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -144,6 +145,7 @@ public class TokenServiceTests extends ESTestCase {
         // developments
         if (randomBoolean()) {
             oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
+            oldNode = addAnotherDataNodeWithVersion(this.clusterService, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_1_0));
         }
     }
 

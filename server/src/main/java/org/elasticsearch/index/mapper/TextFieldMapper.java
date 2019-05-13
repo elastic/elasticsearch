@@ -54,7 +54,6 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -193,15 +192,11 @@ public class TextFieldMapper extends FieldMapper {
                 }
                 // Copy the index options of the main field to allow phrase queries on
                 // the prefix field.
-                if (context.indexCreatedVersion().onOrAfter(Version.V_6_4_0)) {
-                    if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
-                        // frequencies are not needed because prefix queries always use a constant score
-                        prefixFieldType.setIndexOptions(IndexOptions.DOCS);
-                    } else {
-                        prefixFieldType.setIndexOptions(fieldType.indexOptions());
-                    }
-                } else if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                    prefixFieldType.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+                if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS) {
+                    // frequencies are not needed because prefix queries always use a constant score
+                    prefixFieldType.setIndexOptions(IndexOptions.DOCS);
+                } else {
+                    prefixFieldType.setIndexOptions(fieldType.indexOptions());
                 }
                 if (fieldType.storeTermVectorOffsets()) {
                     prefixFieldType.setStoreTermVectorOffsets(true);

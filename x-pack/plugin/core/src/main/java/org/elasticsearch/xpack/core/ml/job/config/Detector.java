@@ -246,11 +246,7 @@ public class Detector implements ToXContentObject, Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(DetectionRule.VERSION_INTRODUCED)) {
-            out.writeList(rules);
-        } else {
-            out.writeList(Collections.emptyList());
-        }
+        out.writeList(rules);
         out.writeInt(detectorIndex);
     }
 

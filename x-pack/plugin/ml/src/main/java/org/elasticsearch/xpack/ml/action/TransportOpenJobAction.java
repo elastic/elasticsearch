@@ -182,14 +182,6 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                 continue;
             }
 
-            if (jobHasRules(job) && node.getVersion().before(DetectionRule.VERSION_INTRODUCED)) {
-                String reason = "Not opening job [" + jobId + "] on node [" + nodeNameAndVersion(node) + "], because jobs using " +
-                        "custom_rules require a node of version [" + DetectionRule.VERSION_INTRODUCED + "] or higher";
-                logger.trace(reason);
-                reasons.add(reason);
-                continue;
-            }
-
             long numberOfAssignedJobs = 0;
             int numberOfAllocatingJobs = 0;
             long assignedJobMemory = 0;

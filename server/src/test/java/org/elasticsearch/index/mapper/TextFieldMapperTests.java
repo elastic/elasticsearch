@@ -670,11 +670,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
-            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
-                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
-            } else {
-                assertEquals(IndexOptions.DOCS, ft.indexOptions());
-            }
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertFalse(ft.storeTermVectors());
         }
 
@@ -691,11 +687,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
-            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
-                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
-            } else {
-                assertEquals(IndexOptions.DOCS, ft.indexOptions());
-            }
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertTrue(ft.storeTermVectorOffsets());
         }
 
@@ -712,11 +704,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
             FieldMapper prefix = (FieldMapper) mapper.mappers().getMapper("field._index_prefix");
             FieldType ft = prefix.fieldType;
-            if (indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_4_0)) {
-                assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
-            } else {
-                assertEquals(IndexOptions.DOCS, ft.indexOptions());
-            }
+            assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS, ft.indexOptions());
             assertFalse(ft.storeTermVectorOffsets());
         }
     }

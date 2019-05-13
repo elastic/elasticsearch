@@ -100,8 +100,8 @@ public class JoinTaskExecutorTests extends ESTestCase {
             });
         }
 
-        if (minNodeVersion.onOrAfter(Version.V_7_0_0)) {
-            Version oldMajor = Version.V_6_4_0.minimumCompatibilityVersion();
+        if (minNodeVersion.onOrAfter(Version.V_8_0_0)) {
+            Version oldMajor = Version.V_7_2_0.minimumCompatibilityVersion();
             expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
         }
 

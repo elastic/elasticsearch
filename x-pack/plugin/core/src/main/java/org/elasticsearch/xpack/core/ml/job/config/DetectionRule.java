@@ -26,8 +26,6 @@ import java.util.Set;
 
 public class DetectionRule implements ToXContentObject, Writeable {
 
-    public static final Version VERSION_INTRODUCED = Version.V_6_4_0;
-
     public static final ParseField DETECTION_RULE_FIELD = new ParseField("detection_rule");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
     public static final ParseField SCOPE_FIELD = new ParseField("scope");

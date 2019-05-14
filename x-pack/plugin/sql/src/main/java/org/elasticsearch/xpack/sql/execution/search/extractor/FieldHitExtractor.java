@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
@@ -128,11 +132,29 @@ public class FieldHitExtractor implements HitExtractor {
             if (list.isEmpty()) {
                 return null;
             } else {
-                if (arrayLeniency || list.size() == 1) {
-                    return unwrapMultiValue(list.get(0));
-                } else {
-                    throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                // let's make sure first that we are not dealing with an geo_point represented as an array
+                if (isGeoPointArray(list) == false) {
+                    if (list.size() == 1 || arrayLeniency) {
+                        return unwrapMultiValue(list.get(0));
+                    } else {
+                        throw new SqlIllegalArgumentException("Arrays (returned by [{}]) are not supported", fieldName);
+                    }
                 }
+            }
+        }
+        if (dataType == DataType.GEO_POINT) {
+            try {
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(values, true);
+                return new GeoShape(geoPoint.lon(), geoPoint.lat());
+            } catch (ElasticsearchParseException ex) {
+                throw new SqlIllegalArgumentException("Cannot parse geo_point value [{}] (returned by [{}])", values, fieldName);
+            }
+        }
+        if (dataType == DataType.GEO_SHAPE) {
+            try {
+                return new GeoShape(values);
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Cannot read geo_shape value [{}] (returned by [{}])", values, fieldName);
             }
         }
         if (values instanceof Map) {
@@ -147,6 +169,17 @@ public class FieldHitExtractor implements HitExtractor {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);
+    }
+
+    private boolean isGeoPointArray(List<?> list) {
+        if (dataType != DataType.GEO_POINT) {
+            return false;
+        }
+        // we expect the point in [lon lat] or [lon lat alt] formats
+        if (list.size() > 3 || list.size() < 1) {
+            return false;
+        }
+        return list.get(0) instanceof Number;
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -173,7 +206,9 @@ public class FieldHitExtractor implements HitExtractor {
                 
                 if (node instanceof List) {
                     List listOfValues = (List) node;
-                    if (listOfValues.size() == 1 || arrayLeniency) {
+                    // we can only do this optimization until the last element of our pass since geo points are using arrays
+                    // and we don't want to blindly ignore the second element of array if arrayLeniency is enabled
+                    if ((i < path.length - 1) && (listOfValues.size() == 1 || arrayLeniency)) {
                         // this is a List with a size of 1 e.g.: {"a" : [{"b" : "value"}]} meaning the JSON is a list with one element
                         // or a list of values with one element e.g.: {"a": {"b" : ["value"]}}
                         // in case of being lenient about arrays, just extract the first value in the array

@@ -16,6 +16,7 @@ ext {
     // SQL test dependency versions
     csvjdbcVersion="1.0.34"
     h2Version="1.4.197"
+    h2gisVersion="1.5.0"
 }
 
 configurations {

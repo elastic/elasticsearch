@@ -19,6 +19,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -61,35 +63,57 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final String application = request.param("application");
+        final String scope = request.param("application");
         final String[] privileges = request.paramAsStringArray("privilege", Strings.EMPTY_ARRAY);
 
-        return channel -> new SecurityClient(client).prepareGetPrivileges(application, privileges)
-                .execute(new RestBuilderListener<GetPrivilegesResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                        final Map<String, Set<ApplicationPrivilegeDescriptor>> privsByApp = groupByApplicationName(response.privileges());
-                        builder.startObject();
-                        for (String app : privsByApp.keySet()) {
-                            builder.startObject(app);
-                            for (ApplicationPrivilegeDescriptor privilege : privsByApp.get(app)) {
-                                builder.field(privilege.getName(), privilege);
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
+        final GetPrivilegesRequestBuilder requestBuilder = new SecurityClient(client).prepareGetPrivileges();
+        // Application names cannot start with `_`, so we use this for built-in names
+        if ("_cluster".equals(scope)) {
+            requestBuilder.privilegeTypes(GetPrivilegesRequest.PrivilegeType.CLUSTER);
+        } else if ("_index".equals(scope)) {
+            requestBuilder.privilegeTypes(GetPrivilegesRequest.PrivilegeType.INDEX);
+        } else if ("_application".equals(scope)) {
+            requestBuilder.privilegeTypes(GetPrivilegesRequest.PrivilegeType.APPLICATION);
+        } else if (Strings.hasText(scope)) {
+            requestBuilder.privilegeTypes(GetPrivilegesRequest.PrivilegeType.APPLICATION).application(scope).privileges(privileges);
+        }
 
-                        // if the user asked for specific privileges, but none of them were found
-                        // we'll return an empty result and 404 status code
-                        if (privileges.length != 0 && response.privileges().length == 0) {
-                            return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
-                        }
+        return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
+            @Override
+            public RestResponse buildResponse(GetPrivilegesResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
 
-                        // either the user asked for all privileges, or at least one of the privileges
-                        // was found
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                outputArrayIfExists(builder, "_cluster", response.getClusterPrivileges());
+                outputArrayIfExists(builder, "_index", response.getIndexPrivileges());
+
+                final Map<String, Set<ApplicationPrivilegeDescriptor>> appPrivs = groupByApplicationName(response.applicationPrivileges());
+                for (String app : appPrivs.keySet()) {
+                    builder.startObject(app);
+                    for (ApplicationPrivilegeDescriptor privilege : appPrivs.get(app)) {
+                        builder.field(privilege.getName(), privilege);
                     }
-                });
+                    builder.endObject();
+                }
+
+                builder.endObject();
+
+                // if the user asked for specific privileges, but none of them were found
+                // we'll return an empty result and 404 status code
+                if (privileges.length != 0 && response.isEmpty()) {
+                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                }
+
+                // either the user asked for all privileges, or at least one of the privileges
+                // was found
+                return new BytesRestResponse(RestStatus.OK, builder);
+            }
+        });
+    }
+
+    private static void outputArrayIfExists(XContentBuilder builder, String field, String[] array) throws IOException {
+        if (array != null && array.length > 0) {
+            builder.array(field, array);
+        }
     }
 
     static Map<String, Set<ApplicationPrivilegeDescriptor>> groupByApplicationName(ApplicationPrivilegeDescriptor[] privileges) {

@@ -310,8 +310,8 @@ public class SecurityClient {
     }
 
     /* -- Application Privileges -- */
-    public GetPrivilegesRequestBuilder prepareGetPrivileges(String applicationName, String[] privileges) {
-        return new GetPrivilegesRequestBuilder(client, GetPrivilegesAction.INSTANCE).application(applicationName).privileges(privileges);
+    public GetPrivilegesRequestBuilder prepareGetPrivileges() {
+        return new GetPrivilegesRequestBuilder(client, GetPrivilegesAction.INSTANCE);
     }
 
     public PutPrivilegesRequestBuilder preparePutPrivileges(BytesReference bytesReference, XContentType xContentType) throws IOException {

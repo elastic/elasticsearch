@@ -40,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -93,7 +92,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     public GatewayService(final Settings settings, final AllocationService allocationService, final ClusterService clusterService,
                           final ThreadPool threadPool,
                           final TransportNodesListGatewayMetaState listGatewayMetaState,
-                          final IndicesService indicesService, final Discovery discovery) {
+                          final Discovery discovery) {
         this.allocationService = allocationService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -122,7 +121,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             recoveryRunnable = () ->
                     clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
         } else {
-            final Gateway gateway = new Gateway(settings, clusterService, listGatewayMetaState, indicesService);
+            final Gateway gateway = new Gateway(clusterService, listGatewayMetaState);
             recoveryRunnable = () ->
                     gateway.performStateRecovery(new GatewayRecoveryListener());
         }

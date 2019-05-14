@@ -30,7 +30,7 @@ import java.io.OutputStream;
 class LazyFileOutputStream extends OutputStream {
     private OutputStream delegate;
 
-    public LazyFileOutputStream(File file) {
+    LazyFileOutputStream(File file) {
         // use an initial dummy delegate to avoid doing a conditional on every write
         this.delegate = new OutputStream() {
             private void bootstrap() throws IOException {

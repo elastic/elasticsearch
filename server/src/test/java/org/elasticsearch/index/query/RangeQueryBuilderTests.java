@@ -46,7 +46,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
-import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -65,9 +64,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         return false;
     }
 
-    @Ignore // TODO a test from AbstractQueryTestCase. How to test this without warning checks?
-    public void testNegativeBoosts() {
-    }
+    // TODO a test from AbstractQueryTestCase. How to test this without warning checks?
+//    public void testNegativeBoosts() {
+//    }
 
     @Override
     protected RangeQueryBuilder doCreateTestQueryBuilder() {

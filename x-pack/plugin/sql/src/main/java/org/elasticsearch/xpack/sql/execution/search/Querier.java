@@ -425,7 +425,11 @@ public class Querier {
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
             for (Tuple<FieldExtraction, ExpressionId> ref : refs) {
-                exts.add(createExtractor(ref.v1(), totalCount));
+                if(((GroupByRef) ref.v1()).key().contains("Literal")){
+                    exts.add(new ConstantExtractor(((GroupByRef) ref.v1()).key().replace("Literal", "")));
+                } else {
+                    exts.add(createExtractor(ref.v1(), totalCount));
+                }
             }
             return exts;
         }

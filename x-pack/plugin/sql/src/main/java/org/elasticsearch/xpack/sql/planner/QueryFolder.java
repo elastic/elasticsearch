@@ -370,6 +370,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             queryC = queryC.addColumn(
                                 new GroupByRef(matchingGroup.id(), null, ne.dataType().isDateBased()), ne.toAttribute());
                         }
+                    } else {
+                        queryC = queryC.addColumn(
+                            new GroupByRef("Literal" + ((Literal) ne).value(), null, false), ne.toAttribute());
                     }
                 }
 

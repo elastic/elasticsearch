@@ -202,7 +202,7 @@ public class VersionsTests extends ESTestCase {
 
         // too old version, major should be the oldest supported lucene version minus 1
         version = Version.fromString("5.2.1");
-        assertEquals(Version.V_6_0_0.luceneVersion.major - 1, version.luceneVersion.major);
+        assertEquals(VersionUtils.getFirstVersion().luceneVersion.major - 1, version.luceneVersion.major);
 
         // future version, should be the same version as today
         version = Version.fromString("8.77.1");

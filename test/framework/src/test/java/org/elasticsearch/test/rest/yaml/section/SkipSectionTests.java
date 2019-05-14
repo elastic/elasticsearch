@@ -37,7 +37,7 @@ public class SkipSectionTests extends AbstractClientYamlTestFragmentParserTestCa
         SkipSection section = new SkipSection("6.0.0 - 6.1.0",
                 randomBoolean() ? Collections.emptyList() : Collections.singletonList("warnings"), "foobar");
         assertFalse(section.skip(Version.CURRENT));
-        assertTrue(section.skip(Version.V_6_0_0));
+        assertTrue(section.skip(Version.fromString("6.0.0")));
         section = new SkipSection(randomBoolean() ? null : "6.0.0 - 6.1.0",
                 Collections.singletonList("boom"), "foobar");
         assertTrue(section.skip(Version.CURRENT));

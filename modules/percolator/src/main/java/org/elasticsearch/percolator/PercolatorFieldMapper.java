@@ -261,7 +261,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             }
             Query filter = null;
             if (excludeNestedDocuments) {
-                filter = Queries.newNonNestedFilter(indexVersion);
+                filter = Queries.newNonNestedFilter();
             }
             return new PercolateQuery(name, queryStore, documents, candidateQuery, searcher, filter, verifiedMatchesQuery);
         }

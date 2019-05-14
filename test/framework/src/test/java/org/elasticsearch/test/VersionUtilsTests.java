@@ -76,8 +76,8 @@ public class VersionUtilsTests extends ESTestCase {
         assertTrue(got.onOrBefore(VersionUtils.allReleasedVersions().get(0)));
 
         // unbounded upper
-        got = VersionUtils.randomVersionBetween(random(), fromId(7000099), null);
-        assertTrue(got.onOrAfter(fromId(7000099)));
+        got = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), null);
+        assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
         assertTrue(got.onOrBefore(Version.CURRENT));
         got = VersionUtils.randomVersionBetween(random(), VersionUtils.getPreviousVersion(), null);
         assertTrue(got.onOrAfter(VersionUtils.getPreviousVersion()));

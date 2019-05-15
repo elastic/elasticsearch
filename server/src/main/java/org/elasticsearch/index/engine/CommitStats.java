@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -99,8 +100,7 @@ public final class CommitStats implements Streamable, ToXContentFragment {
         for (int i = length; i > 0; i--) {
             entries.add(entry(in.readString(), in.readString()));
         }
-        // noinspection unchecked
-        userData = Map.ofEntries(entries.toArray((Map.Entry<String, String>[])new Map.Entry[0]));
+        userData = Maps.ofEntries(entries);
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();

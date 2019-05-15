@@ -72,7 +72,6 @@ public class SecurityRealmSettingsTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.kerberos.kerb1.order", 7)
                 .put("xpack.security.authc.realms.kerberos.kerb1.keytab.path", kerbKeyTab.toAbsolutePath())
                 .put("xpack.security.authc.realms.oidc.oidc1.order", 8)
-                .put("xpack.security.authc.realms.oidc.oidc1.op.name", "myprovider")
                 .put("xpack.security.authc.realms.oidc.oidc1.op.issuer", "https://the.issuer.com:8090")
                 .put("xpack.security.authc.realms.oidc.oidc1.op.jwkset_path", jwkSet.toAbsolutePath())
                 .put("xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint", "https://the.issuer.com:8090/login")

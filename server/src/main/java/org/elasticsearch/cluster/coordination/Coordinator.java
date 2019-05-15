@@ -478,7 +478,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         });
     }
 
-
     private void processJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
         synchronized (mutex) {
@@ -997,9 +996,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getLocalNode().equals(clusterState.getNodes().get(getLocalNode().getId())) :
                     getLocalNode() + " should be in published " + clusterState;
 
-                final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final PublicationTransportHandler.PublicationContext publicationContext =
                     publicationHandler.newPublicationContext(clusterChangedEvent);
+
+                final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final CoordinatorPublication publication = new CoordinatorPublication(publishRequest, publicationContext,
                     new ListenableFuture<>(), ackListener, publishListener);
                 currentPublication = Optional.of(publication);

@@ -26,6 +26,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.core.IndexerState;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformResponse;
@@ -75,7 +76,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
     @After
     public void cleanUpTransforms() throws IOException {
         for (String transformId : transformsToClean) {
-            highLevelClient().dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(transformId), RequestOptions.DEFAULT);
+            highLevelClient().dataFrame().stopDataFrameTransform(
+                    new StopDataFrameTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
@@ -554,7 +556,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
 
     public void testGetDataFrameTransform() throws IOException, InterruptedException {
         createIndex("source-data");
-        
+
         QueryConfig queryConfig = new QueryConfig(new MatchAllQueryBuilder());
         GroupConfig groupConfig = GroupConfig.builder().groupBy("reviewer",
             TermsGroupSource.builder().setField("user_id").build()).build();
@@ -585,8 +587,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
             // end::get-data-frame-transform-request
 
             // tag::get-data-frame-transform-request-options
-            request.setFrom(0);     // <1>
-            request.setSize(100);   // <2>
+            request.setPageParams(new PageParams(0, 100)); // <1>
             // end::get-data-frame-transform-request-options
 
             // tag::get-data-frame-transform-execute

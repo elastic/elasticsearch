@@ -39,12 +39,10 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +63,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
+public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQueryStringBuilder> {
+    @Override
+    protected boolean isCacheable(SimpleQueryStringBuilder queryBuilder) {
+        return isCacheable(queryBuilder.fields().keySet(), queryBuilder.value());
+    }
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
@@ -106,11 +108,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             } else {
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
-        }
-        // special handling if query start with "now" and no field specified. This hits the "mapped_date" field which leads to the query not
-        // being cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
-        if (fieldCount == 0 && queryText.length() >= 3 && queryText.substring(0,3).equalsIgnoreCase("now")) {
-            fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
         }
 
         result.fields(fields);
@@ -241,9 +238,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        assumeTrue("5.x behaves differently, so skip on non-6.x indices",
-                indexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1));
-
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +

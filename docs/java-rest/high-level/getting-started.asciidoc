@@ -93,7 +93,7 @@ For Maven:
 <repository>
     <id>elastic-lucene-snapshots</id>
     <name>Elastic Lucene Snapshots</name>
-    <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/83f9835</url>
+    <url>https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/83f9835</url>
     <releases><enabled>true</enabled></releases>
     <snapshots><enabled>false</enabled></snapshots>
 </repository>
@@ -104,7 +104,8 @@ For Gradle:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 maven {
-    url 'http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/83f9835'
+    name 'lucene-snapshots'
+    url 'https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/83f9835'
 }
 --------------------------------------------------
 

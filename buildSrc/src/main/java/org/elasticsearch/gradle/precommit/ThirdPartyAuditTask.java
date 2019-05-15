@@ -28,11 +28,13 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
-import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
@@ -45,6 +47,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
@@ -113,12 +116,17 @@ public class ThirdPartyAuditTask extends DefaultTask {
         this.javaHome = javaHome;
     }
 
-    @OutputDirectory
+    @Internal
     public File getJarExpandDir() {
         return new File(
             new File(getProject().getBuildDir(), "precommit/thirdPartyAudit"),
             getName()
         );
+    }
+
+    @OutputFile
+    public File getSuccessMarker() {
+        return new File(getProject().getBuildDir(), "markers/" + getName());
     }
 
     public void ignoreMissingClasses(String... classesOrPackages) {
@@ -157,8 +165,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return missingClassExcludes;
     }
 
-    @InputFiles
-    @PathSensitive(PathSensitivity.NAME_ONLY)
+    @Classpath
     @SkipWhenEmpty
     public Set<File> getJarsToScan() {
         // These are SelfResolvingDependency, and some of them backed by file collections, like  the Gradle API files,
@@ -241,6 +248,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
         }
 
         assertNoJarHell(jdkJarHellClasses);
+
+        // Mark successful third party audit check
+        getSuccessMarker().getParentFile().mkdirs();
+        Files.write(getSuccessMarker().toPath(), new byte[]{});
     }
 
     private void logForbiddenAPIsOutput(String forbiddenApisOutput) {

@@ -31,8 +31,7 @@
  * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#getBlobContainer()}.</p>
  *
  * <p>The blob store is written to and read from by master-eligible nodes and data nodes. All metadata related to a snapshot's
- * scope and health (i.e. the indices a snapshot contains, a snapshot of the cluster state, index metadata and the status of the snapshot)
- * are written by the master node.</p>
+ * scope and health is written by the master node.</p>
  * <p>The data-nodes on the other hand, write the data for each individual shard but do not write any blobs outside of shard directories for
  * shards that they hold the primary of. For each shard, the data-node holding the shard's primary writes the actual data in form of
  * the shard's segment files to the repository as well as metadata about all the segment files that the repository stores for the shard.</p>

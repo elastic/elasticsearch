@@ -96,6 +96,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.sql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.sql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.sql.expression.Literal.TRUE;
@@ -1953,7 +1954,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             plan.forEachDown(a -> {
                 List<Object> values = extractConstants(a.aggregates());
-                if (values.size() == a.aggregates().size() && a.groupings() == null && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
+                List<Object> groupingValues = a.groupings().stream().filter(s -> s instanceof Literal == false).collect(toList());
+                if (values.size() == a.aggregates().size() && groupingValues.isEmpty() && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
                     optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }
             }, Aggregate.class);

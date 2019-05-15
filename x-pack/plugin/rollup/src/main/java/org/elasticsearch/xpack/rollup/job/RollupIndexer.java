@@ -97,15 +97,12 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     @Override
     protected void onStart(long now, ActionListener<Void> listener) {
         try {
-            // this is needed to exclude buckets that can still receive new documents.
+            // this is needed to exclude buckets that can still receive new documents
             DateHistogramGroupConfig dateHisto = job.getConfig().getGroupConfig().getDateHistogram();
-            long rounded = dateHisto.createRounding().round(now);
-            if (dateHisto.getDelay() != null) {
-                // if the job has a delay we filter all documents that appear before it.
-                maxBoundary = rounded - TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis();
-            } else {
-                maxBoundary = rounded;
-            }
+            // if the job has a delay we filter all documents that appear before it
+            long delay = dateHisto.getDelay() != null ?
+                TimeValue.parseTimeValue(dateHisto.getDelay().toString(), "").millis() : 0;
+            maxBoundary = dateHisto.createRounding().round(now - delay);
             listener.onResponse(null);
         } catch (Exception e) {
             listener.onFailure(e);

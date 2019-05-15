@@ -173,6 +173,4 @@ If we were to set `reverse` to `true`, it would produce the following:
 
 [float]
 === Detailed Examples
-See detailed  <<analysis-pathhierarchy-tokenizer-examples, examples here>>:: 
-
-include::tokenizers/pathhierarchy-tokenizer-examples.asciidoc[]
+See <<analysis-pathhierarchy-tokenizer-examples, detailed examples here>>:: 

@@ -24,7 +24,8 @@
  *
  * <p>The {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository} forms the basis of implementations of
  * {@link org.elasticsearch.repositories.Repository} on top of a blob store. A blobstore can be used as the basis for an implementation
- * as long as it provides for GET, PUT and (except for in the case of read-only repositories) LIST operations.
+ * as long as it provides for GET, PUT and LIST operations. For a read-only repository, it suffices if the blobstore provides only GET
+ * operations.
  * These operations are formally defined as specified by the {@link org.elasticsearch.common.blobstore.BlobContainer} interface that
  * any {@code BlobStoreRepository} implementation must provide via its implementation of
  * {@link org.elasticsearch.repositories.blobstore.BlobStoreRepository#getBlobContainer()}.</p>

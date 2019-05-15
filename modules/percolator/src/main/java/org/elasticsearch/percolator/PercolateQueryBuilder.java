@@ -293,17 +293,9 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeVInt(documents.size());
-            for (BytesReference document : documents) {
-                out.writeBytesReference(document);
-            }
-        } else {
-            if (documents.size() > 1) {
-                throw new IllegalArgumentException("Nodes prior to 6.1.0 cannot accept multiple documents");
-            }
-            BytesReference doc = documents.isEmpty() ? null : documents.iterator().next();
-            out.writeOptionalBytesReference(doc);
+        out.writeVInt(documents.size());
+        for (BytesReference document : documents) {
+            out.writeBytesReference(document);
         }
         if (documents.isEmpty() == false) {
             out.writeEnum(documentXContentType);

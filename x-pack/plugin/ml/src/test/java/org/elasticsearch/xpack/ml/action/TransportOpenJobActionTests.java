@@ -38,6 +38,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData.Assignment;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
@@ -370,11 +371,14 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Map<String, String> nodeAttr = new HashMap<>();
         nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        Version node1Version = VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion(Version.CURRENT));
+        Version node2Version = randomValueOtherThan(node1Version,
+            () -> VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion(Version.CURRENT)));
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), Version.V_6_2_0))
+                        nodeAttr, Collections.emptySet(), node1Version))
                 .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.V_6_1_0))
+                        nodeAttr, Collections.emptySet(), node2Version))
                 .build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
@@ -386,7 +390,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_with_incompatible_model_snapshot")
                 .setModelSnapshotId("incompatible_snapshot")
-                .setModelSnapshotMinVersion(Version.V_6_3_0)
+                .setModelSnapshotMinVersion(Version.CURRENT)
                 .build(new Date());
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);
@@ -394,7 +398,7 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Assignment result = TransportOpenJobAction.selectLeastLoadedMlNode("job_with_incompatible_model_snapshot", job, cs.build(), 10,
                 2, 30, memoryTracker, isMemoryTrackerRecentlyRefreshed, logger);
         assertThat(result.getExplanation(), containsString(
-                "because the job's model snapshot requires a node of version [6.3.0] or higher"));
+                "because the job's model snapshot requires a node of version [" + Version.CURRENT + "] or higher"));
         assertNull(result.getExecutorNode());
     }
 

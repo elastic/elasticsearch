@@ -11,6 +11,9 @@ archivesBaseName = 'x-pack'
 
 dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+  if (isEclipse) {
+    testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+  }
 }
 
 subprojects {
@@ -187,4 +190,3 @@ integTestCluster {
 if (integTestCluster.distribution.startsWith("oss-")) {
   integTest.enabled = false
 }
-

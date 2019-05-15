@@ -83,6 +83,16 @@ public class PivotTests extends ESTestCase {
         return namedXContentRegistry;
     }
 
+
+    /*
+      Had to disable warnings because tests get random date histo configs, and changing to
+      new interval format was non-trivial.  Best for ML team to fix
+     */
+    @Override
+    protected boolean enableWarningsCheck() {
+        return false;
+    }
+
     public void testValidateExistingIndex() throws Exception {
         SourceConfig source = new SourceConfig(new String[]{"existing_source_index"}, QueryConfig.matchAll());
         Pivot pivot = new Pivot(getValidPivotConfig());
@@ -95,6 +105,16 @@ public class PivotTests extends ESTestCase {
         Pivot pivot = new Pivot(getValidPivotConfig());
 
         assertInvalidTransform(client, source, pivot);
+    }
+
+    public void testInitialPageSize() throws Exception {
+        int expectedPageSize = 1000;
+
+        Pivot pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), expectedPageSize));
+        assertThat(pivot.getInitialPageSize(), equalTo(expectedPageSize));
+
+        pivot = new Pivot(new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null));
+        assertThat(pivot.getInitialPageSize(), equalTo(Pivot.DEFAULT_INITIAL_PAGE_SIZE));
     }
 
     public void testSearchFailure() throws Exception {
@@ -167,11 +187,11 @@ public class PivotTests extends ESTestCase {
     }
 
     private PivotConfig getValidPivotConfig() throws IOException {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig());
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), getValidAggregationConfig(), null);
     }
 
     private PivotConfig getValidPivotConfig(AggregationConfig aggregationConfig) throws IOException {
-        return new PivotConfig(GroupConfigTests.randomGroupConfig(), aggregationConfig);
+        return new PivotConfig(GroupConfigTests.randomGroupConfig(), aggregationConfig, null);
     }
 
     private AggregationConfig getValidAggregationConfig() throws IOException {

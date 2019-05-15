@@ -6,21 +6,27 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAction;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
@@ -40,15 +46,20 @@ public class TransportPreviewDataFrameTransformAction extends
     private final XPackLicenseState licenseState;
     private final Client client;
     private final ThreadPool threadPool;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final ClusterService clusterService;
 
     @Inject
     public TransportPreviewDataFrameTransformAction(TransportService transportService, ActionFilters actionFilters,
-                                                    Client client, ThreadPool threadPool, XPackLicenseState licenseState) {
-        super(PreviewDataFrameTransformAction.NAME,transportService, actionFilters,
-            (Writeable.Reader<PreviewDataFrameTransformAction.Request>) PreviewDataFrameTransformAction.Request::new);
+                                                    Client client, ThreadPool threadPool, XPackLicenseState licenseState,
+                                                    IndexNameExpressionResolver indexNameExpressionResolver,
+                                                    ClusterService clusterService) {
+        super(PreviewDataFrameTransformAction.NAME,transportService, actionFilters, PreviewDataFrameTransformAction.Request::new);
         this.licenseState = licenseState;
         this.client = client;
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -60,7 +71,18 @@ public class TransportPreviewDataFrameTransformAction extends
             return;
         }
 
+        ClusterState clusterState = clusterService.state();
+
         final DataFrameTransformConfig config = request.getConfig();
+        for(String src : config.getSource().getIndex()) {
+            String[] concreteNames = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), src);
+            if (concreteNames.length == 0) {
+                listener.onFailure(new ElasticsearchStatusException(
+                    DataFrameMessages.getMessage(DataFrameMessages.REST_PUT_DATA_FRAME_SOURCE_INDEX_MISSING, src),
+                    RestStatus.BAD_REQUEST));
+                return;
+            }
+        }
 
         Pivot pivot = new Pivot(config.getPivotConfig());
 

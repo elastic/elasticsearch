@@ -628,6 +628,10 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(FLOAT, commonType(FLOAT, INTEGER));
         assertEquals(DOUBLE, commonType(DOUBLE, FLOAT));
 
+        // numeric and intervals
+        assertEquals(INTERVAL_YEAR_TO_MONTH, commonType(INTERVAL_YEAR_TO_MONTH, LONG));
+        assertEquals(INTERVAL_HOUR_TO_MINUTE, commonType(INTEGER, INTERVAL_HOUR_TO_MINUTE));
+
         // dates/datetimes and intervals
         assertEquals(DATETIME, commonType(DATE, DATETIME));
         assertEquals(DATETIME, commonType(DATETIME, DATE));

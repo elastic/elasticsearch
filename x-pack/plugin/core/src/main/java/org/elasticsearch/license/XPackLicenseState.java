@@ -744,8 +744,9 @@ public class XPackLicenseState {
                 return XPackSettings.SECURITY_ENABLED.get(settings) && isSecurityExplicitlyEnabled(settings);
             case MISSING:
             case TRIAL:
-            default:
                 return false;
+            default:
+                throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
         }
     }
 

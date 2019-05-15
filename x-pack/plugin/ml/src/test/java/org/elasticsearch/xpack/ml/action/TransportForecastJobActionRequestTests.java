@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
@@ -18,6 +19,18 @@ import java.util.Collections;
 import java.util.Date;
 
 public class TransportForecastJobActionRequestTests extends ESTestCase {
+
+    public void testValidate_jobVersionCannonBeBefore61() {
+        Job.Builder jobBuilder = createTestJob("forecast-it-test-job-version");
+
+        jobBuilder.setJobVersion(Version.fromString("6.0.1"));
+        ForecastJobAction.Request request = new ForecastJobAction.Request();
+        Exception e = expectThrows(ElasticsearchStatusException.class,
+                () -> TransportForecastJobAction.validate(jobBuilder.build(), request));
+        assertEquals(
+                "Cannot run forecast because jobs created prior to version 6.1 are not supported",
+                e.getMessage());
+    }
 
     public void testValidate_jobVersionCannonBeBefore61NoJobVersion() {
         Job.Builder jobBuilder = createTestJob("forecast-it-test-job-version");

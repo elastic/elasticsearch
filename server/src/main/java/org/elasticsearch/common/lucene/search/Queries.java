@@ -73,7 +73,7 @@ public class Queries {
      * Creates a new non-nested docs query
      */
     public static Query newNonNestedFilter() {
-            return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {

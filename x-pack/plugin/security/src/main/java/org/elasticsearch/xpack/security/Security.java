@@ -1025,7 +1025,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             License license = LicenseService.getLicense(state.metaData());
             if (isTLSEnabled == false && "single-node".equals(discoveryType) == false
                 && XPackLicenseState.isTransportTlsRequired(license, settings)) {
-                throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name() + "]");
+                throw new IllegalStateException("Transport TLS ([" + XPackSettings.TRANSPORT_SSL_ENABLED.getKey() +
+                    "]) is required for license type [" + license.operationMode().description() + "] when security is enabled");
             }
         }
     }

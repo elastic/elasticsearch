@@ -254,7 +254,7 @@ public class SecurityTests extends ESTestCase {
         for (int i = 0; i < numIters; i++) {
             boolean tlsOn = randomBoolean();
             String discoveryType = randomFrom("single-node", ZEN2_DISCOVERY_TYPE, randomAlphaOfLength(4));
-            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType);
+            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType, Settings.EMPTY);
             MetaData.Builder builder = MetaData.builder();
             License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
             TestUtils.putLicense(builder, license);

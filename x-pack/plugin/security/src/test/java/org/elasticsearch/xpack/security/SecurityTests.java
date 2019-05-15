@@ -295,12 +295,15 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
+        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
+            VersionUtils.getPreviousVersion(Version.V_7_0_0));
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT - 1))
+            .settings(settings(version)
+                .put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT - 1))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_6_1_0);
+        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes)
@@ -318,7 +321,7 @@ public class SecurityTests extends ESTestCase {
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         int indexFormat = randomBoolean() ? INTERNAL_MAIN_INDEX_FORMAT : INTERNAL_MAIN_INDEX_FORMAT - 1;
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(Version.V_6_1_0).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
+            .settings(settings(VersionUtils.randomIndexCompatibleVersion(random())).put(INDEX_FORMAT_SETTING.getKey(), indexFormat))
             .numberOfShards(1).numberOfReplicas(0)
             .build();
         DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.CURRENT);
@@ -333,7 +336,7 @@ public class SecurityTests extends ESTestCase {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
-        Version version = randomBoolean() ? Version.CURRENT : Version.V_6_1_0;
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
         IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
             .settings(settings(version).put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT))
@@ -352,7 +355,8 @@ public class SecurityTests extends ESTestCase {
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
         assertNotNull(joinValidator);
         DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), Version.V_6_1_0);
+        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(),
+            VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(discoveryNodes).build();

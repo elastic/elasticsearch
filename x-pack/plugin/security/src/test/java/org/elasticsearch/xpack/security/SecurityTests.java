@@ -283,8 +283,7 @@ public class SecurityTests extends ESTestCase {
                     expectFailure = false;
                     break;
                 default:
-                    fail("Unexpected license mode: " + licenseMode);
-                    expectFailure = true;
+                    throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
             }
             logger.info("Test TLS join; Lic:{} TLS:{} Disco:{} Settings:{}  ; Expect Failure: {}",
                 licenseMode, tlsOn, discoveryType, settings.toDelimitedString(','), expectFailure);

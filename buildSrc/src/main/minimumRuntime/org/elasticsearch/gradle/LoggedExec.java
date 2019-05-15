@@ -56,9 +56,9 @@ public class LoggedExec extends Exec {
     }
 
     @Internal
-    public void setSpoolOutput(boolean useFileBuffer) {
+    public void setSpoolOutput(boolean spoolOutput) {
         final OutputStream out;
-        if (useFileBuffer) {
+        if (spoolOutput) {
             File spoolFile = new File(getProject().getBuildDir() + "/buffered-output/" + this.getName());
             out = new LazyFileOutputStream(spoolFile);
             outputLogger = logger -> {

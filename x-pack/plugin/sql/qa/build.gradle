@@ -30,7 +30,7 @@ dependencies {
   compile "org.jline:jline-reader:${jlineVersion}"
   compile "org.jline:jline-style:${jlineVersion}"
 
-  testRuntime "org.elasticsearch:jna:${versions.jna}"
+  testRuntime "net.java.dev.jna:jna:${versions.jna}"
 }
 
 /* disable unit tests because these are all integration tests used
@@ -91,7 +91,7 @@ subprojects {
     testRuntime "org.jline:jline-reader:${jlineVersion}"
     testRuntime "org.jline:jline-style:${jlineVersion}"
 
-    testRuntime "org.elasticsearch:jna:${versions.jna}"
+    testRuntime "net.java.dev.jna:jna:${versions.jna}"
   }
 
   if (project.name != 'security') {

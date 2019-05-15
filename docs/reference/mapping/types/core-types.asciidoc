@@ -89,8 +89,8 @@ deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
 that will be stored in the index. Defaults to the property/field name.
 endif::[]
 ifndef::asciidoctor[]
-deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
-that will be stored in the index. Defaults to the property/field name.
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that
+will be stored in the index. Defaults to the property/field name.
 endif::[]
 
 |`store` |Set to `true` to actually store the field in the index, `false` to not
@@ -260,8 +260,8 @@ deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
 that will be stored in the index. Defaults to the property/field name.
 endif::[]
 ifndef::asciidoctor[]
-deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
-that will be stored in the index. Defaults to the property/field name.
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that
+will be stored in the index. Defaults to the property/field name.
 endif::[]
 
 |`store` |Set to `true` to store actual field in the index, `false` to not
@@ -374,8 +374,8 @@ deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
 that will be stored in the index. Defaults to the property/field name.
 endif::[]
 ifndef::asciidoctor[]
-deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
-that will be stored in the index. Defaults to the property/field name.
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that
+will be stored in the index. Defaults to the property/field name.
 endif::[]
 
 |`format` |The <<mapping-date-format,date
@@ -450,8 +450,8 @@ deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
 that will be stored in the index. Defaults to the property/field name.
 endif::[]
 ifndef::asciidoctor[]
-deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
-that will be stored in the index. Defaults to the property/field name.
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that
+will be stored in the index. Defaults to the property/field name.
 endif::[]
 
 |`store` |Set to `true` to store actual field in the index, `false` to not
@@ -497,14 +497,15 @@ binary type:
 [horizontal]
 
 `index_name`::
+
 ifdef::asciidoctor[]
-deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
-that will be stored in the index. Defaults to the property/field name.
+deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"]
 endif::[]
 ifndef::asciidoctor[]
-deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
-that will be stored in the index. Defaults to the property/field name.
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead]
 endif::[]
+The name of the field that will be stored in the index.
+Defaults to the property/field name.
 
 `store`::
 
@@ -708,7 +709,7 @@ navigation notation: `name.raw`, or using the typed navigation notation
 `tweet.name.raw`. 
 
 ifdef::asciidoctor[]
-deprecated::[1.0.0,"The `path` option below is deprecated.  Use <<copy-to,`copy_to`>> instead for setting up custom _all fields"]
+deprecated[1.0.0,"The `path` option below is deprecated.  Use <<copy-to,`copy_to`>> instead for setting up custom _all fields"]
 endif::[]
 ifndef::asciidoctor[]
 deprecated[1.0.0,The `path` option below is deprecated.  Use <<copy-to,`copy_to`>> instead for setting up custom _all fields]

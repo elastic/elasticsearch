@@ -75,8 +75,8 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
                 PreBuiltAnalyzers.STANDARD.getAnalyzer(VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT)));
 
         // Same Lucene version should be cached:
-        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_7_2_0),
-            PreBuiltAnalyzers.STOP.getAnalyzer(Version.V_8_0_0));
+        assertSame(PreBuiltAnalyzers.STOP.getAnalyzer(Version.fromString("5.0.0")),
+            PreBuiltAnalyzers.STOP.getAnalyzer(Version.fromString("5.0.1")));
     }
 
     public void testThatAnalyzersAreUsedInMapping() throws IOException {

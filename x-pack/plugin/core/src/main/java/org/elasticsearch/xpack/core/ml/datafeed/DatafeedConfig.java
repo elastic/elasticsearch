@@ -223,7 +223,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
-        delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
+        } else {
+            delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
+        }
     }
 
     /**

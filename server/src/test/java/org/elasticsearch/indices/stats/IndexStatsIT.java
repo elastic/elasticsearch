@@ -919,7 +919,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             IndicesStatsResponse stats = client().admin().indices().prepareStats("index").setQueryCache(true).get();
             assertCumulativeQueryCacheStats(stats);
             assertThat(stats.getTotal().queryCache.getHitCount(), equalTo(0L));
-            assertThat(stats.getTotal().queryCache.getEvictions(), equalTo(0L));
             assertThat(stats.getTotal().queryCache.getMissCount(), greaterThan(0L));
             assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
         });
@@ -930,7 +929,6 @@ public class IndexStatsIT extends ESIntegTestCase {
             IndicesStatsResponse stats = client().admin().indices().prepareStats("index").setQueryCache(true).get();
             assertCumulativeQueryCacheStats(stats);
             assertThat(stats.getTotal().queryCache.getHitCount(), greaterThan(0L));
-            assertThat(stats.getTotal().queryCache.getEvictions(), equalTo(0L));
             assertThat(stats.getTotal().queryCache.getMissCount(), greaterThan(0L));
             assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
         });

@@ -121,6 +121,17 @@ public abstract class DataTypeConversion {
                 return right;
             }
         }
+        // Interval * integer is a valid operation
+        if (DataTypes.isInterval(left)) {
+            if (right.isInteger()) {
+                return left;
+            }
+        }
+        if (DataTypes.isInterval(right)) {
+            if (left.isInteger()) {
+                return right;
+            }
+        }
         if (DataTypes.isInterval(left)) {
             // intervals widening
             if (DataTypes.isInterval(right)) {

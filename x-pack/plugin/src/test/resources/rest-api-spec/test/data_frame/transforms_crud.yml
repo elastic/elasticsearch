@@ -303,6 +303,36 @@ setup:
             }
           }
 ---
+"Test put config with invalid pivot size":
+  - do:
+      catch: /pivot\.max_page_search_size \[5\] must be greater than 10 and less than 10,000/
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "max_page_search_size": 5,
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - do:
+      catch: /pivot\.max_page_search_size \[15000\] must be greater than 10 and less than 10,000/
+      data_frame.put_data_frame_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "max_page_search_size": 15000,
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+---
 "Test creation failures due to duplicate and conflicting field names":
   - do:
       catch: /duplicate field \[airline\] detected/

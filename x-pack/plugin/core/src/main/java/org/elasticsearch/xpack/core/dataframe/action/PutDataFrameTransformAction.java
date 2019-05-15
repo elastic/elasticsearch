@@ -56,6 +56,14 @@ public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
+            if(config.getPivotConfig() != null
+                && config.getPivotConfig().getMaxPageSearchSize() != null
+                && (config.getPivotConfig().getMaxPageSearchSize() < 10 || config.getPivotConfig().getMaxPageSearchSize() > 10_000)) {
+                validationException = addValidationError(
+                    "pivot.max_page_search_size [" +
+                        config.getPivotConfig().getMaxPageSearchSize() + "] must be greater than 10 and less than 10,000",
+                    validationException);
+            }
             for(String failure : config.getPivotConfig().aggFieldValidation()) {
                 validationException = addValidationError(failure, validationException);
             }

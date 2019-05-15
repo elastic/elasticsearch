@@ -93,16 +93,16 @@
  * <li>
  * <ol>
  * <li>The blobstore repository stores the {@code RepositoryData} in blobs named with incrementing suffix {@code N} at {@code /index-N}
- * directly under the repositories' root.</li>
+ * directly under the repository's root.</li>
  * <li>The blobstore also stores the most recent {@code N} as a 64bit long in the blob {@code /index.latest} directly under the
- * repositories' root.</li>
+ * repository's root.</li>
  * </ol>
  * </li>
  * <li>
  * <ol>
  * <li>First, find the most recent {@code RepositoryData} by getting a list of all index-N blobs through listing all blobs with prefix
  * "index-" under the repository root and then selecting the one with the highest value for N.</li>
- * <li>If this operation fails because the repositories' {@code BlobContainer} does not support list operations (in the case of read-only
+ * <li>If this operation fails because the repository's {@code BlobContainer} does not support list operations (in the case of read-only
  * repositories), read the highest value of N from the the index.latest blob.</li>
  * </ol>
  * </li>

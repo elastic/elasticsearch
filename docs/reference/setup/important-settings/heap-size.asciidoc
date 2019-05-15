@@ -9,7 +9,7 @@ Elasticsearch will assign the entire heap specified in
 <<jvm-options,jvm.options>> via the `Xms` (minimum heap size) and `Xmx` (maximum
 heap size) settings.
 
-The value for these setting depends on the amount of RAM available on your
+The value for these settings depends on the amount of RAM available on your
 server. Good rules of thumb are:
 
 * Set the minimum heap size (`Xms`) and maximum heap size (`Xmx`) to be equal to

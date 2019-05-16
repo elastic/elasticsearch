@@ -32,11 +32,18 @@ public class NioHttpResponse extends DefaultFullHttpResponse implements HttpResp
 
     private final int sequence;
     private final NioHttpRequest request;
+    private final RestStatus status;
 
     NioHttpResponse(NioHttpRequest request, RestStatus status, BytesReference content) {
         super(request.nettyRequest().protocolVersion(), HttpResponseStatus.valueOf(status.getStatus()), ByteBufUtils.toByteBuf(content));
         this.sequence = request.sequence();
         this.request = request;
+        this.status = status;
+    }
+
+    @Override
+    public RestStatus getRestStatus() {
+        return status;
     }
 
     @Override

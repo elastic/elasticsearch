@@ -116,7 +116,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 toClose.add((Releasable) bytesStreamOutput);
             }
 
-            if (isCloseConnection()) {
+            if (HttpUtils.isCloseConnection(request.getHttpRequest())) {
                 toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
             }
 
@@ -160,16 +160,5 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 }
             }
         }
-    }
-
-    // Determine if the request connection should be closed on completion.
-    private boolean isCloseConnection() {
-        final boolean http10 = isHttp10();
-        return CLOSE.equalsIgnoreCase(request.header(CONNECTION)) || (http10 && !KEEP_ALIVE.equalsIgnoreCase(request.header(CONNECTION)));
-    }
-
-    // Determine if the request protocol version is HTTP 1.0
-    private boolean isHttp10() {
-        return request.getHttpRequest().protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
     }
 }

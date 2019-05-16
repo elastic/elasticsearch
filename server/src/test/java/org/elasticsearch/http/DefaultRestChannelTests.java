@@ -363,7 +363,8 @@ public class DefaultRestChannelTests extends ESTestCase {
             return content;
         }
 
-        public RestStatus status() {
+        @Override
+        public RestStatus getRestStatus() {
             return status;
         }
 

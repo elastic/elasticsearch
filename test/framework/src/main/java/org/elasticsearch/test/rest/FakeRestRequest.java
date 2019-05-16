@@ -102,6 +102,12 @@ public class FakeRestRequest extends RestRequest {
         public HttpResponse createResponse(RestStatus status, BytesReference content) {
             Map<String, String> headers = new HashMap<>();
             return new HttpResponse() {
+
+                @Override
+                public RestStatus getRestStatus() {
+                    return status;
+                }
+
                 @Override
                 public void addHeader(String name, String value) {
                     headers.put(name, value);

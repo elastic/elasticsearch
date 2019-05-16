@@ -255,21 +255,4 @@ public interface ActionListener<Response> {
             listener.onFailure(e);
         }
     }
-
-    /**
-     * Returns a no-op ActionListener.
-     */
-    static <Response> ActionListener<Response> noOp() {
-        return new ActionListener<>() {
-            @Override
-            public void onResponse(Response response) {
-
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-
-            }
-        };
-    }
 }

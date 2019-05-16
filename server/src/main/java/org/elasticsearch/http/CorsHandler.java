@@ -63,6 +63,7 @@ public class CorsHandler {
     private static final String ACCESS_CONTROL_ALLOW_HEADERS = "access-control-allow-headers";
     private static final String ACCESS_CONTROL_MAX_AGE = "access-control-max-age";
     static final String ACCESS_CONTROL_ALLOW_CREDENTIALS = "access-control-allow-credentials";
+
     private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O", Locale.ENGLISH);
     private final Config config;
 
@@ -126,7 +127,9 @@ public class CorsHandler {
             response.addHeader(DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
             return response;
         } else {
-            return request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
+            HttpResponse response = request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
+            response.addHeader(DefaultRestChannel.CONTENT_LENGTH, "0");
+            return response;
         }
     }
 

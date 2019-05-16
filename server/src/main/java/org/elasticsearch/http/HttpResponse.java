@@ -19,6 +19,8 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.rest.RestStatus;
+
 import java.util.List;
 
 /**
@@ -26,6 +28,8 @@ import java.util.List;
  * handling needs to set http headers for a response.
  */
 public interface HttpResponse {
+
+    RestStatus getRestStatus();
 
     void addHeader(String name, String value);
 

@@ -33,11 +33,18 @@ public class Netty4HttpResponse extends DefaultFullHttpResponse implements HttpR
 
     private final int sequence;
     private final Netty4HttpRequest request;
+    private final RestStatus status;
 
     Netty4HttpResponse(Netty4HttpRequest request, RestStatus status, BytesReference content) {
         super(request.nettyRequest().protocolVersion(), HttpResponseStatus.valueOf(status.getStatus()), Netty4Utils.toByteBuf(content));
         this.sequence = request.sequence();
         this.request = request;
+        this.status = status;
+    }
+
+    @Override
+    public RestStatus getRestStatus() {
+        return status;
     }
 
     @Override

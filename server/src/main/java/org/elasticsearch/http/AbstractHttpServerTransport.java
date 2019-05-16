@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 
@@ -322,8 +323,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         Exception badRequestCause = exception;
 
         HttpResponse httpResponse = corsHandler.handleRequest(httpRequest);
+        /*
+         * If the CorsHandler returns a response, we must immediately send that response and abandon all
+         * other handling. The only header we need to set is the connection header.
+         */
         if (httpResponse != null) {
-            httpChannel.sendResponse(httpResponse, ActionListener.noOp());
+            if (httpResponse.getRestStatus().equals(RestStatus.FORBIDDEN) || HttpUtils.isCloseConnection(httpRequest)) {
+                httpResponse.addHeader(DefaultRestChannel.CONNECTION, DefaultRestChannel.CLOSE);
+                httpChannel.sendResponse(httpResponse, ActionListener.wrap(httpChannel::close));
+            } else {
+                httpResponse.addHeader(DefaultRestChannel.CONNECTION, DefaultRestChannel.KEEP_ALIVE);
+                httpChannel.sendResponse(httpResponse, ActionListener.wrap(() -> {}));
+            }
             return;
         }
 

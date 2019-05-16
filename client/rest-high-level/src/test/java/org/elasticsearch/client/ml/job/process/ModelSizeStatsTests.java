@@ -31,8 +31,8 @@ public class ModelSizeStatsTests extends AbstractXContentTestCase<ModelSizeStats
     public void testDefaultConstructor() {
         ModelSizeStats stats = new ModelSizeStats.Builder("foo").build();
         assertEquals(0, stats.getModelBytes());
-        assertEquals(0, stats.getModelBytesExceeded());
-        assertEquals(0, stats.getModelBytesMemoryLimit());
+        assertEquals(null, stats.getModelBytesExceeded());
+        assertEquals(null, stats.getModelBytesMemoryLimit());
         assertEquals(0, stats.getTotalByFieldCount());
         assertEquals(0, stats.getTotalOverFieldCount());
         assertEquals(0, stats.getTotalPartitionFieldCount());

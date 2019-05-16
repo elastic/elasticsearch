@@ -162,11 +162,11 @@ public class ModelSizeStats implements ToXContentObject {
         return modelBytes;
     }
 
-    public long getModelBytesExceeded() {
+    public Long getModelBytesExceeded() {
         return modelBytesExceeded;
     }
 
-    public long getModelBytesMemoryLimit() {
+    public Long getModelBytesMemoryLimit() {
         return modelBytesMemoryLimit;
     }
 
@@ -242,8 +242,8 @@ public class ModelSizeStats implements ToXContentObject {
 
         private final String jobId;
         private long modelBytes;
-        private long modelBytesExceeded;
-        private long modelBytesMemoryLimit;
+        private Long modelBytesExceeded;
+        private Long modelBytesMemoryLimit;
         private long totalByFieldCount;
         private long totalOverFieldCount;
         private long totalPartitionFieldCount;

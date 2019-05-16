@@ -138,12 +138,12 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             modelBytesExceeded = in.readOptionalLong();
         } else {
-            modelBytesExceeded = 0L;
+            modelBytesExceeded = null;
         }
         if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             modelBytesMemoryLimit = in.readOptionalLong();
         } else {
-            modelBytesMemoryLimit = 0L;
+            modelBytesMemoryLimit = null;
         }
         totalByFieldCount = in.readVLong();
         totalOverFieldCount = in.readVLong();
@@ -224,11 +224,11 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         return modelBytes;
     }
 
-    public long getModelBytesExceeded() {
+    public Long getModelBytesExceeded() {
         return modelBytesExceeded;
     }
 
-    public long getModelBytesMemoryLimit() {
+    public Long getModelBytesMemoryLimit() {
         return modelBytesMemoryLimit;
     }
 
@@ -304,8 +304,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
 
         private final String jobId;
         private long modelBytes;
-        private long modelBytesExceeded;
-        private long modelBytesMemoryLimit;
+        private Long modelBytesExceeded;
+        private Long modelBytesMemoryLimit;
         private long totalByFieldCount;
         private long totalOverFieldCount;
         private long totalPartitionFieldCount;

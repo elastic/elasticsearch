@@ -247,8 +247,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
             assertThat(response.snapshots().get(1).getModelSizeStats().getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytes(), equalTo(51722L));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesExceeded(), equalTo(0L));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesExceeded(), equalTo(null));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(null));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
@@ -267,8 +267,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(2).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
             assertThat(response.snapshots().get(2).getModelSizeStats().getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(2).getModelSizeStats().getModelBytes(), equalTo(51722L));
-            assertThat(response.snapshots().get(2).getModelSizeStats().getModelBytesExceeded(), equalTo(0L));
-            assertThat(response.snapshots().get(2).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(0L));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getModelBytesExceeded(), equalTo(null));
+            assertThat(response.snapshots().get(2).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(null));
             assertThat(response.snapshots().get(2).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
             assertThat(response.snapshots().get(2).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
             assertThat(response.snapshots().get(2).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
@@ -318,8 +318,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
             assertThat(response.snapshots().get(1).getModelSizeStats().getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytes(), equalTo(51722L));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesExceeded(), equalTo(0L));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesExceeded(), equalTo(null));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(null));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
@@ -338,8 +338,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
             assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesExceeded(), equalTo(0L));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesExceeded(), equalTo(null));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(null));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
@@ -401,8 +401,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
             assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesExceeded(), equalTo(0L));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesExceeded(), equalTo(null));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(null));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
@@ -422,8 +422,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
             assertThat(response.snapshots().get(1).getModelSizeStats().getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytes(), equalTo(51722L));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesExceeded(), equalTo(0L));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesExceeded(), equalTo(null));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(null));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
@@ -452,8 +452,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
             assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesExceeded(), equalTo(0L));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesExceeded(), equalTo(null));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(null));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
@@ -514,8 +514,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(1).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
             assertThat(response.snapshots().get(1).getModelSizeStats().getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytes(), equalTo(51722L));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesExceeded(), equalTo(0L));
-            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(0L));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesExceeded(), equalTo(null));
+            assertThat(response.snapshots().get(1).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(null));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
             assertThat(response.snapshots().get(1).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));
@@ -545,8 +545,8 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
             assertThat(response.snapshots().get(0).getLatestResultTimeStamp(), equalTo(new Date(1519930800000L)));
             assertThat(response.snapshots().get(0).getModelSizeStats().getJobId(), equalTo(JOB_ID));
             assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytes(), equalTo(51722L));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesExceeded(), equalTo(0L));
-            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(0L));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesExceeded(), equalTo(null));
+            assertThat(response.snapshots().get(0).getModelSizeStats().getModelBytesMemoryLimit(), equalTo(null));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalByFieldCount(), equalTo(3L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalOverFieldCount(), equalTo(0L));
             assertThat(response.snapshots().get(0).getModelSizeStats().getTotalPartitionFieldCount(), equalTo(2L));

@@ -63,7 +63,10 @@ public class LoggedExec extends Exec {
             out = new LazyFileOutputStream(spoolFile);
             outputLogger = logger -> {
                 try {
-                    Files.lines(spoolFile.toPath()).forEach(logger::error);
+                    // the file may not exist if the command never output anything
+                    if (Files.exists(spoolFile.toPath())) {
+                        Files.lines(spoolFile.toPath()).forEach(logger::error);
+                    }
                 } catch (IOException e) {
                     throw new RuntimeException("could not log", e);
                 }

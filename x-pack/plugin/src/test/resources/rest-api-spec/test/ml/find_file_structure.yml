@@ -10,6 +10,7 @@ setup:
         Content-Type: "application/json"
       ml.find_file_structure:
         lines_to_sample: 3
+        line_merge_size_limit: 1234
         timeout: 10s
         body:
           - airline: AAL

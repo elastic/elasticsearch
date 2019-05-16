@@ -35,6 +35,7 @@ public class FindFileStructureRequestTests extends AbstractXContentTestCase<Find
 
     static {
         PARSER.declareInt(FindFileStructureRequest::setLinesToSample, FindFileStructureRequest.LINES_TO_SAMPLE);
+        PARSER.declareInt(FindFileStructureRequest::setLineMergeSizeLimit, FindFileStructureRequest.LINE_MERGE_SIZE_LIMIT);
         PARSER.declareString((p, c) -> p.setTimeout(TimeValue.parseTimeValue(c, FindFileStructureRequest.TIMEOUT.getPreferredName())),
             FindFileStructureRequest.TIMEOUT);
         PARSER.declareString(FindFileStructureRequest::setCharset, FindFileStructureRequest.CHARSET);
@@ -71,6 +72,9 @@ public class FindFileStructureRequestTests extends AbstractXContentTestCase<Find
         FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest();
         if (randomBoolean()) {
             findFileStructureRequest.setLinesToSample(randomIntBetween(1000, 2000));
+        }
+        if (randomBoolean()) {
+            findFileStructureRequest.setLineMergeSizeLimit(randomIntBetween(10000, 20000));
         }
         if (randomBoolean()) {
             findFileStructureRequest.setTimeout(TimeValue.timeValueSeconds(randomIntBetween(10, 20)));

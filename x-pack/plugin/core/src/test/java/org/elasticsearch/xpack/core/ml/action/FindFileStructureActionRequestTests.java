@@ -27,6 +27,10 @@ public class FindFileStructureActionRequestTests extends AbstractStreamableTestC
         }
 
         if (randomBoolean()) {
+            request.setLineMergeSizeLimit(randomIntBetween(1000, 20000));
+        }
+
+        if (randomBoolean()) {
             request.setCharset(randomAlphaOfLength(10));
         }
 
@@ -83,6 +87,18 @@ public class FindFileStructureActionRequestTests extends AbstractStreamableTestC
         assertNotNull(e);
         assertThat(e.getMessage(), startsWith("Validation Failed: "));
         assertThat(e.getMessage(), containsString(" [lines_to_sample] must be positive if specified"));
+    }
+
+    public void testValidateLineMergeSizeLimit() {
+
+        FindFileStructureAction.Request request = new FindFileStructureAction.Request();
+        request.setLineMergeSizeLimit(randomIntBetween(-1, 0));
+        request.setSample(new BytesArray("foo\n"));
+
+        ActionRequestValidationException e = request.validate();
+        assertNotNull(e);
+        assertThat(e.getMessage(), startsWith("Validation Failed: "));
+        assertThat(e.getMessage(), containsString(" [line_merge_size_limit] must be positive if specified"));
     }
 
     public void testValidateNonDelimited() {

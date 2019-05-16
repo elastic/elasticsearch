@@ -30,6 +30,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -122,9 +123,19 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(final SeqNoStats seqNoStats) {
-        if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
-            throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
-                + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
+        // Before 8.0 the global checkpoint is not known and up to date when the engine is created after
+        // peer recovery, so we only check the max seq no / global checkpoint coherency when the global
+        // checkpoint is different from the unassigned sequence number value.
+        // In addition to that we only execute the check if the index the engine belongs to has been
+        // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
+        // that guarantee that all operations have been flushed to Lucene.
+        final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
+        if (indexVersionCreated.onOrAfter(Version.V_7_2_0) ||
+            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(Version.V_6_7_0))) {
+            if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
+                throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
+                    + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
+            }
         }
         assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
     }

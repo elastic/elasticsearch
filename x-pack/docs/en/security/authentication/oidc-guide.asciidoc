@@ -32,24 +32,24 @@ also allow for the manual registration of an RP as a client, via a user interfac
 via the consumption of a metadata document.
 
 The process for registering the Elastic Stack RP will be different from OP to OP and following
-the provider's relevant documentation is prudent. The most usual piece of information for the
-RP that you need to provide for registration are the following:
+the provider's relevant documentation is prudent. The information for the
+RP that you commonly need to provide for registration are the following:
 
 - `Relying Party Name`: An arbitrary identifier for the relying party. Neither the specification
 nor the Elastic Stack implementation impose any constraints on this value.
 - `Redirect URI`: This is the URI where the OP will redirect the user's browser after authentication. The
 appropriate value for this will depend on your setup and whether or not {kib} sits behind a proxy or
-load balancer, but it will typically be +$\{kibana-url}/api/security/v1/oidc+ where _$\{kibana-url}_
+load balancer. It will typically be +$\{kibana-url}/api/security/v1/oidc+ where _$\{kibana-url}_
 is the base URL for your {kib} instance. You might also see this called `Callback URI`.
 
-At the end of the registration process, the OP will assign aClient Identifier and a Client Secret for the RP ({stack}) to use.
+At the end of the registration process, the OP will assign a Client Identifier and a Client Secret for the RP ({stack}) to use.
 Note these two values as they will be used in the {es} configuration.
 
 [[oidc-guide-authentication]]
 === Configure {es} for OpenID Connect authentication
 
 The following is a summary of the configuration steps required in order to enable authentication
-using OpenID Connect in {es}
+using OpenID Connect in {es}:
 
 . <<oidc-enable-http,Enable SSL/TLS for HTTP>>
 . <<oidc-enable-token,Enable the Token Service>>
@@ -82,11 +82,11 @@ xpack.security.authc.token.enabled: true
 ==== Create an OpenID Connect realm
 
 OpenID Connect based authentication is enabled by configuring the appropriate realm within
-the authentication chain for {es}
+the authentication chain for {es}.
 
 This realm has a few mandatory settings, and a number of optional settings.
 The available settings are described in detail in the
-{ref}/security-settings.html#ref-oidc-settings[Security settings in {es}], this
+{ref}/security-settings.html#ref-oidc-settings[Security settings in {es}]. This
 guide will explore the most common settings.
 
 Create an OpenID Connect (the realm type is `oidc`) realm in your `elasticsearch.yml` file
@@ -132,7 +132,7 @@ rp.response_type::
     This is an identifier that controls which OpenID Connect authentication flow this RP supports and also
     which flow this RP requests the OP should follow. Supported values are
     - `code`, which means that the RP wants to use the Authorization Code flow. If your OP supports the
-       Authorization Code flow, you should select this in favor of the Implicit Flow.
+       Authorization Code flow, you should select this instead of the Implicit Flow.
     - `id_token token` which means that the RP wants to use the Implicit flow and we also request an oAuth2
        access token from the OP, that we can potentially use for follow up requests ( UserInfo ). This
        should be selected if the OP offers a UserInfo endpoint in its configuration, or if you know that
@@ -206,14 +206,14 @@ for the authenticated user. Simply put, a claim is a name/value pair that contai
 the user. Related to claims, we also have the notion of OpenID Connect Scopes. Scopes are identifiers
 that are used to request access to specific lists of claims. The standard defines a set of scope
 identifiers that can be requested. The only mandatory one is `openid`, while commonly used ones are
-`profile` ( requesting access to the `name`,`family_name`,`given_name`,`middle_name`,`nickname`,
-`preferred_username`,`profile`,`picture`,`website`,`gender`,`birthdate`,`zoneinfo`,`locale`,`updated_at` claims),
-and `email` (requesting access to the `email` and `email_verified` claims). The process is that
-the RP requests specific scopes during the authentication request, and if the OP Privacy Policy
+`profile` and `email`. The `profile` scope requests access to the `name`,`family_name`,`given_name`,`middle_name`,`nickname`,
+`preferred_username`,`profile`,`picture`,`website`,`gender`,`birthdate`,`zoneinfo`,`locale`, and `updated_at` claims.
+The `email` scope requests access to the `email` and `email_verified` claims. The process is that
+the RP requests specific scopes during the authentication request. If the OP Privacy Policy
 allows it and the authenticating user consents to it, the related claims are returned to the
-RP, either in the ID Token, or as a UserInfo response.
+RP (either in the ID Token or as a UserInfo response).
 
-The list of the supported claims will vary depending on the OP you are using, but one should expect
+The list of the supported claims will vary depending on the OP you are using, but you can expect
 the https://openid.net/specs/openid-connect-core-1_0.html#StandardClaims[Standard Claims] to be
 largely supported.
 
@@ -228,8 +228,8 @@ logs, and can also be used to create <<oidc-role-mapping, role mapping>> rules.
 The recommended steps for configuring OpenID Claims mapping are as follows:
 
 . Consult your OP configuration to see what claims it might support. Note that
-  the list provided in the OPs metadata, or in the configuration page of the OP
-  is a list of potentially supported claims, but for privacy reasons it might
+  the list provided in the OP's metadata or in the configuration page of the OP
+  is a list of potentially supported claims. However, for privacy reasons it might
   not be a complete one, or not all supported claims will be available for all
   authenticated users.
 
@@ -239,10 +239,10 @@ The recommended steps for configuring OpenID Claims mapping are as follows:
   is required.
 
 . Configure your OP to "release" those claims to your {stack} Relying
-  party. This process greatly varies by provider - some will allow for static
+  party. This process greatly varies by provider. You can use a static
   configuration while others will support that the RP requests the scopes that
   correspond to the claims to be "released" on authentication time. See
-  {ref}/security-settings.html#ref-oidc-settings[`rp.requested_scopes`] on how
+  {ref}/security-settings.html#ref-oidc-settings[`rp.requested_scopes`] for details about how
   to configure the scopes to request. To ensure interoperability and minimize
   the errors, you should only request scopes that the OP supports, and which you
   intend to map to {es} user properties.
@@ -284,7 +284,7 @@ NOTE: If the principal property fails to be mapped from a claim, the authenticat
 groups:: _(Recommended)_
     If you wish to use your OP's concept of groups or roles as the basis for a
     user's {es} privileges, you should map them with this property.
-    The `groups` are passed directly to your <<oidc-role-mapping, role mapping rules>>
+    The `groups` are passed directly to your <<oidc-role-mapping, role mapping rules>>.
 
 name:: _(Optional)_ The user's full name.
 mail:: _(Optional)_ The user's email address.
@@ -321,7 +321,7 @@ xpack.security.authc.realms.oidc.oidc1:
 
 In this case, the user's `principal` is mapped from the `email_verified` claim, but a
 regular expression is applied to the value before it is assigned to the user.
-If the regular expression matches, then the result of the first group is used as
+If the regular expression matches, then the result of the first group is used as the
 effective value. If the regular expression does not match then the claim
 mapping fails.
 
@@ -340,10 +340,10 @@ you make sure your regular expressions are as precise as possible so that
 you do not inadvertently open an avenue for user impersonation attacks.
 
 [[third-party-login]]
-==== Third Party Initiated Single Sign On
+==== Third party initiated single sign-on
 
 The Open ID Connect realm in {es} supports 3rd party initiated login as described in the
-https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin[relevant specification]
+https://openid.net/specs/openid-connect-core-1_0.html#ThirdPartyInitiatedLogin[relevant specification].
 
 This allows the OP itself or another, third party other than the RP, to initiate the authentication
 process while requesting the OP to be used for the authentication. Please note that the Elastic
@@ -361,12 +361,12 @@ In this process, the OpenID Connect RP (the Elastic Stack in this case) will red
 browser to predefined URL of the OP after successfully completing a local logout. The OP can then
 logout the user also, depending on the configuration, and should finally redirect the user back to the
 RP. The `op.endsession_endpoint` in the realm configuration determines the URL in the OP that the browser
-will be redirected and the `rp.post_logout_redirect_uri` setting determines the URL to redirect back
-the user after OP logs them out.
+will be redirected to. The `rp.post_logout_redirect_uri` setting determines the URL to redirect
+the user back to after the OP logs them out.
 
 When configuring `rp.post_logout_redirect_uri`, care should be taken to not point this to a URL that
 will trigger re-authentication of the user. For instance, when using OpenID Connect to support
-Single Sign On to {kib}, this could be set to +$\{kibana-url}/logged_out+ that will show a user
+single sign-on to {kib}, this could be set to +$\{kibana-url}/logged_out+,  which will show a user-
 friendly message to the user.
 
 [[oidc-role-mapping]]
@@ -455,9 +455,9 @@ In this case, you perform the following steps:
 === User metadata
 
 By default users who authenticate via OpenID Connect will have some additional metadata
-fields. These  will include every OpenID Claim that is provided in the authentication response
-(regardless of whether it is mapped to an {es} user property), will be added
-as the metadata field `oidc(claim_name)` where "claim_name" is the name of the
+fields. These fields will include every OpenID Claim that is provided in the authentication response
+(regardless of whether it is mapped to an {es} user property). For example,
+in the metadata field `oidc(claim_name)`, "claim_name" is the name of the
 claim as it was contained in the ID Token or in the User Info response. Note that these will
 include all the https://openid.net/specs/openid-connect-core-1_0.html#IDToken[ID Token claims]
 that pertain to the authentication event, rather than the user themselves.
@@ -494,11 +494,11 @@ server.xsrf.whitelist: [/api/security/v1/oidc]
 The configuration values used in the example above are:
 
 `xpack.security.authProviders`::
-Set this to `[ oidc ]` to instruct {kib} to use OpenID Connect Single Sign On as the
-authentication method. This instructs kibana to attempt and initiate an SSO flow
+Set this to `[ oidc ]` to instruct {kib} to use OpenID Connect single sign-on as the
+authentication method. This instructs Kibana to attempt to initiate an SSO flow
 everytime a user attempts to access a URL in Kibana, if the user is not already
-authenticated. If you wish to allow users to login with a username and password
-also, then you'd need to enable the `basic` authProvider too by setting
+authenticated. If you also want to allow users to login with a username and password,
+you must enable the `basic` authProvider too. For example:
 
 [source, yaml]
 ------------------------------------------------------------
@@ -513,8 +513,8 @@ The name of the OpenID Connect realm in {es} that should handle authentication
 for this Kibana instance.
 
 `server.xsrf.whitelist`::
-{kib} has in-built protection against _Cross Site Request Forgery_ attacks which
-are designed to prevent the {kib} server from processing requests that
+{kib} has in-built protection against _Cross Site Request Forgery_ attacks, which
+is designed to prevent the {kib} server from processing requests that
 originated from outside the {kib} application.
 In order to support OpenID Connect messages that originate from your
 OP or a third party (see <<third-party-login>>, we need to explicitly _whitelist_ the
@@ -529,15 +529,15 @@ such, most of the parts of the guide above make the assumption that {kib} is use
 This section describes how a custom web application could use the relevant OpenID
 Connect REST APIs in order to authenticate the users to {es}, with OpenID Connect.
 
-Single Sign On realms such as OpenID Connect and SAML make use of the Token Service in
+Single sign-on realms such as OpenID Connect and SAML make use of the Token Service in
 {es} and in principle exchange a SAML or OpenID Connect Authentication response for
-an {es} access token to be used as credentials for subsequent calls to {es} and a
-refresh token allowing to get new {es} access tokens for the user once the current one
+an {es} access token and a refresh token. The access token is used as credentials for subsequent calls to {es}. The
+refresh token enables the user to get new {es} access tokens after the current one
 expires.
 
 NOTE: The {es} Token Service can be seen as a minimal oAuth2 authorization server
 and the access token and refresh token mentioned above are tokens that pertain
-_only_ to this authorization server, are generated and consumed _only_ by {es}
+_only_ to this authorization server. They are generated and consumed _only_ by {es}
 and are in no way related to the tokens ( access token and ID Token ) that the
 OpenID Connect Provider issues.
 
@@ -549,7 +549,7 @@ client with the OpenID Connect Provider. Note that when registering the
 
 ==== OpenID Connect Realm
 
-As before, an OpenID Connect realm needs to be created and configured accordingly
+An OpenID Connect realm needs to be created and configured accordingly
 in {es}. See <<oidc-guide-authentication>>
 
 ==== Service Account user for accessing the APIs
@@ -632,7 +632,7 @@ Elasticsearch will validate this and if all is correct will respond with an acce
   as a `Bearer` token for subsequent requests and a refresh token that can be later used to refresh the given
   access token as described in {ref}/security-api-get-token.html[get token API].
 . At some point, if necessary, the custom web application can log the user out by using the
-  {ref}/security-api-oidc-logout.html[OIDC Logout API] passing the access token and refresh token as parameters, as seen below
+  {ref}/security-api-oidc-logout.html[OIDC Logout API] passing the access token and refresh token as parameters. For example:
 +
 [source,js]
 --------------------------------------------------

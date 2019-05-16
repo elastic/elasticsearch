@@ -3,6 +3,8 @@
 [[migrate-tool]]
 == elasticsearch-migrate
 
+deprecated:[7.2.0, "This tool is deprecated. Use the native realm directly."]
+
 The `elasticsearch-migrate` command migrates existing file-based users and roles
 to the native realm. From 5.0 onward, you should use the `native` realm to
 manage roles and local users.

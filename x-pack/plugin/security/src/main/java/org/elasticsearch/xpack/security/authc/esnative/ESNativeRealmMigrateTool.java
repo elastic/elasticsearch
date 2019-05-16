@@ -133,6 +133,7 @@ public class ESNativeRealmMigrateTool extends LoggingAwareMultiCommand {
         // Visible for testing
         @Override
         public void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+            terminal.println("Warning: The migrate tool is deprecated. Use the native realm directly instead of file realms.");
             terminal.println("starting migration of users and roles...");
             importUsers(terminal, env, options);
             importRoles(terminal, env, options);

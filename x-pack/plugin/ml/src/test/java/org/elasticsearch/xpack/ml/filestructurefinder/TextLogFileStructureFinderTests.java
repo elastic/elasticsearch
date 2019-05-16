@@ -232,6 +232,27 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
             "\\[%{JAVACLASS:class} *\\] %{JAVALOGMESSAGE:message}] does not match sample messages", e.getMessage());
     }
 
+    public void testErrorOnIncorrectMessageFormation() {
+
+        // This sample causes problems because the (very weird) primary timestamp format
+        // is not detected but a secondary format that only occurs in one line is detected
+        String sample = "Day 21 Month 1 Year 2019 11:04 INFO [localhost] - starting\n" +
+            "Day 21 Month 1 Year 2019 11:04 INFO [localhost] - startup date [Mon Jan 21 11:04:19 CET 2019]\n" +
+            "Day 21 Month 1 Year 2019 11:04 DEBUG [localhost] - details\n" +
+            "Day 21 Month 1 Year 2019 11:04 DEBUG [localhost] - more details\n" +
+            "Day 21 Month 1 Year 2019 11:04 WARN [localhost] - something went wrong\n";
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> factory.createFromSample(explanation, sample, charset, hasByteOrderMarker, FileStructureOverrides.EMPTY_OVERRIDES,
+                NOOP_TIMEOUT_CHECKER));
+
+        assertEquals("Failed to create more than one message from the sample lines provided. (The last is discarded in "
+            + "case the sample is incomplete.) If your sample does contain multiple messages the problem is probably that "
+            + "the primary timestamp format has been incorrectly detected, so try overriding it.", e.getMessage());
+    }
+
     public void testCreateMultiLineMessageStartRegexGivenNoPrefaces() {
         for (TimestampFormatFinder.CandidateTimestampFormat candidateTimestampFormat : TimestampFormatFinder.ORDERED_CANDIDATE_FORMATS) {
             String simpleDateRegex = candidateTimestampFormat.simplePattern.pattern();

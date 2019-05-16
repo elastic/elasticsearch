@@ -76,6 +76,12 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         }
         // Don't add the last message, as it might be partial and mess up subsequent pattern finding
 
+        if (sampleMessages.isEmpty()) {
+            throw new IllegalArgumentException("Failed to create more than one message from the sample lines provided. (The "
+                + "last is discarded in case the sample is incomplete.) If your sample does contain multiple messages the "
+                + "problem is probably that the primary timestamp format has been incorrectly detected, so try overriding it.");
+        }
+
         FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.SEMI_STRUCTURED_TEXT)
             .setCharset(charsetName)
             .setHasByteOrderMarker(hasByteOrderMarker)

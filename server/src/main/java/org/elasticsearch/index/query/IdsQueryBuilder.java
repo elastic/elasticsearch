@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
@@ -73,7 +74,10 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         super(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             // types no longer relevant so ignore
-            in.readStringArray();
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException("types are no longer supported in ids query but found [" + Arrays.toString(types) + "]");
+            }
         }
         Collections.addAll(ids, in.readStringArray());
     }

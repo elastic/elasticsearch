@@ -191,7 +191,11 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         if (in.getVersion().before(Version.V_8_0_0)) {
             // types no longer relevant so ignore
-            in.readStringArray();
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException(
+                        "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]");
+            }
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();

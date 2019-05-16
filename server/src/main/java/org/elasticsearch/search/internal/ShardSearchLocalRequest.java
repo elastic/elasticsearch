@@ -36,6 +36,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Shard level search request that gets created and consumed on the local node.
@@ -113,7 +114,11 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         if (in.getVersion().before(Version.V_8_0_0)) {
             // types no longer relevant so ignore
-            in.readStringArray();
+            String[] types = in.readStringArray();
+            if (types.length > 0) {
+                throw new IllegalStateException(
+                        "types are no longer supported in search requests but found [" + Arrays.toString(types) + "]");
+            }
         }
         aliasFilter = new AliasFilter(in);
         indexBoost = in.readFloat();

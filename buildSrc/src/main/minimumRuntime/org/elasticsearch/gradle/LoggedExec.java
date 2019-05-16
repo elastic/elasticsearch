@@ -70,7 +70,7 @@ public class LoggedExec extends Exec {
             };
         } else {
             out = new ByteArrayOutputStream();
-            outputLogger = logger -> logger.error(((ByteArrayOutputStream) getStandardOutput()).toString(StandardCharsets.UTF_8));
+            outputLogger = logger -> logger.error(((ByteArrayOutputStream) out).toString(StandardCharsets.UTF_8));
         }
         setStandardOutput(out);
         setErrorOutput(out);

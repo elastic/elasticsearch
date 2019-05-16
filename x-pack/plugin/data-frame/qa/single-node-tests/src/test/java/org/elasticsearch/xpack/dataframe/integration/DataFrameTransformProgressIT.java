@@ -130,12 +130,13 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
-        PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig);
+        PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         DataFrameTransformConfig config = new DataFrameTransformConfig("get_progress_transform",
             sourceConfig,
             destConfig,
             null,
-            pivotConfig);
+            pivotConfig,
+            null);
 
         PlainActionFuture<DataFrameTransformProgress> progressFuture = new PlainActionFuture<>();
         TransformProgressGatherer.getInitialProgress(client(), config, progressFuture);
@@ -148,13 +149,14 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
 
         QueryConfig queryConfig = new QueryConfig(Collections.emptyMap(), QueryBuilders.termQuery("user_id", "user_26"));
-        pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig);
+        pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         sourceConfig = new SourceConfig(new String[]{REVIEWS_INDEX_NAME}, queryConfig);
         config = new DataFrameTransformConfig("get_progress_transform",
             sourceConfig,
             destConfig,
             null,
-            pivotConfig);
+            pivotConfig,
+            null);
 
 
         progressFuture = new PlainActionFuture<>();

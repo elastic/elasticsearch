@@ -32,7 +32,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -139,11 +138,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
-            if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                    && context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
+            if (context.mapperService().fullName(queryBuilder.fieldName()).hasDocValues()) {
                 expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
-            } else if (context.mapperService().getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0) &&
-                            context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
+            } else if (context.mapperService().fullName(queryBuilder.fieldName()).omitNorms() == false) {
                 expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
@@ -425,8 +422,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         // Range query with open bounds rewrite to an exists query
         Query luceneQuery = rewrittenRange.toQuery(queryShardContext);
         final Query expectedQuery;
-        if (queryShardContext.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                && queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
+        if (queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
             expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
         } else {
             expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));

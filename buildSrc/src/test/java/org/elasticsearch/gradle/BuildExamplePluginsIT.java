@@ -75,7 +75,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
     }
 
     public void testCurrentExamplePlugin() throws IOException {
-        FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot());
+        FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
 
         adaptBuildScriptForTest();
 
@@ -99,6 +99,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             "buildscript {\n" +
                 "    repositories {\n" +
                 "        maven {\n" +
+                "            name = \"test\"\n" +
                 "            url = '" + getLocalTestRepoPath() + "'\n" +
                 "        }\n" +
                 "    }\n" +
@@ -117,12 +118,14 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision");
         if (luceneSnapshotRepo != null) {
             luceneSnapshotRepo =  "  maven {\n" +
+                "    name \"lucene-snapshots\"\n" +
                 "    url \"https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision + "\"\n" +
                 "  }\n";
         }
         writeBuildScript("\n" +
                 "repositories {\n" +
                 "  maven {\n" +
+                "    name \"test\"\n" +
                 "    url \"" + getLocalTestRepoPath()  + "\"\n" +
                 "  }\n" +
                 "  flatDir {\n" +
@@ -153,5 +156,4 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             throw new RuntimeException(e);
         }
     }
-
 }

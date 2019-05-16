@@ -56,6 +56,7 @@ import static org.elasticsearch.packaging.util.Packages.startElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.stopElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
+import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
@@ -76,6 +77,11 @@ public abstract class PackageTestCase extends PackagingTestCase {
     public void onlyCompatibleDistributions() throws Exception {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
         sh = newShell();
+    }
+
+    public void test05CheckLintian() throws Exception {
+        assumeTrue(isDPKG());
+        sh.run("lintian --fail-on-warnings " + FileUtils.getDistributionFile(distribution()));
     }
 
     public void test10InstallPackage() throws Exception {
@@ -162,6 +168,9 @@ public abstract class PackageTestCase extends PackagingTestCase {
 
     public void test50Remove() throws Exception {
         assumeThat(installation, is(notNullValue()));
+
+        // add fake bin directory as if a plugin was installed
+        Files.createDirectories(installation.bin.resolve("myplugin"));
 
         remove(distribution());
 

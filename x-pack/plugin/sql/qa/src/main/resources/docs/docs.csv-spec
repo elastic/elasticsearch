@@ -201,7 +201,7 @@ showFunctions
 // tag::showFunctions
 SHOW FUNCTIONS;
 
-      name       |     type      
+      name       |     type
 -----------------+---------------
 AVG              |AGGREGATE      
 COUNT            |AGGREGATE
@@ -325,13 +325,21 @@ RIGHT            |SCALAR
 RTRIM            |SCALAR         
 SPACE            |SCALAR         
 SUBSTRING        |SCALAR         
-UCASE            |SCALAR         
+UCASE            |SCALAR
 CAST             |SCALAR
 CONVERT          |SCALAR
 DATABASE         |SCALAR
 USER             |SCALAR
+ST_ASTEXT        |SCALAR
+ST_ASWKT         |SCALAR
+ST_DISTANCE      |SCALAR
+ST_GEOMETRYTYPE  |SCALAR
+ST_GEOMFROMTEXT  |SCALAR
+ST_WKTTOSQL      |SCALAR
+ST_X             |SCALAR
+ST_Y             |SCALAR
+ST_Z             |SCALAR
 SCORE            |SCORE
-
 // end::showFunctions
 ;
 

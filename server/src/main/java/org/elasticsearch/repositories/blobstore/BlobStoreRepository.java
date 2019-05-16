@@ -62,7 +62,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -426,10 +425,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
             }
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
-            final RepositoryData repositoryData;
             final RepositoryData updatedRepositoryData;
             try {
-                repositoryData = getRepositoryData();
+                final RepositoryData repositoryData = getRepositoryData();
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
                 writeIndexGen(updatedRepositoryData, repositoryStateId);
             } catch (Exception ex) {
@@ -437,33 +435,51 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             final SnapshotInfo finalSnapshotInfo = snapshot;
-            final Collection<IndexId> unreferencedIndices = Sets.newHashSet(repositoryData.getIndices().values());
-            unreferencedIndices.removeAll(updatedRepositoryData.getIndices().values());
             try {
                 blobContainer().deleteBlobsIgnoringIfNotExists(
                     Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID())));
             } catch (IOException e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
             }
+            final var survivingIndices = updatedRepositoryData.getIndices();
             deleteIndices(
                 Optional.ofNullable(finalSnapshotInfo)
-                    .map(info -> info.indices().stream().map(repositoryData::resolveIndexId).collect(Collectors.toList()))
+                    .map(info -> info.indices().stream().filter(survivingIndices::containsKey)
+                        .map(updatedRepositoryData::resolveIndexId).collect(Collectors.toList()))
                     .orElse(Collections.emptyList()),
                 snapshotId,
                 ActionListener.map(listener, v -> {
-                    try {
-                        blobStore().blobContainer(basePath().add("indices")).deleteBlobsIgnoringIfNotExists(
-                            unreferencedIndices.stream().map(IndexId::getId).collect(Collectors.toList()));
-                    } catch (IOException e) {
-                        logger.warn(() ->
-                            new ParameterizedMessage(
-                                "[{}] indices {} are no longer part of any snapshots in the repository, " +
-                                    "but failed to clean up their index folders.", metadata.name(), unreferencedIndices), e);
+                    final Set<String> existingIndexIds = survivingIndices.values().stream()
+                        .map(IndexId::getId).collect(Collectors.toSet());
+                    final var indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
+                    for (Map.Entry<String, BlobContainer> indexEntry : indicesBlobContainer.children().entrySet()) {
+                        final String indexSnId = indexEntry.getKey();
+                        try {
+                            if (existingIndexIds.contains(indexSnId) == false) {
+                                deleteContents(indexEntry.getValue());
+                                indicesBlobContainer.deleteBlob(indexSnId);
+                            }
+                        } catch (IOException e) {
+                            logger.warn(() ->
+                                new ParameterizedMessage(
+                                    "[{}] index {} is no longer part of any snapshots in the repository, " +
+                                        "but failed to clean up their index folders.", metadata.name(), indexSnId), e);
+                        }
                     }
                     return null;
                 })
             );
         }
+    }
+
+    private static void deleteContents(BlobContainer container) throws IOException {
+        final List<String> toDelete = new ArrayList<>();
+        for (Map.Entry<String, BlobContainer> child : container.children().entrySet()) {
+            deleteContents(child.getValue());
+            toDelete.add(child.getKey());
+        }
+        toDelete.addAll(container.listBlobs().keySet());
+        container.deleteBlobsIgnoringIfNotExists(toDelete);
     }
 
     private void deleteIndices(List<IndexId> indices, SnapshotId snapshotId, ActionListener<Void> listener) {

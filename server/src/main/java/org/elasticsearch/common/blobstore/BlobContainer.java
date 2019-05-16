@@ -158,6 +158,8 @@ public interface BlobContainer {
      */
     Map<String, BlobMetaData> listBlobs() throws IOException;
 
+    Map<String, BlobContainer> children() throws IOException;
+
     /**
      * Lists all blobs in the container that match the specified prefix.
      *

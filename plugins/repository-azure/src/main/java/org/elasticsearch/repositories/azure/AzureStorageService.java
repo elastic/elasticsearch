@@ -38,6 +38,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +55,9 @@ import java.nio.file.FileAlreadyExistsException;
 import java.security.InvalidKeyException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -239,6 +242,30 @@ public class AzureStorageService {
             }
         });
         return Map.copyOf(blobsBuilder);
+    }
+
+    public Set<String> children(String account, String container, BlobPath path) throws URISyntaxException, StorageException {
+        final var blobsBuilder = new HashSet<String>();
+        final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
+        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
+        final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
+        final String keyPath = path.buildAsString();
+        SocketAccess.doPrivilegedVoidException(() -> {
+            for (final ListBlobItem blobItem : blobContainer.listBlobs(keyPath, false,
+                enumBlobListingDetails, null, client.v2().get())) {
+
+                final URI uri = blobItem.getUri();
+                logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
+                // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
+                // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
+                final String blobPath = uri.getPath().substring(1 + container.length() + 1);
+                final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
+                final String name = blobPath.substring(keyPath.length());
+                logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
+                blobsBuilder.add(name);
+            }
+        });
+        return Set.copyOf(blobsBuilder);
     }
 
     public void writeBlob(String account, String container, String blobName, InputStream inputStream, long blobSize,

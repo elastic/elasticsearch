@@ -115,48 +115,6 @@ public class NioHttpServerTransportTests extends ESTestCase {
         bigArrays = null;
     }
 
-    public void testCorsConfig() {
-        final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
-        final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
-        final String prefix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
-        final Settings settings = Settings.builder()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
-            .put(SETTING_CORS_ALLOW_METHODS.getKey(), Strings.collectionToDelimitedString(methods, ",", prefix, ""))
-            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), Strings.collectionToDelimitedString(headers, ",", prefix, ""))
-            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-            .build();
-        final NioCorsConfig corsConfig = NioHttpServerTransport.buildCorsConfig(settings);
-        assertTrue(corsConfig.isAnyOriginSupported());
-        assertEquals(headers, corsConfig.allowedRequestHeaders());
-        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
-    }
-
-    public void testCorsConfigWithDefaults() {
-        final Set<String> methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
-        final Set<String> headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
-        final long maxAge = SETTING_CORS_MAX_AGE.getDefault(Settings.EMPTY);
-        final Settings settings = Settings.builder().put(SETTING_CORS_ENABLED.getKey(), true).build();
-        final NioCorsConfig corsConfig = NioHttpServerTransport.buildCorsConfig(settings);
-        assertFalse(corsConfig.isAnyOriginSupported());
-        assertEquals(Collections.emptySet(), corsConfig.origins().get());
-        assertEquals(headers, corsConfig.allowedRequestHeaders());
-        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
-        assertEquals(maxAge, corsConfig.maxAge());
-        assertFalse(corsConfig.isCredentialsAllowed());
-    }
-
-    public void testCorsConfigWithBadRegex() {
-        final Settings settings = Settings.builder()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "/[*/")
-            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-            .build();
-        SettingsException e = expectThrows(SettingsException.class, () -> NioHttpServerTransport.buildCorsConfig(settings));
-        assertThat(e.getMessage(), containsString("Bad regex in [http.cors.allow-origin]: [/[*/]"));
-        assertThat(e.getCause(), instanceOf(PatternSyntaxException.class));
-    }
-
     /**
      * Test that {@link NioHttpServerTransport} supports the "Expect: 100-continue" HTTP header
      * @throws InterruptedException if the client communication with the server is interrupted

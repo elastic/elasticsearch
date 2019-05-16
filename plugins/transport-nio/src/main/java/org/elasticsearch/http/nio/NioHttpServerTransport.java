@@ -32,6 +32,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
+import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.nio.cors.NioCorsConfig;
@@ -73,12 +74,10 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_RECE
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_REUSE_ADDRESS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_SEND_BUFFER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
-import static org.elasticsearch.http.nio.cors.NioCorsHandler.ANY_ORIGIN;
 
 public class NioHttpServerTransport extends AbstractHttpServerTransport {
     private static final Logger logger = LogManager.getLogger(NioHttpServerTransport.class);
 
-    protected final NioCorsConfig corsConfig;
     protected final PageAllocator pageAllocator;
     private final NioGroupFactory nioGroupFactory;
 
@@ -102,7 +101,6 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         ByteSizeValue maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         ByteSizeValue maxInitialLineLength = SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings);
         int pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
-        this.corsConfig = buildCorsConfig(settings);
 
         this.tcpNoDelay = SETTING_HTTP_TCP_NO_DELAY.get(settings);
         this.tcpKeepAlive = SETTING_HTTP_TCP_KEEP_ALIVE.get(settings);
@@ -163,7 +161,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         final NioCorsConfigBuilder builder;
         if (Strings.isNullOrEmpty(origin)) {
             builder = NioCorsConfigBuilder.forOrigins();
-        } else if (origin.equals(ANY_ORIGIN)) {
+        } else if (origin.equals(CorsHandler.ANY_ORIGIN)) {
             builder = NioCorsConfigBuilder.forAnyOrigin();
         } else {
             try {
@@ -205,7 +203,7 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
         public NioHttpChannel createChannel(NioSelector selector, SocketChannel channel) throws IOException {
             NioHttpChannel httpChannel = new NioHttpChannel(channel);
             HttpReadWriteHandler httpReadWritePipeline = new HttpReadWriteHandler(httpChannel,NioHttpServerTransport.this,
-                handlingSettings, corsConfig, selector.getTaskScheduler(), threadPool::relativeTimeInMillis);
+                handlingSettings, selector.getTaskScheduler(), threadPool::relativeTimeInMillis);
             Consumer<Exception> exceptionHandler = (e) -> onException(httpChannel, e);
             SocketChannelContext context = new BytesChannelContext(httpChannel, selector, exceptionHandler, httpReadWritePipeline,
                 new InboundChannelBuffer(pageAllocator));

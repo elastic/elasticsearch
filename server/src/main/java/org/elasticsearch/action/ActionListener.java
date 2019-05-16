@@ -55,7 +55,7 @@ public interface ActionListener<Response> {
      */
     static <Response> ActionListener<Response> wrap(CheckedConsumer<Response, ? extends Exception> onResponse,
             Consumer<Exception> onFailure) {
-        return new ActionListener<Response>() {
+        return new ActionListener<>() {
             @Override
             public void onResponse(Response response) {
                 try {
@@ -105,7 +105,7 @@ public interface ActionListener<Response> {
      * @return Delegating listener
      */
     static <T, R> ActionListener<T> delegateFailure(ActionListener<R> delegate, BiConsumer<ActionListener<R>, T> bc) {
-        return new ActionListener<T>() {
+        return new ActionListener<>() {
 
             @Override
             public void onResponse(T r) {
@@ -205,7 +205,7 @@ public interface ActionListener<Response> {
      * callback when the listener is notified via either {@code #onResponse} or {@code #onFailure}.
      */
     static <Response> ActionListener<Response> runAfter(ActionListener<Response> delegate, Runnable runAfter) {
-        return new ActionListener<Response>() {
+        return new ActionListener<>() {
             @Override
             public void onResponse(Response response) {
                 try {
@@ -231,7 +231,7 @@ public interface ActionListener<Response> {
      * and {@link #onFailure(Exception)} of the provided listener will be called at most once.
      */
     static <Response> ActionListener<Response> notifyOnce(ActionListener<Response> delegate) {
-        return new NotifyOnceListener<Response>() {
+        return new NotifyOnceListener<>() {
             @Override
             protected void innerOnResponse(Response response) {
                 delegate.onResponse(response);
@@ -254,5 +254,22 @@ public interface ActionListener<Response> {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Returns a no-op ActionListener.
+     */
+    static <Response> ActionListener<Response> noOp() {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+
+            }
+        };
     }
 }

@@ -46,33 +46,18 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
+import static org.elasticsearch.http.HttpTransportSettings.*;
 
 public class CorsHandler {
 
-    static final String ANY_ORIGIN = "*";
-    private static final String DATE = "date";
+    public static final String ANY_ORIGIN = "*";
     static final String ORIGIN = "origin";
     static final String VARY = "vary";
+    private static final String DATE = "date";
     private static final String ACCESS_CONTROL_REQUEST_METHOD = "access-control-request-method";
     private static final String ACCESS_CONTROL_ALLOW_METHODS = "access-control-allow-methods";
     private static final String ACCESS_CONTROL_ALLOW_HEADERS = "access-control-allow-headers";
@@ -80,7 +65,6 @@ public class CorsHandler {
     static final String ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin";
     static final String ACCESS_CONTROL_ALLOW_CREDENTIALS = "access-control-allow-credentials";
     private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O", Locale.ENGLISH);
-    private static final Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
     private final Config config;
 
     public CorsHandler(final Config config) {
@@ -97,8 +81,7 @@ public class CorsHandler {
             }
 
             // If there is no origin, this is not a CORS request.
-            // TODO: Only getting first
-            final String origin = request.getHeaders().get(ORIGIN).get(0);
+            final String origin = getOrigin(request);
             if (Strings.isNullOrEmpty(origin) == false && validOrigin(origin) == false) {
                 return request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
             }
@@ -109,7 +92,7 @@ public class CorsHandler {
 
     public void setCorsResponseHeaders(HttpRequest request, HttpResponse resp) {
         if (config.isCorsSupportEnabled()) {
-            String originHeader = request.getHeaders().get(ORIGIN).get(0);
+            String originHeader = getOrigin(request);
             setOrigin(resp, originHeader);
             if (config.isCredentialsAllowed()) {
                 resp.addHeader(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
@@ -130,7 +113,7 @@ public class CorsHandler {
     }
 
     private HttpResponse createPreflightResponse(HttpRequest request) {
-        final String origin = request.getHeaders().get(ORIGIN).get(0);
+        final String origin = getOrigin(request);
         if (Strings.isNullOrEmpty(origin) == false) {
             HttpResponse response = request.createResponse(RestStatus.OK, BytesArray.EMPTY);
             setOrigin(response, origin);
@@ -194,14 +177,8 @@ public class CorsHandler {
             headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
     }
 
-    private static boolean isSameOrigin(final String origin, final String host) {
-        if (Strings.isNullOrEmpty(host)) {
-            return false;
-        } else {
-            // strip protocol from origin
-            final String originDomain = SCHEME_PATTERN.matcher(origin).replaceFirst("");
-            return host.equals(originDomain);
-        }
+    private static String getOrigin(HttpRequest request) {
+        return request.getHeaders().get(ORIGIN).get(0);
     }
 
     public static class Config {
@@ -355,6 +332,7 @@ public class CorsHandler {
         }
         String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
         RestRequest.Method[] methods = Arrays.stream(strMethods)
+            .map(s -> s.toUpperCase(Locale.ENGLISH))
             .map(RestRequest.Method::valueOf)
             .toArray(RestRequest.Method[]::new);
         Config config = builder.allowedRequestMethods(methods)

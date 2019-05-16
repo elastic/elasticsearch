@@ -1,5 +1,7 @@
 import org.elasticsearch.gradle.Version
 
+throw new RuntimeException("ahhhh!")
+
 String dirName = rootProject.projectDir.name
 rootProject.name = dirName
 

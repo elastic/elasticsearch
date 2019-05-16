@@ -324,6 +324,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         HttpResponse httpResponse = corsHandler.handleRequest(httpRequest);
         if (httpResponse != null) {
             httpChannel.sendResponse(httpResponse, ActionListener.noOp());
+            return;
         }
 
 

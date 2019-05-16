@@ -266,7 +266,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), originValue)
-            .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")
+            .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, send")
             .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
             .build();
         FullHttpResponse response = executeCorsRequest(settings, originValue, "request-host");

@@ -42,7 +42,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
-import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -55,14 +54,14 @@ import static org.elasticsearch.http.HttpTransportSettings.*;
 public class CorsHandler {
 
     public static final String ANY_ORIGIN = "*";
-    static final String ORIGIN = "origin";
-    static final String VARY = "vary";
-    private static final String DATE = "date";
-    private static final String ACCESS_CONTROL_REQUEST_METHOD = "access-control-request-method";
+    public static final String ORIGIN = "origin";
+    public static final String DATE = "date";
+    public static final String VARY = "vary";
+    public static final String ACCESS_CONTROL_REQUEST_METHOD = "access-control-request-method";
+    public static final String ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin";
     private static final String ACCESS_CONTROL_ALLOW_METHODS = "access-control-allow-methods";
     private static final String ACCESS_CONTROL_ALLOW_HEADERS = "access-control-allow-headers";
     private static final String ACCESS_CONTROL_MAX_AGE = "access-control-max-age";
-    static final String ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin";
     static final String ACCESS_CONTROL_ALLOW_CREDENTIALS = "access-control-allow-credentials";
     private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O", Locale.ENGLISH);
     private final Config config;
@@ -83,7 +82,9 @@ public class CorsHandler {
             // If there is no origin, this is not a CORS request.
             final String origin = getOrigin(request);
             if (Strings.isNullOrEmpty(origin) == false && validOrigin(origin) == false) {
-                return request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
+                HttpResponse response = request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
+                response.addHeader(DefaultRestChannel.CONTENT_LENGTH, "0");
+                return response;
             }
         }
 
@@ -122,7 +123,6 @@ public class CorsHandler {
             setAllowCredentials(response);
             setMaxAge(response);
             response.addHeader(DefaultRestChannel.CONTENT_LENGTH, "0");
-            dateTimeFormatter.format(Instant.now());
             response.addHeader(DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
             return response;
         } else {

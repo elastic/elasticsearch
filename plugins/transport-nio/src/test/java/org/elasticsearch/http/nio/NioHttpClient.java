@@ -110,7 +110,7 @@ class NioHttpClient implements Closeable {
         return sendRequests(remoteAddress, requests);
     }
 
-    public final FullHttpResponse post(InetSocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
+    public final FullHttpResponse send(InetSocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
         Collection<FullHttpResponse> responses = sendRequests(remoteAddress, Collections.singleton(httpRequest));
         assert responses.size() == 1 : "expected 1 and only 1 http response";
         return responses.iterator().next();
@@ -271,7 +271,7 @@ class NioHttpClient implements Closeable {
             int bytesConsumed = adaptor.read(channelBuffer.sliceAndRetainPagesTo(channelBuffer.getIndex()));
             Object message;
             while ((message = adaptor.pollInboundMessage()) != null) {
-                handleRequest(message);
+                handleResponse(message);
             }
 
             return bytesConsumed;
@@ -286,7 +286,7 @@ class NioHttpClient implements Closeable {
             }
         }
 
-        private void handleRequest(Object message) {
+        private void handleResponse(Object message) {
             final FullHttpResponse response = (FullHttpResponse) message;
             DefaultFullHttpResponse newResponse = new DefaultFullHttpResponse(response.protocolVersion(),
                 response.status(),

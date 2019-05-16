@@ -95,11 +95,11 @@ when explicitly told so by user - in other words, by default, frozen indices are
 
 One can toggle the use of frozen indices through:
 
-::dedicated configuration parameter
+dedicated configuration parameter::
 Set to `true` properties `index_include_frozen` in the <<sql-rest>> or `index.include.frozen` in the drivers to include frozen indices.
 
-::dedicated keyword
-Explicitly perform the inclusion through the dedicated `FROZEN` keyword in the `FROM` clause or `INCLUDE FROZEN` in the `SHOW ` commands:
+dedicated keyword::
+Explicitly perform the inclusion through the dedicated `FROZEN` keyword in the `FROM` clause or `INCLUDE FROZEN` in the `SHOW` commands:
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----

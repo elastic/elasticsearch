@@ -150,7 +150,7 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         // send a response
         DefaultRestChannel channel = new DefaultRestChannel(httpChannel, httpRequest, request, bigArrays, handlingSettings,
-            new CorsHandler(CorsHandler.Config.disabled()), threadPool.getThreadContext());
+            CorsHandler.disabled(), threadPool.getThreadContext());
         TestRestResponse resp = new TestRestResponse();
         final String customHeader = "custom-header";
         final String customHeaderValue = "xyz";

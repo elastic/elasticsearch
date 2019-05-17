@@ -1,19 +1,4 @@
 /*
- * Copyright 2013 The Netty Project
- *
- * The Netty Project licenses this file to you under the Apache License, version
- * 2.0 (the "License"); you may not use this file except in compliance with the
- * License. You may obtain a copy of the License at:
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
- * License for the specific language governing permissions and limitations under
- * the License.
- */
-/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -31,6 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+/*
+ * Copyright 2013 The Netty Project
+ *
+ * The Netty Project licenses this file to you under the Apache License, version
+ * 2.0 (the "License"); you may not use this file except in compliance with the
+ * License. You may obtain a copy of the License at:
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
 
 package org.elasticsearch.http;
 
@@ -45,12 +45,33 @@ import org.elasticsearch.rest.RestUtils;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
-import static org.elasticsearch.http.HttpTransportSettings.*;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 
+/**
+ * This file is forked from the https://netty.io project. In particular it combines the following three
+ * files: io.netty.handler.codec.http.cors.CorsHandler, io.netty.handler.codec.http.cors.CorsConfig, and
+ * io.netty.handler.codec.http.cors.CorsConfigBuilder.
+ *
+ * It modifies the original netty code to operation on Elasticsearch http request/response abstractions.
+ * Additionally, it removes CORS features that are not used by Elasticsearch.
+ */
 public class CorsHandler {
 
     public static final String ANY_ORIGIN = "*";
@@ -59,10 +80,10 @@ public class CorsHandler {
     public static final String VARY = "vary";
     public static final String ACCESS_CONTROL_REQUEST_METHOD = "access-control-request-method";
     public static final String ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin";
-    private static final String ACCESS_CONTROL_ALLOW_METHODS = "access-control-allow-methods";
-    private static final String ACCESS_CONTROL_ALLOW_HEADERS = "access-control-allow-headers";
-    private static final String ACCESS_CONTROL_MAX_AGE = "access-control-max-age";
-    static final String ACCESS_CONTROL_ALLOW_CREDENTIALS = "access-control-allow-credentials";
+    public static final String ACCESS_CONTROL_ALLOW_METHODS = "access-control-allow-methods";
+    public static final String ACCESS_CONTROL_ALLOW_HEADERS = "access-control-allow-headers";
+    public static final String ACCESS_CONTROL_MAX_AGE = "access-control-max-age";
+    public static final String ACCESS_CONTROL_ALLOW_CREDENTIALS = "access-control-allow-credentials";
 
     private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O", Locale.ENGLISH);
     private final Config config;
@@ -82,7 +103,7 @@ public class CorsHandler {
 
             // If there is no origin, this is not a CORS request.
             final String origin = getOrigin(request);
-            if (Strings.isNullOrEmpty(origin) == false && validOrigin(origin) == false) {
+            if (Strings.isNullOrEmpty(origin) == false && originAllowed(origin) == false) {
                 HttpResponse response = request.createResponse(RestStatus.FORBIDDEN, BytesArray.EMPTY);
                 response.addHeader(DefaultRestChannel.CONTENT_LENGTH, "0");
                 return response;
@@ -95,22 +116,19 @@ public class CorsHandler {
     public void setCorsResponseHeaders(HttpRequest request, HttpResponse resp) {
         if (config.isCorsSupportEnabled()) {
             String originHeader = getOrigin(request);
-            setOrigin(resp, originHeader);
-            if (config.isCredentialsAllowed()) {
-                resp.addHeader(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+            if (setOrigin(resp, originHeader)) {
+                if (config.isCredentialsAllowed()) {
+                    resp.addHeader(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
+                }
             }
         }
     }
 
-    private boolean validOrigin(String origin) {
+    private boolean originAllowed(String origin) {
         if (config.isAnyOriginSupported()) {
             return true;
         }
 
-        if (Strings.isNullOrEmpty(origin)) {
-            // Not a CORS request so we cannot validate it. It may be a non CORS request.
-            return true;
-        }
         return config.isOriginAllowed(origin);
     }
 
@@ -118,11 +136,12 @@ public class CorsHandler {
         final String origin = getOrigin(request);
         if (Strings.isNullOrEmpty(origin) == false) {
             HttpResponse response = request.createResponse(RestStatus.OK, BytesArray.EMPTY);
-            setOrigin(response, origin);
-            setAllowMethods(response);
-            setAllowHeaders(response);
-            setAllowCredentials(response);
-            setMaxAge(response);
+            if (setOrigin(response, origin)) {
+                setAllowMethods(response);
+                setAllowHeaders(response);
+                setAllowCredentials(response);
+                setMaxAge(response);
+            }
             response.addHeader(DefaultRestChannel.CONTENT_LENGTH, "0");
             response.addHeader(DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
             return response;
@@ -133,22 +152,25 @@ public class CorsHandler {
         }
     }
 
-    private void setOrigin(final HttpResponse response, final String origin) {
+    private boolean setOrigin(final HttpResponse response, final String origin) {
         // If there is no origin, this is not a CORS request.
         if (Strings.isNullOrEmpty(origin) == false) {
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
                     response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
                     response.addHeader(VARY, ORIGIN);
+                    return true;
                 } else {
                     response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, ANY_ORIGIN);
+                    return true;
                 }
-            }
-            if (config.isOriginAllowed(origin)) {
+            } else if (config.isOriginAllowed(origin)) {
                 response.addHeader(ACCESS_CONTROL_ALLOW_ORIGIN, origin);
                 response.addHeader(VARY, ORIGIN);
+                return true;
             }
         }
+        return false;
     }
 
     private void setAllowMethods(final HttpResponse response) {
@@ -181,7 +203,12 @@ public class CorsHandler {
     }
 
     private static String getOrigin(HttpRequest request) {
-        return request.getHeaders().get(ORIGIN).get(0);
+        List<String> headers = request.getHeaders().get(ORIGIN);
+        if (headers == null) {
+            return null;
+        } else {
+            return headers.get(0);
+        }
     }
 
     public static class Config {
@@ -201,27 +228,20 @@ public class CorsHandler {
             pattern = builder.pattern;
             anyOrigin = builder.anyOrigin;
             this.credentialsAllowed = builder.allowCredentials;
-            // TODO: We do not short circuit on these
             this.allowedRequestMethods = Collections.unmodifiableSet(builder.requestMethods);
             this.allowedRequestHeaders = Collections.unmodifiableSet(builder.requestHeaders);
             this.maxAge = builder.maxAge;
         }
 
-        public static Config disabled() {
-            Builder builder = new Builder();
-            builder.enabled = false;
-            return new Config(builder);
-        }
-
-        public boolean isCorsSupportEnabled() {
+        boolean isCorsSupportEnabled() {
             return enabled;
         }
 
-        public boolean isAnyOriginSupported() {
+        boolean isAnyOriginSupported() {
             return anyOrigin;
         }
 
-        public boolean isOriginAllowed(String origin) {
+        boolean isOriginAllowed(String origin) {
             if (origins.isPresent()) {
                 return origins.get().contains(origin);
             } else if (pattern.isPresent()) {
@@ -230,7 +250,7 @@ public class CorsHandler {
             return false;
         }
 
-        public boolean isCredentialsAllowed() {
+        boolean isCredentialsAllowed() {
             return credentialsAllowed;
         }
 
@@ -263,19 +283,19 @@ public class CorsHandler {
                 anyOrigin = false;
             }
 
-            public static Builder forOrigins(final String... origins) {
+            static Builder forOrigins(final String... origins) {
                 return new Builder(origins);
             }
 
-            public static Builder forAnyOrigin() {
+            static Builder forAnyOrigin() {
                 return new Builder();
             }
 
-            public static Builder forPattern(Pattern pattern) {
+            static Builder forPattern(Pattern pattern) {
                 return new Builder(pattern);
             }
 
-            public Builder allowCredentials() {
+            Builder allowCredentials() {
                 this.allowCredentials = true;
                 return this;
             }
@@ -310,7 +330,7 @@ public class CorsHandler {
 
     public static CorsHandler fromSettings(Settings settings) {
         if (SETTING_CORS_ENABLED.get(settings) == false) {
-            return new CorsHandler(CorsHandler.Config.disabled());
+            return disabled();
         }
         String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
         final CorsHandler.Config.Builder builder;

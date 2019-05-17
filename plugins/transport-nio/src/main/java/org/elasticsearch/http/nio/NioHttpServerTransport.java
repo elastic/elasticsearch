@@ -19,24 +19,18 @@
 
 package org.elasticsearch.http.nio;
 
-import io.netty.handler.codec.http.HttpMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
-import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.http.nio.cors.NioCorsConfig;
-import org.elasticsearch.http.nio.cors.NioCorsConfigBuilder;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.ChannelFactory;
 import org.elasticsearch.nio.InboundChannelBuffer;
@@ -45,7 +39,6 @@ import org.elasticsearch.nio.NioSelector;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.transport.nio.PageAllocator;
@@ -54,17 +47,8 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.Arrays;
 import java.util.function.Consumer;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_CHUNK_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
@@ -151,42 +135,6 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
 
     protected ChannelFactory<NioHttpServerChannel, NioHttpChannel> channelFactory() {
         return new HttpChannelFactory();
-    }
-
-    static NioCorsConfig buildCorsConfig(Settings settings) {
-        if (SETTING_CORS_ENABLED.get(settings) == false) {
-            return NioCorsConfigBuilder.forOrigins().disable().build();
-        }
-        String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
-        final NioCorsConfigBuilder builder;
-        if (Strings.isNullOrEmpty(origin)) {
-            builder = NioCorsConfigBuilder.forOrigins();
-        } else if (origin.equals(CorsHandler.ANY_ORIGIN)) {
-            builder = NioCorsConfigBuilder.forAnyOrigin();
-        } else {
-            try {
-                Pattern p = RestUtils.checkCorsSettingForRegex(origin);
-                if (p == null) {
-                    builder = NioCorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
-                } else {
-                    builder = NioCorsConfigBuilder.forPattern(p);
-                }
-            } catch (PatternSyntaxException e) {
-                throw new SettingsException("Bad regex in [" + SETTING_CORS_ALLOW_ORIGIN.getKey() + "]: [" + origin + "]", e);
-            }
-        }
-        if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
-            builder.allowCredentials();
-        }
-        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
-        HttpMethod[] methods = Arrays.stream(strMethods)
-            .map(HttpMethod::valueOf)
-            .toArray(HttpMethod[]::new);
-        return builder.allowedRequestMethods(methods)
-            .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
-            .shortCircuit()
-            .build();
     }
 
     protected void acceptChannel(NioSocketChannel socketChannel) {

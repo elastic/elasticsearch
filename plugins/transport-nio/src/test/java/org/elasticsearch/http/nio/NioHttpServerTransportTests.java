@@ -42,7 +42,11 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.*;
+import org.elasticsearch.http.BindHttpException;
+import org.elasticsearch.http.CorsHandler;
+import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -189,7 +193,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
             Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
             try (NioHttpServerTransport otherTransport = new NioHttpServerTransport(settings, networkService, bigArrays, pageRecycler,
                 threadPool, xContentRegistry(), new NullDispatcher(), new NioGroupFactory(Settings.EMPTY, logger))) {
-                BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
+                BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
                 assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }
         }
@@ -232,6 +236,7 @@ public class NioHttpServerTransportTests extends ESTestCase {
                 try {
                     assertThat(response.status(), equalTo(HttpResponseStatus.OK));
                     assertThat(response.headers().get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), equalTo("elastic.co"));
+                    assertThat(response.headers().get(CorsHandler.VARY), equalTo(CorsHandler.ORIGIN));
                     assertTrue(response.headers().contains(CorsHandler.DATE));
                 } finally {
                     response.release();

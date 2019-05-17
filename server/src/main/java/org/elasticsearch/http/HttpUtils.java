@@ -20,12 +20,12 @@ package org.elasticsearch.http;
 
 import java.util.List;
 
-public class HttpUtils {
+class HttpUtils {
 
     /**
      * Returns if the request connection should be closed on completion.
      */
-    public static boolean isCloseConnection(HttpRequest request) {
+    static boolean isCloseConnection(HttpRequest request) {
         final boolean http10 = isHttp10(request);
         String connectionHeader = getHeader(request, DefaultRestChannel.CONNECTION);
         return DefaultRestChannel.CLOSE.equalsIgnoreCase(connectionHeader) ||

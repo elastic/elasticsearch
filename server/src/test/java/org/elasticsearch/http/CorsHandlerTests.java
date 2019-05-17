@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.PatternSyntaxException;
@@ -66,7 +67,7 @@ public class CorsHandlerTests extends ESTestCase {
         HttpResponse httpResponse = corsHandler.handleRequest(new TestRequest("elastic.co", RestRequest.Method.OPTIONS));
         assertNotNull(httpResponse);
         assertEquals(RestStatus.OK, httpResponse.getRestStatus());
-        assertEquals(methods.stream().map(String::toUpperCase).collect(Collectors.toSet()),
+        assertEquals(methods.stream().map(s -> s.toUpperCase(Locale.ENGLISH)).collect(Collectors.toSet()),
             new HashSet<>(httpResponse.getAllHeaders(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS)));
         assertEquals(headers, new HashSet<>(httpResponse.getAllHeaders(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS)));
         assertEquals("1728000", httpResponse.getAllHeaders(CorsHandler.ACCESS_CONTROL_MAX_AGE).get(0));
@@ -102,7 +103,7 @@ public class CorsHandlerTests extends ESTestCase {
         HttpResponse httpResponse = corsHandler.handleRequest(new TestRequest("elastic.co", RestRequest.Method.OPTIONS));
         assertNotNull(httpResponse);
         assertEquals(RestStatus.OK, httpResponse.getRestStatus());
-        assertEquals(methods.stream().map(String::toUpperCase).collect(Collectors.toSet()),
+        assertEquals(methods.stream().map(s -> s.toUpperCase(Locale.ENGLISH)).collect(Collectors.toSet()),
             new HashSet<>(httpResponse.getAllHeaders(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS)));
         assertEquals(headers, new HashSet<>(httpResponse.getAllHeaders(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS)));
         assertEquals("1728000", httpResponse.getAllHeaders(CorsHandler.ACCESS_CONTROL_MAX_AGE).get(0));

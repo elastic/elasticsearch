@@ -31,6 +31,8 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @ClassRule
     public static LocalH2 H2 = new LocalH2((c) -> {
+        assumeTrue("JTS inside H2 is using default local for toUpperCase() in string comparison making it fail to parse WKT on certain" +
+            " locales", "point".toUpperCase(Locale.getDefault()).equals("POINT"));
         // Load GIS extensions
         H2GISFunctions.load(c);
         c.createStatement().execute("RUNSCRIPT FROM 'classpath:/ogc/sqltsch.sql'");

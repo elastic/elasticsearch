@@ -142,6 +142,7 @@ public class DetailAnalyzeResponse implements ToXContentFragment {
         return list.toArray((T[]) Array.newInstance(clazz, 0));
     }
 
+    @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<DetailAnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("detail",
         true, args -> new DetailAnalyzeResponse((boolean) args[0], (AnalyzeTokenList) args[1],
         fromList(CharFilteredText.class, (List<CharFilteredText>)args[2]),
@@ -223,6 +224,7 @@ public class DetailAnalyzeResponse implements ToXContentFragment {
             return builder;
         }
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AnalyzeTokenList, Void> PARSER = new ConstructingObjectParser<>("token_list",
             true, args -> new AnalyzeTokenList((String) args[0],
             fromList(AnalyzeResponse.AnalyzeToken.class, (List<AnalyzeResponse.AnalyzeToken>)args[1])));
@@ -269,6 +271,7 @@ public class DetailAnalyzeResponse implements ToXContentFragment {
             return builder;
         }
 
+        @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<CharFilteredText, Void> PARSER = new ConstructingObjectParser<>("char_filtered_text",
             true, args -> new CharFilteredText((String) args[0], ((List<String>) args[1]).toArray(new String[0])));
 

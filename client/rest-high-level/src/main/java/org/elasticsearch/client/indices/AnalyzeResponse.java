@@ -213,11 +213,13 @@ public class AnalyzeResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, 
         return builder;
     }
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("analyze_response",
         true, args -> new AnalyzeResponse((List<AnalyzeResponse.AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1]));
 
     static {
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> AnalyzeResponse.AnalyzeToken.fromXContent(p), new ParseField(AnalyzeResponse.Fields.TOKENS));
+        PARSER.declareObjectArray(optionalConstructorArg(),
+            (p, c) -> AnalyzeResponse.AnalyzeToken.fromXContent(p), new ParseField(AnalyzeResponse.Fields.TOKENS));
         PARSER.declareObject(optionalConstructorArg(), DetailAnalyzeResponse.PARSER, new ParseField(AnalyzeResponse.Fields.DETAIL));
     }
 

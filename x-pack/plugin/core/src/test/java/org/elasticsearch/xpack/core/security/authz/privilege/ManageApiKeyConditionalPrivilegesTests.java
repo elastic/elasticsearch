@@ -162,8 +162,8 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
     }
 
     public void testManagePrivilegeOwnerAndReadOnly() {
-        final ManageApiKeyConditionalPrivileges condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet().forRealms("_self")
-                .forUsers("_self").build();
+        final ManageApiKeyConditionalPrivileges condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet()
+                .forRealms("_self").forUsers("_self").build();
 
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
         assertThat(accessAllowed, is(false));

@@ -94,6 +94,8 @@ public final class Messages {
     public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT = "Job memory status changed to hard_limit; " +
             "job exceeded model memory limit {0} by {1}. " +
             "Adjust the analysis_limits.model_memory_limit setting to ensure all data is analyzed";
+    public static final String JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT_PRE_7_2 = "Job memory status changed to hard_limit at {0}; adjust the " +
+        "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =

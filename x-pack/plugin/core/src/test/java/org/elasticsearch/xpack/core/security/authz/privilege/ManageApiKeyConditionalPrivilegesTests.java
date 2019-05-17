@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -161,8 +162,8 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
     }
 
     public void testManagePrivilegeOwnerAndReadOnly() {
-        final ManageApiKeyConditionalPrivileges condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet().forRealms()
-                .forUsers().build();
+        final ManageApiKeyConditionalPrivileges condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet().forRealms("_self")
+                .forUsers("_self").build();
 
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
         assertThat(accessAllowed, is(false));
@@ -216,24 +217,22 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
     }
 
     public static class ManageApiKeyConditionalPrivilegesBuilder {
-        private boolean createAllowed;
-        private boolean getAllowed;
-        private boolean invalidateAllowed;
+        private Set<String> actions = new HashSet<>();
         private Set<String> realms;
         private Set<String> users;
 
         public ManageApiKeyConditionalPrivilegesBuilder allowCreate() {
-            this.createAllowed = true;
+            actions.add(CREATE_ACTION);
             return this;
         }
 
         public ManageApiKeyConditionalPrivilegesBuilder allowGet() {
-            this.getAllowed = true;
+            actions.add(GET_ACTION);
             return this;
         }
 
         public ManageApiKeyConditionalPrivilegesBuilder allowInvalidate() {
-            this.invalidateAllowed = true;
+            actions.add(INVALIDATE_ACTION);
             return this;
         }
 
@@ -262,15 +261,16 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
         }
 
         public static ManageApiKeyConditionalPrivileges manageApiKeysUnrestricted() {
-            return new ManageApiKeyConditionalPrivileges(true, true, true, Set.of("*"), Set.of("*"));
+            return new ManageApiKeyConditionalPrivileges(Set.of("cluster:admin/xpack/security/api_key/*"), Set.of("*"), Set.of("*"));
         }
 
         public static ManageApiKeyConditionalPrivileges manageApiKeysOnlyForOwner() {
-            return new ManageApiKeyConditionalPrivileges(true, true, true, null, null);
+            return new ManageApiKeyConditionalPrivileges(Set.of("cluster:admin/xpack/security/api_key/*"), Set.of("_self"),
+                    Set.of("_self"));
         }
 
         public ManageApiKeyConditionalPrivileges build() {
-            return new ManageApiKeyConditionalPrivileges(createAllowed, getAllowed, invalidateAllowed, realms, users);
+            return new ManageApiKeyConditionalPrivileges(actions, realms, users);
         }
     }
 }

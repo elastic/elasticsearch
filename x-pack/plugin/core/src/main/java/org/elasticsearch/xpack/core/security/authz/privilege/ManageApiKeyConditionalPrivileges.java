@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -36,6 +36,8 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
     private static final String CREATE_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/create";
     private static final String GET_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/get";
     private static final String INVALIDATE_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/invalidate";
+    private static final List<String> API_KEY_ACTION_PATTERNS = List.of(CREATE_API_KEY_PATTERN, GET_API_KEY_PATTERN,
+            INVALIDATE_API_KEY_PATTERN);
 
     public static final String WRITEABLE_NAME = "manage-api-key-privileges";
 
@@ -43,33 +45,27 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
     private final Predicate<String> realmsPredicate;
     private final Set<String> users;
     private final Predicate<String> usersPredicate;
+    private final Set<String> actions;
     private final ClusterPrivilege privilege;
     private final BiPredicate<TransportRequest, Authentication> requestPredicate;
 
     interface Fields {
         ParseField MANAGE = new ParseField("manage");
-
-        ParseField CREATE = new ParseField("create");
-        ParseField GET = new ParseField("get");
-        ParseField INVALIDATE = new ParseField("invalidate");
-
+        ParseField ACTION = new ParseField("action");
         ParseField USERS = new ParseField("users");
         ParseField REALMS = new ParseField("realms");
     }
 
-    public ManageApiKeyConditionalPrivileges(boolean createAllowed, boolean getAllowed, boolean invalidateAllowed, Set<String> realms,
-            Set<String> users) {
-        final Set<String> patterns = new HashSet<>();
-        if (createAllowed) {
-            patterns.add(CREATE_API_KEY_PATTERN);
+    public ManageApiKeyConditionalPrivileges(Set<String> actions, Set<String> realms, Set<String> users) {
+        this.actions = Collections.unmodifiableSet(actions);
+        // validate allowed actions
+        for (String action : actions) {
+            if (ClusterPrivilege.MANAGE_API_KEY.predicate().test(action) == false) {
+                throw new IllegalArgumentException("invalid action [ " + action + " ] specified, expected API key privilege actions [ "
+                        + API_KEY_ACTION_PATTERNS + " ]");
+            }
         }
-        if (getAllowed) {
-            patterns.add(GET_API_KEY_PATTERN);
-        }
-        if (invalidateAllowed) {
-            patterns.add(INVALIDATE_API_KEY_PATTERN);
-        }
-        this.privilege = ClusterPrivilege.get(patterns);
+        this.privilege = ClusterPrivilege.get(actions);
 
         this.realms = (realms == null) ? Collections.emptySet() : Set.copyOf(realms);
         this.realmsPredicate = Automatons.predicate(this.realms);
@@ -81,7 +77,7 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
                 return true;
             } else if (request instanceof GetApiKeyRequest && privilege.predicate().test(GET_API_KEY_PATTERN)) {
                 final GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
-                if (this.realms.isEmpty() && this.users.isEmpty()) {
+                if (this.realms.contains("_self") && this.users.contains("_self")) {
                     return checkIfUserIsOwnerOfApiKeys(authentication, getApiKeyRequest.getApiKeyId(), getApiKeyRequest.getUserName(),
                             getApiKeyRequest.getRealmName());
                 } else {
@@ -90,7 +86,7 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
                 }
             } else if (request instanceof InvalidateApiKeyRequest && privilege.predicate().test(INVALIDATE_API_KEY_PATTERN)) {
                 final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
-                if (this.realms.isEmpty() && this.users.isEmpty()) {
+                if (this.realms.contains("_self") && this.users.contains("_self")) {
                     return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
                             invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName());
                 } else {
@@ -130,20 +126,16 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(privilege.predicate().test(CREATE_API_KEY_PATTERN));
-        out.writeBoolean(privilege.predicate().test(GET_API_KEY_PATTERN));
-        out.writeBoolean(privilege.predicate().test(INVALIDATE_API_KEY_PATTERN));
+        out.writeCollection(this.actions, StreamOutput::writeString);
         out.writeCollection(this.realms, StreamOutput::writeString);
         out.writeCollection(this.users, StreamOutput::writeString);
     }
 
     public static ManageApiKeyConditionalPrivileges createFrom(StreamInput in) throws IOException {
-        final boolean allowCreate = in.readBoolean();
-        final boolean allowGet = in.readBoolean();
-        final boolean allowInvalidate = in.readBoolean();
+        final Set<String> actions = in.readSet(StreamInput::readString);
         final Set<String> realms = in.readSet(StreamInput::readString);
         final Set<String> users = in.readSet(StreamInput::readString);
-        return new ManageApiKeyConditionalPrivileges(allowCreate, allowGet, allowInvalidate, realms, users);
+        return new ManageApiKeyConditionalPrivileges(actions, realms, users);
     }
 
     @Override
@@ -183,11 +175,9 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
 
         builder.field(Fields.MANAGE.getPreferredName(),
-                Map.of(Fields.CREATE.getPreferredName(), privilege.predicate().test(CREATE_API_KEY_PATTERN), Fields.GET.getPreferredName(),
-                        privilege.predicate().test(GET_API_KEY_PATTERN), Fields.INVALIDATE.getPreferredName(),
-                        privilege.predicate().test(INVALIDATE_API_KEY_PATTERN), Fields.REALMS.getPreferredName(), this.realms,
-                        Fields.USERS.getPreferredName(), this.users));
-
+                Map.of(Fields.ACTION.getPreferredName(), this.actions,
+                       Fields.REALMS.getPreferredName(), this.realms,
+                       Fields.USERS.getPreferredName(), this.users));
         return builder;
     }
 
@@ -196,33 +186,15 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
         expectFieldName(parser, Fields.MANAGE);
         expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
 
-        boolean createAllowed = false;
-        boolean getAllowed = false;
-        boolean invalidateAllowed = false;
-        String[] realms = null;
-        String[] users = null;
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
-            String fieldName = parser.currentName();
-            if (Fields.CREATE.match(fieldName, parser.getDeprecationHandler())) {
-                parser.nextToken();
-                createAllowed = parser.booleanValue();
-            } else if (Fields.GET.match(fieldName, parser.getDeprecationHandler())) {
-                parser.nextToken();
-                getAllowed = parser.booleanValue();
-            } else if (Fields.INVALIDATE.match(fieldName, parser.getDeprecationHandler())) {
-                parser.nextToken();
-                invalidateAllowed = parser.booleanValue();
-            } else if (Fields.REALMS.match(fieldName, parser.getDeprecationHandler())) {
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
-                realms = XContentUtils.readStringArray(parser, false);
-            } else if (Fields.USERS.match(fieldName, parser.getDeprecationHandler())) {
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
-                users = XContentUtils.readStringArray(parser, false);
-            }
-
-        }
-        return new ManageApiKeyConditionalPrivileges(createAllowed, getAllowed, invalidateAllowed, Set.of(realms), Set.of(users));
+        expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+        expectFieldName(parser, Fields.ACTION);
+        expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+        String[] actions = XContentUtils.readStringArray(parser, false);
+        expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+        String[] realms = XContentUtils.readStringArray(parser, false);
+        expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+        String[] users = XContentUtils.readStringArray(parser, false);
+        return new ManageApiKeyConditionalPrivileges(Set.of(actions), Set.of(realms), Set.of(users));
     }
 
     private static void expectedToken(XContentParser.Token read, XContentParser parser, XContentParser.Token expected) {

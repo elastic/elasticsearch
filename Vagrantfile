@@ -72,7 +72,7 @@ Vagrant.configure(2) do |config|
       config.vm.box = 'elastic/debian-8-x86_64'
       deb_common config, box, extra: <<-SHELL
         # this sometimes gets a bad ip, and doesn't appear to be needed
-        rm /etc/apt/sources.list.d/http_debian_net_debian.list
+        rm -f /etc/apt/sources.list.d/http_debian_net_debian.list
       SHELL
     end
   end

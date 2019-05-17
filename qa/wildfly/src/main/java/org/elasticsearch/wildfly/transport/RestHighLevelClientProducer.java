@@ -19,46 +19,34 @@
 
 package org.elasticsearch.wildfly.transport;
 
-import org.elasticsearch.client.transport.TransportClient;
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.transport.client.PreBuiltTransportClient;
 
 import javax.enterprise.inject.Produces;
-
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.Properties;
 
 @SuppressWarnings("unused")
-public final class TransportClientProducer {
+public final class RestHighLevelClientProducer {
 
     @Produces
-    public TransportClient createTransportClient() throws IOException {
+    public RestHighLevelClient createRestHighLevelClient() throws IOException {
         final String elasticsearchProperties = System.getProperty("elasticsearch.properties");
         final Properties properties = new Properties();
 
-        final String transportUri;
-        final String clusterName;
+        final String httpUri;
         try (InputStream is = Files.newInputStream(getPath(elasticsearchProperties))) {
             properties.load(is);
-            transportUri = properties.getProperty("transport.uri");
-            clusterName = properties.getProperty("cluster.name");
+            httpUri = properties.getProperty("http.uri");
         }
 
-        final int lastColon = transportUri.lastIndexOf(':');
-        final String host = transportUri.substring(0, lastColon);
-        final int port = Integer.parseInt(transportUri.substring(lastColon + 1));
-        final Settings settings = Settings.builder().put("cluster.name", clusterName).build();
-        final TransportClient transportClient = new PreBuiltTransportClient(settings, Collections.emptyList());
-        transportClient.addTransportAddress(new TransportAddress(InetAddress.getByName(host), port));
-        return transportClient;
+        return new RestHighLevelClient(RestClient.builder(HttpHost.create(httpUri)));
     }
 
     @SuppressForbidden(reason = "get path not configured in environment")

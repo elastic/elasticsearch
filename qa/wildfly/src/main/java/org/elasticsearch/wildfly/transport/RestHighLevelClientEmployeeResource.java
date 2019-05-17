@@ -19,9 +19,12 @@
 
 package org.elasticsearch.wildfly.transport;
 
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.wildfly.model.Employee;
 
@@ -33,7 +36,6 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -44,17 +46,17 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 @Path("/employees")
-public class TransportClientEmployeeResource {
+public class RestHighLevelClientEmployeeResource {
 
     @Inject
-    private TransportClient client;
+    private RestHighLevelClient client;
 
     @GET
     @Path("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response getEmployeeById(final @PathParam("id") Long id) {
+    public Response getEmployeeById(final @PathParam("id") Long id) throws IOException {
         Objects.requireNonNull(id);
-        final GetResponse response = client.prepareGet("megacorp", "employee", Long.toString(id)).get();
+        final GetResponse response = client.get(new GetRequest("megacorp", Long.toString(id)), RequestOptions.DEFAULT);
         if (response.isExists()) {
             final Map<String, Object> source = response.getSource();
             final Employee employee = new Employee();
@@ -94,7 +96,10 @@ public class TransportClientEmployeeResource {
                 }
             }
             builder.endObject();
-            final IndexResponse response = client.prepareIndex("megacorp", "employee", Long.toString(id)).setSource(builder).get();
+            final IndexRequest request = new IndexRequest("megacorp");
+            request.id(Long.toString(id));
+            request.source(builder);
+            final IndexResponse response = client.index(request, RequestOptions.DEFAULT);
             if (response.status().getStatus() == 201) {
                 return Response.created(new URI("/employees/" + id)).build();
             } else {

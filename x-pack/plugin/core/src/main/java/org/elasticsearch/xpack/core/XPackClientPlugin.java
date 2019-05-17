@@ -148,7 +148,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.security.SecurityFeatureSetUsage;
 import org.elasticsearch.xpack.core.security.SecurityField;
-import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
@@ -203,6 +202,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+// TODO: merge this into XPackPlugin
 public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
 
     static Optional<String> X_PACK_FEATURE = Optional.of("x-pack");
@@ -233,22 +233,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
         return settings;
-    }
-
-    @Override
-    public Settings additionalSettings() {
-        return additionalSettings(settings, XPackSettings.SECURITY_ENABLED.get(settings), XPackPlugin.transportClientMode(settings));
-    }
-
-    static Settings additionalSettings(final Settings settings, final boolean enabled, final boolean transportClientMode) {
-        if (enabled && transportClientMode) {
-            return Settings.builder()
-                    .put(SecuritySettings.addTransportSettings(settings))
-                    .put(SecuritySettings.addUserSettings(settings))
-                    .build();
-        } else {
-            return Settings.EMPTY;
-        }
     }
 
     @Override
@@ -514,8 +498,8 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             final CircuitBreakerService circuitBreakerService,
             final NamedWriteableRegistry namedWriteableRegistry,
             final NetworkService networkService) {
-        // this should only be used in the transport layer, so do not add it if it is not in transport mode or we are disabled
-        if (XPackPlugin.transportClientMode(settings) == false || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+        // this should only be used in the transport layer, so do not add it if we are disabled
+        if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             return Collections.emptyMap();
         }
         final SSLService sslService;

@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TermVectorsUnitTests extends ESTestCase {
     public void testStreamResponse() throws Exception {
-        TermVectorsResponse outResponse = new TermVectorsResponse("a", "b", "c");
+        TermVectorsResponse outResponse = new TermVectorsResponse("a", "c");
         outResponse.setExists(true);
         writeStandardTermVector(outResponse);
 
@@ -82,7 +82,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         // see if correct
         checkIfStandardTermVector(inResponse);
 
-        outResponse = new TermVectorsResponse("a", "b", "c");
+        outResponse = new TermVectorsResponse("a", "c");
         writeEmptyTermVector(outResponse);
         // write
         outBuffer = new ByteArrayOutputStream();
@@ -175,7 +175,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         BytesReference inputBytes = new BytesArray(
                 " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
 
-        TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
+        TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
         TermVectorsRequest.parseRequest(tvr, parser);
 
@@ -196,7 +196,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         RestTermVectorsAction.addFieldStringsFromParameter(tvr, additionalFields);
 
         inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
-        tvr = new TermVectorsRequest(null, null, null);
+        tvr = new TermVectorsRequest(null, null);
         parser = createParser(JsonXContent.jsonXContent, inputBytes);
         TermVectorsRequest.parseRequest(tvr, parser);
         additionalFields = "";
@@ -211,7 +211,7 @@ public class TermVectorsUnitTests extends ESTestCase {
     public void testRequestParsingThrowsException() throws Exception {
         BytesReference inputBytes = new BytesArray(
                 " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}");
-        TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
+        TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         boolean threwException = false;
         try {
             XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
@@ -225,7 +225,7 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     public void testStreamRequest() throws IOException {
         for (int i = 0; i < 10; i++) {
-            TermVectorsRequest request = new TermVectorsRequest("index", "type", "id");
+            TermVectorsRequest request = new TermVectorsRequest("index", "id");
             request.offsets(random().nextBoolean());
             request.fieldStatistics(random().nextBoolean());
             request.payloads(random().nextBoolean());
@@ -243,7 +243,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             // read
             ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
             InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-            TermVectorsRequest req2 = new TermVectorsRequest(null, null, null);
+            TermVectorsRequest req2 = new TermVectorsRequest(null, null);
             req2.readFrom(esBuffer);
 
             assertThat(request.offsets(), equalTo(req2.offsets()));
@@ -300,7 +300,6 @@ public class TermVectorsUnitTests extends ESTestCase {
         request.add(new TermVectorsRequest(), data);
 
         checkParsedParameters(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {
@@ -313,7 +312,6 @@ public class TermVectorsUnitTests extends ESTestCase {
         fields.add("c");
         for (TermVectorsRequest singleRequest : request.requests) {
             assertThat(singleRequest.index(), equalTo("testidx"));
-            assertThat(singleRequest.type(), equalTo("test"));
             assertThat(singleRequest.payloads(), equalTo(false));
             assertThat(singleRequest.positions(), equalTo(false));
             assertThat(singleRequest.offsets(), equalTo(false));
@@ -332,14 +330,12 @@ public class TermVectorsUnitTests extends ESTestCase {
         request.add(new TermVectorsRequest(), data);
 
         checkParsedFilterParameters(request);
-        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     void checkParsedFilterParameters(MultiTermVectorsRequest multiRequest) {
         Set<String> ids = new HashSet<>(Arrays.asList("1", "2"));
         for (TermVectorsRequest request : multiRequest.requests) {
             assertThat(request.index(), equalTo("testidx"));
-            assertThat(request.type(), equalTo("test"));
             assertTrue(ids.remove(request.id()));
             assertNotNull(request.filterSettings());
             assertThat(request.filterSettings().maxNumTerms, equalTo(20));

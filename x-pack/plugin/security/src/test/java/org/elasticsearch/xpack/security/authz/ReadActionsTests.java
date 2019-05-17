@@ -374,13 +374,13 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     public void testTermVectors() {
         createIndicesWithRandomAliases("test1", "index1");
-        client().prepareTermVectors("test1", "type", "id").get();
+        client().prepareTermVectors("test1", "id").get();
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("index1", "type", "id")::get, TermVectorsAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("index1", "id")::get, TermVectorsAction.NAME);
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("missing", "type", "id")::get, TermVectorsAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareTermVectors("missing", "id")::get, TermVectorsAction.NAME);
 
-        expectThrows(IndexNotFoundException.class, () -> client().prepareTermVectors("test5", "type", "id").get());
+        expectThrows(IndexNotFoundException.class, () -> client().prepareTermVectors("test5", "id").get());
     }
 
     public void testMultiTermVectors() {

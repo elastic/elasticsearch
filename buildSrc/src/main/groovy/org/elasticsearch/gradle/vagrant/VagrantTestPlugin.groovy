@@ -94,28 +94,17 @@ class VagrantTestPlugin implements Plugin<Project> {
     /** extra env vars to pass to vagrant for box configuration **/
     Map<String, String> vagrantBoxEnvVars = [:]
 
-    private static final String SYSTEM_JDK_VERSION = "11.0.2+9"
     private static final String GRADLE_JDK_VERSION = "12.0.1+12@69cfe15208a647278a19ef0990eea691"
-    private Jdk linuxSystemJdk;
     private Jdk linuxGradleJdk;
-    private Jdk windowsSystemJdk;
     private Jdk windowsGradleJdk;
 
     @Override
     void apply(Project project) {
         project.pluginManager.apply(JdkDownloadPlugin.class)
         NamedDomainObjectContainer<Jdk> jdksContainer = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
-        linuxSystemJdk = jdksContainer.create("linux_system") {
-            version = SYSTEM_JDK_VERSION
-            platform = "linux"
-        }
         linuxGradleJdk = jdksContainer.create("linux_gradle") {
             version = GRADLE_JDK_VERSION
             platform = "linux"
-        }
-        windowsSystemJdk = jdksContainer.create("windows_system") {
-            version = SYSTEM_JDK_VERSION
-            platform = "windows"
         }
         windowsGradleJdk = jdksContainer.create("windows_gradle") {
             version = GRADLE_JDK_VERSION
@@ -314,7 +303,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         Task createLinuxRunnerScript = project.tasks.create('createLinuxRunnerScript', FileContentsTask) {
-            dependsOn copyPackagingTests, linuxGradleJdk, linuxSystemJdk
+            dependsOn copyPackagingTests, linuxGradleJdk
             file "${testsDir}/run-tests.sh"
             contents """\
                      if [ "\$#" -eq 0 ]; then
@@ -323,14 +312,11 @@ class VagrantTestPlugin implements Plugin<Project> {
                        test_args=( "\$@" )
                      fi
                      
-                     if [ -z "\$SYSTEM_JAVA_HOME" ]; then
-                       export SYSTEM_JAVA_HOME="${-> convertPath(project, linuxSystemJdk.toString()) }"
-                     fi
                      "${-> convertPath(project, linuxGradleJdk.toString()) }"/bin/java -cp "\$PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner "\${test_args[@]}"
                      """
         }
         Task createWindowsRunnerScript = project.tasks.create('createWindowsRunnerScript', FileContentsTask) {
-            dependsOn copyPackagingTests, windowsGradleJdk, windowsSystemJdk
+            dependsOn copyPackagingTests, windowsGradleJdk
             file "${testsDir}/run-tests.ps1"
             // the use of $args rather than param() here is deliberate because the syntax for array (multivalued) parameters is likely
             // a little trappy for those unfamiliar with powershell
@@ -340,7 +326,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                      } else {
                        \$testArgs = \$args
                      }
-                     \$Env:SYSTEM_JAVA_HOME = "${-> convertPath(project, windowsSystemJdk.toString()) }"
                      & "${-> convertPath(project, windowsGradleJdk.toString()) }"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
                      exit \$LASTEXITCODE
                      """
@@ -578,10 +563,10 @@ class VagrantTestPlugin implements Plugin<Project> {
 
             if (LINUX_BOXES.contains(box)) {
                 Task batsPackagingTest = project.tasks.create("vagrant${boxTask}#batsPackagingTest", BatsOverVagrantTask) {
-                    remoteCommand "export SYSTEM_JAVA_HOME=\"${-> convertPath(project, linuxSystemJdk.toString())}\"; " + BATS_TEST_COMMAND
+                    remoteCommand BATS_TEST_COMMAND
                     boxName box
                     environmentVars vagrantEnvVars
-                    dependsOn up, setupPackagingTest, linuxSystemJdk
+                    dependsOn up, setupPackagingTest
                     finalizedBy halt
                 }
 

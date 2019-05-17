@@ -354,10 +354,11 @@ def sh_install_deps(config,
       return 1
     }
     cat \<\<JAVA > /etc/profile.d/java_home.sh
-if [ ! -z "\\\$JAVA_HOME" ]; then
-  export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
-  unset JAVA_HOME
+if [ -z "\\\$JAVA_HOME" ]; then
+  export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
 fi
+export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
+unset JAVA_HOME
 JAVA
     ensure tar
     ensure curl
@@ -417,6 +418,8 @@ def windows_common(config, name)
   config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
     [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
+    $javaHome = [Environment]::GetEnvironmentVariable("JAVA_HOME", "Machine")
+    [Environment]::SetEnvironmentVariable("SYSTEM_JAVA_HOME", $javaHome, "Machine")
     [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
     [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
   SHELL

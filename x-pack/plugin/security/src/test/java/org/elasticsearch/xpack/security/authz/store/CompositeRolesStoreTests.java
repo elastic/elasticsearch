@@ -763,7 +763,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus);
+        return dummyIndexState(true, indexStatus);
+    }
+
+    public SecurityIndexManager.State dummyIndexState(boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
+        return new SecurityIndexManager.State(
+            Instant.now(), isIndexUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetaData.State.OPEN);
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -812,7 +817,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         // green to yellow or yellow to green
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+        currentState = dummyState(previousState.indexHealth == ClusterHealthStatus.GREEN ?
                                   ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
         compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
@@ -837,14 +842,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             }
         };
 
-        compositeRolesStore.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(Instant.now(), false, true, true, null, concreteSecurityIndexName, null),
-            new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, null));
+        compositeRolesStore.onSecurityIndexStateChange(dummyIndexState(false, null), dummyIndexState(true, null));
         assertEquals(1, numInvalidation.get());
 
-        compositeRolesStore.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, null),
-            new SecurityIndexManager.State(Instant.now(), false, true, true, null, concreteSecurityIndexName, null));
+        compositeRolesStore.onSecurityIndexStateChange(dummyIndexState(true, null), dummyIndexState(false, null));
         assertEquals(2, numInvalidation.get());
     }
 

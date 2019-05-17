@@ -426,9 +426,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
             final RepositoryData updatedRepositoryData;
+            final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
+            final Map<String, BlobContainer> foundIndices;
             try {
                 final RepositoryData repositoryData = getRepositoryData();
                 updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
+                // Cache the indices that were found before writing out the new index-N blob so that a stuck master will never
+                // delete an index that was created by another master node after writing this index-N blob.
+                foundIndices = indicesBlobContainer.children();
                 writeIndexGen(updatedRepositoryData, repositoryStateId);
             } catch (Exception ex) {
                 listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
@@ -449,15 +454,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     .orElse(Collections.emptyList()),
                 snapshotId,
                 ActionListener.map(listener, v -> {
-                    final Set<String> existingIndexIds = survivingIndices.values().stream()
+                    final Set<String> survivingIndexIds = survivingIndices.values().stream()
                         .map(IndexId::getId).collect(Collectors.toSet());
-                    final var indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
-                    for (Map.Entry<String, BlobContainer> indexEntry : indicesBlobContainer.children().entrySet()) {
+                    final List<String> toDelete = new ArrayList<>();
+                    for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
                         final String indexSnId = indexEntry.getKey();
                         try {
-                            if (existingIndexIds.contains(indexSnId) == false) {
+                            if (survivingIndexIds.contains(indexSnId) == false) {
                                 deleteContents(indexEntry.getValue());
-                                indicesBlobContainer.deleteBlob(indexSnId);
+                                toDelete.add(indexSnId);
                             }
                         } catch (IOException e) {
                             logger.warn(() ->
@@ -465,6 +470,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     "[{}] index {} is no longer part of any snapshots in the repository, " +
                                         "but failed to clean up their index folders.", metadata.name(), indexSnId), e);
                         }
+                    }
+                    try {
+                        indicesBlobContainer.deleteBlobsIgnoringIfNotExists(toDelete);
+                    } catch (IOException e) {
+                        logger.warn(() ->
+                            new ParameterizedMessage(
+                                "[{}] failed to clean up unreferenced index folders.", metadata.name()), e);
                     }
                     return null;
                 })

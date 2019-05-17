@@ -185,15 +185,24 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
         expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
         expectFieldName(parser, Fields.MANAGE);
         expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
+        String[] actions = Strings.EMPTY_ARRAY;
+        String[] users = Strings.EMPTY_ARRAY;
+        String[] realms = Strings.EMPTY_ARRAY;
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
+            String fieldName = parser.currentName();
+            if (Fields.ACTION.match(fieldName, parser.getDeprecationHandler())) {
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+                actions = XContentUtils.readStringArray(parser, false);
+            } else if (Fields.USERS.match(fieldName, parser.getDeprecationHandler())) {
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+                realms = XContentUtils.readStringArray(parser, false);
+            } else if (Fields.REALMS.match(fieldName, parser.getDeprecationHandler())) {
+                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
+                users = XContentUtils.readStringArray(parser, false);
+            }
+        }
 
-        expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
-        expectFieldName(parser, Fields.ACTION);
-        expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
-        String[] actions = XContentUtils.readStringArray(parser, false);
-        expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
-        String[] realms = XContentUtils.readStringArray(parser, false);
-        expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
-        String[] users = XContentUtils.readStringArray(parser, false);
         return new ManageApiKeyConditionalPrivileges(Set.of(actions), Set.of(realms), Set.of(users));
     }
 

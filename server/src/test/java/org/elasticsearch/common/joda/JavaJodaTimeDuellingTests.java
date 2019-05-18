@@ -733,14 +733,21 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         JodaDateFormatter jodaFormatter = new JodaDateFormatter(format, isoFormatter, isoFormatter);
         DateFormatter javaFormatter = DateFormatter.forPattern(format);
 
+        assertSameDate("2018-10-10", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10+0430", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11-08:00", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11Z", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12+0100", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12.123", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12.123Z", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12.123+0000", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12,123", format, jodaFormatter, javaFormatter);
         assertSameDate("2018-10-10T10:11:12,123Z", format, jodaFormatter, javaFormatter);
+        assertSameDate("2018-10-10T10:11:12,123+05:30", format, jodaFormatter, javaFormatter);
     }
 
     public void testParsingMissingTimezone() {

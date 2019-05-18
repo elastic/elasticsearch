@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
+import org.junit.After;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -76,6 +77,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                       .startObject("stars")
                         .field("type", "integer")
                       .endObject()
+                      .startObject("location")
+                        .field("type", "geo_point")
+                      .endObject()
                     .endObject()
                   .endObject();
             }
@@ -103,6 +107,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 min = 10 + (i % 49);
             }
             int sec = 10 + (i % 49);
+            String location = (user + 10) + "," + (user + 15);
 
             String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec + "Z";
             bulk.append("{\"user_id\":\"")
@@ -113,7 +118,9 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
                 .append(business)
                 .append("\",\"stars\":")
                 .append(stars)
-                .append(",\"timestamp\":\"")
+                .append(",\"location\":\"")
+                .append(location)
+                .append("\",\"timestamp\":\"")
                 .append(date_string)
                 .append("\"}\n");
 
@@ -272,16 +279,20 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         adminClient().performRequest(request);
     }
 
-    @AfterClass
-    public static void removeIndices() throws Exception {
+    @After
+    public void waitForDataFrame() throws Exception {
         wipeDataFrameTransforms();
         waitForPendingDataFrameTasks();
+    }
+
+    @AfterClass
+    public static void removeIndices() throws Exception {
         // we might have disabled wiping indices, but now its time to get rid of them
         // note: can not use super.cleanUpCluster() as this method must be static
         wipeIndices();
     }
 
-    protected static void wipeDataFrameTransforms() throws IOException, InterruptedException {
+    public void wipeDataFrameTransforms() throws IOException, InterruptedException {
         List<Map<String, Object>> transformConfigs = getDataFrameTransforms();
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");

@@ -64,13 +64,14 @@ public class HttpClient {
         // TODO allow customizing the time zone - this is what session set/reset/get should be about
         // method called only from CLI
         SqlQueryRequest sqlRequest = new SqlQueryRequest(query, Collections.emptyList(), Protocol.TIME_ZONE,
-                fetchSize, 
-                TimeValue.timeValueMillis(cfg.queryTimeout()), 
+                fetchSize,
+                TimeValue.timeValueMillis(cfg.queryTimeout()),
                 TimeValue.timeValueMillis(cfg.pageTimeout()),
                 null,
                 Boolean.FALSE,
                 null,
                 new RequestInfo(Mode.CLI),
+                false,
                 false);
         return query(sqlRequest);
     }

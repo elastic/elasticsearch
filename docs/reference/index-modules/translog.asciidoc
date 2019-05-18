@@ -29,7 +29,7 @@ The data in the translog is only persisted to disk when the translog is
 ++fsync++ed and committed.  In the event of hardware failure, any data written
 since the previous translog commit will be lost.
 
-By default, Elasticsearch will only report success of an index, delete,
+By default, `index.translog.durability` is set to `request` meaning that Elasticsearch will only report success of an index, delete,
 update, or bulk request to the client after the translog has been successfully
 ++fsync++ed and committed on the primary and on every allocated replica. If
 `index.translog.durability` is set to `async` then Elasticsearch ++fsync++s

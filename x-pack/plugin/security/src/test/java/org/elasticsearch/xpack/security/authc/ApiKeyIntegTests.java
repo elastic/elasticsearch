@@ -94,14 +94,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 "manage_api_key_role:\n" +
                 "  cluster: [\"manage_api_key\"]\n" +
                 "manage_own_api_key_role:\n" +
-                "  global: { \"api_keys\":{\"manage\":{\"get\":true,\"invalidate\":true,\"create\":true," +
-                                                        "\"users\":[],\"realms\":[]}} }\n" +
+                "  global: { \"api_keys\":{\"manage\":{\"action\": [ \"cluster:admin/xpack/security/api_key/*\" ], " +
+                                                      "\"users\": [ \"_self\" ], " +
+                                                      "\"realms\": [ \"_self\" ]}} }\n" +
                 "only_create_api_key_role:\n" +
-                "  global: { \"api_keys\":{\"manage\":{\"get\":false,\"invalidate\":false,\"create\":true," +
-                                                        "\"users\":[],\"realms\":[]}} }\n" +
+                "  global: { \"api_keys\":{\"manage\":{\"action\": [ \"cluster:admin/xpack/security/api_key/create\" ], " +
+                                                      "\"users\":[ \"_self\" ], \"realms\":[ \"_self\" ]}} }\n" +
                 "only_create_get_own_api_key_role:\n" +
-                "  global: { \"api_keys\":{\"manage\":{\"get\":true,\"invalidate\":false,\"create\":true," +
-                                                        "\"users\":[],\"realms\":[]}} }\n" +
+                "  global: { \"api_keys\":{\"manage\":{\"action\": [ \"cluster:admin/xpack/security/api_key/create\", " +
+                                                                   " \"cluster:admin/xpack/security/api_key/get\" ], " +
+                                                      "\"users\": [ \"_self\" ], \"realms\": [ \"_self\" ]}} }\n" +
                 "no_manage_api_key_role:\n" +
                 "  indices:\n" +
                 "     - names: '*'\n" +
@@ -663,7 +665,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/get", "user_with_owner_manage_api_key_role");
         }
 
-        // user_with_only_create_api_key_role should not be allowed to get it's own API key but not any other user's API key
+        // user_with_only_create_api_key_role should not be allowed to get it's own API key or not any other user's API key
         {
             final Client client = client().filterWithHeader(Collections.singletonMap("Authorization", UsernamePasswordToken
                     .basicAuthHeaderValue("user_with_only_create_api_key_role", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));

@@ -289,6 +289,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    public ThreadPool threadPool() {
+        return threadPool;
+    }
+
     // package private, only use for testing
     BlobContainer getBlobContainer() {
         return blobContainer.get();
@@ -555,9 +559,36 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             startTime, failure, System.currentTimeMillis(), totalShards, shardFailures,
             includeGlobalState);
         try {
+            final var indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
+            final var foundIndices = blobStore().blobContainer(basePath().add("indices")).children();
+            final RepositoryData updatedRepositoryData = getRepositoryData().addSnapshot(snapshotId, blobStoreSnapshot.state(), indices);
+            final var survivingIndices = updatedRepositoryData.getIndices();
             snapshotFormat.write(blobStoreSnapshot, blobContainer(), snapshotId.getUUID());
-            final RepositoryData repositoryData = getRepositoryData();
-            writeIndexGen(repositoryData.addSnapshot(snapshotId, blobStoreSnapshot.state(), indices), repositoryStateId);
+            writeIndexGen(updatedRepositoryData, repositoryStateId);
+            final Set<String> survivingIndexIds = survivingIndices.values().stream()
+                .map(IndexId::getId).collect(Collectors.toSet());
+            final List<String> toDelete = new ArrayList<>();
+            for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
+                final String indexSnId = indexEntry.getKey();
+                try {
+                    if (survivingIndexIds.contains(indexSnId) == false) {
+                        deleteContents(indexEntry.getValue());
+                        toDelete.add(indexSnId);
+                    }
+                } catch (IOException e) {
+                    logger.warn(() ->
+                        new ParameterizedMessage(
+                            "[{}] index {} is no longer part of any snapshots in the repository, " +
+                                "but failed to clean up their index folders.", metadata.name(), indexSnId), e);
+                }
+            }
+            try {
+                indicesBlobContainer.deleteBlobsIgnoringIfNotExists(toDelete);
+            } catch (IOException e) {
+                logger.warn(() ->
+                    new ParameterizedMessage(
+                        "[{}] failed to clean up unreferenced index folders.", metadata.name()), e);
+            }
         } catch (FileAlreadyExistsException ex) {
             // if another master was elected and took over finalizing the snapshot, it is possible
             // that both nodes try to finalize the snapshot and write to the same blobs, so we just

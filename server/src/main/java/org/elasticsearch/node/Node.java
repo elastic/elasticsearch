@@ -40,6 +40,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -271,8 +272,9 @@ public class Node implements Closeable {
 
             nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
             resourcesToClose.add(nodeEnvironment);
-            logger.info("node name [{}], node ID [{}]",
-                    NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId());
+            logger.info("node name [{}], node ID [{}], cluster name [{}]",
+                    NODE_NAME_SETTING.get(tmpSettings), nodeEnvironment.nodeId(),
+                    ClusterName.CLUSTER_NAME_SETTING.get(tmpSettings).value());
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
@@ -378,7 +380,6 @@ public class Node implements Closeable {
 
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
-            resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
@@ -471,8 +472,8 @@ public class Node implements Closeable {
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);
-            final GatewayMetaState gatewayMetaState = new GatewayMetaState(settings, nodeEnvironment, metaStateService,
-                    metaDataIndexUpgradeService, metaDataUpgrader, transportService, clusterService, indicesService);
+            final GatewayMetaState gatewayMetaState = new GatewayMetaState(settings, metaStateService,
+                    metaDataIndexUpgradeService, metaDataUpgrader, transportService, clusterService);
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
             final SearchTransportService searchTransportService =  new SearchTransportService(transportService,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
@@ -844,8 +845,6 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("node_environment"));
 
         toClose.add(injector.getInstance(NodeEnvironment.class));
-        toClose.add(() -> stopWatch.stop().start("page_cache_recycler"));
-        toClose.add(injector.getInstance(PageCacheRecycler.class));
         toClose.add(stopWatch::stop);
 
         if (logger.isTraceEnabled()) {

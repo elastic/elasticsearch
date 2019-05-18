@@ -62,9 +62,10 @@ public class NodeMetaDataTests extends ESTestCase {
     }
 
     public void testReadsFormatWithoutVersion() throws IOException {
-        // the behaviour tested here is only for compatibility with versions 7 and earlier
-        // so it (and testReadsFormatWithoutVersion.binary) can be removed once this compatibility is no longer required
+        // the behaviour tested here is only appropriate if the current version is compatible with versions 7 and earlier
         assertTrue(Version.CURRENT.minimumIndexCompatibilityVersion().onOrBefore(Version.V_7_0_0));
+        // when the current version is incompatible with version 7, the behaviour should change to reject files like the given resource
+        // which do not have the version field
 
         final Path tempDir = createTempDir();
         final Path stateDir = Files.createDirectory(tempDir.resolve(MetaDataStateFormat.STATE_DIR_NAME));

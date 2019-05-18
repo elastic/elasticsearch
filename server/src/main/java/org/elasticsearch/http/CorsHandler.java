@@ -204,7 +204,7 @@ public class CorsHandler {
 
     private static String getOrigin(HttpRequest request) {
         List<String> headers = request.getHeaders().get(ORIGIN);
-        if (headers == null) {
+        if (headers == null || headers.isEmpty()) {
             return null;
         } else {
             return headers.get(0);

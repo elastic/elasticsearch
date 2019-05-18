@@ -12,7 +12,7 @@ with the data on disk.
 
 [source,shell]
 --------------------------------------------------
-bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|overwrite-version
+bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-version
   [--ordinal <Integer>] [-E <KeyValuePair>]
   [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
@@ -37,7 +37,7 @@ This tool has four modes:
   cluster bootstrapping was not possible, it also enables you to move nodes
   into a brand-new cluster.
 
-* `elasticsearch-node overwrite-version` enables you to start up a node
+* `elasticsearch-node override-version` enables you to start up a node
   even if the data in the data path was written by an incompatible version of
   {es}. This may sometimes allow you to downgrade to an earlier version of
   {es}.
@@ -115,23 +115,23 @@ way forward that does not risk data loss, but it may be possible to use the
 `elasticsearch-node` tool to construct a new cluster that contains some of the
 data from the failed cluster.
 
-[[node-tool-overwrite-version]]
+[[node-tool-override-version]]
 [float]
 ==== Bypassing version checks
 
 The data that {es} writes to disk is designed to be read by the current version
-and a limited set of future versions. It cannot in general be read by older
+and a limited set of future versions. It cannot generally be read by older
 versions, nor by versions that are more than one major version newer. The data
 stored on disk includes the version of the node that wrote it, and {es} checks
 that it is compatible with this version when starting up.
 
 In rare circumstances it may be desirable to bypass this check and start up an
-{es} node using data that was written by a newer version. This may not work if
-the format of the stored data has changed, and it is a risky process because it
-is possible for the format to change in ways that {es} may misinterpret,
-silently leading to data loss.
+{es} node using data that was written by an incompatible version. This may not
+work if the format of the stored data has changed, and it is a risky process
+because it is possible for the format to change in ways that {es} may
+misinterpret, silently leading to data loss.
 
-To bypass this check, you can use the `elasticsearch-node overwrite-version`
+To bypass this check, you can use the `elasticsearch-node override-version`
 tool to overwrite the version number stored in the data path with the current
 version, causing {es} to believe that it is compatible with the on-disk data.
 
@@ -287,7 +287,7 @@ one-node cluster.
 `detach-cluster`:: Specifies to unsafely detach this node from its cluster so
 it can join a different cluster.
 
-`overwrite-version`:: Overwrites the version number stored in the data path so
+`override-version`:: Overwrites the version number stored in the data path so
 that a node can start despite being incompatible with the on-disk data.
 
 `--ordinal <Integer>`:: If there is <<max-local-storage-nodes,more than one
@@ -455,13 +455,13 @@ Node was successfully detached from the cluster
 [float]
 ==== Bypassing version checks
 
-Run the `elasticsearch-node overwrite-version` command to overwrite the version
+Run the `elasticsearch-node override-version` command to overwrite the version
 stored in the data path so that a node can start despite being incompatible
 with the data stored in the data path:
 
 [source, txt]
 ----
-node$ ./bin/elasticsearch-node overwrite-version
+node$ ./bin/elasticsearch-node override-version
 
     WARNING: Elasticsearch MUST be stopped before running this tool.
 

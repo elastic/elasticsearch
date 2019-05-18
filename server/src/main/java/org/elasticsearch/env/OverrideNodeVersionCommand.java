@@ -30,8 +30,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
 
-public class OverwriteNodeVersionCommand extends ElasticsearchNodeCommand {
-    private static final Logger logger = LogManager.getLogger(OverwriteNodeVersionCommand.class);
+public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
+    private static final Logger logger = LogManager.getLogger(OverrideNodeVersionCommand.class);
 
     private static final String TOO_NEW_MESSAGE =
         DELIMITER +
@@ -62,10 +62,10 @@ public class OverwriteNodeVersionCommand extends ElasticsearchNodeCommand {
             "\n" +
             "Do you want to proceed?\n";
 
-    static final String NO_METADATA_MESSAGE = "no node metadata found, so there is nothing to overwrite";
+    static final String NO_METADATA_MESSAGE = "no node metadata found, so there is no version to override";
     static final String SUCCESS_MESSAGE = "Successfully overwrote this node's metadata to bypass its version compatibility checks.";
 
-    public OverwriteNodeVersionCommand() {
+    public OverrideNodeVersionCommand() {
         super("Overwrite the version stored in this node's data path with [" + Version.CURRENT +
             "] to bypass the version compatibility checks");
     }
@@ -81,7 +81,7 @@ public class OverwriteNodeVersionCommand extends ElasticsearchNodeCommand {
         try {
             nodeMetaData.upgradeToCurrentVersion();
             throw new ElasticsearchException("found [" + nodeMetaData + "] which is compatible with current version [" + Version.CURRENT
-                + "], so there is no need to overwrite it");
+                + "], so there is no need to override the version checks");
         } catch (IllegalStateException e) {
             // ok, means the version change is not supported
         }

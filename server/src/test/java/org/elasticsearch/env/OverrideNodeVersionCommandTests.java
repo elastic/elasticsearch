@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class OverwriteNodeVersionCommandTests extends ESTestCase {
+public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     private Environment environment;
     private Path[] nodePaths;
@@ -51,8 +51,8 @@ public class OverwriteNodeVersionCommandTests extends ESTestCase {
         final Path emptyPath = createTempDir();
         final MockTerminal mockTerminal = new MockTerminal();
         final ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class, () ->
-            new OverwriteNodeVersionCommand().processNodePaths(mockTerminal, new Path[]{emptyPath}, environment));
-        assertThat(elasticsearchException.getMessage(), equalTo(OverwriteNodeVersionCommand.NO_METADATA_MESSAGE));
+            new OverrideNodeVersionCommand().processNodePaths(mockTerminal, new Path[]{emptyPath}, environment));
+        assertThat(elasticsearchException.getMessage(), equalTo(OverrideNodeVersionCommand.NO_METADATA_MESSAGE));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
     }
 
@@ -61,7 +61,7 @@ public class OverwriteNodeVersionCommandTests extends ESTestCase {
         NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(randomAlphaOfLength(10), nodeVersion), nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
         final ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class, () ->
-            new OverwriteNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment));
+            new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment));
         assertThat(elasticsearchException.getMessage(), allOf(
             containsString("compatible with current version"),
             containsString(Version.CURRENT.toString()),
@@ -76,7 +76,7 @@ public class OverwriteNodeVersionCommandTests extends ESTestCase {
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput("n\n");
         final ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class, () ->
-            new OverwriteNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment));
+            new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment));
         assertThat(elasticsearchException.getMessage(), equalTo("aborted by user"));
         assertThat(mockTerminal.getOutput(), allOf(
             containsString("too old"),
@@ -98,7 +98,7 @@ public class OverwriteNodeVersionCommandTests extends ESTestCase {
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput(randomFrom("yy", "Yy", "n", "yes", "true", "N", "no"));
         final ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class, () ->
-            new OverwriteNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment));
+            new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment));
         assertThat(elasticsearchException.getMessage(), equalTo("aborted by user"));
         assertThat(mockTerminal.getOutput(), allOf(
             containsString("data loss"),
@@ -118,14 +118,14 @@ public class OverwriteNodeVersionCommandTests extends ESTestCase {
         NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(nodeId, nodeVersion), nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
-        new OverwriteNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment);
+        new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment);
         assertThat(mockTerminal.getOutput(), allOf(
             containsString("too old"),
             containsString("data loss"),
             containsString("You should not use this tool"),
             containsString(Version.CURRENT.toString()),
             containsString(nodeVersion.toString()),
-            containsString(OverwriteNodeVersionCommand.SUCCESS_MESSAGE)));
+            containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodePaths);
@@ -139,13 +139,13 @@ public class OverwriteNodeVersionCommandTests extends ESTestCase {
         NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(nodeId, nodeVersion), nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
         mockTerminal.addTextInput(randomFrom("y", "Y"));
-        new OverwriteNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment);
+        new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, environment);
         assertThat(mockTerminal.getOutput(), allOf(
             containsString("data loss"),
             containsString("You should not use this tool"),
             containsString(Version.CURRENT.toString()),
             containsString(nodeVersion.toString()),
-            containsString(OverwriteNodeVersionCommand.SUCCESS_MESSAGE)));
+            containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
         final NodeMetaData nodeMetaData = NodeMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodePaths);

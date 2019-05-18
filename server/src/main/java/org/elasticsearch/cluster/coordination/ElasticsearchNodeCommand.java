@@ -81,9 +81,8 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
             processNodePaths(terminal, dataPaths, env);
-        } catch (LockObtainFailedException ex) {
-            throw new ElasticsearchException(
-                    FAILED_TO_OBTAIN_NODE_LOCK_MSG + " [" + ex.getMessage() + "]");
+        } catch (LockObtainFailedException e) {
+            throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
     }
 
@@ -185,7 +184,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         try {
             return new NodeEnvironment.NodePath(path);
         } catch (IOException e) {
-            throw new ElasticsearchException("Unable to investigate path: " + path + ": " + e.getMessage());
+            throw new ElasticsearchException("Unable to investigate path [" + path + "]", e);
         }
     }
 

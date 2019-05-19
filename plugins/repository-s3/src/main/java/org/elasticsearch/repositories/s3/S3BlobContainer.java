@@ -246,8 +246,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 } else {
                     final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
                     listObjectsRequest.setBucketName(blobStore.bucket());
-                    assert keyPath.charAt(keyPath.length() - 1) == '/';
-                    listObjectsRequest.setPrefix(keyPath.substring(0, keyPath.length() - 1));
+                    listObjectsRequest.setPrefix(keyPath);
                     listObjectsRequest.setDelimiter("/");
                     list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
                 }
@@ -255,9 +254,17 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final String name = summary.substring(keyPath.length());
                     if (name.isEmpty() == false) {
                         final BlobPath path = path().add(name);
-                        entries.add(entry(name, blobStore.blobContainer(path)));
+                        entries.add(entry(name.substring(0, name.length() - 1), blobStore.blobContainer(path)));
                     }
                 }
+                assert list.getObjectSummaries().stream().noneMatch(s -> {
+                    for (String commonPrefix : list.getCommonPrefixes()) {
+                        if (s.getKey().substring(keyPath.length()).startsWith(commonPrefix)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }) : "Response contained children for listed common prefixes.";
                 if (list.isTruncated()) {
                     prevListing = list;
                 } else {

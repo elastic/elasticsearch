@@ -261,10 +261,8 @@ public class AzureStorageService {
                     logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
                     // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                     // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
-                    final String blobPath = uri.getPath().substring(1 + container.length() + 1);
-                    // Strip off the path and trailing / to get the exact directory name
-                    final String name = blobPath.substring(keyPath.length(), blobPath.length() - 1);
-                    blobsBuilder.add(name);
+                    final String uriPath = uri.getPath();
+                    blobsBuilder.add(uriPath.substring(1 + container.length() + 1 + keyPath.length(), uriPath.length() - 1));
                 }
             }
         });

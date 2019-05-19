@@ -564,9 +564,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             includeGlobalState);
         try {
             final var indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
-            // TODO: Add some success marker for successfully running cleanup, only run this if we're missing a success marker or have a
-            //       marker for pending blobs.
-            //       The same goes for the snapshot delete process as well
             final var foundIndices = indicesBlobContainer.children();
             final RepositoryData updatedRepositoryData = getRepositoryData().addSnapshot(snapshotId, blobStoreSnapshot.state(), indices);
             final var survivingIndices = updatedRepositoryData.getIndices();
@@ -583,15 +580,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);
         }
         return blobStoreSnapshot;
-    }
-
-    private void markPending(SnapshotId snapshotId, List<String> indices, long repoGeneration) {
-        // TODO: create pending marker `pending-${generation}-${UUID}` and store affected indices in it
-    }
-
-    private void markClean(SnapshotId snapshotId, long repoGeneration) {
-        // TODO: Delete pending marker `pending-${generation}-${UUID}`
-        //       Care must be taken here in the case of stuck primaries
     }
 
     @Override

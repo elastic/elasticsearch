@@ -31,6 +31,7 @@ import com.microsoft.azure.storage.blob.BlobListingDetails;
 import com.microsoft.azure.storage.blob.BlobProperties;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
+import com.microsoft.azure.storage.blob.CloudBlobDirectory;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.DeleteSnapshotsOption;
 import com.microsoft.azure.storage.blob.ListBlobItem;
@@ -255,13 +256,16 @@ public class AzureStorageService {
 
         SocketAccess.doPrivilegedVoidException(() -> {
             for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath, false, enumBlobListingDetails, null, client.v2().get())) {
-                final URI uri = blobItem.getUri();
-                logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
-                // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
-                // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
-                final String blobPath = uri.getPath().substring(1 + container.length() + 1);
-                final String name = blobPath.substring(keyPath.length(), blobPath.length() - 1);
-                blobsBuilder.add(name);
+                if (blobItem instanceof CloudBlobDirectory) {
+                    final URI uri = blobItem.getUri();
+                    logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
+                    // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
+                    // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
+                    final String blobPath = uri.getPath().substring(1 + container.length() + 1);
+                    // Strip off the path and trailing / to get the exact directory name
+                    final String name = blobPath.substring(keyPath.length(), blobPath.length() - 1);
+                    blobsBuilder.add(name);
+                }
             }
         });
         return Set.copyOf(blobsBuilder);

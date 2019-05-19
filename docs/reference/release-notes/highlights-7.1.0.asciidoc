@@ -4,7 +4,12 @@
 <titleabbrev>7.1.0</titleabbrev>
 ++++
 
-coming[7.1.0]
+See also <<release-notes-7.1.0,{es} 7.1.0 release notes>>.
+
+[float]
+=== TODO
+
+TODO
 
 //NOTE: The notable-highlights tagged regions are re-used in the
 //Installation and Upgrade Guide

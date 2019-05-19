@@ -72,16 +72,6 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
         return new SecureString("test123".toCharArray());
     }
 
-    @Override
-    protected String transportClientUsername() {
-        return "admin";
-    }
-
-    @Override
-    protected SecureString transportClientPassword() {
-        return new SecureString("test123".toCharArray());
-    }
-
     public void testDifferentCombinationsOfIndices() throws Exception {
         Client client = internalCluster().transportClient();
 
@@ -89,7 +79,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
         AcknowledgedResponse putResponse = client
             .filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                    basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))
+                    basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword())))
             .admin().indices().preparePutTemplate("template1")
             .setPatterns(Collections.singletonList("test_*"))
             .get();
@@ -103,7 +93,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
         // now lets try with "user"
 
         Map<String, String> auth = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
-                transportClientPassword()));
+                nodeClientPassword()));
         assertThrowsAuthorizationException(client.filterWithHeader(auth).admin().indices().preparePutTemplate("template1")
                 .setPatterns(Collections.singletonList("test_*"))::get, PutIndexTemplateAction.NAME, "user");
 

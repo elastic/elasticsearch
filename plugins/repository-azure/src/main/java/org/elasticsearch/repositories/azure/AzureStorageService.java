@@ -235,10 +235,12 @@ public class AzureStorageService {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                 // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                 final String blobPath = uri.getPath().substring(1 + container.length() + 1);
-                final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
-                final String name = blobPath.substring(keyPath.length());
-                logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
-                blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
+                if (blobItem instanceof CloudBlockBlob) {
+                    final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
+                    final String name = blobPath.substring(keyPath.length());
+                    logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
+                    blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
+                }
             }
         });
         return Map.copyOf(blobsBuilder);
@@ -246,22 +248,19 @@ public class AzureStorageService {
 
     public Set<String> children(String account, String container, BlobPath path) throws URISyntaxException, StorageException {
         final var blobsBuilder = new HashSet<String>();
-        final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         final String keyPath = path.buildAsString();
-        SocketAccess.doPrivilegedVoidException(() -> {
-            for (final ListBlobItem blobItem : blobContainer.listBlobs(keyPath, false,
-                enumBlobListingDetails, null, client.v2().get())) {
+        final EnumSet<BlobListingDetails> enumBlobListingDetails = EnumSet.of(BlobListingDetails.METADATA);
 
+        SocketAccess.doPrivilegedVoidException(() -> {
+            for (ListBlobItem blobItem : blobContainer.listBlobs(keyPath, false, enumBlobListingDetails, null, client.v2().get())) {
                 final URI uri = blobItem.getUri();
                 logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                 // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                 final String blobPath = uri.getPath().substring(1 + container.length() + 1);
-                final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
-                final String name = blobPath.substring(keyPath.length());
-                logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
+                final String name = blobPath.substring(keyPath.length(), blobPath.length() - 1);
                 blobsBuilder.add(name);
             }
         });

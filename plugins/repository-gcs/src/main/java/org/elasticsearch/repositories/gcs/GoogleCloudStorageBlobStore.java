@@ -148,7 +148,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 if (blob.isDirectory()) {
                     assert blob.getName().startsWith(pathStr);
                     final String suffixName = blob.getName().substring(pathStr.length());
-                    mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
+                    if (suffixName.isEmpty() == false) {
+                        mapBuilder.put(suffixName, new GoogleCloudStorageBlobContainer(path.add(suffixName), this));
+                    }
                 }
             }));
         return mapBuilder.immutableMap();

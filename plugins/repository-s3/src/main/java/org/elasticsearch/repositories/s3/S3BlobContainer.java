@@ -25,6 +25,7 @@ import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
+import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -243,12 +244,19 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final ObjectListing finalPrevListing = prevListing;
                     list = SocketAccess.doPrivileged(() -> clientReference.client().listNextBatchOfObjects(finalPrevListing));
                 } else {
-                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(blobStore.bucket(), keyPath));
+                    final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
+                    listObjectsRequest.setBucketName(blobStore.bucket());
+                    assert keyPath.charAt(keyPath.length() - 1) == '/';
+                    listObjectsRequest.setPrefix(keyPath.substring(0, keyPath.length() - 1));
+                    listObjectsRequest.setDelimiter("/");
+                    list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
                 }
                 for (final String summary : list.getCommonPrefixes()) {
                     final String name = summary.substring(keyPath.length());
-                    final BlobPath path = path().add(name);
-                    entries.add(entry(name, blobStore.blobContainer(path)));
+                    if (name.isEmpty() == false) {
+                        final BlobPath path = path().add(name);
+                        entries.add(entry(name, blobStore.blobContainer(path)));
+                    }
                 }
                 if (list.isTruncated()) {
                     prevListing = list;

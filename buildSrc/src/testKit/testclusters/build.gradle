@@ -6,12 +6,14 @@ plugins {
 allprojects { all ->
     repositories {
         maven {
+            name "local"
             url System.getProperty("local.repo.path")
         }
         String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision")
         if (luceneSnapshotRevision != null) {
             maven {
-                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision
+                name "lucene-snapshots"
+                url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision
             }
         }
         jcenter()

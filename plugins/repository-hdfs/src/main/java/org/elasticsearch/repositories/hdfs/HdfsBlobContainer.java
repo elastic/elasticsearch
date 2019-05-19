@@ -159,8 +159,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         for (FileStatus file : files) {
             if (file.isDirectory()) {
                 final String name = file.getPath().getName();
-                map.put(file.getPath().getName(),
-                    new HdfsBlobContainer(path().add(name), store, new Path(path, name), bufferSize, securityContext));
+                map.put(name, new HdfsBlobContainer(path().add(name), store, new Path(path, name), bufferSize, securityContext));
             }
         }
         return Collections.unmodifiableMap(map);

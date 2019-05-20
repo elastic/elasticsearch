@@ -18,7 +18,12 @@ in the percolate api.
 
 Field referred to in a percolator query must *already* exist in the mapping
 associated with the index used for percolation.
+ifdef::asciidoctor[]
+added:[1.4.0.Beta1,Applies to indices created in 1.4.0 or later]
+endif::[]
+ifndef::asciidoctor[]
 added[1.4.0.Beta1,Applies to indices created in 1.4.0 or later]
+endif::[]
 There are two ways to make sure that a field mapping exist:
 
 * Add or update a mapping via the <<indices-create-index,create index>> or

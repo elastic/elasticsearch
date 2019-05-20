@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.Distribution;
+import org.elasticsearch.gradle.FileSupplier;
 import org.gradle.api.logging.Logging;
 import org.slf4j.Logger;
 
@@ -26,6 +27,7 @@ import java.io.File;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -47,6 +49,10 @@ public interface TestClusterConfiguration {
 
     void keystore(String key, Supplier<CharSequence> valueSupplier);
 
+    void keystore(String key, File value);
+
+    void keystore(String key, FileSupplier valueSupplier);
+
     void setting(String key, String value);
 
     void setting(String key, Supplier<CharSequence> valueSupplier);
@@ -66,6 +72,8 @@ public interface TestClusterConfiguration {
     void start();
 
     void extraConfigFile(String destination, File from);
+
+    void user(Map<String, String> userSpec);
 
     String getHttpSocketURI();
 
@@ -103,19 +111,13 @@ public interface TestClusterConfiguration {
                         break;
                     }
                 } catch (TestClustersException e) {
-                    throw new TestClustersException(e);
+                    throw e;
                 } catch (Exception e) {
                     if (lastException == null) {
                         lastException = e;
                     } else {
                         lastException = e;
                     }
-                }
-                try {
-                    Thread.sleep(500);
-                }
-                catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
             }
             if (conditionMet == false) {

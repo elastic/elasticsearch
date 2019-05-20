@@ -61,7 +61,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             readShardsAcknowledged(in);
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
@@ -74,7 +74,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             writeShardsAcknowledged(out);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {

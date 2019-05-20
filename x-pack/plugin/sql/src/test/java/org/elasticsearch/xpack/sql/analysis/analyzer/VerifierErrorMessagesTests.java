@@ -241,6 +241,27 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT INTERVAL 1 MONTH - CAST('12:23:56.789' AS TIME)"));
     }
 
+    public void testAddIntervalAndNumberNotAllowed() {
+        assertEquals("1:8: [+] has arguments with incompatible types [INTERVAL_DAY] and [INTEGER]",
+            error("SELECT INTERVAL 1 DAY + 100"));
+        assertEquals("1:8: [+] has arguments with incompatible types [INTEGER] and [INTERVAL_DAY]",
+            error("SELECT 100 + INTERVAL 1 DAY"));
+    }
+
+    public void testSubtractIntervalAndNumberNotAllowed() {
+        assertEquals("1:8: [-] has arguments with incompatible types [INTERVAL_MINUTE] and [DOUBLE]",
+            error("SELECT INTERVAL 10 MINUTE - 100.0"));
+        assertEquals("1:8: [-] has arguments with incompatible types [DOUBLE] and [INTERVAL_MINUTE]",
+            error("SELECT 100.0 - INTERVAL 10 MINUTE"));
+    }
+
+    public void testMultiplyIntervalWithDecimalNotAllowed() {
+        assertEquals("1:8: [*] has arguments with incompatible types [INTERVAL_MONTH] and [DOUBLE]",
+            error("SELECT INTERVAL 1 MONTH * 1.234"));
+        assertEquals("1:8: [*] has arguments with incompatible types [DOUBLE] and [INTERVAL_MONTH]",
+            error("SELECT 1.234 * INTERVAL 1 MONTH"));
+    }
+
     public void testMultipleColumns() {
         assertEquals("1:43: Unknown column [xxx]\nline 1:8: Unknown column [xxx]",
                 error("SELECT xxx FROM test GROUP BY DAY_oF_YEAR(xxx)"));
@@ -598,6 +619,36 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT 1 = 1 OR " + arbirtraryArgsFunction + "(null, 3, '4') > 1"));
     }
 
+    public void testCaseWithNonBooleanConditionExpression() {
+        assertEquals("1:8: condition of [WHEN abs(int) THEN 'foo'] must be [boolean], found value [abs(int)] type [integer]",
+            error("SELECT CASE WHEN int = 1 THEN 'one' WHEN abs(int) THEN 'foo' END FROM test"));
+    }
+
+    public void testCaseWithDifferentResultDataTypes() {
+        assertEquals("1:8: result of [WHEN int > 10 THEN 10] must be [keyword], found value [10] type [integer]",
+            error("SELECT CASE WHEN int > 20 THEN 'foo' WHEN int > 10 THEN 10 ELSE 'bar' END FROM test"));
+    }
+
+    public void testCaseWithDifferentResultAndDefaultValueDataTypes() {
+        assertEquals("1:8: ELSE clause of [date] must be [keyword], found value [date] type [datetime]",
+            error("SELECT CASE WHEN int > 20 THEN 'foo' ELSE date END FROM test"));
+    }
+
+    public void testCaseWithDifferentResultAndDefaultValueDataTypesAndNullTypesSkipped() {
+        assertEquals("1:8: ELSE clause of [date] must be [keyword], found value [date] type [datetime]",
+            error("SELECT CASE WHEN int > 20 THEN null WHEN int > 10 THEN null WHEN int > 5 THEN 'foo' ELSE date END FROM test"));
+    }
+
+    public void testIifWithNonBooleanConditionExpression() {
+        assertEquals("1:8: first argument of [IIF(int, 'one', 'zero')] must be [boolean], found value [int] type [integer]",
+            error("SELECT IIF(int, 'one', 'zero') FROM test"));
+    }
+
+    public void testIifWithDifferentResultAndDefaultValueDataTypes() {
+        assertEquals("1:8: third argument of [IIF(int > 20, 'foo', date)] must be [keyword], found value [date] type [datetime]",
+            error("SELECT IIF(int > 20, 'foo', date) FROM test"));
+    }
+
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
                 error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
@@ -743,4 +794,28 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testProjectUnresolvedAliasInFilter() {
         assertEquals("1:8: Unknown column [tni]", error("SELECT tni AS i FROM test WHERE i > 10 GROUP BY i"));
     }
+
+    public void testGeoShapeInWhereClause() {
+        assertEquals("1:49: geo shapes cannot be used for filtering",
+            error("SELECT ST_AsWKT(shape) FROM test WHERE ST_AsWKT(shape) = 'point (10 20)'"));
+
+        // We get only one message back because the messages are grouped by the node that caused the issue
+        assertEquals("1:46: geo shapes cannot be used for filtering",
+            error("SELECT MAX(ST_X(shape)) FROM test WHERE ST_Y(shape) > 10 GROUP BY ST_GEOMETRYTYPE(shape) ORDER BY ST_ASWKT(shape)"));
+    }
+
+    public void testGeoShapeInGroupBy() {
+        assertEquals("1:44: geo shapes cannot be used in grouping",
+            error("SELECT ST_X(shape) FROM test GROUP BY ST_X(shape)"));
+    }
+
+    public void testGeoShapeInOrderBy() {
+        assertEquals("1:44: geo shapes cannot be used for sorting",
+            error("SELECT ST_X(shape) FROM test ORDER BY ST_Z(shape)"));
+    }
+
+    public void testGeoShapeInSelect() {
+        accept("SELECT ST_X(shape) FROM test");
+    }
+
 }

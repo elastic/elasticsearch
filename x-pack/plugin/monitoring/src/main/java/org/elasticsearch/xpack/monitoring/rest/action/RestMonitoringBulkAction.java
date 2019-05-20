@@ -26,8 +26,6 @@ import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -58,11 +56,10 @@ public class RestMonitoringBulkAction extends XPackRestHandler {
                 MonitoringTemplateUtils.OLD_TEMPLATE_VERSION
         );
 
-        final Map<MonitoredSystem, List<String>> versionsMap = new HashMap<>();
-        versionsMap.put(MonitoredSystem.KIBANA, allVersions);
-        versionsMap.put(MonitoredSystem.LOGSTASH, allVersions);
-        versionsMap.put(MonitoredSystem.BEATS, allVersions);
-        supportedApiVersions = Collections.unmodifiableMap(versionsMap);
+        supportedApiVersions = Map.of(
+                MonitoredSystem.KIBANA, allVersions,
+                MonitoredSystem.LOGSTASH, allVersions,
+                MonitoredSystem.BEATS, allVersions);
     }
 
     @Override

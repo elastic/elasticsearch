@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -76,7 +77,7 @@ public class SourceConfig implements ToXContentObject {
      * @param index Any number of indices. At least one non-null, non-empty, index should be provided
      * @param queryConfig A QueryConfig object that contains the desired query. Defaults to MatchAll query.
      */
-    public SourceConfig(String[] index, QueryConfig queryConfig) {
+    SourceConfig(String[] index, QueryConfig queryConfig) {
         this.index = index;
         this.queryConfig = queryConfig;
     }
@@ -120,5 +121,47 @@ public class SourceConfig implements ToXContentObject {
         // Using Arrays.hashCode as Objects.hash does not deeply hash nested arrays. Since we are doing Array.equals, this is necessary
         int hash = Arrays.hashCode(index);
         return 31 * hash + (queryConfig == null ? 0 : queryConfig.hashCode());
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String[] index;
+        private QueryConfig queryConfig;
+
+        /**
+         * Sets what indices from which to fetch data
+         * @param index The indices from which to fetch data
+         * @return The {@link Builder} with indices set
+         */
+        public Builder setIndex(String... index) {
+            this.index = index;
+            return this;
+        }
+
+        /**
+         * Sets the {@link QueryConfig} object that references the desired query to use when fetching the data
+         * @param queryConfig The {@link QueryConfig} to use when fetching data
+         * @return The {@link Builder} with queryConfig set
+         */
+        public Builder setQueryConfig(QueryConfig queryConfig) {
+            this.queryConfig = queryConfig;
+            return this;
+        }
+
+        /**
+         * Sets the query to use when fetching the data. Convenience method for {@link #setQueryConfig(QueryConfig)}
+         * @param query The {@link QueryBuilder} to use when fetch data (overwrites the {@link QueryConfig})
+         * @return The {@link Builder} with queryConfig set
+         */
+        public Builder setQuery(QueryBuilder query) {
+            return this.setQueryConfig(new QueryConfig(query));
+        }
+
+        public SourceConfig build() {
+            return new SourceConfig(index, queryConfig);
+        }
     }
 }

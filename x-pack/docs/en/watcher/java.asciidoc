@@ -60,6 +60,7 @@ repositories {
 
   // Add the Elasticsearch Maven Repository
   maven {
+    name "elastic"
     url "https://artifacts.elastic.co/maven"
   }
 }

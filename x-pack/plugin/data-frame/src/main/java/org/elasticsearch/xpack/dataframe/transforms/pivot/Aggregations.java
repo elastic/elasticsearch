@@ -35,7 +35,9 @@ public final class Aggregations {
         MAX("max", SOURCE),
         MIN("min", SOURCE),
         SUM("sum", SOURCE),
-        SCRIPTED_METRIC("scripted_metric", DYNAMIC);
+        GEO_CENTROID("geo_centroid", "geo_point"),
+        SCRIPTED_METRIC("scripted_metric", DYNAMIC),
+        BUCKET_SCRIPT("bucket_script", DYNAMIC);
 
         private final String aggregationType;
         private final String targetMapping;

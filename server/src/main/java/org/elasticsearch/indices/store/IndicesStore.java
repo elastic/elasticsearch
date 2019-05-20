@@ -412,7 +412,7 @@ public class IndicesStore implements ClusterStateListener, Closeable {
             super.readFrom(in);
             clusterName = new ClusterName(in);
             indexUUID = in.readString();
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);
         }
 

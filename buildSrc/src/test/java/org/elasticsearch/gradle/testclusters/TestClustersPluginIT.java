@@ -82,6 +82,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         );
     }
 
+    @Ignore // https://github.com/elastic/elasticsearch/issues/41256
     public void testMultiProject() {
         BuildResult result = getTestClustersRunner(
             "user1", "user2", "-s", "-i", "--parallel", "-Dlocal.repo.path=" + getLocalTestRepoPath()
@@ -102,6 +103,14 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
             "Starting `node{::myTestCluster-1}`",
             "Stopping `node{:bravo:myTestCluster-1}`"
         );
+    }
+
+    public void testReleased() {
+        BuildResult result = getTestClustersRunner("testReleased").build();
+        assertTaskSuccessful(result, ":testReleased");
+        assertStartedAndStoppedOnce(result, "releasedVersionDefault-1");
+        assertStartedAndStoppedOnce(result, "releasedVersionOSS-1");
+        assertStartedAndStoppedOnce(result, "releasedVersionIntegTest-1");
     }
 
     public void testIncremental() {

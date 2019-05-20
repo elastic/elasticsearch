@@ -77,7 +77,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
             new NetworkService(Collections.emptyList()), PageCacheRecycler.NON_RECYCLING_INSTANCE, namedWriteableRegistry,
             new NoneCircuitBreakerService()) {
             @Override
-            public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+            public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
                 // we just need to ensure we don't resolve DNS here
                 return new TransportAddress[] {poorMansDNS.getOrDefault(address, buildNewFakeTransportAddress())};
             }

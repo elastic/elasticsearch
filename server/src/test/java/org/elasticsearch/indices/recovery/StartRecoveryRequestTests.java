@@ -75,11 +75,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.metadataSnapshot().asMap(), equalTo(inRequest.metadataSnapshot().asMap()));
         assertThat(outRequest.isPrimaryRelocation(), equalTo(inRequest.isPrimaryRelocation()));
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
-        if (targetNodeVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
-            assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
-        } else {
-            assertThat(SequenceNumbers.UNASSIGNED_SEQ_NO, equalTo(inRequest.startingSeqNo()));
-        }
+        assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
     }
 
 }

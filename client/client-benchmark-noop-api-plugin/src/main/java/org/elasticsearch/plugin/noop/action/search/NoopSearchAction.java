@@ -20,17 +20,23 @@ package org.elasticsearch.plugin.noop.action.search;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class NoopSearchAction extends Action<SearchResponse> {
     public static final NoopSearchAction INSTANCE = new NoopSearchAction();
     public static final String NAME = "mock:data/read/search";
 
-    public NoopSearchAction() {
+    private NoopSearchAction() {
         super(NAME);
     }
 
     @Override
     public SearchResponse newResponse() {
-        return new SearchResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<SearchResponse> getResponseReader() {
+        return SearchResponse::new;
     }
 }

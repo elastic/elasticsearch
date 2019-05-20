@@ -105,6 +105,11 @@ public abstract class AbstractBaseReindexRestHandler<
         if (requestsPerSecond != null) {
             request.setRequestsPerSecond(requestsPerSecond);
         }
+
+        if (restRequest.hasParam("max_docs")) {
+            setMaxDocsValidateIdentical(request, restRequest.paramAsInt("max_docs", -1));
+        }
+
         return request;
     }
 

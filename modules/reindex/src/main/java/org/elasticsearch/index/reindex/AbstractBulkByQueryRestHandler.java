@@ -58,10 +58,6 @@ public abstract class AbstractBulkByQueryRestHandler<
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));
 
-        if (restRequest.hasParam("max_docs")) {
-            setMaxDocsValidateIdentical(internal, restRequest.paramAsInt("max_docs", -1));
-        }
-
         String conflicts = restRequest.param("conflicts");
         if (conflicts != null) {
             internal.setConflicts(conflicts);

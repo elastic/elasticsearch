@@ -121,7 +121,7 @@
   - match: { hits.total: 1 }
 
 ---
-"Sorting and max_docs combined":
+"Sorting and max_docs in body combined":
   - skip:
       version: " - 7.1.99"
       reason: "max_docs introduced in 7.2.0"
@@ -161,4 +161,39 @@
         rest_total_hits_as_int: true
         index: target
         q: order:1
+  - match: { hits.total: 1 }
+
+---
+"max_docs in URL":
+  - skip:
+      version: " - 7.1.99"
+      reason: "max_docs introduced in 7.2.0"
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "value": 17 }
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   { "value": 17 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        max_docs: 1
+        body:
+          source:
+            index: test
+          dest:
+            index: target
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: target
   - match: { hits.total: 1 }

@@ -213,7 +213,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         // match queries with cutoff frequency
         assertExplanation(QueryBuilders.matchQuery("field", "huge brown pidgin").cutoffFrequency(1),
-                containsString("+field:pidgin (field:huge field:brown)"), true);
+                containsString("+field:pidgin field:huge field:brown"), true);
         assertExplanation(QueryBuilders.matchQuery("field", "the brown").analyzer("stop"),
                 containsString("field:brown"), true);
 

@@ -28,8 +28,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.apache.lucene.codecs.blocktree.BlockTreeTermsReader;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -133,7 +131,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -302,9 +299,6 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
             assertThat(segments.get(0).isCompound(), equalTo(true));
             assertThat(segments.get(0).ramTree, nullValue());
-            assertThat(segments.get(0).getAttributes().keySet(),
-                Matchers.contains(BlockTreeTermsReader.FST_MODE_KEY, Lucene50StoredFieldsFormat.MODE_KEY));
-
             engine.flush();
 
             segments = engine.segments(false);

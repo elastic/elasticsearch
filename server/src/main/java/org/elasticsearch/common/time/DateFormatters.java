@@ -52,6 +52,82 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
+import static org.elasticsearch.common.time.FormatterNames.BASICDATE;
+import static org.elasticsearch.common.time.FormatterNames.BASICDATETIME;
+import static org.elasticsearch.common.time.FormatterNames.BASICDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.BASICORDINALDATE;
+import static org.elasticsearch.common.time.FormatterNames.BASICORDINALDATETIME;
+import static org.elasticsearch.common.time.FormatterNames.BASICORDINALDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.BASICTIME;
+import static org.elasticsearch.common.time.FormatterNames.BASICTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.BASICTTIME;
+import static org.elasticsearch.common.time.FormatterNames.BASICTTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.BASICWEEKDATE;
+import static org.elasticsearch.common.time.FormatterNames.BASICWEEKDATETIME;
+import static org.elasticsearch.common.time.FormatterNames.BASICWEEKDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.DATEHOUR;
+import static org.elasticsearch.common.time.FormatterNames.DATEHOURMINUTE;
+import static org.elasticsearch.common.time.FormatterNames.DATEHOURMINUTESECOND;
+import static org.elasticsearch.common.time.FormatterNames.DATEHOURMINUTESECONDFRACTION;
+import static org.elasticsearch.common.time.FormatterNames.DATEHOURMINUTESECONDMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.DATEOPTIONALTIME;
+import static org.elasticsearch.common.time.FormatterNames.DATETIME;
+import static org.elasticsearch.common.time.FormatterNames.DATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.EPOCH_MILLIS;
+import static org.elasticsearch.common.time.FormatterNames.EPOCH_SECOND;
+import static org.elasticsearch.common.time.FormatterNames.HOURMINUTE;
+import static org.elasticsearch.common.time.FormatterNames.HOURMINUTESECOND;
+import static org.elasticsearch.common.time.FormatterNames.HOURMINUTESECONDFRACTION;
+import static org.elasticsearch.common.time.FormatterNames.HOURMINUTESECONDMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.ISO8601;
+import static org.elasticsearch.common.time.FormatterNames.ORDINALDATE;
+import static org.elasticsearch.common.time.FormatterNames.ORDINALDATETIME;
+import static org.elasticsearch.common.time.FormatterNames.ORDINALDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTBASICWEEKDATE;
+import static org.elasticsearch.common.time.FormatterNames.STRICTBASICWEEKDATETIME;
+import static org.elasticsearch.common.time.FormatterNames.STRICTBASICWEEKDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATE;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOUR;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOURMINUTE;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOURMINUTESECOND;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOURMINUTESECONDFRACTION;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOURMINUTESECONDMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATEOPTIONALTIME;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATEOPTIONALTIMENANOS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATETIME;
+import static org.elasticsearch.common.time.FormatterNames.STRICTDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTHOUR;
+import static org.elasticsearch.common.time.FormatterNames.STRICTHOURMINUTE;
+import static org.elasticsearch.common.time.FormatterNames.STRICTHOURMINUTESECOND;
+import static org.elasticsearch.common.time.FormatterNames.STRICTHOURMINUTESECONDFRACTION;
+import static org.elasticsearch.common.time.FormatterNames.STRICTHOURMINUTESECONDMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTORDINALDATE;
+import static org.elasticsearch.common.time.FormatterNames.STRICTORDINALDATETIME;
+import static org.elasticsearch.common.time.FormatterNames.STRICTORDINALDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTTIME;
+import static org.elasticsearch.common.time.FormatterNames.STRICTTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTTTIME;
+import static org.elasticsearch.common.time.FormatterNames.STRICTTTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKDATE;
+import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKDATETIME;
+import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKYEAR;
+import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKYEARWEEK;
+import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKYEARWEEKDAY;
+import static org.elasticsearch.common.time.FormatterNames.STRICTYEAR;
+import static org.elasticsearch.common.time.FormatterNames.STRICTYEARMONTH;
+import static org.elasticsearch.common.time.FormatterNames.STRICTYEARMONTHDAY;
+import static org.elasticsearch.common.time.FormatterNames.TIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.TTIME;
+import static org.elasticsearch.common.time.FormatterNames.TTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.WEEKDATE;
+import static org.elasticsearch.common.time.FormatterNames.WEEKDATETIME;
+import static org.elasticsearch.common.time.FormatterNames.WEEKDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatterNames.WEEKYEAR;
+import static org.elasticsearch.common.time.FormatterNames.WEEKYEARWEEK;
+import static org.elasticsearch.common.time.FormatterNames.WEEKYEARWEEKDAY;
+import static org.elasticsearch.common.time.FormatterNames.YEARMONTH;
+import static org.elasticsearch.common.time.FormatterNames.YEARMONTHDAY;
 
 public class DateFormatters {
 
@@ -1423,166 +1499,166 @@ public class DateFormatters {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
-        if ("iso8601".equals(input)) {
+        if (ISO8601.matches(input)) {
             return ISO_8601;
-        } else if ("basicDate".equals(input) || "basic_date".equals(input)) {
+        } else if (BASICDATE.matches(input) ) {
             return BASIC_DATE;
-        } else if ("basicDateTime".equals(input) || "basic_date_time".equals(input)) {
+        } else if (BASICDATETIME.matches(input) ) {
             return BASIC_DATE_TIME;
-        } else if ("basicDateTimeNoMillis".equals(input) || "basic_date_time_no_millis".equals(input)) {
+        } else if (BASICDATETIMENOMILLIS.matches(input) ) {
             return BASIC_DATE_TIME_NO_MILLIS;
-        } else if ("basicOrdinalDate".equals(input) || "basic_ordinal_date".equals(input)) {
+        } else if (BASICORDINALDATE.matches(input) ) {
             return BASIC_ORDINAL_DATE;
-        } else if ("basicOrdinalDateTime".equals(input) || "basic_ordinal_date_time".equals(input)) {
+        } else if (BASICORDINALDATETIME.matches(input) ) {
             return BASIC_ORDINAL_DATE_TIME;
-        } else if ("basicOrdinalDateTimeNoMillis".equals(input) || "basic_ordinal_date_time_no_millis".equals(input)) {
+        } else if (BASICORDINALDATETIMENOMILLIS.matches(input) ) {
             return BASIC_ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if ("basicTime".equals(input) || "basic_time".equals(input)) {
+        } else if (BASICTIME.matches(input) ) {
             return BASIC_TIME;
-        } else if ("basicTimeNoMillis".equals(input) || "basic_time_no_millis".equals(input)) {
+        } else if (BASICTIMENOMILLIS.matches(input) ) {
             return BASIC_TIME_NO_MILLIS;
-        } else if ("basicTTime".equals(input) || "basic_t_time".equals(input)) {
+        } else if (BASICTTIME.matches(input) ) {
             return BASIC_T_TIME;
-        } else if ("basicTTimeNoMillis".equals(input) || "basic_t_time_no_millis".equals(input)) {
+        } else if (BASICTTIMENOMILLIS.matches(input) ) {
             return BASIC_T_TIME_NO_MILLIS;
-        } else if ("basicWeekDate".equals(input) || "basic_week_date".equals(input)) {
+        } else if (BASICWEEKDATE.matches(input) ) {
             return BASIC_WEEK_DATE;
-        } else if ("basicWeekDateTime".equals(input) || "basic_week_date_time".equals(input)) {
+        } else if (BASICWEEKDATETIME.matches(input) ) {
             return BASIC_WEEK_DATE_TIME;
-        } else if ("basicWeekDateTimeNoMillis".equals(input) || "basic_week_date_time_no_millis".equals(input)) {
+        } else if (BASICWEEKDATETIMENOMILLIS.matches(input) ) {
             return BASIC_WEEK_DATE_TIME_NO_MILLIS;
-        } else if ("date".equals(input)) {
+        } else if (FormatterNames.DATE.matches(input)) {
             return DATE;
-        } else if ("dateHour".equals(input) || "date_hour".equals(input)) {
+        } else if (DATEHOUR.matches(input) ) {
             return DATE_HOUR;
-        } else if ("dateHourMinute".equals(input) || "date_hour_minute".equals(input)) {
+        } else if (DATEHOURMINUTE.matches(input) ) {
             return DATE_HOUR_MINUTE;
-        } else if ("dateHourMinuteSecond".equals(input) || "date_hour_minute_second".equals(input)) {
+        } else if (DATEHOURMINUTESECOND.matches(input) ) {
             return DATE_HOUR_MINUTE_SECOND;
-        } else if ("dateHourMinuteSecondFraction".equals(input) || "date_hour_minute_second_fraction".equals(input)) {
+        } else if (DATEHOURMINUTESECONDFRACTION.matches(input) ) {
             return DATE_HOUR_MINUTE_SECOND_FRACTION;
-        } else if ("dateHourMinuteSecondMillis".equals(input) || "date_hour_minute_second_millis".equals(input)) {
+        } else if (DATEHOURMINUTESECONDMILLIS.matches(input) ) {
             return DATE_HOUR_MINUTE_SECOND_MILLIS;
-        } else if ("dateOptionalTime".equals(input) || "date_optional_time".equals(input)) {
+        } else if (DATEOPTIONALTIME.matches(input) ) {
             return DATE_OPTIONAL_TIME;
-        } else if ("dateTime".equals(input) || "date_time".equals(input)) {
+        } else if (DATETIME.matches(input) ) {
             return DATE_TIME;
-        } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
+        } else if (DATETIMENOMILLIS.matches(input) ) {
             return DATE_TIME_NO_MILLIS;
-        } else if ("hour".equals(input)) {
+        } else if (FormatterNames.HOUR.matches(input)) {
             return HOUR;
-        } else if ("hourMinute".equals(input) || "hour_minute".equals(input)) {
+        } else if (HOURMINUTE.matches(input) ) {
             return HOUR_MINUTE;
-        } else if ("hourMinuteSecond".equals(input) || "hour_minute_second".equals(input)) {
+        } else if (HOURMINUTESECOND.matches(input) ) {
             return HOUR_MINUTE_SECOND;
-        } else if ("hourMinuteSecondFraction".equals(input) || "hour_minute_second_fraction".equals(input)) {
+        } else if (HOURMINUTESECONDFRACTION.matches(input) ) {
             return HOUR_MINUTE_SECOND_FRACTION;
-        } else if ("hourMinuteSecondMillis".equals(input) || "hour_minute_second_millis".equals(input)) {
+        } else if (HOURMINUTESECONDMILLIS.matches(input) ) {
             return HOUR_MINUTE_SECOND_MILLIS;
-        } else if ("ordinalDate".equals(input) || "ordinal_date".equals(input)) {
+        } else if (ORDINALDATE.matches(input) ) {
             return ORDINAL_DATE;
-        } else if ("ordinalDateTime".equals(input) || "ordinal_date_time".equals(input)) {
+        } else if (ORDINALDATETIME.matches(input) ) {
             return ORDINAL_DATE_TIME;
-        } else if ("ordinalDateTimeNoMillis".equals(input) || "ordinal_date_time_no_millis".equals(input)) {
+        } else if (ORDINALDATETIMENOMILLIS.matches(input) ) {
             return ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if ("time".equals(input)) {
+        } else if (FormatterNames.TIME.matches(input)) {
             return TIME;
-        } else if ("timeNoMillis".equals(input) || "time_no_millis".equals(input)) {
+        } else if (TIMENOMILLIS.matches(input) ) {
             return TIME_NO_MILLIS;
-        } else if ("tTime".equals(input) || "t_time".equals(input)) {
+        } else if (TTIME.matches(input) ) {
             return T_TIME;
-        } else if ("tTimeNoMillis".equals(input) || "t_time_no_millis".equals(input)) {
+        } else if (TTIMENOMILLIS.matches(input) ) {
             return T_TIME_NO_MILLIS;
-        } else if ("weekDate".equals(input) || "week_date".equals(input)) {
+        } else if (WEEKDATE.matches(input) ) {
             return WEEK_DATE;
-        } else if ("weekDateTime".equals(input) || "week_date_time".equals(input)) {
+        } else if (WEEKDATETIME.matches(input) ) {
             return WEEK_DATE_TIME;
-        } else if ("weekDateTimeNoMillis".equals(input) || "week_date_time_no_millis".equals(input)) {
+        } else if (WEEKDATETIMENOMILLIS.matches(input) ) {
             return WEEK_DATE_TIME_NO_MILLIS;
-        } else if ("weekyear".equals(input) || "week_year".equals(input)) {
+        } else if (WEEKYEAR.matches(input) ) {
             return WEEK_YEAR;
-        } else if ("weekyearWeek".equals(input) || "weekyear_week".equals(input)) {
+        } else if (WEEKYEARWEEK.matches(input) ) {
             return WEEKYEAR_WEEK;
-        } else if ("weekyearWeekDay".equals(input) || "weekyear_week_day".equals(input)) {
+        } else if (WEEKYEARWEEKDAY.matches(input) ) {
             return WEEKYEAR_WEEK_DAY;
-        } else if ("year".equals(input)) {
+        } else if (FormatterNames.YEAR.matches(input)) {
             return YEAR;
-        } else if ("yearMonth".equals(input) || "year_month".equals(input)) {
+        } else if (YEARMONTH.matches(input) ) {
             return YEAR_MONTH;
-        } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
+        } else if (YEARMONTHDAY.matches(input) ) {
             return YEAR_MONTH_DAY;
-        } else if ("epoch_second".equals(input)) {
+        } else if (EPOCH_SECOND.matches(input)) {
             return EpochTime.SECONDS_FORMATTER;
-        } else if ("epoch_millis".equals(input)) {
+        } else if (EPOCH_MILLIS.matches(input)) {
             return EpochTime.MILLIS_FORMATTER;
-        // strict date formats here, must be at least 4 digits for year and two for months and two for day
-        } else if ("strictBasicWeekDate".equals(input) || "strict_basic_week_date".equals(input)) {
+            // strict date formats here, must be at least 4 digits for year and two for months and two for day
+        } else if (STRICTBASICWEEKDATE.matches(input) ) {
             return STRICT_BASIC_WEEK_DATE;
-        } else if ("strictBasicWeekDateTime".equals(input) || "strict_basic_week_date_time".equals(input)) {
+        } else if (STRICTBASICWEEKDATETIME.matches(input) ) {
             return STRICT_BASIC_WEEK_DATE_TIME;
-        } else if ("strictBasicWeekDateTimeNoMillis".equals(input) || "strict_basic_week_date_time_no_millis".equals(input)) {
+        } else if (STRICTBASICWEEKDATETIMENOMILLIS.matches(input) ) {
             return STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS;
-        } else if ("strictDate".equals(input) || "strict_date".equals(input)) {
+        } else if (STRICTDATE.matches(input) ) {
             return STRICT_DATE;
-        } else if ("strictDateHour".equals(input) || "strict_date_hour".equals(input)) {
+        } else if (STRICTDATEHOUR.matches(input) ) {
             return STRICT_DATE_HOUR;
-        } else if ("strictDateHourMinute".equals(input) || "strict_date_hour_minute".equals(input)) {
+        } else if (STRICTDATEHOURMINUTE.matches(input) ) {
             return STRICT_DATE_HOUR_MINUTE;
-        } else if ("strictDateHourMinuteSecond".equals(input) || "strict_date_hour_minute_second".equals(input)) {
+        } else if (STRICTDATEHOURMINUTESECOND.matches(input) ) {
             return STRICT_DATE_HOUR_MINUTE_SECOND;
-        } else if ("strictDateHourMinuteSecondFraction".equals(input) || "strict_date_hour_minute_second_fraction".equals(input)) {
+        } else if (STRICTDATEHOURMINUTESECONDFRACTION.matches(input) ) {
             return STRICT_DATE_HOUR_MINUTE_SECOND_FRACTION;
-        } else if ("strictDateHourMinuteSecondMillis".equals(input) || "strict_date_hour_minute_second_millis".equals(input)) {
+        } else if (STRICTDATEHOURMINUTESECONDMILLIS.matches(input) ) {
             return STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS;
-        } else if ("strictDateOptionalTime".equals(input) || "strict_date_optional_time".equals(input)) {
+        } else if (STRICTDATEOPTIONALTIME.matches(input) ) {
             return STRICT_DATE_OPTIONAL_TIME;
-        } else if ("strictDateOptionalTimeNanos".equals(input) || "strict_date_optional_time_nanos".equals(input)) {
+        } else if (STRICTDATEOPTIONALTIMENANOS.matches(input) ) {
             return STRICT_DATE_OPTIONAL_TIME_NANOS;
-        } else if ("strictDateTime".equals(input) || "strict_date_time".equals(input)) {
+        } else if (STRICTDATETIME.matches(input) ) {
             return STRICT_DATE_TIME;
-        } else if ("strictDateTimeNoMillis".equals(input) || "strict_date_time_no_millis".equals(input)) {
+        } else if (STRICTDATETIMENOMILLIS.matches(input) ) {
             return STRICT_DATE_TIME_NO_MILLIS;
-        } else if ("strictHour".equals(input) || "strict_hour".equals(input)) {
+        } else if (STRICTHOUR.matches(input) ) {
             return STRICT_HOUR;
-        } else if ("strictHourMinute".equals(input) || "strict_hour_minute".equals(input)) {
+        } else if (STRICTHOURMINUTE.matches(input) ) {
             return STRICT_HOUR_MINUTE;
-        } else if ("strictHourMinuteSecond".equals(input) || "strict_hour_minute_second".equals(input)) {
+        } else if (STRICTHOURMINUTESECOND.matches(input) ) {
             return STRICT_HOUR_MINUTE_SECOND;
-        } else if ("strictHourMinuteSecondFraction".equals(input) || "strict_hour_minute_second_fraction".equals(input)) {
+        } else if (STRICTHOURMINUTESECONDFRACTION.matches(input) ) {
             return STRICT_HOUR_MINUTE_SECOND_FRACTION;
-        } else if ("strictHourMinuteSecondMillis".equals(input) || "strict_hour_minute_second_millis".equals(input)) {
+        } else if (STRICTHOURMINUTESECONDMILLIS.matches(input) ) {
             return STRICT_HOUR_MINUTE_SECOND_MILLIS;
-        } else if ("strictOrdinalDate".equals(input) || "strict_ordinal_date".equals(input)) {
+        } else if (STRICTORDINALDATE.matches(input) ) {
             return STRICT_ORDINAL_DATE;
-        } else if ("strictOrdinalDateTime".equals(input) || "strict_ordinal_date_time".equals(input)) {
+        } else if (STRICTORDINALDATETIME.matches(input) ) {
             return STRICT_ORDINAL_DATE_TIME;
-        } else if ("strictOrdinalDateTimeNoMillis".equals(input) || "strict_ordinal_date_time_no_millis".equals(input)) {
+        } else if (STRICTORDINALDATETIMENOMILLIS.matches(input) ) {
             return STRICT_ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if ("strictTime".equals(input) || "strict_time".equals(input)) {
+        } else if (STRICTTIME.matches(input) ) {
             return STRICT_TIME;
-        } else if ("strictTimeNoMillis".equals(input) || "strict_time_no_millis".equals(input)) {
+        } else if (STRICTTIMENOMILLIS.matches(input) ) {
             return STRICT_TIME_NO_MILLIS;
-        } else if ("strictTTime".equals(input) || "strict_t_time".equals(input)) {
+        } else if (STRICTTTIME.matches(input) ) {
             return STRICT_T_TIME;
-        } else if ("strictTTimeNoMillis".equals(input) || "strict_t_time_no_millis".equals(input)) {
+        } else if (STRICTTTIMENOMILLIS.matches(input) ) {
             return STRICT_T_TIME_NO_MILLIS;
-        } else if ("strictWeekDate".equals(input) || "strict_week_date".equals(input)) {
+        } else if (STRICTWEEKDATE.matches(input) ) {
             return STRICT_WEEK_DATE;
-        } else if ("strictWeekDateTime".equals(input) || "strict_week_date_time".equals(input)) {
+        } else if (STRICTWEEKDATETIME.matches(input) ) {
             return STRICT_WEEK_DATE_TIME;
-        } else if ("strictWeekDateTimeNoMillis".equals(input) || "strict_week_date_time_no_millis".equals(input)) {
+        } else if (STRICTWEEKDATETIMENOMILLIS.matches(input) ) {
             return STRICT_WEEK_DATE_TIME_NO_MILLIS;
-        } else if ("strictWeekyear".equals(input) || "strict_weekyear".equals(input)) {
+        } else if (STRICTWEEKYEAR.matches(input) ) {
             return STRICT_WEEKYEAR;
-        } else if ("strictWeekyearWeek".equals(input) || "strict_weekyear_week".equals(input)) {
+        } else if (STRICTWEEKYEARWEEK.matches(input) ) {
             return STRICT_WEEKYEAR_WEEK;
-        } else if ("strictWeekyearWeekDay".equals(input) || "strict_weekyear_week_day".equals(input)) {
+        } else if (STRICTWEEKYEARWEEKDAY.matches(input) ) {
             return STRICT_WEEKYEAR_WEEK_DAY;
-        } else if ("strictYear".equals(input) || "strict_year".equals(input)) {
+        } else if (STRICTYEAR.matches(input) ) {
             return STRICT_YEAR;
-        } else if ("strictYearMonth".equals(input) || "strict_year_month".equals(input)) {
+        } else if (STRICTYEARMONTH.matches(input) ) {
             return STRICT_YEAR_MONTH;
-        } else if ("strictYearMonthDay".equals(input) || "strict_year_month_day".equals(input)) {
+        } else if (STRICTYEARMONTHDAY.matches(input) ) {
             return STRICT_YEAR_MONTH_DAY;
         } else {
             try {

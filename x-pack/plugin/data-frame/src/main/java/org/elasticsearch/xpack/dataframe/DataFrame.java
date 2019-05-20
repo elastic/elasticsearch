@@ -76,10 +76,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -90,11 +88,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public static final String NAME = "data_frame";
     public static final String TASK_THREAD_POOL_NAME = "data_frame_indexing";
 
-    // list of headers that will be stored when a transform is created
-    public static final Set<String> HEADER_FILTERS = new HashSet<>(
-            Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
-
-    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    private static final Logger logger = LogManager.getLogger(DataFrame.class);
 
     private final boolean enabled;
     private final Settings settings;

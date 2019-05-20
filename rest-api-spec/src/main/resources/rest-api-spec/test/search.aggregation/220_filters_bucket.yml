@@ -251,8 +251,20 @@ setup:
 
 ---
 "Bad params":
+  - skip:
+      version: " - 7.99.99"  # TODO fix version after backport
+      reason: "empty bodies throws exception starting in 7.2"
+  - do:
+      catch: /\[filters\] cannot be empty/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_filter:
+              filters: {}
 
   - do:
+      catch: /\[filters\] cannot be empty/
       search:
         rest_total_hits_as_int: true
         body:

@@ -83,8 +83,15 @@ The following table lists all the attributes that can be used with the
 [cols="<,<",options="header",]
 |=======================================================================
 |Attribute |Description
-|`index_name` |deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
-Defaults to the property/field name.
+|`index_name` |
+ifdef::asciidoctor[]
+deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
 
 |`store` |Set to `true` to actually store the field in the index, `false` to not
 store it. Since by default Elasticsearch stores all fields of the source
@@ -247,8 +254,15 @@ numbered type:
 |`type` |The type of the number. Can be `float`, `double`, `integer`,
 `long`, `short`, `byte`. Required.
 
-|`index_name` |deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
-Defaults to the property/field name.
+|`index_name` |
+ifdef::asciidoctor[]
+deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
 
 |`store` |Set to `true` to store actual field in the index, `false` to not
 store it. Defaults to `false` (note, the JSON document itself is stored,
@@ -354,8 +368,15 @@ date type:
 [cols="<,<",options="header",]
 |=======================================================================
 |Attribute |Description
-|`index_name` |deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
-Defaults to the property/field name.
+|`index_name` |
+ifdef::asciidoctor[]
+deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
 
 |`format` |The <<mapping-date-format,date
 format>>. Defaults to `dateOptionalTime`.
@@ -423,8 +444,15 @@ boolean type:
 [cols="<,<",options="header",]
 |=======================================================================
 |Attribute |Description
-|`index_name` |deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
-Defaults to the property/field name.
+|`index_name` |
+ifdef::asciidoctor[]
+deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
 
 |`store` |Set to `true` to store actual field in the index, `false` to not
 store it. Defaults to `false` (note, the JSON document itself is stored,
@@ -469,9 +497,14 @@ binary type:
 [horizontal]
 
 `index_name`::
-
-    deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
-    Defaults to the property/field name.
+ifdef::asciidoctor[]
+deprecated:[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field
+that will be stored in the index. Defaults to the property/field name.
+endif::[]
 
 `store`::
 
@@ -674,7 +707,12 @@ name of the main field and can be accessed by their full path using the
 navigation notation: `name.raw`, or using the typed navigation notation
 `tweet.name.raw`. 
 
+ifdef::asciidoctor[]
+deprecated[1.0.0,"The `path` option below is deprecated.  Use <<copy-to,`copy_to`>> instead for setting up custom _all fields"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[1.0.0,The `path` option below is deprecated.  Use <<copy-to,`copy_to`>> instead for setting up custom _all fields]
+endif::[]
 
 In older releases, the `path` option allows to control how fields are accessed.
 If the `path` option is set to `full`, then the full path of the main field

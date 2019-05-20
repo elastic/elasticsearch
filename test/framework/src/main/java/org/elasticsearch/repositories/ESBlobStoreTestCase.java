@@ -49,9 +49,6 @@ public abstract class ESBlobStoreTestCase extends ESTestCase {
 
             assertTrue(containerFoo.blobExists("test"));
             assertTrue(containerBar.blobExists("test"));
-            store.delete(new BlobPath());
-            assertFalse(containerFoo.blobExists("test"));
-            assertFalse(containerBar.blobExists("test"));
         }
     }
 

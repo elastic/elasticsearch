@@ -27,15 +27,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Computes the optimal configuration of voting nodes in the cluster.
@@ -102,56 +97,27 @@ public class Reconfigurator {
         logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
             this, currentConfig, liveNodes, retiredNodeIds, currentMaster);
 
-        /*
-         *  There are three true/false properties of each node in play: live/non-live, retired/non-retired and in-config/not-in-config.
-         *  Firstly we divide the nodes into disjoint sets based on these properties:
-         *
-         *  - nonRetiredMaster
-         *  - nonRetiredNotMasterInConfigNotLiveIds
-         *  - nonRetiredInConfigLiveIds
-         *  - nonRetiredLiveNotInConfigIds
-         *
-         *  The other 5 possibilities are not relevant:
-         *  - retired, in-config, live             -- retired nodes should be removed from the config
-         *  - retired, in-config, non-live         -- retired nodes should be removed from the config
-         *  - retired, not-in-config, live         -- cannot add a retired node back to the config
-         *  - retired, not-in-config, non-live     -- cannot add a retired node back to the config
-         *  - non-retired, non-live, not-in-config -- no evidence this node exists at all
-         */
-
         final Set<String> liveNodeIds = liveNodes.stream()
             .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet());
-        final Set<String> liveInConfigIds = new TreeSet<>(currentConfig.getNodeIds());
-        liveInConfigIds.retainAll(liveNodeIds);
+        final Set<String> currentConfigNodeIds = currentConfig.getNodeIds();
 
-        final SortedSet<String> inConfigNotLiveIds = Sets.unmodifiableSortedDifference(currentConfig.getNodeIds(), liveInConfigIds);
-        final SortedSet<String> nonRetiredInConfigNotLiveIds = new TreeSet<>(inConfigNotLiveIds);
-        nonRetiredInConfigNotLiveIds.removeAll(retiredNodeIds);
-
-        final Set<String> nonRetiredInConfigLiveIds = new TreeSet<>(liveInConfigIds);
-        nonRetiredInConfigLiveIds.removeAll(retiredNodeIds);
-
-        final Set<String> nonRetiredInConfigLiveMasterIds;
-        final Set<String> nonRetiredInConfigLiveNotMasterIds;
-        if (nonRetiredInConfigLiveIds.contains(currentMaster.getId())) {
-            nonRetiredInConfigLiveNotMasterIds = new TreeSet<>(nonRetiredInConfigLiveIds);
-            nonRetiredInConfigLiveNotMasterIds.remove(currentMaster.getId());
-            nonRetiredInConfigLiveMasterIds = Collections.singleton(currentMaster.getId());
-        } else {
-            nonRetiredInConfigLiveNotMasterIds = nonRetiredInConfigLiveIds;
-            nonRetiredInConfigLiveMasterIds = Collections.emptySet();
-        }
-
-        final SortedSet<String> nonRetiredLiveNotInConfigIds = Sets.sortedDifference(liveNodeIds, currentConfig.getNodeIds());
-        nonRetiredLiveNotInConfigIds.removeAll(retiredNodeIds);
+        final Set<VotingConfigNode> orderedMasterNodes = new TreeSet<>();
+        liveNodes.stream()
+            .filter(DiscoveryNode::isMasterNode)
+            .forEach(n -> orderedMasterNodes.add(new VotingConfigNode(n.getId(), true, retiredNodeIds.contains(n.getId()),
+                n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))));
+        currentConfigNodeIds.stream().filter(nid -> liveNodeIds.contains(nid) == false)
+            .forEach(nid -> orderedMasterNodes.add(new VotingConfigNode(nid, false, retiredNodeIds.contains(nid), false, true)));
 
         /*
          * Now we work out how many nodes should be in the configuration:
          */
         final int targetSize;
 
-        final int nonRetiredLiveNodeCount = nonRetiredInConfigLiveIds.size() + nonRetiredLiveNotInConfigIds.size();
-        final int nonRetiredConfigSize = nonRetiredInConfigLiveIds.size() + nonRetiredInConfigNotLiveIds.size();
+        final int nonRetiredLiveNodeCount = Math.toIntExact(orderedMasterNodes.stream().filter(n -> n.retired == false)
+            .filter(n -> n.live).count());
+        final int nonRetiredConfigSize = Math.toIntExact(orderedMasterNodes.stream().filter(n -> n.retired == false)
+            .filter(n -> n.inCurrentConfig).count());
         if (autoShrinkVotingConfiguration) {
             if (nonRetiredLiveNodeCount >= 3) {
                 targetSize = roundDownToOdd(nonRetiredLiveNodeCount);
@@ -164,19 +130,68 @@ public class Reconfigurator {
             targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), nonRetiredConfigSize);
         }
 
-        /*
-         * The new configuration is formed by taking this many nodes in the following preference order:
-         */
         final VotingConfiguration newConfig = new VotingConfiguration(
-            // live master first, then other live nodes, preferring the current config, and if we need more then use non-live nodes
-            Stream.of(nonRetiredInConfigLiveMasterIds, nonRetiredInConfigLiveNotMasterIds, nonRetiredLiveNotInConfigIds,
-                nonRetiredInConfigNotLiveIds).flatMap(Collection::stream).limit(targetSize).collect(Collectors.toSet()));
+            orderedMasterNodes.stream().map(n -> n.id).limit(targetSize).collect(Collectors.toSet()));
 
+        // new configuration should have a quorum
         if (newConfig.hasQuorum(liveNodeIds)) {
             return newConfig;
         } else {
             // If there are not enough live nodes to form a quorum in the newly-proposed configuration, it's better to do nothing.
             return currentConfig;
+        }
+    }
+
+    static class VotingConfigNode implements Comparable<VotingConfigNode> {
+        final String id;
+        final boolean live;
+        final boolean retired;
+        final boolean currentMaster;
+        final boolean inCurrentConfig;
+
+        VotingConfigNode(String id, boolean live, boolean retired, boolean currentMaster, boolean inCurrentConfig) {
+            this.id = id;
+            this.live = live;
+            this.retired = retired;
+            this.currentMaster = currentMaster;
+            this.inCurrentConfig = inCurrentConfig;
+        }
+
+        @Override
+        public int compareTo(VotingConfigNode other) {
+            // prefer non-retired nodes (o.w. we might readd a retired node)
+            final int retiredComp = Boolean.compare(retired, other.retired);
+            if (retiredComp != 0) {
+                return retiredComp;
+            }
+            // prefer nodes that are live
+            final int liveComp = Boolean.compare(other.live, live);
+            if (liveComp != 0) {
+                return liveComp;
+            }
+            // prefer nodes that are in current config for stability
+            final int inCurrentConfigComp = Boolean.compare(other.inCurrentConfig, inCurrentConfig);
+            if (inCurrentConfigComp != 0) {
+                return inCurrentConfigComp;
+            }
+            // prefer current master
+            final int currentMasterComp = Boolean.compare(other.currentMaster, currentMaster);
+            if (currentMasterComp != 0) {
+                return currentMasterComp;
+            }
+            // tiebreak by node id to have stable ordering
+            return id.compareTo(other.id);
+        }
+
+        @Override
+        public String toString() {
+            return "VotingConfigNode{" +
+                "id='" + id + '\'' +
+                ", live=" + live +
+                ", retired=" + retired +
+                ", currentMaster=" + currentMaster +
+                ", inCurrentConfig=" + inCurrentConfig +
+                '}';
         }
     }
 }

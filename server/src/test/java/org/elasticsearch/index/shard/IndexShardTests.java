@@ -1729,7 +1729,8 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryThread.join();
         assertTrue(shard.isRelocatedPrimary());
         final ExecutionException e = expectThrows(ExecutionException.class, () -> acquirePrimaryOperationPermitBlockingly(shard));
-        assertThat(e.getCause(), instanceOf(IndexShardRelocatedException.class));
+        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
 
         closeShards(shard);
     }
@@ -1761,7 +1762,8 @@ public class IndexShardTests extends IndexShardTestCase {
 
         for (PlainActionFuture<Releasable> onLockAcquired : onLockAcquiredActions) {
             final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
-            assertThat(e.getCause(), instanceOf(IndexShardRelocatedException.class));
+            assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+            assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
         }
 
         recoveryThread.join();

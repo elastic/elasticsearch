@@ -263,15 +263,22 @@ public class RestHighLevelClient implements Closeable {
      * {@link RestClient} to be used to perform requests.
      */
     public RestHighLevelClient(RestClientBuilder restClientBuilder) {
-        this(restClientBuilder, Collections.emptyList());
+        this(restClientBuilder.build());
     }
 
     /**
-     * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
-     * {@link RestClient} to be used to perform requests and parsers for custom response sections added to Elasticsearch through plugins.
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} to be used to perform requests.
      */
-    protected RestHighLevelClient(RestClientBuilder restClientBuilder, List<NamedXContentRegistry.Entry> namedXContentEntries) {
-        this(restClientBuilder.build(), RestClient::close, namedXContentEntries);
+    public RestHighLevelClient(RestClient restClient) {
+        this(restClient, Collections.emptyList());
+    }
+
+    /**
+     * Creates a {@link RestHighLevelClient} given the low level {@link RestClient} to be used to perform requests
+     * and parsers for custom response sections added to Elasticsearch through plugins.
+     */
+    protected RestHighLevelClient(RestClient restClient, List<NamedXContentRegistry.Entry> namedXContentEntries) {
+        this(restClient, RestClient::close, namedXContentEntries);
     }
 
     /**

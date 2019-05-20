@@ -252,7 +252,7 @@ setup:
 ---
 "Bad params":
   - skip:
-      version: " - 7.99.99"  # TODO fix version after backport
+      version: " - 7.1.99"
       reason: "empty bodies throws exception starting in 7.2"
   - do:
       catch: /\[filters\] cannot be empty/

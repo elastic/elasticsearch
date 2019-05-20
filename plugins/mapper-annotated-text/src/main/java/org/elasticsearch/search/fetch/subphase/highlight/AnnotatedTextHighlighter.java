@@ -39,8 +39,8 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     public static final String NAME = "annotated";
     
     @Override
-    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type, HitContext hitContext) {
-        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, type, hitContext), hitContext);
+    protected Analyzer getAnalyzer(DocumentMapper docMapper, HitContext hitContext) {
+        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, hitContext), hitContext);
     }
 
     // Convert the marked-up values held on-disk to plain-text versions for highlighting

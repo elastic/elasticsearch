@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
@@ -36,11 +37,11 @@ task exampleFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   args 'org.elasticsearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
 }
 
-integTestCluster {
+integTest {
   dependsOn exampleFixture
-}
-integTestRunner {
-  nonInputProperties.systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"
+  runner {
+    nonInputProperties.systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"  
+  }
 }
 
 testingConventions.naming {

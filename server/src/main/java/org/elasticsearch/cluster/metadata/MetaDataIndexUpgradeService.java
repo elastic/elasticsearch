@@ -195,7 +195,7 @@ public class MetaDataIndexUpgradeService {
                 }
             };
             try (IndexAnalyzers fakeIndexAnalzyers =
-                     new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap, analyzerMap, analyzerMap)) {
+                     new IndexAnalyzers(indexSettings, analyzerMap, analyzerMap, analyzerMap)) {
                 MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
                         mapperRegistry, () -> null);
                 mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY);

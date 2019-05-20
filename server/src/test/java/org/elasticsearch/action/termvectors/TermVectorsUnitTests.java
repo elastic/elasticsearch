@@ -77,8 +77,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         // read
         ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-        TermVectorsResponse inResponse = new TermVectorsResponse("a", "b", "c");
-        inResponse.readFrom(esBuffer);
+        TermVectorsResponse inResponse = new TermVectorsResponse(esBuffer);
 
         // see if correct
         checkIfStandardTermVector(inResponse);
@@ -93,8 +92,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         // read
         esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         esBuffer = new InputStreamStreamInput(esInBuffer);
-        inResponse = new TermVectorsResponse("a", "b", "c");
-        inResponse.readFrom(esBuffer);
+        inResponse = new TermVectorsResponse(esBuffer);
         assertTrue(inResponse.isExists());
 
     }

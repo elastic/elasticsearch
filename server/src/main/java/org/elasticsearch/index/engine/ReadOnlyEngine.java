@@ -137,7 +137,7 @@ public class ReadOnlyEngine extends Engine {
                     + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
             }
         }
-        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getMaxSeqNo());
+        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
     }
 
     protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
@@ -157,11 +157,11 @@ public class ReadOnlyEngine extends Engine {
 
     protected final DirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
-        reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         }
-        return readerWrapperFunction.apply(reader);
+        reader = readerWrapperFunction.apply(reader);
+        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
@@ -300,7 +300,8 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return false;
+        // we can do operation-based recovery if we don't have to replay any operation.
+        return startingSeqNo > seqNoStats.getMaxSeqNo();
     }
 
     @Override

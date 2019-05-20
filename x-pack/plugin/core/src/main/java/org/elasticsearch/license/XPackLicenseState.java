@@ -95,13 +95,18 @@ public class XPackLicenseState {
         switch (newMode) {
             case BASIC:
                 switch (currentMode) {
-                    case TRIAL:
                     case STANDARD:
+                        return new String[] {
+                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
+                        };
+                    case TRIAL:
                     case GOLD:
                     case PLATINUM:
                         return new String[] {
-                            "The following X-Pack security functionality will be disabled: authentication, authorization, " +
-                                "ip filtering, and auditing. Please restart your node after applying the license.",
+                            "Security will default to disabled (set " + XPackSettings.SECURITY_ENABLED.getKey() + " to enable security).",
+                            "Authentication will be limited to the native and file realms.",
+                            "Security tokens and API keys will not be supported.",
+                            "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
                             "A custom authorization engine will be ignored."
@@ -125,7 +130,7 @@ public class XPackLicenseState {
             case STANDARD:
                 switch (currentMode) {
                     case BASIC:
-                        // ^^ though technically it was already disabled, it's not bad to remind them
+                        // ^^ though technically it doesn't change the feature set, it's not bad to remind them
                     case GOLD:
                     case PLATINUM:
                     case TRIAL:
@@ -277,7 +282,7 @@ public class XPackLicenseState {
     public XPackLicenseState(Settings settings) {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        this.isSecurityExplicitlyEnabled = isSecurityEnabled && settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
+        this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
     }
 
     private XPackLicenseState(XPackLicenseState xPackLicenseState) {
@@ -285,6 +290,10 @@ public class XPackLicenseState {
         this.isSecurityEnabled = xPackLicenseState.isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = xPackLicenseState.isSecurityExplicitlyEnabled;
         this.status = xPackLicenseState.status;
+    }
+
+    private static boolean isSecurityExplicitlyEnabled(Settings settings) {
+        return settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey());
     }
 
     /**
@@ -720,6 +729,25 @@ public class XPackLicenseState {
                 return isSecurityEnabled && isSecurityExplicitlyEnabled == false;
         }
         return false;
+    }
+
+    public static boolean isTransportTlsRequired(License license, Settings settings) {
+        if (license == null) {
+            return false;
+        }
+        switch (license.operationMode()) {
+            case STANDARD:
+            case GOLD:
+            case PLATINUM:
+                return XPackSettings.SECURITY_ENABLED.get(settings);
+            case BASIC:
+                return XPackSettings.SECURITY_ENABLED.get(settings) && isSecurityExplicitlyEnabled(settings);
+            case MISSING:
+            case TRIAL:
+                return false;
+            default:
+                throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
+        }
     }
 
     private static boolean isSecurityEnabled(final OperationMode mode, final boolean isSecurityExplicitlyEnabled,

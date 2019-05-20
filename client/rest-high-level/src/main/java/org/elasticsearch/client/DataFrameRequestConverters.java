@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
@@ -57,11 +58,11 @@ final class DataFrameRequestConverters {
                 .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getId()))
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        if (getRequest.getFrom() != null) {
-            request.addParameter("from", getRequest.getFrom().toString());
+        if (getRequest.getPageParams() != null && getRequest.getPageParams().getFrom() != null) {
+            request.addParameter(PageParams.FROM.getPreferredName(), getRequest.getPageParams().getFrom().toString());
         }
-        if (getRequest.getSize() != null) {
-            request.addParameter("size", getRequest.getSize().toString());
+        if (getRequest.getPageParams() != null && getRequest.getPageParams().getSize() != null) {
+            request.addParameter(PageParams.SIZE.getPreferredName(), getRequest.getPageParams().getSize().toString());
         }
         return request;
     }
@@ -120,6 +121,13 @@ final class DataFrameRequestConverters {
                 .addPathPart(statsRequest.getId())
                 .addPathPartAsIs("_stats")
                 .build();
-        return new Request(HttpGet.METHOD_NAME, endpoint);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getFrom() != null) {
+            request.addParameter(PageParams.FROM.getPreferredName(), statsRequest.getPageParams().getFrom().toString());
+        }
+        if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getSize() != null) {
+            request.addParameter(PageParams.SIZE.getPreferredName(), statsRequest.getPageParams().getSize().toString());
+        }
+        return request;
     }
 }

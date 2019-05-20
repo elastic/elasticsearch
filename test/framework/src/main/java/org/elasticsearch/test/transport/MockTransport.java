@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectionManager;
@@ -208,7 +208,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) {
+    public TransportAddress[] addressesFromString(String address) {
         return new TransportAddress[0];
     }
 
@@ -238,7 +238,7 @@ public class MockTransport implements Transport, LifecycleComponent {
     }
 
     @Override
-    public List<String> getLocalAddresses() {
+    public List<String> getDefaultSeedAddresses() {
         return Collections.emptyList();
     }
 
@@ -248,7 +248,7 @@ public class MockTransport implements Transport, LifecycleComponent {
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+            requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
         }
     }
 

@@ -1685,9 +1685,9 @@ public final class TokenService {
     }
 
     byte[] getRandomBytes(int length) {
-        final byte[] initializationVector = new byte[length];
-        secureRandom.nextBytes(initializationVector);
-        return initializationVector;
+        final byte[] bytes = new byte[length];
+        secureRandom.nextBytes(bytes);
+        return bytes;
     }
 
     /**

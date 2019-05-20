@@ -209,9 +209,9 @@ public class TokenServiceTests extends ESTestCase {
 
     public void testRotateKey() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
+        // This test only makes sense in mixed clusters with pre v7.2.0 nodes where the Key is actually used
         if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
+            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_1_0));
         }
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
@@ -270,9 +270,9 @@ public class TokenServiceTests extends ESTestCase {
 
     public void testKeyExchange() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
+        // This test only makes sense in mixed clusters with pre v7.2.0 nodes where the Key is actually used
         if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
+            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_1_0));
         }
         int numRotations = randomIntBetween(1, 5);
         for (int i = 0; i < numRotations; i++) {
@@ -312,9 +312,9 @@ public class TokenServiceTests extends ESTestCase {
 
     public void testPruneKeys() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
-        // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
+        // This test only makes sense in mixed clusters with pre v7.2.0 nodes where the Key is actually used
         if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
+            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_1_0));
         }
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
@@ -384,7 +384,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
         if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
+            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_1_0));
         }
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
@@ -418,7 +418,7 @@ public class TokenServiceTests extends ESTestCase {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());
         // This test only makes sense in mixed clusters with pre v7.1.0 nodes where the Key is actually used
         if (null == oldNode) {
-            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_0_0));
+            oldNode = addAnotherDataNodeWithVersion(this.clusterService, randomFrom(Version.V_6_7_0, Version.V_7_1_0));
         }
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
 
@@ -678,7 +678,7 @@ public class TokenServiceTests extends ESTestCase {
         assertAuthentication(authentication, retrievedAuth);
     }
 
-    public void testTokenEncryption() throws Exception {
+    public void testSupercedingTokenEncryption() throws Exception {
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, Clock.systemUTC());
         Authentication authentication = new Authentication(new User("joe", "admin"), new RealmRef("native_realm", "native", "node1"), null);
         PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();

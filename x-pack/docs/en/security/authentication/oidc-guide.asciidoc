@@ -6,7 +6,7 @@
 The Elastic Stack supports single sign-on (SSO) using OpenID Connect via {kib} using
 {es} as the backend service that holds most of the functionality. {kib} and {es}
 together represent an OpenID Connect Relying Party (RP) that supports the Authorization
-Code Flow and the Implicit Flow as these are defined in the OpenID Connect specification.
+Code Flow as this is defined in the OpenID Connect specification.
 
 This guide assumes that you have an OpenID Connect Provider where the
 Elastic Stack Relying Party will be registered.
@@ -171,7 +171,7 @@ op.jwkset_path::
     Provider uses for signing tokens and claims responses. The path is resolved relative to the {es}
     config directory.
     {es} will automatically monitor this file for changes and will reload the configuration whenever
-    it is updated. The value for this setting should be provided by your OpenID Connect Provider.
+    it is updated. Your OpenID Connect Provider should provide you with this file.
 
 claims.principal:: See <<oidc-claims-mapping>>.
 claims.groups:: See <<oidc-claims-mapping>>.

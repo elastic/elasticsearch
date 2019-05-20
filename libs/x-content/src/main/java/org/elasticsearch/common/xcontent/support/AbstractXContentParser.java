@@ -344,11 +344,11 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     static Map<String, Object> readMap(XContentParser parser, MapFactory<Object> mapFactory) throws IOException {
-        return readGenericMap(parser, mapFactory, (p, k) -> readValue(p, mapFactory));
+        return readGenericMap(parser, mapFactory, p -> readValue(p, mapFactory));
     }
 
     static Map<String, String> readMapStrings(XContentParser parser, MapFactory<String> mapFactory) throws IOException {
-        return readGenericMap(parser, mapFactory, (p, k) -> p.text());
+        return readGenericMap(parser, mapFactory, p -> p.text());
     }
 
     static <T> Map<String, T> readGenericMap(
@@ -368,7 +368,7 @@ public abstract class AbstractXContentParser implements XContentParser {
             String fieldName = parser.currentName();
             // And then the value...
             parser.nextToken();
-            T value = mapValueParser.apply(parser, fieldName);
+            T value = mapValueParser.apply(parser);
             map.put(fieldName, value);
         }
         return map;

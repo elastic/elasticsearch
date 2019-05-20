@@ -342,7 +342,7 @@ public class XContentParserTests extends ESTestCase {
                 "b", new SimpleStruct(2, 0.2, "bbb"),
                 "c", new SimpleStruct(3, 0.3, "ccc"));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
-            assertThat(parser.genericMap((p, k) -> SimpleStruct.fromXContent(p)), equalTo(expectedMap));
+            assertThat(parser.genericMap(SimpleStruct::fromXContent), equalTo(expectedMap));
             assertNull(parser.nextToken());
         }
     }
@@ -359,7 +359,7 @@ public class XContentParserTests extends ESTestCase {
                 "b", new SimpleStruct(2, 0.2, "bbb"),
                 "c", new SimpleStruct(3, 0.3, "ccc"));
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
-            assertThat(parser.genericMapOrdered((p, k) -> SimpleStruct.fromXContent(p)), equalTo(expectedMap));
+            assertThat(parser.genericMapOrdered(SimpleStruct::fromXContent), equalTo(expectedMap));
             assertNull(parser.nextToken());
         }
     }
@@ -373,7 +373,7 @@ public class XContentParserTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             XContentParseException exception = expectThrows(
                 XContentParseException.class,
-                () -> parser.genericMap((p, k) -> SimpleStruct.fromXContent(p)));
+                () -> parser.genericMap(SimpleStruct::fromXContent));
             assertThat(exception, hasMessage(containsString("s doesn't support values of type: VALUE_NUMBER")));
         }
     }

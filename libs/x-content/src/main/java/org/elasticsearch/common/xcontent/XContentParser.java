@@ -118,7 +118,7 @@ public interface XContentParser extends Closeable {
     }
 
     interface MapValueParser<T> {
-        T apply(XContentParser parser, String key) throws IOException;
+        T apply(XContentParser parser) throws IOException;
     }
 
     XContentType contentType();

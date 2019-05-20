@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.broadcast;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -36,7 +37,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -287,45 +287,25 @@ public abstract class TransportBroadcastAction<
 
         @Override
         public void messageReceived(ShardRequest request, TransportChannel channel, Task task) throws Exception {
-            asyncShardOperation(request, task,  new ActionListener<ShardResponse>() {
-                @Override
-                public void onResponse(ShardResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Exception e) {
-                        onFailure(e);
+            asyncShardOperation(request, task,
+                ActionListener.wrap(channel::sendResponse, e -> {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (Exception e1) {
+                            logger.warn(() -> new ParameterizedMessage(
+                                "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
+                        }
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception e1) {
-                        logger.warn(() -> new ParameterizedMessage(
-                            "Failed to send error response for action [{}] and request [{}]", actionName, request), e1);
-                    }
-                }
-            });
+                ));
         }
     }
 
     protected void asyncShardOperation(ShardRequest request, Task task, ActionListener<ShardResponse> listener) {
-        transportService.getThreadPool().executor(getExecutor(request)).execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
+        transportService.getThreadPool().executor(shardExecutor).execute(new ActionRunnable<ShardResponse>(listener) {
             @Override
             protected void doRun() throws Exception {
                 listener.onResponse(shardOperation(request, task));
             }
         });
     }
-
-    protected String getExecutor(ShardRequest request) {
-        return shardExecutor;
-    }
-
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -302,21 +302,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeDfsPhase(ShardSearchRequest request, SearchTask task, ActionListener<SearchPhaseResult> listener) {
-        rewriteShardRequest(request, new ActionListener<ShardSearchRequest>() {
-            @Override
-            public void onResponse(ShardSearchRequest request) {
-                try {
-                    listener.onResponse(executeDfsPhase(request, task));
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        rewriteShardRequest(request, ActionListener.map(listener, r -> executeDfsPhase(r, task)));
     }
 
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchTask task) throws IOException {
@@ -351,30 +337,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, SearchTask task, ActionListener<SearchPhaseResult> listener) {
-        rewriteShardRequest(request, new ActionListener<ShardSearchRequest>() {
-            @Override
-            public void onResponse(ShardSearchRequest request) {
-                try {
-                    listener.onResponse(executeQueryPhase(request, task));
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        rewriteShardRequest(request, ActionListener.map(listener, r -> executeQueryPhase(r, task)));
     }
 
     private <T> void runAsync(long id, Supplier<T> executable, ActionListener<T> listener) {
-        getExecutor(id).execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
+        getExecutor(id).execute(new ActionRunnable<T>(listener) {
             @Override
             protected void doRun() {
                 listener.onResponse(executable.get());
@@ -1058,12 +1025,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
             // now we need to check if there is a pending refresh and register
             shard.awaitShardSearchActive(b ->
-                executor.execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-
+                executor.execute(new ActionRunnable<ShardSearchRequest>(listener) {
                     @Override
                     protected void doRun() {
                         listener.onResponse(request);

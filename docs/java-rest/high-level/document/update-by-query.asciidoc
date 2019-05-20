@@ -40,7 +40,7 @@ include-tagged::{doc-tests-file}[{api}-request-query]
 --------------------------------------------------
 <1> Only copy documents which have field `user` set to `kimchy`
 
-It’s also possible to limit the number of processed documents by setting maxDocs.
+It’s also possible to limit the number of processed documents by setting `maxDocs`.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

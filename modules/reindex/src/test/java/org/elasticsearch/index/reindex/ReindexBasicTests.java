@@ -58,7 +58,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertThat(copy.get(), matcher().created(2));
         assertHitCount(client().prepareSearch("dest_half").setSize(0).get(), 2);
 
-        // Limit with size
+        // Limit with maxDocs
         copy = reindex().source("source").destination("dest_size_one", "type").maxDocs(1).refresh(true);
         assertThat(copy.get(), matcher().created(1));
         assertHitCount(client().prepareSearch("dest_size_one").setSize(0).get(), 1);

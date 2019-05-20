@@ -26,11 +26,11 @@ import java.util.Collections;
 import java.util.Set;
 
 @ApplicationPath("/transport")
-public class TransportClientActivator extends Application {
+public class RestHighLevelClientActivator extends Application {
 
     @Override
     public Set<Class<?>> getClasses() {
-        return Collections.singleton(TransportClientEmployeeResource.class);
+        return Collections.singleton(RestHighLevelClientEmployeeResource.class);
     }
 
 }

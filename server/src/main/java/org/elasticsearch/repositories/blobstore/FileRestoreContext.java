@@ -152,7 +152,7 @@ public abstract class FileRestoreContext {
             final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
             for (StoreFileMetaData md : diff.identical) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
-                recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), true);
+                recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] [{}] not_recovering file [{}] from [{}], exists in local store and is same", shardId, snapshotId,
                         fileInfo.physicalName(), fileInfo.name());
@@ -162,7 +162,7 @@ public abstract class FileRestoreContext {
             for (StoreFileMetaData md : concat(diff)) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 filesToRecover.add(fileInfo);
-                recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), false);
+                recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), false);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] [{}] recovering [{}] from [{}]", shardId, snapshotId,
                         fileInfo.physicalName(), fileInfo.name());
@@ -255,7 +255,7 @@ public abstract class FileRestoreContext {
                 int length;
                 while ((length = stream.read(buffer)) > 0) {
                     indexOutput.writeBytes(buffer, 0, length);
-                    recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.name(), length);
+                    recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
                 }
                 Store.verify(indexOutput);
                 indexOutput.close();

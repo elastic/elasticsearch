@@ -1,0 +1,1641 @@
+[[release-notes-7.0.0]]
+== {es} version 7.0.0
+
+These release notes include all changes made in the alpha, beta, and RC
+releases of 7.0.0.
+
+Also see <<breaking-changes-7.0,Breaking changes in 7.0>>.
+
+[[breaking-7.0.0]]
+[float]
+=== Breaking changes
+
+Aggregations::
+* Remove support for deprecated params._agg/_aggs for scripted metric aggregations {pull}32979[#32979] (issues: {issue}29328[#29328], {issue}31597[#31597])
+* Percentile/Ranks should return null instead of NaN when empty {pull}30460[#30460] (issue: {issue}29066[#29066])
+* Render sum as zero if count is zero for stats aggregation {pull}27193[#27193] (issue: {issue}26893[#26893])
+
+Analysis::
+* Remove `delimited_payload_filter` {pull}27705[#27705] (issues: {issue}26625[#26625], {issue}27704[#27704])
+* Limit the number of tokens produced by _analyze {pull}27529[#27529] (issue: {issue}27038[#27038])
+* Add limits for ngram and shingle settings {pull}27211[#27211] (issue: {issue}25887[#25887])
+
+Audit::
+* Logfile auditing settings remove after deprecation  {pull}35205[#35205]
+* Remove index audit output type {pull}37707[#37707] (issues: {issue}29881[#29881], {issue}37301[#37301])
+
+Authentication::
+* Security: remove wrapping in put user response {pull}33512[#33512] (issue: {issue}32332[#32332])
+* Remove bwc logic for token invalidation {pull}36893[#36893] (issue: {issue}36727[#36727])
+
+Authorization::
+* Remove aliases resolution limitations when security is enabled {pull}31952[#31952] (issue: {issue}31516[#31516])
+* Remove implicit index monitor privilege {pull}37774[#37774]
+
+Circuit Breakers::
+* Lower fielddata circuit breaker's default limit {pull}27162[#27162] (issue: {issue}27130[#27130])
+
+CRUD::
+* Version conflict exception message enhancement {pull}29432[#29432] (issue: {issue}21278[#21278])
+* Using ObjectParser in UpdateRequest {pull}29293[#29293] (issue: {issue}28740[#28740])
+* Remove support for internal versioning for concurrency control {pull}38254[#38254] (issue: {issue}1078[#1078])
+
+Distributed::
+* Remove undocumented action.master.force_local setting {pull}29351[#29351]
+* Remove tribe node support {pull}28443[#28443]
+* Forbid negative values for index.unassigned.node_left.delayed_timeout {pull}26828[#26828]
+* Remove cluster state size {pull}40061[#40061] (issues: {issue}39806[#39806], {issue}39827[#39827], {issue}39951[#39951], {issue}40016[#40016])
+
+Features/Features::
+* Remove Migration Upgrade and Assistance APIs {pull}40075[#40075] (issue: {issue}40014[#40014])
+
+Features/Indices APIs::
+* Indices Exists API should return 404 for empty wildcards {pull}34499[#34499]
+* Default to one shard {pull}30539[#30539]
+* Limit the number of nested documents {pull}27405[#27405] (issue: {issue}26962[#26962])
+
+Features/Ingest::
+* Add Configuration Except. Data to Metdata {pull}32322[#32322] (issue: {issue}27728[#27728])
+* Add ECS schema for user-agent ingest processor (#37727) {pull}37984[#37984] (issues: {issue}37329[#37329], {issue}37727[#37727])
+* Remove special handling for ingest plugins {pull}36967[#36967] (issues: {issue}36898[#36898], {issue}36956[#36956])
+
+Features/Java Low Level REST Client::
+* Drop support for the low-level REST client on JDK 7 {pull}38540[#38540] (issue: {issue}29607[#29607])
+
+Features/Watcher::
+* Remove Watcher Account "unsecure" settings {pull}36736[#36736] (issue: {issue}36403[#36403])
+
+Features/Stats::
+* Remove the suggest metric from stats APIs {pull}29635[#29635] (issue: {issue}29589[#29589])
+* Align cat thread pool info to thread pool config {pull}29195[#29195] (issue: {issue}29123[#29123])
+* Align thread pool info to thread pool configuration {pull}29123[#29123] (issue: {issue}29113[#29113])
+
+Geo::
+* Use geohash cell instead of just a corner in geo_bounding_box {pull}30698[#30698] (issue: {issue}25154[#25154])
+
+Index APIs::
+* Always enforce cluster-wide shard limit {pull}34892[#34892] (issues: {issue}20705[#20705], {issue}34021[#34021])
+
+Infra/Circuit Breakers::
+* Introduce durability of circuit breaking exception {pull}34460[#34460] (issue: {issue}31986[#31986])
+* Circuit-break based on real memory usage {pull}31767[#31767]
+
+Infra/Core::
+* Default node.name to the hostname {pull}33677[#33677]
+* Remove bulk fallback for write thread pool {pull}29609[#29609]
+* CCS: Drop http address from remote cluster info {pull}29568[#29568] (issue: {issue}29207[#29207])
+* Remove the index thread pool {pull}29556[#29556]
+* Main response should not have status 503 when okay {pull}29045[#29045] (issue: {issue}8902[#8902])
+* Automatically prepare indices for splitting {pull}27451[#27451]
+* Don't refresh on `_flush` `_force_merge` and `_upgrade` {pull}27000[#27000] (issue: {issue}26972[#26972])
+
+Infra/Logging::
+* Elasticsearch json logging  {pull}36833[#36833] (issue: {issue}32850[#32850])
+
+Infra/Packaging::
+* Packaging: Remove windows bin files from the tar distribution {pull}30596[#30596]
+* Package ingest-user-agent as a module {pull}36956[#36956]
+* Package ingest-geoip as a module {pull}36898[#36898]
+
+Infra/REST API::
+* Remove GET support for clear cache indices {pull}29525[#29525]
+* Clear Indices Cache API remove deprecated url params {pull}29068[#29068]
+
+Infra/Scripting::
+* Remove support for deprecated StoredScript contexts {pull}31394[#31394] (issues: {issue}27612[#27612], {issue}28939[#28939])
+* Remove getDate methods from ScriptDocValues {pull}30690[#30690]
+* Drop `ScriptDocValues#date` and `ScriptDocValues#dates` in 7.0.0 {pull}30690[#30690] (issue: {issue}23008[#23008])
+
+Infra/Settings::
+* Remove config prompting for secrets and text {pull}27216[#27216]
+
+Machine Learning::
+* Remove types from datafeed {pull}36538[#36538] (issue: {issue}34265[#34265])
+
+Mapping::
+* Match phrase queries against non-indexed fields should throw an exception {pull}31060[#31060]
+* Remove legacy mapping code. {pull}29224[#29224]
+* Reject updates to the `_default_` mapping. {pull}29165[#29165] (issues: {issue}15613[#15613], {issue}28248[#28248])
+* Remove the `update_all_types` option. {pull}28288[#28288]
+* Remove the `_default_` mapping. {pull}28248[#28248]
+* Reject the `index_options` parameter for numeric fields {pull}26668[#26668] (issue: {issue}21475[#21475])
+* Update the default for include_type_name to false. {pull}37285[#37285]
+* Support 'include_type_name' in RestGetIndicesAction {pull}37149[#37149]
+
+Network::
+* Remove http.enabled setting {pull}29601[#29601] (issue: {issue}12792[#12792])
+* Remove HTTP max content length leniency {pull}29337[#29337]
+* Remove TLS 1.0 as a default SSL protocol {pull}37512[#37512] (issue: {issue}36021[#36021])
+* Security: remove SSL settings fallback {pull}36846[#36846] (issue: {issue}29797[#29797])
+
+Percolator::
+* Remove deprecated percolator map_unmapped_fields_as_string setting {pull}28060[#28060]
+
+Ranking::
+* Add minimal sanity checks to custom/scripted similarities. {pull}33564[#33564] (issue: {issue}33309[#33309])
+* Scroll queries asking for rescore are considered invalid {pull}32918[#32918] (issue: {issue}31775[#31775])
+* Forbid negative scores in function_score query {pull}35709[#35709] (issue: {issue}33309[#33309])
+* Forbid negative field boosts in analyzed queries {pull}37930[#37930] (issue: {issue}33309[#33309])
+
+Scripting::
+* Delete deprecated getValues from ScriptDocValues {pull}36183[#36183] (issue: {issue}22919[#22919])
+
+Search::
+* Remove deprecated url parameters `_source_include` and `_source_exclude` {pull}35097[#35097] (issues: {issue}22792[#22792], {issue}33475[#33475])
+* Disallow negative query boost {pull}34486[#34486] (issue: {issue}33309[#33309])
+* Forbid negative `weight` in Function Score Query {pull}33390[#33390] (issue: {issue}31927[#31927])
+* In the field capabilities API, remove support for providing fields in the request body. {pull}30185[#30185]
+* Remove deprecated options for query_string {pull}29203[#29203] (issue: {issue}25551[#25551])
+* Fix Laplace scorer to multiply by alpha (and not add) {pull}27125[#27125]
+* Remove _primary and _replica shard preferences {pull}26791[#26791] (issue: {issue}26335[#26335])
+* Limit the number of expanded fields it query_string and simple_query_string {pull}26541[#26541] (issue: {issue}25105[#25105])
+* Make purely negative queries return scores of 0. {pull}26015[#26015] (issue: {issue}23449[#23449])
+* Remove the deprecated _termvector endpoint. {pull}36131[#36131] (issues: {issue}36098[#36098], {issue}8484[#8484])
+* Remove deprecated Graph endpoints {pull}35956[#35956]
+* Validate metadata on `_msearch` {pull}35938[#35938] (issue: {issue}35869[#35869])
+* Make hits.total an object in the search response {pull}35849[#35849] (issue: {issue}33028[#33028])
+* Remove the distinction between query and filter context in QueryBuilders {pull}35354[#35354] (issue: {issue}35293[#35293])
+* Throw a parsing exception when boost is set in span_or query (#28390) {pull}34112[#34112] (issue: {issue}28390[#28390])
+* Track total hits up to 10,000 by default {pull}37466[#37466] (issue: {issue}33028[#33028])
+* Use mappings to format doc-value fields by default. {pull}30831[#30831] (issues: {issue}26948[#26948], {issue}29639[#29639])
+
+Security::
+* Remove heuristics that enable security on trial licenses {pull}38075[#38075] (issue: {issue}38009[#38009])
+
+Snapshot/Restore::
+* Include size of snapshot in snapshot metadata  {pull}30890[#30890] (issue: {issue}18543[#18543])
+* Remove azure deprecated settings {pull}26099[#26099] (issue: {issue}23405[#23405])
+
+Store::
+* Drop elasticsearch-translog for 7.0 {pull}33373[#33373] (issues: {issue}31389[#31389], {issue}32281[#32281])
+* completely drop `index.shard.check_on_startup: fix` for 7.0 {pull}33194[#33194]
+
+Suggesters::
+* Fix threshold frequency computation in Suggesters {pull}34312[#34312] (issue: {issue}34282[#34282])
+* Make Geo Context Mapping Parsing More Strict {pull}32821[#32821] (issues: {issue}32202[#32202], {issue}32412[#32412])
+* Remove the ability to index or query context suggestions without context {pull}31007[#31007] (issue: {issue}30712[#30712])
+
+ZenDiscovery::
+* Best-effort cluster formation if unconfigured {pull}36215[#36215]
+* Remove DiscoveryPlugin#getDiscoveryTypes {pull}38414[#38414] (issue: {issue}38410[#38410])
+
+[[breaking-java-7.0.0]]
+[float]
+=== Breaking Java changes
+
+Aggregations::
+* Change GeoHashGrid.Bucket#getKey() to return String {pull}31748[#31748] (issue: {issue}30320[#30320])
+
+Analysis::
+* Remove deprecated AnalysisPlugin#requriesAnalysisSettings method {pull}32037[#32037] (issue: {issue}32025[#32025])
+
+Features/Java High Level REST Client::
+* Drop deprecated methods from Retry {pull}33925[#33925]
+* Cluster health to default to cluster level {pull}31268[#31268] (issue: {issue}29331[#29331])
+* Remove deprecated API methods {pull}31200[#31200] (issue: {issue}31069[#31069])
+
+Features/Java Low Level REST Client::
+* Drop deprecated methods {pull}33223[#33223] (issues: {issue}29623[#29623], {issue}30315[#30315])
+* Remove support for maxRetryTimeout from low-level REST client {pull}38085[#38085] (issues: {issue}25951[#25951], {issue}31834[#31834], {issue}33342[#33342])
+
+Geo::
+* Decouple geojson parse logic from ShapeBuilders {pull}27212[#27212]
+
+Infra/Core::
+* Remove RequestBuilder from Action {pull}30966[#30966]
+* Handle scheduler exceptions {pull}38014[#38014] (issues: {issue}28667[#28667], {issue}36137[#36137], {issue}37708[#37708])
+
+Infra/Transport API::
+* Java api clean up: remove deprecated `isShardsAcked` {pull}28311[#28311] (issues: {issue}27784[#27784], {issue}27819[#27819])
+
+ZenDiscovery::
+* Make node field in JoinRequest private {pull}36405[#36405]
+
+[[deprecation-7.0.0]]
+[float]
+=== Deprecations
+
+Aggregations::
+* Deprecate dots in aggregation names {pull}31468[#31468] (issues: {issue}17600[#17600], {issue}19040[#19040])
+
+Analysis::
+* Replace parameter unicodeSetFilter with unicode_set_filter  {pull}29215[#29215] (issue: {issue}22823[#22823])
+* Replace delimited_payload_filter by delimited_payload {pull}26625[#26625] (issue: {issue}21978[#21978])
+* Deprecate Standard Html Strip Analyzer in master {pull}26719[#26719] (issue: {issue}4704[#4704])
+* Remove `nGram` and  `edgeNGram` token filter names (#38911) {pull}39070[#39070] (issues: {issue}30209[#30209], {issue}38911[#38911])
+
+Audit::
+* Deprecate index audit output type {pull}37301[#37301] (issue: {issue}29881[#29881])
+
+Core::
+* Deprecate use of scientific notation in epoch time parsing {pull}36691[#36691]
+* Add backcompat for joda time formats {pull}36531[#36531]
+
+Cluster Coordination::
+* Deprecate size in cluster state response {pull}39951[#39951] (issue: {issue}39806[#39806])
+
+Features/Indices APIs::
+* Default copy settings to true and deprecate on the REST layer {pull}30598[#30598]
+* Reject setting index.optimize_auto_generated_id after version 7.0.0 {pull}28895[#28895] (issue: {issue}27600[#27600])
+
+Features/Ingest::
+* Deprecate `_type` in simulate pipeline requests {pull}37949[#37949] (issue: {issue}37731[#37731])
+
+Features/Java High Level REST Client::
+* Deprecate HLRC security methods {pull}37883[#37883] (issues: {issue}36938[#36938], {issue}37540[#37540])
+* Deprecate HLRC EmptyResponse used by security {pull}37540[#37540] (issue: {issue}36938[#36938])
+
+Features/Watcher::
+* Deprecate xpack.watcher.history.cleaner_service.enabled {pull}37782[#37782] (issue: {issue}32041[#32041])
+* deprecate types for watcher {pull}37594[#37594] (issue: {issue}35190[#35190])
+
+Graph::
+* Deprecate types in `_graph/explore` calls. {pull}40466[#40466]
+
+Infra/Core::
+* Deprecate negative epoch timestamps {pull}36793[#36793]
+* Deprecate use of scientific notation in epoch time parsing {pull}36691[#36691]
+
+Infra/Packaging::
+* Deprecate fallback to java on PATH {pull}37990[#37990]
+
+Infra/Scripting::
+* Add types deprecation to script contexts {pull}37554[#37554]
+* Deprecate _type from LeafDocLookup {pull}37491[#37491]
+* Remove deprecated params.ctx {pull}36848[#36848] (issue: {issue}34059[#34059])
+
+Infra/Transport API::
+* Deprecate the transport client in favour of the high-level REST client {pull}27085[#27085]
+
+Machine Learning::
+* Deprecate X-Pack centric ML endpoints {pull}36315[#36315] (issue: {issue}35958[#35958])
+* Adding ml_settings entry to HLRC and Docs for deprecation_info {pull}38118[#38118]
+* Datafeed deprecation checks {pull}38026[#38026] (issue: {issue}37932[#37932])
+* Remove "8" prefixes from file structure finder timestamp formats {pull}38016[#38016]
+* Adjust structure finder for Joda to Java time migration {pull}37306[#37306]
+* Resolve 7.0.0 TODOs in ML code {pull}36842[#36842] (issue: {issue}29963[#29963])
+
+Mapping::
+* Deprecate type exists requests. {pull}34663[#34663]
+* Deprecate types in index API {pull}36575[#36575] (issues: {issue}35190[#35190], {issue}35790[#35790])
+* Deprecate uses of _type as a field name in queries {pull}36503[#36503] (issue: {issue}35190[#35190])
+* Deprecate types in update_by_query and delete_by_query {pull}36365[#36365] (issue: {issue}35190[#35190])
+* For msearch templates, make sure to use the right name for deprecation logging. {pull}36344[#36344]
+* Deprecate types in termvector and mtermvector requests. {pull}36182[#36182]
+* Deprecate types in update requests. {pull}36181[#36181]
+* Deprecate types in document delete requests. {pull}36087[#36087]
+* Deprecate types in get, exists, and multi get. {pull}35930[#35930]
+* Deprecate types in search and multi search templates. {pull}35669[#35669]
+* Deprecate types in explain requests. {pull}35611[#35611]
+* Deprecate types in validate query requests. {pull}35575[#35575]
+* Deprecate types in count and msearch. {pull}35421[#35421] (issue: {issue}34041[#34041])
+* Deprecate types in rollover index API {pull}38039[#38039] (issue: {issue}35190[#35190])
+* Deprecate types in get field mapping API {pull}37667[#37667] (issue: {issue}35190[#35190])
+* Deprecate types in the put mapping API. {pull}37280[#37280] (issues: {issue}29453[#29453], {issue}37285[#37285])
+* Support include_type_name in the field mapping and index template APIs. {pull}37210[#37210]
+* Deprecate types in create index requests. {pull}37134[#37134] (issues: {issue}29453[#29453], {issue}37285[#37285])
+* Deprecate use of the _type field in aggregations. {pull}37131[#37131] (issue: {issue}36802[#36802])
+* Deprecate reference to _type in lookup queries {pull}37016[#37016] (issue: {issue}35190[#35190])
+* Deprecate the document create endpoint. {pull}36863[#36863]
+* Deprecate types in index API {pull}36575[#36575] (issues: {issue}35190[#35190], {issue}35790[#35790])
+* Deprecate types in update APIs {pull}36225[#36225]
+
+Migration::
+* Deprecate X-Pack centric Migration endpoints {pull}35976[#35976] (issue: {issue}35958[#35958])
+
+Monitoring::
+* Deprecate /_xpack/monitoring/* in favor of /_monitoring/* {pull}36130[#36130] (issue: {issue}35958[#35958])
+
+Rollup::
+* Re-deprecate xpack rollup endpoints {pull}36451[#36451] (issue: {issue}36044[#36044])
+* Deprecate X-Pack centric rollup endpoints {pull}35962[#35962] (issue: {issue}35958[#35958])
+
+Scripting::
+* Adds deprecation logging to ScriptDocValues#getValues. {pull}34279[#34279] (issue: {issue}22919[#22919])
+* Conditionally use java time api in scripting {pull}31441[#31441]
+
+Search::
+* Deprecate filtering on `_type`. {pull}29468[#29468] (issue: {issue}15613[#15613])
+* Remove X-Pack centric graph endpoints {pull}36010[#36010] (issue: {issue}35958[#35958])
+* Deprecate use of type in reindex request body {pull}36823[#36823]
+* Add typless endpoints for get_source and exist_source {pull}36426[#36426]
+
+Security::
+* Deprecate X-Pack centric license endpoints {pull}35959[#35959] (issue: {issue}35958[#35958])
+* Deprecate /_xpack/security/* in favor of /_security/* {pull}36293[#36293] (issue: {issue}35958[#35958])
+
+SQL::
+* Deprecate X-Pack SQL translate endpoint {pull}36030[#36030]
+* Deprecate X-Pack centric SQL endpoints {pull}35964[#35964] (issue: {issue}35958[#35958])
+
+Watcher::
+* Deprecate X-Pack centric watcher endpoints {pull}36218[#36218] (issue: {issue}35958[#35958])
+
+
+[[feature-7.0.0]]
+[float]
+=== New features
+
+Allocation::
+* Node repurpose tool {pull}39403[#39403] (issues: {issue}37347[#37347], {issue}37748[#37748])
+
+Analysis::
+* Relax TermVectors API to work with textual fields other than TextFieldType {pull}31915[#31915] (issue: {issue}31902[#31902])
+* Add support for inlined user dictionary in Nori {pull}36123[#36123] (issue: {issue}35842[#35842])
+* Add a prebuilt ICU Analyzer {pull}34958[#34958] (issue: {issue}34285[#34285])
+
+Authentication::
+* Add support for API keys to access Elasticsearch {pull}38291[#38291] (issue: {issue}34383[#34383])
+* OIDC realm authentication flows {pull}37787[#37787]
+* OIDC Realm JWT+JWS related functionality {pull}37272[#37272] (issues: {issue}35339[#35339], {issue}37009[#37009])
+* OpenID Connect Realm base functionality {pull}37009[#37009] (issue: {issue}35339[#35339])
+
+Authorization::
+* Allow custom authorization with an authorization engine  {pull}38358[#38358] (issues: {issue}32435[#32435], {issue}36245[#36245], {issue}37328[#37328], {issue}37495[#37495], {issue}37785[#37785], {issue}38137[#38137], {issue}38219[#38219])
+* Wildcard IndicesPermissions don't cover .security {pull}36765[#36765]
+
+CCR::
+* Generalize search.remote settings to cluster.remote {pull}33413[#33413]
+* Add ccr follow info api {pull}37408[#37408] (issue: {issue}37127[#37127])
+
+Distributed::
+* Log messages from allocation commands {pull}25955[#25955] (issues: {issue}22821[#22821], {issue}25325[#25325])
+
+Features/ILM::
+* Add unfollow action {pull}36970[#36970] (issue: {issue}34648[#34648])
+
+Features/Ingest::
+* Revert "Introduce a Hashing Processor (#31087)" {pull}32178[#32178]
+* Add ingest-attachment support for per document `indexed_chars` limit {pull}28977[#28977] (issue: {issue}28942[#28942])
+
+Features/Java High Level REST Client::
+* GraphClient for the high level REST client and associated tests {pull}32366[#32366]
+
+Features/Monitoring::
+* Collect only display_name (for now) {pull}35265[#35265] (issue: {issue}8445[#8445])
+
+Geo::
+* Integrate Lucene's LatLonShape (BKD Backed GeoShapes) as default `geo_shape` indexing approach {pull}36751[#36751] (issue: {issue}35320[#35320])
+* Integrate Lucene's LatLonShape (BKD Backed GeoShapes) as default `geo_shape` indexing approach {pull}35320[#35320] (issue: {issue}32039[#32039])
+* geotile_grid implementation {pull}37842[#37842] (issue: {issue}30240[#30240])
+* Fork Lucene's LatLonShape Classes to local lucene package {pull}36794[#36794]
+* Integrate Lucene's LatLonShape (BKD Backed GeoShapes) as default `geo_shape` indexing approach {pull}36751[#36751] (issue: {issue}35320[#35320])
+* Integrate Lucene's LatLonShape (BKD Backed GeoShapes) as default `geo_shape` indexing approach {pull}35320[#35320] (issue: {issue}32039[#32039])
+
+Infra/Core::
+* Skip shard refreshes if shard is `search idle` {pull}27500[#27500]
+
+Infra/Logging::
+* Logging: Unify log rotation for index/search slow log {pull}27298[#27298]
+
+Infra/Plugins::
+* Reload secure settings for plugins {pull}31383[#31383] (issue: {issue}29135[#29135])
+
+Infra/REST API::
+* Add an `include_type_name` option. {pull}29453[#29453] (issue: {issue}15613[#15613])
+
+Java High Level REST Client::
+* Add rollup search {pull}36334[#36334] (issue: {issue}29827[#29827])
+
+Java Low Level REST Client::
+* Make warning behavior pluggable per request {pull}36345[#36345]
+* Add PreferHasAttributeNodeSelector {pull}36005[#36005]
+
+Machine Learning::
+* Filter undefined job groups from update job calendar actions {pull}30757[#30757]
+* Add delayed datacheck to the datafeed job runner {pull}35387[#35387] (issue: {issue}35131[#35131])
+* Adds set_upgrade_mode API endpoint {pull}37837[#37837]
+
+Mapping::
+* Add a `feature_vector` field. {pull}31102[#31102] (issue: {issue}27552[#27552])
+* Expose Lucene's FeatureField. {pull}30618[#30618]
+* Make typeless APIs usable with indices whose type name is different from `_doc` {pull}35790[#35790] (issue: {issue}35190[#35190])
+* Give precedence to index creation when mixing typed templates with typeless index creation and vice-versa. {pull}37871[#37871] (issue: {issue}37773[#37773])
+* Add nanosecond field mapper {pull}37755[#37755] (issues: {issue}27330[#27330], {issue}32601[#32601])
+
+Ranking::
+* Add ranking evaluation API {pull}27478[#27478] (issue: {issue}19195[#19195])
+
+Recovery::
+* Allow to trim all ops above a certain seq# with a term lower than X, … {pull}31211[#31211] (issue: {issue}10708[#10708])
+
+SQL::
+* Add basic support for ST_AsWKT geo function {pull}34205[#34205]
+* Add support for SYS GEOMETRY_COLUMNS {pull}30496[#30496] (issue: {issue}29872[#29872])
+* Introduce HISTOGRAM grouping function {pull}36510[#36510] (issue: {issue}36509[#36509])
+* DATABASE() and USER() system functions {pull}35946[#35946] (issue: {issue}35863[#35863])
+* Introduce INTERVAL support   {pull}35521[#35521] (issue: {issue}29990[#29990])
+* Allow sorting of groups by aggregates {pull}38042[#38042] (issue: {issue}35118[#35118])
+* Implement FIRST/LAST aggregate functions {pull}37936[#37936] (issue: {issue}35639[#35639])
+* Introduce SQL DATE data type {pull}37693[#37693] (issue: {issue}37340[#37340])
+
+Search::
+* Add “took” timing info to response for _msearch/template API {pull}30961[#30961] (issue: {issue}30957[#30957])
+* Add allow_partial_search_results flag to search requests with default setting true {pull}28440[#28440] (issue: {issue}27435[#27435])
+* Enable adaptive replica selection by default {pull}26522[#26522] (issue: {issue}24915[#24915])
+* Add intervals query {pull}36135[#36135] (issues: {issue}29636[#29636], {issue}32406[#32406])
+* Added soft limit to open scroll contexts #25244 {pull}36009[#36009] (issue: {issue}25244[#25244])
+* Introduce ability to minimize round-trips in CCS {pull}37828[#37828] (issues: {issue}32125[#32125], {issue}37566[#37566])
+* Add script filter to intervals {pull}36776[#36776]
+* Add the ability to set the number of hits to track accurately {pull}36357[#36357] (issue: {issue}33028[#33028])
+* Add a maximum search request size. {pull}26423[#26423]
+* Make IntervalQuery available via the Query DSL {pull}36135[#36135] (issue: {issue}29636[#29636])
+
+Security::
+* Switch internal security index to ".security-7" {pull}39337[#39337] (issue: {issue}39284[#39284])
+
+Suggesters::
+* Serialize suggestion responses as named writeables {pull}30284[#30284] (issue: {issue}26585[#26585])
+
+
+[[enhancement-7.0.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Uses MergingDigest instead of AVLDigest in percentiles agg {pull}28702[#28702] (issue: {issue}19528[#19528])
+* Added keyed response to pipeline percentile aggregations 22302 {pull}36392[#36392] (issue: {issue}22302[#22302])
+* Enforce max_buckets limit only in the final reduction phase {pull}36152[#36152] (issues: {issue}32125[#32125], {issue}35921[#35921])
+* Histogram aggs: add empty buckets only in the final reduce step {pull}35921[#35921]
+* Handles exists query in composite aggs {pull}35758[#35758]
+* Added parent validation for auto date histogram {pull}35670[#35670]
+* Add Composite to AggregationBuilders {pull}38207[#38207] (issue: {issue}38020[#38020])
+* Allow nested fields in the composite aggregation {pull}37178[#37178] (issue: {issue}28611[#28611])
+* Remove single shard optimization when suggesting shard_size {pull}37041[#37041] (issue: {issue}32125[#32125])
+* Use List instead of priority queue for stable sorting in bucket sort aggregator {pull}36748[#36748] (issue: {issue}36322[#36322])
+* Keys are compared in BucketSortPipelineAggregation so making key type… {pull}36407[#36407]
+
+Allocation::
+* Fail start on obsolete indices documentation {pull}37786[#37786] (issue: {issue}27073[#27073])
+* Fail start on invalid index metadata {pull}37748[#37748] (issue: {issue}27073[#27073])
+* Fail start of non-data node if node has data {pull}37347[#37347] (issue: {issue}27073[#27073])
+
+Analysis::
+* Allow word_delimiter_graph_filter to not adjust internal offsets {pull}36699[#36699] (issues: {issue}33710[#33710], {issue}34741[#34741])
+* Ensure TokenFilters only produce single tokens when parsing synonyms {pull}34331[#34331] (issue: {issue}34298[#34298])
+* Allow word_delimiter_graph_filter to not adjust internal offsets {pull}36699[#36699] (issues: {issue}33710[#33710], {issue}34741[#34741])
+
+Audit::
+* Add "request.id" to file audit logs  {pull}35536[#35536]
+* Security Audit includes HTTP method for requests {pull}37322[#37322] (issue: {issue}29765[#29765])
+* Add X-Forwarded-For to the logfile audit {pull}36427[#36427]
+
+Authentication::
+* Invalidate Token API enhancements - HLRC {pull}36362[#36362] (issue: {issue}35388[#35388])
+* Add DEBUG/TRACE logs for LDAP bind {pull}36028[#36028]
+* Add Tests for findSamlRealm {pull}35905[#35905]
+* Add realm information for Authenticate API {pull}35648[#35648]
+* Formal support for "password_hash" in Put User {pull}35242[#35242] (issue: {issue}34729[#34729])
+* Propagate auth result to listeners {pull}36900[#36900] (issue: {issue}30794[#30794])
+* Reorder realms based on last success {pull}36878[#36878]
+* Improve error message for 6.x style realm settings {pull}36876[#36876] (issues: {issue}30241[#30241], {issue}36026[#36026])
+* Change missing authn message to not mention tokens {pull}36750[#36750]
+* Invalidate Token API enhancements - HLRC {pull}36362[#36362] (issue: {issue}35388[#35388])
+* Enhance Invalidate Token API {pull}35388[#35388] (issues: {issue}34556[#34556], {issue}35115[#35115])
+
+Authorization::
+* Improve exact index matching performance {pull}36017[#36017]
+* `manage_token` privilege for `kibana_system` {pull}35751[#35751]
+* Grant .tasks access to kibana_system role {pull}35573[#35573]
+* Add apm_user reserved role {pull}38206[#38206]
+* Permission for restricted indices {pull}37577[#37577] (issue: {issue}34454[#34454])
+* Remove kibana_user and kibana_dashboard_only_user index privileges {pull}37441[#37441]
+* Create snapshot role {pull}35820[#35820] (issue: {issue}34454[#34454])
+
+Build::
+* Sounds like typo in exception message {pull}35458[#35458]
+* Allow set section in setup section of REST tests {pull}34678[#34678]
+
+CCR::
+* Add time since last auto follow fetch to auto follow stats {pull}36542[#36542] (issues: {issue}33007[#33007], {issue}35895[#35895])
+* Clean followed leader index UUIDs in auto follow metadata {pull}36408[#36408] (issue: {issue}33007[#33007])
+* Change AutofollowCoordinator to use wait_for_metadata_version {pull}36264[#36264] (issues: {issue}33007[#33007], {issue}35895[#35895])
+* Refactor AutoFollowCoordinator to track leader indices per remote cluster {pull}36031[#36031] (issues: {issue}33007[#33007], {issue}35895[#35895])
+* Concurrent file chunk fetching for CCR restore {pull}38495[#38495]
+* Tighten mapping syncing in ccr remote restore {pull}38071[#38071] (issues: {issue}36879[#36879], {issue}37887[#37887])
+* Do not allow put mapping on follower {pull}37675[#37675] (issue: {issue}30086[#30086])
+* Added ccr to xpack usage infrastructure {pull}37256[#37256] (issue: {issue}37221[#37221])
+* FollowingEngine should fail with 403 if operation has no seqno assigned {pull}37213[#37213]
+* Added auto_follow_exception.timestamp field to auto follow stats {pull}36947[#36947]
+* Add time since last auto follow fetch to auto follow stats {pull}36542[#36542] (issues: {issue}33007[#33007], {issue}35895[#35895])
+* Reduce retention lease sync intervals {pull}40302[#40302]
+* Renew retention leases while following {pull}39335[#39335] (issues: {issue}37165[#37165], {issue}38718[#38718])
+* Reduce refresh when lookup term in FollowingEngine {pull}39184[#39184]
+* Integrate retention leases to recovery from remote {pull}38829[#38829] (issue: {issue}37165[#37165])
+* Enable removal of retention leases {pull}38751[#38751] (issue: {issue}37165[#37165])
+* Introduce forget follower API {pull}39718[#39718] (issue: {issue}37165[#37165])
+
+Client::
+* Fixed required fields and paths list {pull}39358[#39358]
+
+Cluster Coordination::
+* Remove timeout task after completing cluster state publication {pull}40411[#40411]
+* Use default discovery implementation for single-node discovery {pull}40036[#40036]
+* Do not log unsuccessful join attempt each time {pull}39756[#39756]
+
+Core::
+* Override the JVM DNS cache policy {pull}36570[#36570]
+* Replace usages of AtomicBoolean based block of code by the RunOnce class {pull}35553[#35553] (issue: {issue}35489[#35489])
+* Added wait_for_metadata_version parameter to cluster state api. {pull}35535[#35535]
+* Extract RunOnce into a dedicated class {pull}35489[#35489]
+* Introduce elasticsearch-core jar {pull}28191[#28191] (issue: {issue}27933[#27933])
+* Rename core module to server {pull}28180[#28180] (issue: {issue}27933[#27933])
+
+CRUD::
+* Rename seq# powered optimistic concurrency control parameters to ifSeqNo/ifPrimaryTerm  {pull}36757[#36757] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Expose Sequence Number based Optimistic Concurrency Control in the rest layer {pull}36721[#36721] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Add doc's sequence number + primary term to GetResult and use it for updates {pull}36680[#36680] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Add seq no powered optimistic locking support to the index and delete transport actions {pull}36619[#36619] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Add Seq# based optimistic concurrency control to UpdateRequest {pull}37872[#37872] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Introduce ssl settings to reindex from remote {pull}37527[#37527] (issues: {issue}29755[#29755], {issue}37287[#37287])
+* Use Sequence number powered OCC for processing updates {pull}37308[#37308] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Document Seq No powered optimistic concurrency control {pull}37284[#37284] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Enable IPv6 URIs in reindex from remote {pull}36874[#36874]
+* Rename seq# powered optimistic concurrency control parameters to ifSeqNo/ifPrimaryTerm  {pull}36757[#36757] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Expose Sequence Number based Optimistic Concurrency Control in the rest layer {pull}36721[#36721] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Add doc's sequence number + primary term to GetResult and use it for updates {pull}36680[#36680] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Add seq no powered optimistic locking support to the index and delete transport actions {pull}36619[#36619] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Set acking timeout to 0 on dynamic mapping update {pull}31140[#31140] (issues: {issue}30672[#30672], {issue}30844[#30844])
+
+Discovery-Plugins::
+* Adds connect and read timeouts to discovery-gce {pull}28193[#28193] (issue: {issue}24313[#24313])
+
+Distributed::
+* [Close Index API] Mark shard copy as stale if needed during shard verification {pull}36755[#36755]
+* [Close Index API] Refactor MetaDataIndexStateService {pull}36354[#36354] (issue: {issue}36249[#36249])
+* [Close Index API] Add TransportShardCloseAction for pre-closing verifications {pull}36249[#36249]
+* TransportResyncReplicationAction should not honour blocks {pull}35795[#35795] (issues: {issue}35332[#35332], {issue}35597[#35597])
+* Expose all permits acquisition in IndexShard and TransportReplicationAction {pull}35540[#35540] (issue: {issue}33888[#33888])
+* [RCI] Check blocks while having index shard permit in TransportReplicationAction {pull}35332[#35332] (issue: {issue}33888[#33888])
+* Recover retention leases during peer recovery {pull}38435[#38435] (issue: {issue}37165[#37165])
+* Lift retention lease expiration to index shard {pull}38380[#38380] (issues: {issue}37165[#37165], {issue}37963[#37963], {issue}38070[#38070])
+* Introduce retention lease background sync {pull}38262[#38262] (issue: {issue}37165[#37165])
+* Allow shards of closed indices to be replicated as regular shards {pull}38024[#38024] (issue: {issue}33888[#33888])
+* Expose retention leases in shard stats {pull}37991[#37991] (issue: {issue}37165[#37165])
+* Introduce retention leases versioning {pull}37951[#37951] (issue: {issue}37165[#37165])
+* Soft-deletes policy should always fetch latest leases {pull}37940[#37940] (issues: {issue}37165[#37165], {issue}37375[#37375])
+* Sync retention leases on expiration {pull}37902[#37902] (issue: {issue}37165[#37165])
+* Ignore shard started requests when primary term does not match {pull}37899[#37899] (issue: {issue}33888[#33888])
+* Move update and delete by query to use seq# for optimistic concurrency control {pull}37857[#37857] (issues: {issue}10708[#10708], {issue}36148[#36148], {issue}37639[#37639])
+* Introduce retention lease serialization {pull}37447[#37447] (issues: {issue}37165[#37165], {issue}37398[#37398])
+* Add run under primary permit method {pull}37440[#37440] (issue: {issue}37398[#37398])
+* Introduce retention lease syncing {pull}37398[#37398] (issue: {issue}37165[#37165])
+* Introduce retention lease persistence {pull}37375[#37375] (issue: {issue}37165[#37165])
+* Add validation for retention lease construction {pull}37312[#37312] (issue: {issue}37165[#37165])
+* Introduce retention lease expiration {pull}37195[#37195] (issue: {issue}37165[#37165])
+* Introduce shard history retention leases {pull}37167[#37167] (issue: {issue}37165[#37165])
+* [Close Index API] Add unique UUID to ClusterBlock {pull}36775[#36775]
+* [Close Index API] Mark shard copy as stale if needed during shard verification {pull}36755[#36755]
+* [Close Index API] Propagate tasks ids between Freeze, Close and Verify Shard actions {pull}36630[#36630]
+* Always initialize the global checkpoint {pull}34381[#34381]
+* Introduce retention lease actions {pull}38756[#38756] (issue: {issue}37165[#37165])
+* Add dedicated retention lease exceptions {pull}38754[#38754] (issue: {issue}37165[#37165])
+* Copy retention leases when trim unsafe commits {pull}37995[#37995] (issue: {issue}37165[#37165])
+* Allow retention lease operations under blocks {pull}39089[#39089] (issues: {issue}34648[#34648], {issue}37165[#37165])
+* Remove retention leases when unfollowing {pull}39088[#39088] (issues: {issue}34648[#34648], {issue}37165[#37165])
+* Introduce retention lease state file {pull}39004[#39004] (issues: {issue}37165[#37165], {issue}38588[#38588], {issue}39032[#39032])
+* Enable soft-deletes by default for 7.0+ indices {pull}38929[#38929] (issue: {issue}36141[#36141])
+
+Engine::
+* Remove versionType from translog {pull}31945[#31945]
+* Do retry if primary fails on AsyncAfterWriteAction {pull}31857[#31857] (issues: {issue}31716[#31716], {issue}31755[#31755])
+* handle AsyncAfterWriteAction exception before listener is registered {pull}31755[#31755] (issue: {issue}31716[#31716])
+* Use IndexWriter#flushNextBuffer to free memory {pull}27753[#27753]
+* Remove pre 6.0.0 support from InternalEngine {pull}27720[#27720]
+* Add sequence numbers based optimistic concurrency control support to Engine {pull}36467[#36467] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Require soft-deletes when access changes snapshot {pull}36446[#36446]
+* Use delCount of SegmentInfos to calculate numDocs {pull}36323[#36323]
+* Always configure soft-deletes field of IndexWriterConfig {pull}36196[#36196] (issue: {issue}36141[#36141])
+* Enable soft-deletes by default on 7.0.0 or later {pull}36141[#36141]
+* Always return false from `refreshNeeded` on ReadOnlyEngine {pull}35837[#35837] (issue: {issue}35785[#35785])
+* Add a `_freeze` / `_unfreeze` API {pull}35592[#35592] (issue: {issue}34352[#34352])
+* [RCI] Add IndexShardOperationPermits.asyncBlockOperations(ActionListener<Releasable>) {pull}34902[#34902] (issue: {issue}33888[#33888])
+* Specialize pre-closing checks for engine implementations {pull}38702[#38702]
+* Ensure that max seq # is equal to the global checkpoint when creating ReadOnlyEngines {pull}37426[#37426]
+* Enable Bulk-Merge if all source remains {pull}37269[#37269]
+* Rename setting to enable mmap {pull}37070[#37070] (issue: {issue}36668[#36668])
+* Add hybridfs store type {pull}36668[#36668]
+* Introduce time-based retention policy for soft-deletes {pull}34943[#34943] (issue: {issue}34908[#34908])
+* Handle AsyncAfterWriteAction failure on primary in the same way as failures on replicas  {pull}31969[#31969] (issues: {issue}31716[#31716], {issue}31755[#31755])
+* Explicitly advance max_seq_no before indexing {pull}39473[#39473] (issue: {issue}38879[#38879])
+* Also mmap cfs files for hybridfs {pull}38940[#38940] (issue: {issue}36668[#36668])
+
+Features/CAT APIs::
+* Expose `search.throttled` on `_cat/indices` {pull}37073[#37073] (issue: {issue}34352[#34352])
+
+Features/Features::
+* Run Node deprecation checks locally (#38065) {pull}38250[#38250] (issue: {issue}38065[#38065])
+
+Features/ILM::
+* Ensure ILM policies run safely on leader indices  {pull}38140[#38140] (issue: {issue}34648[#34648])
+* Skip Shrink when numberOfShards not changed {pull}37953[#37953] (issue: {issue}33275[#33275])
+* Inject Unfollow before Rollover and Shrink {pull}37625[#37625] (issue: {issue}34648[#34648])
+* Add set_priority action to ILM {pull}37397[#37397] (issue: {issue}36905[#36905])
+* Add Freeze Action {pull}36910[#36910] (issue: {issue}34630[#34630])
+
+Features/Indices APIs::
+*  Add cluster-wide shard limit {pull}32856[#32856] (issue: {issue}20705[#20705])
+* Remove RestGetAllAliasesAction {pull}31308[#31308] (issue: {issue}31129[#31129])
+* Add rollover-creation-date setting to rolled over index {pull}31144[#31144] (issue: {issue}30887[#30887])
+* add is-write-index flag to aliases {pull}30942[#30942]
+* Make index and bulk APIs work without types. {pull}29479[#29479]
+* Simplify deprecation issue levels {pull}36326[#36326]
+* New mapping signature and mapping string source fixed. {pull}37401[#37401]
+
+Features/Ingest::
+* Add ignore_missing property to foreach filter (#22147) {pull}31578[#31578] (issue: {issue}22147[#22147])
+* Compile mustache template only if field includes '{{'' {pull}37207[#37207] (issue: {issue}37120[#37120])
+* Move ingest-geoip default databases out of config {pull}36949[#36949] (issue: {issue}36898[#36898])
+* Make the ingest-geoip databases even lazier to load {pull}36679[#36679]
+* Updates the grok patterns to be consistent with the logstash {pull}27181[#27181]
+
+Features/Java High Level REST Client::
+* HLRC API for _termvectors {pull}32610[#32610] (issue: {issue}27205[#27205])
+* Fix strict setting exception handling {pull}37247[#37247] (issue: {issue}37090[#37090])
+* Use nonblocking entity for requests {pull}32249[#32249]
+
+Features/Monitoring::
+* Make Exporters Async {pull}35765[#35765] (issue: {issue}35743[#35743])
+* Adding mapping for hostname field {pull}37288[#37288]
+* Remove types from internal monitoring templates and bump to api 7 {pull}39888[#39888] (issue: {issue}38637[#38637])
+
+Features/Stats::
+* Stats to record how often the ClusterState diff mechanism is used successfully {pull}26973[#26973]
+* Add JVM dns cache expiration config to JvmInfo {pull}36372[#36372]
+
+Features/Watcher::
+* Validate email adresses when storing a watch {pull}34042[#34042] (issue: {issue}33980[#33980])
+* Move watcher to use seq# and primary term for concurrency control {pull}37977[#37977] (issues: {issue}10708[#10708], {issue}37872[#37872])
+* Use ILM for Watcher history deletion {pull}37443[#37443] (issue: {issue}32041[#32041])
+* Add whitelist to HttpClient {pull}36817[#36817] (issue: {issue}29937[#29937])
+* Remove the index type from internal watcher indexes {pull}39761[#39761] (issue: {issue}38637[#38637])
+
+Geo::
+* Adds a name of the field to geopoint parsing errors {pull}36529[#36529] (issue: {issue}15965[#15965])
+* Add support to ShapeBuilders for building Lucene geometry {pull}35707[#35707] (issue: {issue}35320[#35320])
+* Add ST_WktToSQL function {pull}35416[#35416] (issue: {issue}29872[#29872])
+
+Index APIs::
+* Add cluster-wide shard limit warnings {pull}34021[#34021] (issues: {issue}20705[#20705], {issue}32856[#32856])
+
+Infra/Circuit Breakers::
+* Have circuit breaker succeed on unknown mem usage {pull}33125[#33125] (issue: {issue}31767[#31767])
+* Account for XContent overhead in in-flight breaker {pull}31613[#31613]
+* Script Stats: Add compilation limit counter to stats {pull}26387[#26387]
+
+Infra/Core::
+* Add RunOnce utility class that executes a Runnable exactly once {pull}35484[#35484]
+* Improved IndexNotFoundException's default error message {pull}34649[#34649] (issue: {issue}34628[#34628])
+* fix a few versionAdded values in ElasticsearchExceptions {pull}37877[#37877]
+* Add simple method to write collection of writeables {pull}37448[#37448] (issue: {issue}37398[#37398])
+* Date/Time parsing: Use java time API instead of exception handling {pull}37222[#37222]
+* [API] spelling: interruptible {pull}37049[#37049] (issue: {issue}37035[#37035])
+* Enhancements to IndicesQueryCache. {pull}39099[#39099] (issue: {issue}37117[#37117])
+* Change zone formatting for all printers {pull}39568[#39568] (issue: {issue}38471[#38471])
+
+Infra/Logging::
+* Trim the JSON source in indexing slow logs {pull}38081[#38081] (issue: {issue}38080[#38080])
+* Optimize warning header de-duplication {pull}37725[#37725] (issues: {issue}35754[#35754], {issue}37530[#37530], {issue}37597[#37597], {issue}37622[#37622])
+* Remove warn-date from warning headers {pull}37622[#37622] (issues: {issue}35754[#35754], {issue}37530[#37530], {issue}37597[#37597])
+* Add some deprecation optimizations {pull}37597[#37597] (issues: {issue}35754[#35754], {issue}37530[#37530])
+* Only update response headers if we have a new one {pull}37590[#37590] (issues: {issue}35754[#35754], {issue}37530[#37530])
+
+Infra/Packaging::
+* Choose JVM options ergonomically {pull}30684[#30684]
+* Add OS/architecture classifier to distributions {pull}37881[#37881]
+* Change file descriptor limit to 65535 {pull}37537[#37537] (issue: {issue}35839[#35839])
+* Exit batch files explictly using ERRORLEVEL {pull}29583[#29583] (issue: {issue}29582[#29582])
+* Add no-jdk distributions {pull}39882[#39882]
+* Allow AVX-512 on JDK 11+ {pull}40828[#40828] (issue: {issue}32138[#32138])
+
+Infra/REST API::
+* Remove hand-coded XContent duplicate checks {pull}34588[#34588] (issues: {issue}22073[#22073], {issue}22225[#22225], {issue}22253[#22253])
+* Add the `include_type_name` option to the search and document APIs. {pull}29506[#29506] (issue: {issue}15613[#15613])
+* Validate `op_type` for `_create` {pull}27483[#27483]
+
+Infra/Scripting::
+* Tests: Add support for custom contexts to mock scripts {pull}34100[#34100]
+* Reflect factory signatures in painless classloader {pull}34088[#34088]
+* Handle missing values in painless {pull}32207[#32207] (issue: {issue}29286[#29286])
+* Add getZone to JodaCompatibleZonedDateTime {pull}37084[#37084]
+* [Painless] Add boxed type to boxed type casts for method/return {pull}36571[#36571]
+
+Infra/Packaging::
+* Use bundled JDK in Docker images {pull}40238[#40238]
+* Upgrade bundled JDK and Docker images to JDK 12 {pull}40229[#40229]
+* Bundle java in distributions {pull}38013[#38013] (issue: {issue}31845[#31845])
+
+Infra/Settings::
+* Settings: Add keystore creation to add commands {pull}26126[#26126]
+* Separate out validation of groups of settings {pull}34184[#34184]
+* Provide a clearer error message on keystore add {pull}39327[#39327] (issue: {issue}39324[#39324])
+
+Infra/Transport API::
+* Change BWC version for VerifyRepositoryResponse {pull}30796[#30796] (issue: {issue}30762[#30762])
+
+Ingest::
+* Grok fix duplicate patterns JAVACLASS and JAVAFILE  {pull}35886[#35886]
+* Implement Drop Processor {pull}32278[#32278] (issue: {issue}23726[#23726])
+
+Java High Level REST Client::
+* Add get users action {pull}36332[#36332] (issue: {issue}29827[#29827])
+* Add delete template API {pull}36320[#36320] (issue: {issue}27205[#27205])
+* Implement get-user-privileges API {pull}36292[#36292]
+* Get Deprecation Info API {pull}36279[#36279] (issue: {issue}29827[#29827])
+* Add support for Follow Stats API {pull}36253[#36253] (issue: {issue}33824[#33824])
+* Add support for CCR Stats API {pull}36213[#36213] (issue: {issue}33824[#33824])
+* Put Role {pull}36209[#36209] (issue: {issue}29827[#29827])
+* Add index templates exist API {pull}36132[#36132] (issue: {issue}27205[#27205])
+* Add support for CCR Get Auto Follow Pattern apis {pull}36049[#36049] (issue: {issue}33824[#33824])
+* Add support for CCR Delete Auto Follow Pattern API {pull}35981[#35981] (issue: {issue}33824[#33824])
+* Remove fromXContent from IndexUpgradeInfoResponse {pull}35934[#35934]
+* Add delete expired data API {pull}35906[#35906] (issue: {issue}29827[#29827])
+* Execute watch API {pull}35868[#35868] (issue: {issue}29827[#29827])
+* Add ability to put user with a password hash {pull}35844[#35844] (issue: {issue}35242[#35242])
+* Add ML find file structure API {pull}35833[#35833] (issue: {issue}29827[#29827])
+* Add support for get roles API {pull}35787[#35787] (issue: {issue}29827[#29827])
+* Added support for CCR Put Auto Follow Pattern API {pull}35780[#35780] (issue: {issue}33824[#33824])
+* XPack ML info action {pull}35777[#35777] (issue: {issue}29827[#29827])
+* ML Delete event from Calendar {pull}35760[#35760] (issue: {issue}29827[#29827])
+* Add ML revert model snapshot API {pull}35750[#35750] (issue: {issue}29827[#29827])
+* ML Get Calendar Events {pull}35747[#35747] (issue: {issue}29827[#29827])
+* Add high-level REST client API for `_freeze` and `_unfreeze` {pull}35723[#35723] (issue: {issue}34352[#34352])
+* Fix issue in equals impl for GlobalOperationPrivileges {pull}35721[#35721]
+* ML Delete job from calendar {pull}35713[#35713] (issue: {issue}29827[#29827])
+* ML Add Event To Calendar API {pull}35704[#35704] (issue: {issue}29827[#29827])
+* Add ML update model snapshot API (#35537) {pull}35694[#35694] (issue: {issue}29827[#29827])
+* Add support for CCR Unfollow API {pull}35693[#35693] (issue: {issue}33824[#33824])
+* Clean up PutLicenseResponse {pull}35689[#35689] (issue: {issue}35547[#35547])
+* Clean up StartBasicResponse {pull}35688[#35688] (issue: {issue}35547[#35547])
+* Add support for put privileges API {pull}35679[#35679]
+* ML Add Job to Calendar API {pull}35666[#35666] (issue: {issue}29827[#29827])
+* Add support for CCR Resume Follow API {pull}35638[#35638] (issue: {issue}33824[#33824])
+* Add support for get application privileges API {pull}35556[#35556] (issue: {issue}29827[#29827])
+* Clean up XPackInfoResponse class and related tests {pull}35547[#35547]
+* Add parameters to stopRollupJob API {pull}35545[#35545] (issue: {issue}34811[#34811])
+* Add ML delete model snapshot API {pull}35537[#35537] (issue: {issue}29827[#29827])
+* Add get watch API {pull}35531[#35531] (issue: {issue}29827[#29827])
+* Add ML Update Filter API {pull}35522[#35522] (issue: {issue}29827[#29827])
+* Add ml get filters api {pull}35502[#35502] (issue: {issue}29827[#29827])
+* Add ML get model snapshots API {pull}35487[#35487] (issue: {issue}29827[#29827])
+* Add "_has_privileges" API to Security Client {pull}35479[#35479] (issue: {issue}29827[#29827])
+* Add Delete Privileges API to HLRC {pull}35454[#35454] (issue: {issue}29827[#29827])
+* Add support for CCR Put Follow API {pull}35409[#35409]
+* Add ML delete filter action {pull}35382[#35382] (issue: {issue}29827[#29827])
+* Add delete user action {pull}35294[#35294] (issue: {issue}29827[#29827])
+* HLRC for _mtermvectors {pull}35266[#35266] (issues: {issue}27205[#27205], {issue}33447[#33447])
+* Reindex API with wait_for_completion false {pull}35202[#35202] (issue: {issue}27205[#27205])
+* Add watcher stats API {pull}35185[#35185] (issue: {issue}29827[#29827])
+* HLRC support for getTask {pull}35166[#35166] (issue: {issue}27205[#27205])
+* Add GetRollupIndexCaps API {pull}35102[#35102] (issue: {issue}29827[#29827])
+* HLRC: migration api - upgrade {pull}34898[#34898] (issue: {issue}29827[#29827])
+* Add stop rollup job support to HL REST Client {pull}34702[#34702] (issue: {issue}29827[#29827])
+* Bulk Api support for global parameters {pull}34528[#34528] (issue: {issue}26026[#26026])
+* Add delete rollup job support to HL REST Client {pull}34066[#34066] (issue: {issue}29827[#29827])
+* Add support for get license basic/trial status API {pull}33176[#33176] (issue: {issue}29827[#29827])
+* Add machine learning open job {pull}32860[#32860] (issue: {issue}29827[#29827])
+* Add ML HLRC wrapper and put_job API call {pull}32726[#32726]
+* Add Get Snapshots High Level REST API {pull}31537[#31537] (issue: {issue}27205[#27205])
+
+Java Low Level REST Client::
+* On retry timeout add root exception {pull}25576[#25576]
+
+License::
+* Require acknowledgement to start_trial license {pull}30135[#30135] (issue: {issue}30134[#30134])
+* Handle malformed license signatures {pull}37137[#37137] (issue: {issue}35340[#35340])
+
+Machine Learning::
+* Create the ML annotations index {pull}36731[#36731] (issues: {issue}26034[#26034], {issue}33376[#33376])
+* Split in batches and migrate all jobs and datafeeds {pull}36716[#36716] (issue: {issue}32905[#32905])
+* Add cluster setting to enable/disable config  migration {pull}36700[#36700] (issue: {issue}32905[#32905])
+* Add audits when deprecation warnings occur with datafeed start {pull}36233[#36233]
+* Add lazy parsing for DatafeedConfig:Aggs,Query {pull}36117[#36117]
+* Add support for lazy nodes (#29991) {pull}34538[#34538] (issue: {issue}29991[#29991])
+* Move ML Optimistic Concurrency Control to Seq No {pull}38278[#38278] (issues: {issue}10708[#10708], {issue}36148[#36148])
+* Add explanation so far to file structure finder exceptions {pull}38191[#38191] (issue: {issue}29821[#29821])
+*  Add reason field in JobTaskState {pull}38029[#38029] (issue: {issue}34431[#34431])
+* Add _meta information to all ML indices {pull}37964[#37964]
+* Add upgrade mode docs, hlrc, and fix bug {pull}37942[#37942]
+* Tighten up use of aliases rather than concrete indices {pull}37874[#37874]
+* Add support for single bucket aggs in Datafeeds {pull}37544[#37544] (issue: {issue}36838[#36838])
+* Create the ML annotations index {pull}36731[#36731] (issues: {issue}26034[#26034], {issue}33376[#33376])
+* Merge the Jindex master feature branch {pull}36702[#36702] (issue: {issue}32905[#32905])
+* Add cluster setting to enable/disable config  migration {pull}36700[#36700] (issue: {issue}32905[#32905])
+* Allow stop unassigned datafeed and relax unset upgrade mode wait {pull}39034[#39034]
+
+Mapping::
+* Log document id when MapperParsingException occurs {pull}37800[#37800] (issue: {issue}37658[#37658])
+* [API] spelling: unknown {pull}37056[#37056] (issue: {issue}37035[#37035])
+* Make SourceToParse immutable {pull}36971[#36971]
+* Use index-prefix fields for terms of length min_chars - 1 {pull}36703[#36703]
+* Introduce a parameter suppress_types_warnings. {pull}38923[#38923]
+
+Network::
+* Add cors support to NioHttpServerTransport {pull}30827[#30827] (issue: {issue}28898[#28898])
+* Reintroduce mandatory http pipelining support {pull}30820[#30820]
+* Make http pipelining support mandatory {pull}30695[#30695] (issues: {issue}28898[#28898], {issue}29500[#29500])
+* Add nio http server transport {pull}29587[#29587] (issue: {issue}28898[#28898])
+* Add class for serializing message to bytes {pull}29384[#29384] (issue: {issue}28898[#28898])
+* Selectors operate on channel contexts {pull}28468[#28468] (issue: {issue}27260[#27260])
+* Unify nio read / write channel contexts {pull}28160[#28160] (issue: {issue}27260[#27260])
+* Create nio-transport plugin for NioTransport {pull}27949[#27949] (issue: {issue}27260[#27260])
+* Add elasticsearch-nio jar for base nio classes {pull}27801[#27801] (issue: {issue}27802[#27802])
+* Unify transport settings naming {pull}36623[#36623]
+* Add sni name to SSLEngine in netty transport {pull}33144[#33144] (issue: {issue}32517[#32517])
+* Add cors support to NioHttpServerTransport {pull}30827[#30827] (issue: {issue}28898[#28898])
+* Reintroduce mandatory http pipelining support {pull}30820[#30820]
+* Make http pipelining support mandatory {pull}30695[#30695] (issues: {issue}28898[#28898], {issue}29500[#29500])
+* Add nio http server transport {pull}29587[#29587] (issue: {issue}28898[#28898])
+* Selectors operate on channel contexts {pull}28468[#28468] (issue: {issue}27260[#27260])
+* Unify nio read / write channel contexts {pull}28160[#28160] (issue: {issue}27260[#27260])
+* Create nio-transport plugin for NioTransport {pull}27949[#27949] (issue: {issue}27260[#27260])
+* Add elasticsearch-nio jar for base nio classes {pull}27801[#27801] (issue: {issue}27802[#27802])
+* Add NioGroup for use in different transports {pull}27737[#27737] (issue: {issue}27260[#27260])
+* Add read timeouts to http module {pull}27713[#27713]
+* Implement byte array reusage in `NioTransport` {pull}27696[#27696] (issue: {issue}27563[#27563])
+* Introduce resizable inbound byte buffer {pull}27551[#27551] (issue: {issue}27563[#27563])
+* Decouple nio constructs from the tcp transport {pull}27484[#27484] (issue: {issue}27260[#27260])
+* Remove manual tracking of registered channels {pull}27445[#27445] (issue: {issue}27260[#27260])
+* Remove tcp profile from low level nio channel {pull}27441[#27441] (issue: {issue}27260[#27260])
+* Decouple `ChannelFactory` from Tcp classes {pull}27286[#27286] (issue: {issue}27260[#27260])
+* Enable TLSv1.3 by default for JDKs with support {pull}38103[#38103] (issue: {issue}32276[#32276])
+
+Packaging::
+* Introduce Docker images build {pull}36246[#36246]
+* Move creation of temporary directory to Java {pull}36002[#36002] (issue: {issue}31003[#31003])
+
+Percolator::
+* Make the `type` parameter optional when percolating existing documents. {pull}39987[#39987] (issue: {issue}39963[#39963])
+* Add support for selecting percolator query candidate matches containing geo_point based queries {pull}26040[#26040]
+
+Plugins::
+* Plugin install: don't print download progress in batch mode {pull}36361[#36361]
+
+Ranking::
+* Add k parameter to PrecisionAtK metric {pull}27569[#27569]
+* Vector field {pull}33022[#33022] (issue: {issue}31615[#31615])
+
+Recovery::
+* SyncedFlushService.getShardRoutingTable() should use metadata to check for index existence {pull}37691[#37691] (issue: {issue}33888[#33888])
+* Make prepare engine step of recovery source non-blocking {pull}37573[#37573] (issue: {issue}37174[#37174])
+* Make recovery source send operations non-blocking {pull}37503[#37503] (issue: {issue}37458[#37458])
+* Prepare to make send translog of recovery non-blocking {pull}37458[#37458] (issue: {issue}37291[#37291])
+* Make finalize step of recovery source non-blocking {pull}37388[#37388] (issue: {issue}37291[#37291])
+* Make recovery source partially non-blocking {pull}37291[#37291] (issue: {issue}36195[#36195])
+* Do not mutate RecoveryResponse {pull}37204[#37204] (issue: {issue}37174[#37174])
+* Don't block on peer recovery on the target side {pull}37076[#37076] (issue: {issue}36195[#36195])
+* Reduce recovery time with compress or secure transport {pull}36981[#36981] (issue: {issue}33844[#33844])
+* Translog corruption marker {pull}33415[#33415] (issue: {issue}31389[#31389])
+* Do not wait for advancement of checkpoint in recovery {pull}39006[#39006] (issues: {issue}38949[#38949], {issue}39000[#39000])
+
+Rollup::
+* Add non-X-Pack centric rollup endpoints {pull}36383[#36383] (issues: {issue}35958[#35958], {issue}35962[#35962])
+* Add more diagnostic stats to job {pull}35471[#35471]
+* Add `wait_for_completion` option to StopRollupJob API {pull}34811[#34811] (issue: {issue}34574[#34574])
+* Replace the TreeMap in the composite aggregation {pull}36675[#36675]
+
+Recovery::
+* Exposed engine must include all operations below global checkpoint during rollback {pull}36159[#36159] (issue: {issue}32867[#32867])
+
+Scripting::
+* Update joda compat methods to use compat class {pull}36654[#36654]
+* [Painless] Add boxed type to boxed type casts for method/return {pull}36571[#36571]
+* [Painless] Add def to boxed type casts {pull}36506[#36506]
+
+Settings::
+* Add user-defined cluster metadata {pull}33325[#33325] (issue: {issue}33220[#33220])
+
+Search::
+* Make limit on number of expanded fields configurable {pull}35284[#35284] (issues: {issue}26541[#26541], {issue}34778[#34778])
+* Search: Simply SingleFieldsVisitor {pull}34052[#34052]
+* Don't count hits via the collector if the hit count can be computed from index stats. {pull}33701[#33701]
+* Limit the number of concurrent requests per node {pull}31206[#31206] (issue: {issue}31192[#31192])
+* Default max concurrent search req. numNodes * 5 {pull}31171[#31171] (issues: {issue}30783[#30783], {issue}30994[#30994])
+* Change ScriptException status to 400 (bad request) {pull}30861[#30861] (issue: {issue}12315[#12315])
+* Change default value to true for transpositions parameter of fuzzy query {pull}26901[#26901]
+* Introducing "took" time (in ms) for `_msearch` {pull}23767[#23767] (issue: {issue}23131[#23131])
+* Add copy constructor to SearchRequest {pull}36641[#36641] (issue: {issue}32125[#32125])
+* Add raw sort values to SearchSortValues transport serialization {pull}36617[#36617] (issue: {issue}32125[#32125])
+* Add sort and collapse info to SearchHits transport serialization {pull}36555[#36555] (issue: {issue}32125[#32125])
+* Add default methods to DocValueFormat {pull}36480[#36480]
+* Respect indices options on _msearch {pull}35887[#35887]
+* Allow efficient can_match phases on frozen indices {pull}35431[#35431] (issues: {issue}34352[#34352], {issue}34357[#34357])
+* Add a new query type - ScriptScoreQuery {pull}34533[#34533] (issues: {issue}23850[#23850], {issue}27588[#27588], {issue}30303[#30303])
+* Tie break on cluster alias when merging shard search failures {pull}38715[#38715] (issue: {issue}38672[#38672])
+* Add finalReduce flag to SearchRequest {pull}38104[#38104] (issues: {issue}37000[#37000], {issue}37838[#37838])
+* Streamline skip_unavailable handling {pull}37672[#37672] (issue: {issue}32125[#32125])
+* Expose sequence number and primary terms in search responses {pull}37639[#37639]
+* Add support for merging multiple search responses into one {pull}37566[#37566] (issue: {issue}32125[#32125])
+* Allow field types to optimize phrase prefix queries {pull}37436[#37436] (issue: {issue}31921[#31921])
+* Add support for providing absolute start time to SearchRequest {pull}37142[#37142] (issue: {issue}32125[#32125])
+* Ensure that local cluster alias is never treated as remote {pull}37121[#37121] (issues: {issue}32125[#32125], {issue}36997[#36997])
+* [API] spelling: cacheable {pull}37047[#37047] (issue: {issue}37035[#37035])
+* Add ability to suggest shard_size on coord node rewrite {pull}37017[#37017] (issues: {issue}32125[#32125], {issue}36997[#36997], {issue}37000[#37000])
+* Skip final reduction if SearchRequest holds a cluster alias {pull}37000[#37000] (issues: {issue}32125[#32125], {issue}36997[#36997])
+* Add support for local cluster alias to SearchRequest {pull}36997[#36997] (issue: {issue}32125[#32125])
+* Use SearchRequest copy constructor in ExpandSearchPhase {pull}36772[#36772] (issue: {issue}36641[#36641])
+* Add raw sort values to SearchSortValues transport serialization {pull}36617[#36617] (issue: {issue}32125[#32125])
+* Avoid BytesRef's copying in ScriptDocValues's Strings {pull}29581[#29581] (issue: {issue}29567[#29567])
+
+Security::
+* Make credentials mandatory when launching xpack/migrate {pull}36197[#36197] (issues: {issue}29847[#29847], {issue}33972[#33972])
+* Move CAS operations in TokenService to sequence numbers {pull}38311[#38311] (issues: {issue}10708[#10708], {issue}37872[#37872])
+* Cleanup construction of interceptors {pull}38294[#38294]
+* Add passphrase support to elasticsearch-keystore {pull}37472[#37472] (issue: {issue}32691[#32691])
+* Types removal security index template {pull}39705[#39705] (issue: {issue}38637[#38637])
+* Types removal security index template {pull}39542[#39542] (issue: {issue}38637[#38637])
+
+Snapshot/Restore::
+* #31608 Add S3 Setting to Force Path Type Access {pull}34721[#34721] (issue: {issue}31608[#31608])
+* Allow Parallel Restore Operations {pull}36397[#36397]
+* Repo Creation out of ClusterStateTask {pull}36157[#36157] (issue: {issue}9488[#9488])
+* Add read-only repository verification {pull}35731[#35731] (issue: {issue}35703[#35703])
+* RestoreService should update primary terms when restoring shards of existing indices {pull}38177[#38177] (issue: {issue}33888[#33888])
+* Allow open indices to be restored {pull}37733[#37733]
+* Create specific exception for when snapshots are in progress {pull}37550[#37550] (issue: {issue}37541[#37541])
+* Make Atomic Blob Writes Mandatory {pull}37168[#37168] (issues: {issue}37011[#37011], {issue}37066[#37066])
+* Speed up HDFS Repository Writes {pull}37069[#37069]
+* Implement Atomic Blob Writes for HDFS Repository {pull}37066[#37066] (issue: {issue}37011[#37011])
+* [API] spelling: repositories {pull}37053[#37053] (issue: {issue}37035[#37035])
+* Use CancellableThreads to Abort {pull}35901[#35901] (issue: {issue}21759[#21759])
+* S3 client encryption {pull}30513[#30513] (issues: {issue}11128[#11128], {issue}16843[#16843])
+* Mark Deleted Snapshot Directories with Tombstones {pull}40228[#40228] (issue: {issue}39852[#39852])
+
+Stats::
+* Handle OS pretty name on old OS without OS release {pull}35453[#35453] (issue: {issue}35440[#35440])
+
+Store::
+* Add RemoveCorruptedShardDataCommand {pull}32281[#32281] (issues: {issue}31389[#31389], {issue}32279[#32279])
+* Add option to force load term dict into memory {pull}39741[#39741]
+
+SQL::
+* Introduce support for NULL values {pull}34573[#34573] (issue: {issue}32079[#32079])
+* Extend the ODBC metric by differentiating between 32 and 64bit platforms {pull}36753[#36753] (issue: {issue}36740[#36740])
+* Fix wrong appliance of StackOverflow limit for IN {pull}36724[#36724] (issue: {issue}36592[#36592])
+* Introduce NOW/CURRENT_TIMESTAMP function {pull}36562[#36562] (issue: {issue}36534[#36534])
+* Move requests' parameters to requests JSON body {pull}36149[#36149] (issue: {issue}35992[#35992])
+* Make INTERVAL millis optional {pull}36043[#36043] (issue: {issue}36032[#36032])
+* Implement data type verification for conditionals {pull}35916[#35916] (issue: {issue}35907[#35907])
+* Implement GREATEST and LEAST functions {pull}35879[#35879] (issue: {issue}35878[#35878])
+* Implement null safe equality operator `<=>` {pull}35873[#35873] (issue: {issue}35871[#35871])
+* SYS COLUMNS returns ODBC specific schema {pull}35870[#35870] (issue: {issue}35376[#35376])
+* Polish grammar for intervals {pull}35853[#35853]
+* Add filtering to SYS TYPES {pull}35852[#35852] (issue: {issue}35342[#35342])
+* Implement NULLIF(expr1, expr2) function {pull}35826[#35826] (issue: {issue}35818[#35818])
+* Lock down JDBC driver {pull}35798[#35798] (issue: {issue}35437[#35437])
+* Implement NVL(expr1, expr2) {pull}35794[#35794] (issue: {issue}35782[#35782])
+* Implement ISNULL(expr1, expr2) {pull}35793[#35793] (issue: {issue}35781[#35781])
+* Implement IFNULL variant of COALESCE {pull}35762[#35762] (issue: {issue}35749[#35749])
+* XPack FeatureSet functionality {pull}35725[#35725] (issue: {issue}34821[#34821])
+* Perform lazy evaluation of mismatched mappings {pull}35676[#35676] (issues: {issue}35659[#35659], {issue}35675[#35675])
+* Improve validation of unsupported fields {pull}35675[#35675] (issue: {issue}35673[#35673])
+* Move internals from Joda to java.time {pull}35649[#35649] (issue: {issue}35633[#35633])
+* Allow look-ahead resolution of aliases for WHERE clause {pull}38450[#38450] (issue: {issue}29983[#29983])
+* Implement CURRENT_DATE {pull}38175[#38175] (issue: {issue}38160[#38160])
+* Generate relevant error message when grouping functions are not used in GROUP BY {pull}38017[#38017] (issue: {issue}37952[#37952])
+* Skip the nested and object field types in case of an ODBC request {pull}37948[#37948] (issue: {issue}37801[#37801])
+* Add protocol tests and remove jdbc_type from drivers response {pull}37516[#37516] (issues: {issue}36635[#36635], {issue}36882[#36882])
+* Remove slightly used meta commands {pull}37506[#37506] (issue: {issue}37409[#37409])
+* Describe aliases as views {pull}37496[#37496] (issue: {issue}37422[#37422])
+* Make `FULL` non-reserved keyword in the grammar {pull}37377[#37377] (issue: {issue}37376[#37376])
+* Use declared source for error messages {pull}37161[#37161]
+* Improve error message when unable to translate to ES query DSL {pull}37129[#37129] (issue: {issue}37040[#37040])
+* [API] spelling: subtract {pull}37055[#37055] (issue: {issue}37035[#37035])
+* [API] spelling: similar {pull}37054[#37054] (issue: {issue}37035[#37035])
+* [API] spelling: input {pull}37048[#37048] (issue: {issue}37035[#37035])
+* Enhance message for PERCENTILE[_RANK] with field as 2nd arg {pull}36933[#36933] (issue: {issue}36903[#36903])
+* Preserve original source for each expression {pull}36912[#36912] (issue: {issue}36894[#36894])
+* Extend the ODBC metric by differentiating between 32 and 64bit platforms {pull}36753[#36753] (issue: {issue}36740[#36740])
+* Fix wrong appliance of StackOverflow limit for IN {pull}36724[#36724] (issue: {issue}36592[#36592])
+* Enhance checks for inexact fields {pull}39427[#39427] (issue: {issue}38501[#38501])
+* Change the default precision for CURRENT_TIMESTAMP function {pull}39391[#39391] (issue: {issue}39288[#39288])
+* Add "fuzziness" option to QUERY and MATCH function predicates {pull}40529[#40529] (issue: {issue}40495[#40495])
+* Add "validate.properties" property to JDBC's allowed list of settings {pull}39050[#39050] (issue: {issue}38068[#38068])
+
+Suggesters::
+* Remove unused empty constructors from suggestions classes {pull}37295[#37295]
+* [API] spelling: likelihood {pull}37052[#37052] (issue: {issue}37035[#37035])
+
+Task Management::
+* Periodically try to reassign unassigned persistent tasks {pull}36069[#36069] (issue: {issue}35792[#35792])
+* Only require task permissions {pull}35667[#35667] (issue: {issue}35573[#35573])
+* Retry if task can't be written {pull}35054[#35054] (issue: {issue}33764[#33764])
+
+ZenDiscovery::
+* Introduce vote withdrawal {pull}35446[#35446]
+* Add basic Zen1 transport-level BWC {pull}35443[#35443]
+* Add diff-based publishing {pull}35290[#35290]
+* Introduce auto_shrink_voting_configuration setting {pull}35217[#35217]
+* Introduce transport API for cluster bootstrapping {pull}34961[#34961]
+* Reconfigure cluster as its membership changes {pull}34592[#34592] (issue: {issue}33924[#33924])
+* Fail fast on disconnects {pull}34503[#34503]
+* Add storage-layer disruptions to CoordinatorTests {pull}34347[#34347]
+* Add low-level bootstrap implementation {pull}34345[#34345]
+* Gather votes from all nodes {pull}34335[#34335]
+* Add Cluster State Applier {pull}34257[#34257]
+* Add safety phase to CoordinatorTests {pull}34241[#34241]
+* Integrate FollowerChecker with Coordinator {pull}34075[#34075]
+* Integrate LeaderChecker with Coordinator {pull}34049[#34049]
+* Trigger join when active master detected {pull}34008[#34008]
+* Update PeerFinder term on term bump {pull}33992[#33992]
+* Calculate optimal cluster configuration {pull}33924[#33924]
+* Introduce FollowersChecker {pull}33917[#33917]
+* Integrate publication pipeline into Coordinator {pull}33771[#33771]
+* Add DisruptableMockTransport {pull}33713[#33713]
+* Implement basic cluster formation {pull}33668[#33668]
+* Introduce LeaderChecker {pull}33024[#33024]
+* Add leader-side join handling logic {pull}33013[#33013]
+* Add PeerFinder#onFoundPeersUpdated {pull}32939[#32939]
+* Introduce PreVoteCollector {pull}32847[#32847]
+* Introduce ElectionScheduler {pull}32846[#32846]
+* Introduce ElectionScheduler {pull}32709[#32709]
+* Add HandshakingTransportAddressConnector {pull}32643[#32643] (issue: {issue}32246[#32246])
+* Add UnicastConfiguredHostsResolver {pull}32642[#32642] (issue: {issue}32246[#32246])
+* Cluster state publication pipeline {pull}32584[#32584] (issue: {issue}32006[#32006])
+* Introduce gossip-like discovery of master nodes {pull}32246[#32246]
+* Add core coordination algorithm for cluster state publishing  {pull}32171[#32171] (issue: {issue}32006[#32006])
+* Add term and config to cluster state {pull}32100[#32100] (issue: {issue}32006[#32006])
+* Add discovery types to cluster stats {pull}36442[#36442]
+* Introduce `zen2` discovery type {pull}36298[#36298]
+* Persist cluster states the old way on non-master-eligible nodes {pull}36247[#36247] (issue: {issue}3[#3])
+* Storage layer WriteStateException propagation {pull}36052[#36052]
+* Implement Tombstone REST APIs {pull}36007[#36007]
+* Update default for USE_ZEN2 to true {pull}35998[#35998]
+* Add warning if cluster fails to form fast enough {pull}35993[#35993]
+* Allow Setting a List of Bootstrap Nodes to Wait for {pull}35847[#35847]
+* VotingTombstone class {pull}35832[#35832]
+* PersistedState interface implementation {pull}35819[#35819]
+* Support rolling upgrades from Zen1 {pull}35737[#35737]
+* Add lag detector {pull}35685[#35685]
+* Move ClusterState fields to be persisted to ClusterState.MetaData {pull}35625[#35625]
+* Introduce ClusterBootstrapService {pull}35488[#35488]
+* Introduce vote withdrawal {pull}35446[#35446]
+* Add basic Zen1 transport-level BWC {pull}35443[#35443]
+* Add elasticsearch-node detach-cluster tool {pull}37979[#37979]
+* Deprecate minimum_master_nodes {pull}37868[#37868]
+* Step down as master when configured out of voting configuration {pull}37802[#37802] (issue: {issue}37712[#37712])
+* Enforce cluster UUIDs {pull}37775[#37775]
+* Bubble exceptions up in ClusterApplierService {pull}37729[#37729]
+* Use m_m_nodes from Zen1 master for Zen2 bootstrap {pull}37701[#37701]
+* Add tool elasticsearch-node unsafe-bootstrap {pull}37696[#37696]
+* Report terms and version if cluster does not form {pull}37473[#37473]
+* Bootstrap a Zen2 cluster once quorum is discovered {pull}37463[#37463]
+* Zen2: Add join validation {pull}37203[#37203]
+* Publish cluster states in chunks {pull}36973[#36973]
+
+
+
+[[bug-7.0.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix InternalAutoDateHistogram reproducible failure {pull}32723[#32723] (issue: {issue}32215[#32215])
+* fix MultiValuesSourceFieldConfig toXContent {pull}36525[#36525] (issue: {issue}36474[#36474])
+* Cache the score of the parent document in the nested agg {pull}36019[#36019] (issues: {issue}34555[#34555], {issue}35985[#35985])
+* Correct implemented interface of ParsedReverseNested {pull}35455[#35455] (issue: {issue}35449[#35449])
+* Handle IndexOrDocValuesQuery in composite aggregation {pull}35392[#35392]
+* Don't load global ordinals with the `map` execution_hint {pull}37833[#37833] (issue: {issue}37705[#37705])
+* Issue #37303 - Invalid variance fix {pull}37384[#37384] (issue: {issue}37303[#37303])
+* Skip sibling pipeline aggregators reduction during non-final reduce {pull}40101[#40101] (issue: {issue}40059[#40059])
+* Extend nextDoc to delegate to the wrapped doc-value iterator for date_nanos {pull}39176[#39176] (issue: {issue}39107[#39107])
+* Only create MatrixStatsResults on final reduction {pull}38130[#38130] (issue: {issue}37587[#37587])
+
+Allocation::
+* Fix _host based require filters {pull}38173[#38173]
+* ALLOC: Fail Stale Primary Alloc. Req. without Data {pull}37226[#37226] (issue: {issue}37098[#37098])
+
+Analysis::
+* Close #26771: beider_morse phonetic encoder failure when languageset unspecified  {pull}26848[#26848] (issue: {issue}26771[#26771])
+* Fix PreConfiguredTokenFilters getSynonymFilter() implementations {pull}38839[#38839] (issue: {issue}38793[#38793])
+
+Audit::
+* Fix origin.type for connection_* events {pull}36410[#36410]
+* Fix IndexAuditTrail rolling restart on rollover edge {pull}35988[#35988] (issue: {issue}33867[#33867])
+* Fix NPE in Logfile Audit Filter {pull}38120[#38120] (issue: {issue}38097[#38097])
+* LoggingAuditTrail correctly handle ReplicatedWriteRequest {pull}39925[#39925] (issue: {issue}39555[#39555])
+
+Authorization::
+* Empty GetAliases authorization fix {pull}34444[#34444] (issue: {issue}31952[#31952])
+
+Authentication::
+* Fix kerberos setting registration {pull}35986[#35986] (issues: {issue}30241[#30241], {issue}35942[#35942])
+* Add support for Kerberos V5 Oid {pull}35764[#35764] (issue: {issue}34763[#34763])
+* Enhance parsing of StatusCode in SAML Responses {pull}38628[#38628]
+* Limit token expiry to 1 hour maximum {pull}38244[#38244]
+* Fix expired token message in Exception header {pull}37196[#37196]
+* Fix NPE in CachingUsernamePasswordRealm {pull}36953[#36953] (issue: {issue}36951[#36951])
+* Allow non super users to create API keys {pull}40028[#40028] (issue: {issue}40029[#40029])
+* Use consistent view of realms for authentication {pull}38815[#38815] (issue: {issue}30301[#30301])
+* Correct authenticate response for API key {pull}39684[#39684]
+* Fix security index auto-create and state recovery race {pull}39582[#39582]
+
+Build::
+* Use explicit deps on test tasks for check {pull}36325[#36325]
+* Fix jdbc jar pom to not include deps {pull}36036[#36036] (issue: {issue}32014[#32014])
+* Fix official plugins list {pull}35661[#35661] (issue: {issue}35623[#35623])
+
+CCR::
+* Fix follow stats API's follower index filtering feature {pull}36647[#36647]
+* AutoFollowCoordinator should tolerate that auto follow patterns may be removed {pull}35945[#35945] (issue: {issue}35937[#35937])
+* Only auto follow indices when all primary shards have started {pull}35814[#35814] (issue: {issue}35480[#35480])
+* Avoid NPE in follower stats when no tasks metadata {pull}35802[#35802]
+* Fix the names of CCR stats endpoints in usage API {pull}35438[#35438]
+* Prevent CCR recovery from missing documents {pull}38237[#38237]
+* Fix file reading in ccr restore service {pull}38117[#38117]
+* Correct argument names in update mapping/settings from leader {pull}38063[#38063]
+* Ensure changes requests return the latest mapping version {pull}37633[#37633]
+* Do not set fatal exception when shard follow task is stopped. {pull}37603[#37603]
+* Add fatal_exception field for ccr stats in monitoring mapping {pull}37563[#37563]
+* Do not add index event listener if CCR disabled {pull}37432[#37432]
+* When removing an AutoFollower also mark it as removed. {pull}37402[#37402] (issue: {issue}36761[#36761])
+* Make shard follow tasks more resilient for restarts {pull}37239[#37239] (issue: {issue}37231[#37231])
+* Resume follow Api should not require a request body {pull}37217[#37217] (issue: {issue}37022[#37022])
+* Report error if auto follower tries auto follow a leader index with soft deletes disabled {pull}36886[#36886] (issue: {issue}33007[#33007])
+* Remote cluster license checker and no license info. {pull}36837[#36837] (issue: {issue}36815[#36815])
+* Make CCR resilient against missing remote cluster connections {pull}36682[#36682] (issues: {issue}36255[#36255], {issue}36667[#36667])
+* AutoFollowCoordinator and follower index already created {pull}36540[#36540] (issue: {issue}33007[#33007])
+* Safe publication of AutoFollowCoordinator {pull}40153[#40153] (issue: {issue}38560[#38560])
+* Enable reading auto-follow patterns from x-content {pull}40130[#40130] (issue: {issue}40128[#40128])
+* Stop auto-followers on shutdown {pull}40124[#40124]
+* Protect against the leader index being removed {pull}39351[#39351] (issue: {issue}39308[#39308])
+* Handle the fact that `ShardStats` instance may have no commit or seqno stats {pull}38782[#38782] (issue: {issue}38779[#38779])
+* Fix LocalIndexFollowingIT#testRemoveRemoteConnection() test {pull}38709[#38709] (issue: {issue}38695[#38695])
+* Fix shard follow task startup error handling {pull}39053[#39053] (issue: {issue}38779[#38779])
+* Filter out upgraded version index settings when starting index following {pull}38838[#38838] (issue: {issue}38835[#38835])
+
+Circuit Breakers::
+* Modify `BigArrays` to take name of circuit breaker {pull}36461[#36461] (issue: {issue}31435[#31435])
+
+Core::
+* Fix CompositeBytesReference#slice to not throw AIOOBE with legal offsets. {pull}35955[#35955] (issue: {issue}35950[#35950])
+* Suppress CachedTimeThread in hot threads output {pull}35558[#35558] (issue: {issue}23175[#23175])
+* Upgrade to Joda 2.10.1 {pull}35410[#35410] (issue: {issue}33749[#33749])
+
+CRUD::
+* Fix Reindex from remote query logic {pull}36908[#36908]
+* Synchronize WriteReplicaResult callbacks {pull}36770[#36770]
+* Cascading primary failure lead to MSU too low {pull}40249[#40249]
+* Store Pending Deletions Fix {pull}40345[#40345] (issue: {issue}40249[#40249])
+* ShardBulkAction ignore primary response on primary {pull}38901[#38901]
+
+Cluster Coordination::
+* Fix node tool cleanup {pull}39389[#39389]
+* Avoid serialising state if it was already serialised {pull}39179[#39179]
+* Do not perform cleanup if Manifest write fails with dirty exception {pull}40519[#40519] (issue: {issue}39077[#39077])
+* Cache compressed cluster state size {pull}39827[#39827] (issue: {issue}39806[#39806])
+* Drop node if asymmetrically partitioned from master {pull}39598[#39598]
+* Fixing the custom object serialization bug in diffable utils. {pull}39544[#39544]
+* Clean GatewayAllocator when stepping down as master {pull}38885[#38885]
+
+Distributed::
+* Combine the execution of an exclusive replica operation with primary term update {pull}36116[#36116] (issue: {issue}35850[#35850])
+* ActiveShardCount should not fail when closing the index {pull}35936[#35936]
+* TransportVerifyShardBeforeCloseAction should force a flush {pull}38401[#38401] (issues: {issue}33888[#33888], {issue}37961[#37961])
+* Fix limit on retaining sequence number {pull}37992[#37992] (issue: {issue}37165[#37165])
+* Close Index API should force a flush if a sync is needed {pull}37961[#37961] (issues: {issue}33888[#33888], {issue}37426[#37426])
+* Force Refresh Listeners when Acquiring all Operation Permits {pull}36835[#36835]
+* Replaced the word 'shards' with 'replicas' in an error message. (#36234) {pull}36275[#36275] (issue: {issue}36234[#36234])
+* Ignore waitForActiveShards when syncing leases {pull}39224[#39224] (issue: {issue}39089[#39089])
+* Fix synchronization in LocalCheckpointTracker#contains {pull}38755[#38755] (issues: {issue}33871[#33871], {issue}38633[#38633])
+* Enforce retention leases require soft deletes {pull}39922[#39922] (issue: {issue}39914[#39914])
+* Treat TransportService stopped error as node is closing {pull}39800[#39800] (issue: {issue}39584[#39584])
+* Use cause to determine if node with primary is closing {pull}39723[#39723] (issue: {issue}39584[#39584])
+* Don’t ack if unable to remove failing replica {pull}39584[#39584] (issue: {issue}39467[#39467])
+* Fix NPE on Stale Index in IndicesService {pull}38891[#38891] (issue: {issue}38845[#38845])
+
+Engine::
+* Set Lucene version upon index creation. {pull}36038[#36038] (issue: {issue}33826[#33826])
+* Wrap can_match reader with ElasticsearchDirectoryReader {pull}35857[#35857]
+* Copy checkpoint atomically when rolling generation {pull}35407[#35407]
+* Subclass NIOFSDirectory instead of using FileSwitchDirectory {pull}37140[#37140] (issues: {issue}36668[#36668], {issue}37111[#37111])
+* Bubble up exception when processing NoOp {pull}39338[#39338] (issue: {issue}38898[#38898])
+* ReadOnlyEngine should update translog recovery state information {pull}39238[#39238]
+* Advance max_seq_no before add operation to Lucene {pull}38879[#38879] (issue: {issue}31629[#31629])
+
+Features/Features::
+* Only count some fields types for deprecation check {pull}40166[#40166]
+* Deprecation check for indices with very large numbers of fields {pull}39869[#39869] (issue: {issue}39851[#39851])
+
+Features/ILM::
+* Preserve ILM operation mode when creating new lifecycles {pull}38134[#38134] (issues: {issue}38229[#38229], {issue}38230[#38230])
+* Retry ILM steps that fail due to SnapshotInProgressException {pull}37624[#37624] (issues: {issue}37541[#37541], {issue}37552[#37552])
+* Remove `indexing_complete` when removing policy {pull}36620[#36620]
+* Handle failure to release retention leases in ILM {pull}39281[#39281] (issue: {issue}39181[#39181])
+* Correct ILM metadata minimum compatibility version {pull}40569[#40569] (issue: {issue}40565[#40565])
+* Handle null retention leases in WaitForNoFollowersStep {pull}40477[#40477]
+* Allow ILM to stop if indices have nonexistent policies {pull}40820[#40820] (issue: {issue}40824[#40824])
+
+Features/Indices APIs::
+* Validate top-level keys for create index request (#23755) {pull}23869[#23869] (issue: {issue}23755[#23755])
+* Reject delete index requests with a body {pull}37501[#37501] (issue: {issue}8217[#8217])
+* Fix duplicate phrase in shrink/split error message {pull}36734[#36734] (issue: {issue}36729[#36729])
+* Get Aliases with wildcard exclusion expression {pull}34230[#34230] (issues: {issue}33518[#33518], {issue}33805[#33805], {issue}34144[#34144])
+
+Features/Ingest::
+* Fix Deprecation Warning in Script Proc. {pull}32407[#32407]
+* Support unknown fields in ingest pipeline map configuration {pull}38352[#38352] (issue: {issue}36938[#36938])
+* Ingest node - user_agent, move device parsing to an object {pull}38115[#38115] (issues: {issue}37329[#37329], {issue}38094[#38094])
+* Fix on_failure with Drop processor {pull}36686[#36686] (issue: {issue}36151[#36151])
+* Support default pipelines + bulk upserts {pull}36618[#36618] (issue: {issue}36219[#36219])
+* Ingest ingest then create index {pull}39607[#39607] (issues: {issue}32758[#32758], {issue}32786[#32786], {issue}36545[#36545])
+
+Features/Java High Level REST Client::
+* Drop extra level from user parser {pull}34932[#34932]
+* Update IndexTemplateMetaData to allow unknown fields {pull}38448[#38448] (issue: {issue}36938[#36938])
+* `if_seq_no` and `if_primary_term` parameters aren't wired correctly in REST Client's CRUD API {pull}38411[#38411]
+* Update Rollup Caps to allow unknown fields {pull}38339[#38339] (issue: {issue}36938[#36938])
+* Fix ILM explain response to allow unknown fields {pull}38054[#38054] (issue: {issue}36938[#36938])
+* Fix ILM status to allow unknown fields {pull}38043[#38043] (issue: {issue}36938[#36938])
+* Fix ILM Lifecycle Policy to allow unknown fields {pull}38041[#38041] (issue: {issue}36938[#36938])
+* Update authenticate to allow unknown fields {pull}37713[#37713] (issue: {issue}36938[#36938])
+* Update verify repository to allow unknown fields {pull}37619[#37619] (issue: {issue}36938[#36938])
+* Update get users to allow unknown fields {pull}37593[#37593] (issue: {issue}36938[#36938])
+* Update Execute Watch to allow unknown fields {pull}37498[#37498] (issue: {issue}36938[#36938])
+* Update Put Watch to allow unknown fields {pull}37494[#37494] (issue: {issue}36938[#36938])
+* Update Delete Watch to allow unknown fields {pull}37435[#37435] (issue: {issue}36938[#36938])
+* Fix rest reindex test for IPv4 addresses {pull}37310[#37310]
+* Fix weighted_avg parser not found for RestHighLevelClient {pull}37027[#37027] (issue: {issue}36861[#36861])
+
+Features/Java Low Level REST Client::
+* Remove I/O pool blocking sniffing call from onFailure callback, add some logic around host exclusion {pull}27985[#27985] (issue: {issue}27984[#27984])
+* Fix potential IllegalCapacityException in LLRC when selecting nodes {pull}37821[#37821]
+
+Features/Monitoring::
+* Allow built-in monitoring_user role to call GET _xpack API {pull}38060[#38060] (issue: {issue}37970[#37970])
+* Don't emit deprecation warnings on calls to the monitoring bulk API. {pull}39805[#39805] (issue: {issue}39336[#39336])
+
+Features/Watcher::
+* Ignore system locale/timezone in croneval CLI tool {pull}33215[#33215]
+* Support merge nested Map in list for JIRA configurations {pull}37634[#37634] (issue: {issue}30068[#30068])
+* Watcher accounts constructed lazily {pull}36656[#36656]
+* Ensures watch definitions are valid json {pull}30692[#30692] (issue: {issue}29746[#29746])
+* Use non-ILM template setting up watch history template & ILM disabled {pull}39325[#39325] (issue: {issue}38805[#38805])
+* Only flush Watcher's bulk processor if Watcher is enabled {pull}38803[#38803] (issue: {issue}38798[#38798])
+* Fix Watcher stats class cast exception {pull}39821[#39821] (issue: {issue}39780[#39780])
+* Use any index specified by .watches for Watcher {pull}39541[#39541] (issue: {issue}39478[#39478])
+* Resolve concurrency with watcher trigger service {pull}39092[#39092] (issue: {issue}39087[#39087])
+* Metric on watcher stats is a list not an enum {pull}39114[#39114]
+
+Geo::
+* Test `GeoShapeQueryTests#testPointsOnly` fails {pull}27454[#27454]
+* More robust handling of ignore_malformed in geoshape parsing {pull}35603[#35603] (issues: {issue}34047[#34047], {issue}34498[#34498])
+* Better handling of malformed geo_points {pull}35554[#35554] (issue: {issue}35419[#35419])
+* Enables coerce support in WKT polygon parser {pull}35414[#35414] (issue: {issue}35059[#35059])
+* Fix GeoHash PrefixTree BWC {pull}38584[#38584] (issue: {issue}38494[#38494])
+* Do not normalize the longitude with value -180 for Lucene shapes {pull}37299[#37299] (issue: {issue}37297[#37297])
+* Geo Point parse error fix {pull}40447[#40447] (issue: {issue}17617[#17617])
+
+Highlighting::
+* Bug fix for AnnotatedTextHighlighter - port of 39525 {pull}39750[#39750] (issue: {issue}39525[#39525])
+
+Infra/Core::
+* Ensure shard is refreshed once it's inactive {pull}27559[#27559] (issue: {issue}27500[#27500])
+* Bubble-up exceptions from scheduler {pull}38317[#38317] (issue: {issue}38014[#38014])
+* Revert back to joda's multi date formatters {pull}36814[#36814] (issues: {issue}36447[#36447], {issue}36602[#36602])
+* Propagate Errors in executors to uncaught exception handler {pull}36137[#36137] (issue: {issue}28667[#28667])
+* Correct name of basic_date_time_no_millis {pull}39367[#39367]
+* Allow single digit milliseconds in strict date parsing {pull}40676[#40676] (issue: {issue}40403[#40403])
+* Parse composite patterns using ClassicFormat.parseObject {pull}40100[#40100] (issue: {issue}39916[#39916])
+* Bat scripts to work with JAVA_HOME with parantheses {pull}39712[#39712] (issues: {issue}30606[#30606], {issue}33405[#33405], {issue}38578[#38578], {issue}38624[#38624])
+* Change licence expiration date pattern {pull}39681[#39681] (issue: {issue}39136[#39136])
+* Fix DateFormatters.parseMillis when no timezone is given {pull}39100[#39100] (issue: {issue}39067[#39067])
+* Don't close caches while there might still be in-flight requests. {pull}38958[#38958] (issue: {issue}37117[#37117])
+* Allow single digit milliseconds in strict date parsing {pull}40676[#40676] (issue: {issue}40403[#40403])
+
+Infra/Packaging::
+* Remove NOREPLACE for /etc/elasticsearch in rpm and deb {pull}37839[#37839]
+* Packaging: Update marker used to allow ELASTIC_PASSWORD {pull}37243[#37243] (issue: {issue}37240[#37240])
+* Remove permission editing in postinst {pull}37242[#37242] (issue: {issue}37143[#37143])
+* Some elasticsearch-cli tools could not be run not from ES_HOME {pull}39937[#39937]
+* Obsolete pre 7.0 noarch package in rpm {pull}39472[#39472] (issue: {issue}39414[#39414])
+* Suppress error message when `/proc/sys/vm/max_map_count` is not exists. {pull}35933[#35933]
+* Use TAR instead of DOCKER build type before 6.7.0 {pull}40723[#40723] (issues: {issue}39378[#39378], {issue}40511[#40511])
+* Source additional files correctly in elasticsearch-cli {pull}40890[#40890] (issue: {issue}40889[#40889])
+
+Infra/REST API::
+* Reject all requests that have an unconsumed body {pull}37504[#37504] (issues: {issue}30792[#30792], {issue}37501[#37501], {issue}8217[#8217])
+* Fix #38623 remove xpack namespace REST API {pull}38625[#38625]
+* Remove the "xpack" namespace from the REST API {pull}38623[#38623]
+* Update spec files that erroneously documented parts as optional  {pull}39122[#39122]
+* ilm.explain_lifecycle documents human again {pull}39113[#39113]
+* Index on rollup.rollup_search.json is a list {pull}39097[#39097]
+
+Infra/Scripting::
+* Fix Painless void return bug {pull}38046[#38046]
+* Correct bug in ScriptDocValues {pull}40488[#40488]
+
+Infra/Settings::
+* Change format how settings represent lists / array {pull}26723[#26723]
+* Fix setting by time unit {pull}37192[#37192]
+* Fix handling of fractional byte size value settings {pull}37172[#37172]
+* Fix handling of fractional time value settings {pull}37171[#37171]
+
+Infra/Transport API::
+* Remove version read/write logic in Verify Response {pull}30879[#30879] (issue: {issue}30807[#30807])
+* Enable muted Repository test {pull}30875[#30875] (issue: {issue}30807[#30807])
+* Bad regex in CORS settings should throw a nicer error {pull}29108[#29108]
+
+Index APIs::
+* Fix duplicate phrase in shrink/split error message {pull}36734[#36734] (issue: {issue}36729[#36729])
+* Raise a 404 exception when document source is not found (#33384) {pull}34083[#34083] (issue: {issue}33384[#33384])
+
+Ingest::
+* Fix on_failure with Drop processor {pull}36686[#36686] (issue: {issue}36151[#36151])
+* Support default pipelines + bulk upserts {pull}36618[#36618] (issue: {issue}36219[#36219])
+* Support default pipeline through an alias {pull}36231[#36231] (issue: {issue}35817[#35817])
+
+License::
+* Update versions for start_trial after backport {pull}30218[#30218] (issue: {issue}30135[#30135])
+* Do not serialize basic license exp in x-pack info {pull}30848[#30848]
+* Update versions for start_trial after backport {pull}30218[#30218] (issue: {issue}30135[#30135])
+
+Machine Learning::
+* Interrupt Grok in file structure finder timeout {pull}36588[#36588]
+* Prevent stack overflow while copying ML jobs and datafeeds {pull}36370[#36370] (issue: {issue}36360[#36360])
+* Adjust file structure finder parser config {pull}35935[#35935]
+* Fix find_file_structure NPE with should_trim_fields {pull}35465[#35465] (issue: {issue}35462[#35462])
+* Prevent notifications being created on deletion of a non existent job {pull}35337[#35337] (issues: {issue}34058[#34058], {issue}35336[#35336])
+* Clear Job#finished_time when it is opened (#32605) {pull}32755[#32755]
+* Fix thread leak when waiting for job flush (#32196) {pull}32541[#32541] (issue: {issue}32196[#32196])
+* Fix CPoissonMeanConjugate sampling error. {ml-pull}335[#335]
+* Report index unavailable instead of waiting for lazy node {pull}38423[#38423]
+* Fix error race condition on stop _all datafeeds and close _all jobs {pull}38113[#38113] (issue: {issue}37959[#37959])
+* Update ML results mappings on process start {pull}37706[#37706] (issue: {issue}37607[#37607])
+* Prevent submit after autodetect worker is stopped {pull}37700[#37700] (issue: {issue}37108[#37108])
+* Fix ML datafeed CCS with wildcarded cluster name {pull}37470[#37470] (issue: {issue}36228[#36228])
+* Update error message for process update {pull}37363[#37363]
+* Wait for autodetect to be ready in the datafeed {pull}37349[#37349] (issues: {issue}36810[#36810], {issue}37227[#37227])
+* Stop datafeeds running when their jobs are stale {pull}37227[#37227] (issue: {issue}36810[#36810])
+* Order GET job stats response by job id {pull}36841[#36841] (issue: {issue}36683[#36683])
+* Make GetJobStats work with arbitrary wildcards and groups {pull}36683[#36683] (issue: {issue}34745[#34745])
+* Fix datafeed skipping first bucket after lookback when aggs are … {pull}39859[#39859] (issue: {issue}39842[#39842])
+* Refactoring lazy query and agg parsing {pull}39776[#39776] (issue: {issue}39528[#39528])
+* Stop the ML memory tracker before closing node {pull}39111[#39111] (issue: {issue}37117[#37117])
+* Scrolling datafeed should clear scroll contexts on error {pull}40773[#40773] (issue: {issue}40772[#40772])
+
+Mapping::
+* Ensure that field aliases cannot be used in multi-fields. {pull}32219[#32219]
+* Treat put-mapping calls with `_doc` as a top-level key as typed calls. {pull}38032[#38032]
+* Correct deprec log in RestGetFieldMappingAction {pull}37843[#37843] (issue: {issue}37667[#37667])
+* Restore a noop _all metadata field for 6x indices {pull}37808[#37808] (issue: {issue}37429[#37429])
+* Make sure PutMappingRequest accepts content types other than JSON. {pull}37720[#37720]
+* Make sure to use the resolved type in DocumentMapperService#extractMappings. {pull}37451[#37451] (issue: {issue}36811[#36811])
+* Improve Precision for scaled_float {pull}37169[#37169] (issue: {issue}32570[#32570])
+* Make sure to accept empty unnested mappings in create index requests. {pull}37089[#37089]
+* Stop automatically nesting mappings in index creation requests. {pull}36924[#36924]
+* Rewrite SourceToParse with resolved docType {pull}36921[#36921] (issues: {issue}35790[#35790], {issue}36769[#36769])
+* Optimise rejection of out-of-range `long` values {pull}40325[#40325] (issues: {issue}26137[#26137], {issue}40323[#40323])
+* Make sure to reject mappings with type _doc when include_type_name is false. {pull}38270[#38270] (issue: {issue}38266[#38266])
+
+Network::
+* Adjust SSLDriver behavior for JDK11 changes {pull}32145[#32145] (issues: {issue}32122[#32122], {issue}32144[#32144])
+* Netty4SizeHeaderFrameDecoder error {pull}31057[#31057]
+* Fix memory leak in http pipelining {pull}30815[#30815] (issue: {issue}30801[#30801])
+* Fix issue with finishing handshake in ssl driver {pull}30580[#30580]
+* Do not resolve addresses in remote connection info {pull}36671[#36671] (issue: {issue}35658[#35658])
+* Always compress based on the settings {pull}36522[#36522] (issue: {issue}36399[#36399])
+* http.publish_host Should Contain CNAME {pull}32806[#32806] (issue: {issue}22029[#22029])
+* Adjust SSLDriver behavior for JDK11 changes {pull}32145[#32145] (issues: {issue}32122[#32122], {issue}32144[#32144])
+* Add TRACE, CONNECT, and PATCH http methods {pull}31035[#31035] (issue: {issue}31017[#31017])
+* Transport client: Don't validate node in handshake {pull}30737[#30737] (issue: {issue}30141[#30141])
+* Fix issue with finishing handshake in ssl driver {pull}30580[#30580]
+* Remove potential nio selector leak {pull}27825[#27825]
+* Fix issue where the incorrect buffers are written {pull}27695[#27695] (issue: {issue}27551[#27551])
+* Do not set SO_LINGER on server channels {pull}26997[#26997]
+* Do not set SO_LINGER to 0 when not shutting down {pull}26871[#26871] (issue: {issue}26764[#26764])
+* Release pipelined http responses on close {pull}26226[#26226]
+* Reload SSL context on file change for LDAP {pull}36937[#36937] (issues: {issue}30509[#30509], {issue}36923[#36923])
+* Do not resolve addresses in remote connection info {pull}36671[#36671] (issue: {issue}35658[#35658])
+
+Packaging::
+* Fix error message when package install fails due to missing Java {pull}36077[#36077] (issue: {issue}31845[#31845])
+* Add missing entries to conffiles  {pull}35810[#35810] (issue: {issue}35691[#35691])
+
+Plugins::
+* Ensure that azure stream has socket privileges {pull}28751[#28751] (issue: {issue}28662[#28662])
+
+Ranking::
+* QueryRescorer should keep the window size when rewriting {pull}36836[#36836]
+
+Recovery::
+* Register ResyncTask.Status as a NamedWriteable {pull}36610[#36610]
+* RecoveryMonitor#lastSeenAccessTime should be volatile {pull}36781[#36781]
+* Create retention leases file during recovery {pull}39359[#39359] (issue: {issue}37165[#37165])
+* Recover peers from translog, ignoring soft deletes {pull}38904[#38904] (issue: {issue}37165[#37165])
+* Retain history for peer recovery using leases {pull}38855[#38855]
+* Resync should not send operations without sequence number {pull}40433[#40433]
+
+Rollup::
+* Fix rollup search statistics {pull}36674[#36674]
+* Fix Rollup's metadata parser {pull}36791[#36791] (issue: {issue}36726[#36726])
+* Fix rollup search statistics {pull}36674[#36674]
+* Remove timezone validation on rollup range queries {pull}40647[#40647]
+* Rollup ignores time_zone on date histogram {pull}40844[#40844]
+
+Scripting::
+* Properly support no-offset date formatting {pull}36316[#36316] (issue: {issue}36306[#36306])
+* [Painless] Generate Bridge Methods {pull}36097[#36097]
+* Fix serialization bug in painless execute api request {pull}36075[#36075] (issue: {issue}36050[#36050])
+* Actually add joda time back to whitelist {pull}35965[#35965] (issue: {issue}35915[#35915])
+* Add back joda to whitelist {pull}35915[#35915] (issue: {issue}35913[#35913])
+
+Settings::
+* Correctly Identify Noop Updates {pull}36560[#36560] (issue: {issue}36496[#36496])
+
+Search::
+* Ensure realtime `_get` and `_termvectors` don't run on the network thread {pull}33814[#33814] (issue: {issue}27500[#27500])
+* [bug] fuzziness custom auto {pull}33462[#33462] (issue: {issue}33454[#33454])
+* Fix inner hits retrieval when stored fields are disabled (_none_) {pull}33018[#33018] (issue: {issue}32941[#32941])
+* Set maxScore for empty TopDocs to Nan rather than 0 {pull}32938[#32938]
+* Handle leniency for cross_fields type in multi_match query {pull}27045[#27045] (issue: {issue}23210[#23210])
+* Raise IllegalArgumentException instead if query validation failed {pull}26811[#26811] (issue: {issue}26799[#26799])
+* Inner hits fail to propagate doc-value format. {pull}36310[#36310]
+* Fix custom AUTO issue with Fuzziness#toXContent {pull}35807[#35807] (issue: {issue}33462[#33462])
+* Fix analyzed prefix query in query_string {pull}35756[#35756] (issue: {issue}31702[#31702])
+* Fix problem with MatchNoDocsQuery in disjunction queries {pull}35726[#35726] (issue: {issue}34708[#34708])
+* Fix phrase_slop in query_string query {pull}35533[#35533] (issue: {issue}35125[#35125])
+* Add a More Like This query routing requirement check (#29678) {pull}33974[#33974]
+* Look up connection using the right cluster alias when releasing contexts {pull}38570[#38570]
+* Fix fetch source option in expand search phase {pull}37908[#37908] (issue: {issue}23829[#23829])
+* Change `rational` to `saturation` in script_score {pull}37766[#37766] (issue: {issue}37714[#37714])
+* Throw if two inner_hits have the same name {pull}37645[#37645] (issue: {issue}37584[#37584])
+* Ensure either success or failure path for SearchOperationListener is called {pull}37467[#37467] (issue: {issue}37185[#37185])
+* `query_string` should use indexed prefixes {pull}36895[#36895]
+* Avoid duplicate types deprecation messages in search-related APIs. {pull}36802[#36802]
+* Serialize top-level pipeline aggs as part of InternalAggregations {pull}40177[#40177] (issues: {issue}40059[#40059], {issue}40101[#40101])
+* CCS: Skip empty search hits when minimizing round-trips {pull}40098[#40098] (issues: {issue}32125[#32125], {issue}40067[#40067])
+* CCS: Disable minimizing round-trips when dfs is requested {pull}40044[#40044] (issue: {issue}32125[#32125])
+* Fix Fuzziness#asDistance(String) {pull}39643[#39643] (issue: {issue}39614[#39614])
+* Fix alias resolution runtime complexity. {pull}40263[#40263] (issue: {issue}40248[#40248])
+
+Security::
+* Handle 6.4.0+ BWC for Application Privileges {pull}32929[#32929]
+* Remove license state listeners on closeables {pull}36308[#36308] (issues: {issue}33328[#33328], {issue}35627[#35627], {issue}35628[#35628])
+* Fix exit code for Security CLI tools  {pull}37956[#37956] (issue: {issue}37841[#37841])
+* Fix potential NPE in UsersTool {pull}37660[#37660]
+* Remove dynamic objects from security index {pull}40499[#40499] (issue: {issue}35460[#35460])
+* Fix libs:ssl-config project setup {pull}39074[#39074]
+* Do not create the missing index when invoking getRole {pull}39039[#39039]
+
+Snapshot/Restore::
+* Upgrade GCS Dependencies to 1.55.0 {pull}36634[#36634] (issues: {issue}35229[#35229], {issue}35459[#35459])
+* Improve Resilience SnapshotShardService {pull}36113[#36113] (issue: {issue}32265[#32265])
+* Keep SnapshotsInProgress State in Sync with Routing Table {pull}35710[#35710]
+* Ensure that gcs client creation is privileged {pull}25938[#25938] (issue: {issue}25932[#25932])
+* Make calls to CloudBlobContainer#exists privileged {pull}25937[#25937] (issue: {issue}25931[#25931])
+* Fix Concurrent Snapshot Ending And Stabilize Snapshot Finalization {pull}38368[#38368] (issue: {issue}38226[#38226])
+* Fix Two Races that Lead to Stuck Snapshots {pull}37686[#37686] (issues: {issue}32265[#32265], {issue}32348[#32348])
+* Fix Race in Concurrent Snapshot Delete and Create {pull}37612[#37612] (issue: {issue}37581[#37581])
+* Streamline S3 Repository- and Client-Settings {pull}37393[#37393]
+* Blob store compression fix {pull}39073[#39073]
+
+SQL::
+* Fix translation of LIKE/RLIKE keywords {pull}36672[#36672] (issues: {issue}36039[#36039], {issue}36584[#36584])
+* Scripting support for casting functions CAST and CONVERT {pull}36640[#36640] (issue: {issue}36061[#36061])
+* Fix translation to painless for conditionals {pull}36636[#36636] (issue: {issue}36631[#36631])
+* Concat should be always not nullable {pull}36601[#36601] (issue: {issue}36169[#36169])
+* Fix MOD() for long and integer arguments {pull}36599[#36599] (issue: {issue}36364[#36364])
+* Fix issue with complex HAVING and GROUP BY ordinal {pull}36594[#36594] (issue: {issue}36059[#36059])
+* Be lenient for tests involving comparison to H2 but strict for csv spec tests {pull}36498[#36498] (issue: {issue}36483[#36483])
+* Non ISO 8601 versions of DAY_OF_WEEK and WEEK_OF_YEAR functions {pull}36358[#36358] (issue: {issue}36263[#36263])
+* Do not ignore all fields whose names start with underscore {pull}36214[#36214] (issue: {issue}36206[#36206])
+* Fix issue with wrong data type for scripted Grouping keys {pull}35969[#35969] (issue: {issue}35662[#35662])
+* Fix translation of math functions to painless {pull}35910[#35910] (issue: {issue}35654[#35654])
+* Fix jdbc jar to include deps {pull}35602[#35602]
+* Fix query translation for scripted queries {pull}35408[#35408] (issue: {issue}35232[#35232])
+* Clear the cursor if nested inner hits are enough to fulfill the query required limits {pull}35398[#35398] (issue: {issue}35176[#35176])
+* Introduce IsNull node to simplify expressions {pull}35206[#35206] (issues: {issue}34876[#34876], {issue}35171[#35171])
+* The SSL default configuration shouldn't override the https protocol if used {pull}34635[#34635] (issue: {issue}33817[#33817])
+* Minor fix for javadoc {pull}32573[#32573] (issue: {issue}32553[#32553])
+* Prevent grouping over grouping functions {pull}38649[#38649] (issue: {issue}38308[#38308])
+* Relax StackOverflow circuit breaker for constants {pull}38572[#38572] (issue: {issue}38571[#38571])
+* Fix issue with IN not resolving to underlying keyword field {pull}38440[#38440] (issue: {issue}38424[#38424])
+* Change the Intervals milliseconds precision to 3 digits {pull}38297[#38297] (issue: {issue}37423[#37423])
+* Fix esType for DATETIME/DATE and INTERVALS {pull}38179[#38179] (issue: {issue}38051[#38051])
+* Added SSL configuration options tests {pull}37875[#37875] (issue: {issue}37711[#37711])
+* Fix casting from date to numeric type to use millis {pull}37869[#37869] (issue: {issue}37655[#37655])
+* Fix BasicFormatter NPE {pull}37804[#37804]
+* Return Intervals in SQL format for CLI {pull}37602[#37602] (issues: {issue}29970[#29970], {issue}36186[#36186], {issue}36432[#36432])
+* Fix object extraction from sources {pull}37502[#37502] (issue: {issue}37364[#37364])
+* Fix issue with field names containing "." {pull}37364[#37364] (issue: {issue}37128[#37128])
+* Fix bug regarding alias fields with dots {pull}37279[#37279] (issue: {issue}37224[#37224])
+* Proper handling of COUNT(field_name) and COUNT(DISTINCT field_name) {pull}37254[#37254] (issue: {issue}30285[#30285])
+* Fix COUNT DISTINCT filtering {pull}37176[#37176] (issue: {issue}37086[#37086])
+* Fix issue with wrong NULL optimization {pull}37124[#37124] (issue: {issue}35872[#35872])
+* Fix issue with complex expression as args of PERCENTILE/_RANK {pull}37102[#37102] (issue: {issue}37099[#37099])
+* Handle the bwc Joda ZonedDateTime scripting class in Painless {pull}37024[#37024] (issue: {issue}37023[#37023])
+* Fix bug regarding histograms usage in scripting {pull}36866[#36866]
+* Fix issue with always false filter involving functions {pull}36830[#36830] (issue: {issue}35980[#35980])
+* Protocol returns ISO 8601 String formatted dates instead of Long for JDBC/ODBC requests {pull}36800[#36800] (issue: {issue}36756[#36756])
+* Enhance Verifier to prevent aggregate or grouping functions from {pull}36799[#36799] (issue: {issue}36798[#36798])
+* Fix translation of LIKE/RLIKE keywords {pull}36672[#36672] (issues: {issue}36039[#36039], {issue}36584[#36584])
+* Scripting support for casting functions CAST and CONVERT {pull}36640[#36640] (issue: {issue}36061[#36061])
+* Concat should be always not nullable {pull}36601[#36601] (issue: {issue}36169[#36169])
+* Fix issue with complex HAVING and GROUP BY ordinal {pull}36594[#36594] (issue: {issue}36059[#36059])
+* Add missing handling of IP field in JDBC {pull}40384[#40384] (issue: {issue}40358[#40358])
+* Fix metric aggs on date/time to not return double {pull}40377[#40377] (issues: {issue}39492[#39492], {issue}40376[#40376])
+* CAST supports both SQL and ES types {pull}40365[#40365] (issue: {issue}40282[#40282])
+* Fix RLIKE bug and improve testing for RLIKE statement {pull}40354[#40354] (issues: {issue}34609[#34609], {issue}39931[#39931])
+* Unwrap the first value in an array in case of array leniency {pull}40318[#40318] (issue: {issue}40296[#40296])
+* Preserve original source for cast/convert function {pull}40271[#40271] (issue: {issue}40239[#40239])
+* Fix LIKE function equality by considering its pattern as well {pull}40260[#40260] (issue: {issue}39931[#39931])
+* Fix issue with optimization on queries with ORDER BY/LIMIT {pull}40256[#40256] (issue: {issue}40211[#40211])
+* Rewrite ROUND and TRUNCATE functions with a different optional parameter handling method {pull}40242[#40242] (issue: {issue}40001[#40001])
+* Fix issue with getting DATE type in JDBC {pull}40207[#40207]
+* Fix issue with date columns returned always in UTC {pull}40163[#40163] (issue: {issue}40152[#40152])
+* Add multi_value_field_leniency inside FieldHitExtractor {pull}40113[#40113] (issue: {issue}39700[#39700])
+* Fix incorrect ordering of groupings (GROUP BY) based on orderings (ORDER BY) {pull}40087[#40087] (issue: {issue}39956[#39956])
+* Fix bug with JDBC timezone setting and DATE type {pull}39978[#39978] (issue: {issue}39915[#39915])
+* Use underlying exact field for LIKE/RLIKE {pull}39443[#39443] (issue: {issue}39442[#39442])
+* Fix display size for DATE/DATETIME {pull}40669[#40669]
+* Have LIKE/RLIKE use wildcard and regexp queries {pull}40628[#40628] (issue: {issue}40557[#40557])
+* Fix getTime() methods in JDBC {pull}40484[#40484]
+* SYS TABLES: enumerate tables of requested types {pull}40535[#40535] (issue: {issue}40348[#40348])
+* Passing an input to the CLI "freezes" the CLI after displaying an error message {pull}40164[#40164] (issue: {issue}40557[#40557])
+* Wrap ZonedDateTime parameters inside scripts {pull}39911[#39911] (issue: {issue}39877[#39877])
+* ConstantProcessor can now handle NamedWriteable {pull}39876[#39876] (issue: {issue}39875[#39875])
+* Extend the multi dot field notation extraction to lists of values {pull}39823[#39823] (issue: {issue}39738[#39738])
+* Values in datetime script aggs should be treated as long {pull}39773[#39773] (issue: {issue}37042[#37042])
+* Don't allow inexact fields for MIN/MAX {pull}39563[#39563] (issue: {issue}39427[#39427])
+* Fix merging of incompatible multi-fields {pull}39560[#39560] (issue: {issue}39547[#39547])
+* Fix COUNT DISTINCT column name {pull}39537[#39537] (issue: {issue}39511[#39511])
+* Enable accurate hit tracking on demand {pull}39527[#39527] (issue: {issue}37971[#37971])
+* Ignore UNSUPPORTED fields for JDBC and ODBC modes in 'SYS COLUMNS' {pull}39518[#39518] (issue: {issue}39471[#39471])
+* Enforce JDBC driver - ES server version parity {pull}38972[#38972] (issue: {issue}38775[#38775])
+* Fall back to using the field name for column label {pull}38842[#38842] (issue: {issue}38831[#38831])
+
+Suggesters::
+* Fix duplicate removal when merging completion suggestions {pull}36996[#36996] (issue: {issue}35836[#35836])
+
+Task Management::
+* Un-assign persistent tasks as nodes exit the cluster {pull}37656[#37656]
+
+Watcher::
+* Watcher accounts constructed lazily {pull}36656[#36656]
+* Only trigger a watch if new or schedule/changed {pull}35908[#35908]
+* Fix Watcher NotificationService's secure settings {pull}35610[#35610] (issue: {issue}35378[#35378])
+* Fix integration tests to ensure correct start/stop of Watcher {pull}35271[#35271] (issues: {issue}29877[#29877], {issue}30705[#30705], {issue}33291[#33291], {issue}34448[#34448], {issue}34462[#34462])
+
+ZenDiscovery::
+* Remove duplicate discovered peers {pull}35505[#35505]
+* Respect the no_master_block setting {pull}36478[#36478]
+* Cancel GetDiscoveredNodesAction when bootstrapped {pull}36423[#36423] (issues: {issue}36380[#36380], {issue}36381[#36381])
+* Only elect master-eligible nodes {pull}35996[#35996]
+* Remove duplicate discovered peers {pull}35505[#35505]
+* Fix size of rolling-upgrade bootstrap config {pull}38031[#38031]
+* Always return metadata version if metadata is requested {pull}37674[#37674]
+* Elect freshest master in upgrade {pull}37122[#37122] (issue: {issue}40[#40])
+* Fix cluster state persistence for single-node discovery {pull}36825[#36825]
+
+[[regression-7.0.0]]
+[float]
+=== Regressions
+
+Infra/Core::
+* Restore date aggregation performance in UTC case {pull}38221[#38221] (issue: {issue}37826[#37826])
+* Speed up converting of temporal accessor to zoned date time {pull}37915[#37915] (issue: {issue}37826[#37826])
+
+Mapping::
+* Performance fix. Reduce deprecation calls for the same bulk request {pull}37415[#37415] (issue: {issue}37411[#37411])
+
+Scripting::
+* Use Number as a return value for BucketAggregationScript {pull}35653[#35653] (issue: {issue}35351[#35351])
+
+[[upgrade-7.0.0]]
+[float]
+=== Upgrades
+
+Discovery-Plugins::
+* Bump jackson-databind version for AWS SDK {pull}39183[#39183]
+
+Engine::
+* Upgrade to lucene-8.0.0-snapshot-83f9835. {pull}37668[#37668]
+* Upgrade to Lucene 8.0.0-snapshot-ff9509a8df {pull}39350[#39350]
+* Upgrade to Lucene 8.0.0 {pull}39992[#39992] (issue: {issue}39640[#39640])
+
+Geo::
+* Upgrade JTS to 1.14.0 {pull}29141[#29141] (issue: {issue}29122[#29122])
+
+Ingest::
+* Update geolite2 database in ingest geoip plugin {pull}33840[#33840]
+* Bump jackson-databind version for ingest-geoip {pull}39182[#39182]
+
+Infra/Core::
+* Upgrade to a Lucene 8 snapshot {pull}33310[#33310] (issues: {issue}32899[#32899], {issue}33028[#33028], {issue}33309[#33309])
+
+Security::
+* Upgrade the bouncycastle dependency to 1.61 {pull}40017[#40017] (issue: {issue}40011[#40011])
+
+Search::
+* Upgrade to Lucene 8.0.0 GA {pull}39992[#39992] (issue: {issue}39640[#39640])
+
+Snapshot/Restore::
+* plugins/repository-gcs: Update google-cloud-storage/core to 1.59.0 {pull}39748[#39748] (issue: {issue}39366[#39366])
+
+Network::
+* Fix Netty Leaks by upgrading to 4.1.28 {pull}32511[#32511] (issue: {issue}32487[#32487])
+* Upgrade Netty 4.3.32.Final {pull}36102[#36102] (issue: {issue}35360[#35360])
+
+Machine Learning::
+* No need to add state doc mapping on job open in 7.x {pull}37759[#37759]

@@ -20,6 +20,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class MultiSearchTemplateAction extends Action<MultiSearchTemplateResponse> {
 
@@ -32,6 +33,11 @@ public class MultiSearchTemplateAction extends Action<MultiSearchTemplateRespons
 
     @Override
     public MultiSearchTemplateResponse newResponse() {
-        return new MultiSearchTemplateResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<MultiSearchTemplateResponse> getResponseReader() {
+        return MultiSearchTemplateResponse::new;
     }
 }

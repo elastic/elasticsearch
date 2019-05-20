@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.analysis.index.IndexResolver;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
@@ -108,7 +109,8 @@ public class Querier {
             log.trace("About to execute query {} on {}", StringUtils.toString(sourceBuilder), index);
         }
 
-        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, Strings.commaDelimitedListToStringArray(index));
+        SearchRequest search = prepareRequest(client, sourceBuilder, timeout, query.shouldIncludeFrozen(),
+                Strings.commaDelimitedListToStringArray(index));
 
         @SuppressWarnings("rawtypes")
         List<Tuple<Integer, Comparator>> sortingColumns = query.sortingColumns();
@@ -130,13 +132,16 @@ public class Querier {
         client.search(search, l);
     }
 
-    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, String... indices) {
+    public static SearchRequest prepareRequest(Client client, SearchSourceBuilder source, TimeValue timeout, boolean includeFrozen,
+            String... indices) {
         SearchRequest search = client.prepareSearch(indices)
                 // always track total hits accurately
                 .setTrackTotalHits(true)
                 .setAllowPartialSearchResults(false)
                 .setSource(source)
                 .setTimeout(timeout)
+                .setIndicesOptions(
+                        includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
                 .request();
             return search;
     }
@@ -175,7 +180,7 @@ public class Querier {
                 }
             }
 
-            this.data = new PriorityQueue<Tuple<List<?>, Integer>>(size) {
+            this.data = new PriorityQueue<>(size) {
 
                 // compare row based on the received attribute sort
                 // if a sort item is not in the list, it is assumed the sorting happened in ES
@@ -389,6 +394,7 @@ public class Querier {
                 listener.onResponse(
                         new SchemaCompositeAggsRowSet(schema, initBucketExtractors(response), mask, response, query.limit(),
                                 nextSearch,
+                                query.shouldIncludeFrozen(),
                                 request.indices()));
             }
             // no results

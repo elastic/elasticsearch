@@ -47,6 +47,8 @@ public class OutlierDetection implements DataFrameAnalysis {
     public static final ParseField NAME = new ParseField("outlier_detection");
     static final ParseField N_NEIGHBORS = new ParseField("n_neighbors");
     static final ParseField METHOD = new ParseField("method");
+    public static final ParseField MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE =
+        new ParseField("minimum_score_to_write_feature_influence");
 
     private static ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME.getPreferredName(), true, Builder::new);
 
@@ -58,23 +60,27 @@ public class OutlierDetection implements DataFrameAnalysis {
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, METHOD, ObjectParser.ValueType.STRING);
+        PARSER.declareDouble(Builder::setMinScoreToWriteFeatureInfluence, MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE);
     }
 
     private final Integer nNeighbors;
     private final Method method;
+    private final Double minScoreToWriteFeatureInfluence;
 
     /**
      * Constructs the outlier detection configuration
      * @param nNeighbors The number of neighbors. Leave unspecified for dynamic detection.
      * @param method The method. Leave unspecified for a dynamic mixture of methods.
+     * @param minScoreToWriteFeatureInfluence The min outlier score required to calculate feature influence. Defaults to 0.1.
      */
-    private OutlierDetection(@Nullable Integer nNeighbors, @Nullable Method method) {
+    private OutlierDetection(@Nullable Integer nNeighbors, @Nullable Method method, @Nullable Double minScoreToWriteFeatureInfluence) {
         if (nNeighbors != null && nNeighbors <= 0) {
             throw new IllegalArgumentException("[" + N_NEIGHBORS.getPreferredName() + "] must be a positive integer");
         }
 
         this.nNeighbors = nNeighbors;
         this.method = method;
+        this.minScoreToWriteFeatureInfluence = minScoreToWriteFeatureInfluence;
     }
 
     @Override
@@ -90,6 +96,10 @@ public class OutlierDetection implements DataFrameAnalysis {
         return method;
     }
 
+    public Double getMinScoreToWriteFeatureInfluence() {
+        return minScoreToWriteFeatureInfluence;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -98,6 +108,9 @@ public class OutlierDetection implements DataFrameAnalysis {
         }
         if (method != null) {
             builder.field(METHOD.getPreferredName(), method);
+        }
+        if (minScoreToWriteFeatureInfluence != null) {
+            builder.field(MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName(), minScoreToWriteFeatureInfluence);
         }
         builder.endObject();
         return builder;
@@ -110,12 +123,13 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         OutlierDetection other = (OutlierDetection) o;
         return Objects.equals(nNeighbors, other.nNeighbors)
-            && Objects.equals(method, other.method);
+            && Objects.equals(method, other.method)
+            && Objects.equals(minScoreToWriteFeatureInfluence, other.minScoreToWriteFeatureInfluence);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nNeighbors, method);
+        return Objects.hash(nNeighbors, method, minScoreToWriteFeatureInfluence);
     }
 
     @Override
@@ -140,6 +154,7 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         private Integer nNeighbors;
         private Method method;
+        private Double minScoreToWriteFeatureInfluence;
 
         private Builder() {}
 
@@ -153,8 +168,13 @@ public class OutlierDetection implements DataFrameAnalysis {
             return this;
         }
 
+        public Builder setMinScoreToWriteFeatureInfluence(Double minScoreToWriteFeatureInfluence) {
+            this.minScoreToWriteFeatureInfluence = minScoreToWriteFeatureInfluence;
+            return this;
+        }
+
         public OutlierDetection build() {
-            return new OutlierDetection(nNeighbors, method);
+            return new OutlierDetection(nNeighbors, method, minScoreToWriteFeatureInfluence);
         }
     }
 }

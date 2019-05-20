@@ -44,6 +44,6 @@ public class MetaDataIndexStateServiceUtils {
     public static ClusterState closeRoutingTable(final ClusterState state,
                                                  final Map<Index, ClusterBlock> blockedIndices,
                                                  final Map<Index, CloseIndexResponse.IndexResult> results) {
-        return MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results);
+        return MetaDataIndexStateService.closeRoutingTable(state, blockedIndices, results).v1();
     }
 }

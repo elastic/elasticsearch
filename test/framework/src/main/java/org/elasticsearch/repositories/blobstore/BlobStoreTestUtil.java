@@ -31,8 +31,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -49,6 +52,12 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public final class BlobStoreTestUtil {
+
+    public static void assertRepoConsistency(InternalTestCluster testCluster, String repoName) {
+        final BlobStoreRepository repo =
+            (BlobStoreRepository) testCluster.getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
+        BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
+    }
 
     /**
      * Assert that there are no unreferenced indices or unreferenced root-level metadata blobs in any repository.

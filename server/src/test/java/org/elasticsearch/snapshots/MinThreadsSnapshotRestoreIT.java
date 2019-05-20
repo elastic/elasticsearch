@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 
 import java.util.Collection;
@@ -105,6 +106,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete second snapshot, which should now work");
         client().admin().cluster().prepareDeleteSnapshot(repo, snapshot1).get();
         assertTrue(client().admin().cluster().prepareGetSnapshots(repo).setSnapshots("_all").get().getSnapshots().isEmpty());
+        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repo);
     }
 
     public void testSnapshottingWithInProgressDeletionNotAllowed() throws Exception {
@@ -151,6 +153,7 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> creating second snapshot, which should now work");
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot2).setWaitForCompletion(true).get();
         assertEquals(1, client().admin().cluster().prepareGetSnapshots(repo).setSnapshots("_all").get().getSnapshots().size());
+        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repo);
     }
 
     public void testRestoreWithInProgressDeletionsNotAllowed() throws Exception {
@@ -205,5 +208,6 @@ public class MinThreadsSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> restoring snapshot, which should now work");
         client().admin().cluster().prepareRestoreSnapshot(repo, snapshot1).setWaitForCompletion(true).get();
         assertEquals(1, client().admin().cluster().prepareGetSnapshots(repo).setSnapshots("_all").get().getSnapshots().size());
+        BlobStoreTestUtil.assertRepoConsistency(internalCluster(), repo);
     }
 }

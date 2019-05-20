@@ -114,9 +114,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         }
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
-            throw new IllegalStateException("expected FSDirectory but got " + unwrap.toString());
+            throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
         }
-        Path dataPath = ((FSDirectory)unwrap).getDirectory().getParent();
+        Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
         try (FSDirectory directory = new SimpleFSDirectory(snapPath)) {

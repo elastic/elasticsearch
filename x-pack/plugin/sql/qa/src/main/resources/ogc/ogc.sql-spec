@@ -1,0 +1,85 @@
+//
+// Basic GEO SELECT
+//
+
+selectLakes
+SELECT fid, name, shore FROM lakes ORDER BY fid;
+selectRoadSegments
+SELECT fid, name, num_lanes, aliases, centerline FROM road_segments ORDER BY fid;
+selectDividedRoutes
+SELECT fid, name, num_lanes, centerlines FROM divided_routes ORDER BY fid;
+selectForests
+SELECT fid, name, boundary FROM forests ORDER BY fid;
+selectBridges
+SELECT fid, name, position FROM bridges ORDER BY fid;
+selectStreams
+SELECT fid, name, centerline FROM streams ORDER BY fid;
+selectBuildings
+SELECT fid, address, position, footprint FROM buildings ORDER BY fid;
+selectPonds
+SELECT fid, type, name, shores FROM ponds ORDER BY fid;
+selectNamedPlaces
+SELECT fid, name, boundary FROM named_places ORDER BY fid;
+selectMapNeatLines
+SELECT fid, neatline FROM map_neatlines ORDER BY fid;
+
+//
+// Type conversion functions
+//
+
+// The string serialization is slightly different between ES and H2, so we need to tweak it a bit by uppercasing both
+// and removing floating point
+selectRoadSegmentsAsWkt
+SELECT fid, name, num_lanes, aliases, REPLACE(UCASE(ST_AsText(centerline)), '.0', '') centerline_wkt FROM road_segments ORDER BY fid;
+
+selectSinglePoint
+SELECT ST_GeomFromText('point (10.0 12.0)') point;
+
+
+//
+// Geometry Property Functions
+//
+// H2GIS doesn't follow the standard here that mandates ST_Dimension returns SMALLINT
+selectLakesProps
+SELECT fid, UCASE(ST_GeometryType(shore)) type FROM lakes ORDER BY fid;
+selectRoadSegmentsProps
+SELECT fid, UCASE(ST_GeometryType(centerline)) type FROM road_segments ORDER BY fid;
+selectDividedRoutesProps
+SELECT fid, UCASE(ST_GeometryType(centerlines)) type FROM divided_routes ORDER BY fid;
+selectForestsProps
+SELECT fid, UCASE(ST_GeometryType(boundary)) type FROM forests ORDER BY fid;
+selectBridgesProps
+SELECT fid, UCASE(ST_GeometryType(position)) type FROM bridges ORDER BY fid;
+selectStreamsProps
+SELECT fid, UCASE(ST_GeometryType(centerline)) type FROM streams ORDER BY fid;
+selectBuildingsProps
+SELECT fid, UCASE(ST_GeometryType(position)) type1, UCASE(ST_GeometryType(footprint)) type2 FROM buildings ORDER BY fid;
+selectPondsProps
+SELECT fid, UCASE(ST_GeometryType(shores)) type FROM ponds ORDER BY fid;
+selectNamedPlacesProps
+SELECT fid, UCASE(ST_GeometryType(boundary)) type FROM named_places ORDER BY fid;
+selectMapNeatLinesProps
+SELECT fid, UCASE(ST_GeometryType(neatline)) type FROM map_neatlines ORDER BY fid;
+
+selectLakesXY
+SELECT fid, ST_X(shore) x, ST_Y(shore) y FROM lakes ORDER BY fid;
+selectRoadSegmentsXY
+SELECT fid,  ST_X(centerline) x, ST_Y(centerline) y FROM road_segments ORDER BY fid;
+selectDividedRoutesXY
+SELECT fid,  ST_X(centerlines) x, ST_Y(centerlines) y FROM divided_routes ORDER BY fid;
+selectForestsXY
+SELECT fid,  ST_X(boundary) x, ST_Y(boundary) y FROM forests ORDER BY fid;
+selectBridgesPositionsXY
+SELECT fid,  ST_X(position) x, ST_Y(position) y FROM bridges ORDER BY fid;
+selectStreamsXY
+SELECT fid,  ST_X(centerline) x, ST_Y(centerline) y FROM streams ORDER BY fid;
+selectBuildingsXY
+SELECT fid, ST_X(position) x, ST_Y(position) y FROM buildings ORDER BY fid;
+selectBuildingsFootprintsXY
+SELECT fid, ST_X(footprint) x, ST_Y(footprint) y FROM buildings ORDER BY fid;
+selectPondsXY
+SELECT fid,  ST_X(shores) x, ST_Y(shores) y FROM ponds ORDER BY fid;
+selectNamedPlacesXY
+SELECT fid,  ST_X(boundary) x, ST_Y(boundary) y FROM named_places ORDER BY fid;
+selectMapNeatLinesXY
+SELECT fid,  ST_X(neatline) x, ST_Y(neatline) y FROM map_neatlines ORDER BY fid;

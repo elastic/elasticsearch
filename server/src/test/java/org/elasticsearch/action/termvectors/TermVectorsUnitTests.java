@@ -36,6 +36,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,7 +49,9 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TypeParsers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.hamcrest.Matchers;
@@ -243,6 +246,53 @@ public class TermVectorsUnitTests extends ESTestCase {
             // read
             ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
             InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
+            TermVectorsRequest req2 = new TermVectorsRequest(null, null);
+            req2.readFrom(esBuffer);
+
+            assertThat(request.offsets(), equalTo(req2.offsets()));
+            assertThat(request.fieldStatistics(), equalTo(req2.fieldStatistics()));
+            assertThat(request.payloads(), equalTo(req2.payloads()));
+            assertThat(request.positions(), equalTo(req2.positions()));
+            assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
+            assertThat(request.preference(), equalTo(pref));
+            assertThat(request.routing(), equalTo(null));
+            assertEquals(new BytesArray("{}"), request.doc());
+            assertEquals(XContentType.JSON, request.xContentType());
+        }
+    }
+
+    public void testStreamRequestLegacyVersion() throws IOException {
+        for (int i = 0; i < 10; i++) {
+            TermVectorsRequest request = new TermVectorsRequest("index", "id");
+            request.offsets(random().nextBoolean());
+            request.fieldStatistics(random().nextBoolean());
+            request.payloads(random().nextBoolean());
+            request.positions(random().nextBoolean());
+            request.termStatistics(random().nextBoolean());
+            String pref = random().nextBoolean() ? "somePreference" : null;
+            request.preference(pref);
+            request.doc(new BytesArray("{}"), randomBoolean(), XContentType.JSON);
+
+            // write using older version which contains types
+            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+            out.setVersion(Version.V_7_2_0);
+            request.writeTo(out);
+
+            // First check the type on the stream was written as "_doc" by manually parsing the stream until the type
+            ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+            InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
+            TaskId.readFromStream(esBuffer);
+            if (esBuffer.readBoolean()) {
+                new ShardId(esBuffer);
+            }
+            esBuffer.readOptionalString();
+            assertThat(esBuffer.readString(), equalTo("_doc"));
+
+            // now read the stream as normal to check it is parsed correct if received from an older node
+            esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+            esBuffer = new InputStreamStreamInput(esInBuffer);
+            esBuffer.setVersion(Version.V_7_2_0);
             TermVectorsRequest req2 = new TermVectorsRequest(null, null);
             req2.readFrom(esBuffer);
 

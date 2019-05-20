@@ -386,11 +386,11 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testMultiTermVectors() {
         createIndicesWithRandomAliases("test1", "test2", "test3", "index1");
         MultiTermVectorsResponse response = client().prepareMultiTermVectors()
-                .add("test1", "type", "id")
-                .add("index1", "type", "id")
-                .add("test3", "type", "id")
-                .add("missing", "type", "id")
-                .add("test5", "type", "id").get();
+                .add("test1", "id")
+                .add("index1", "id")
+                .add("test3", "id")
+                .add("missing", "id")
+                .add("test5", "id").get();
         assertEquals(5, response.getResponses().length);
         assertFalse(response.getResponses()[0].isFailed());
         assertEquals("test1", response.getResponses()[0].getResponse().getIndex());

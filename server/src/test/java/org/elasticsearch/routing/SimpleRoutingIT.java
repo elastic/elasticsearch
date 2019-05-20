@@ -594,7 +594,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             client().prepareTermVectors(indexOrAlias(), "1").get();
             fail();
         } catch (RoutingMissingException e) {
-            assertThat(e.getMessage(), equalTo("routing is required for [test]/[1]"));
+            assertThat(e.getMessage(), equalTo("routing is required for [test]/[_doc]/[1]"));
         }
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1").setRouting(routingValue)
@@ -654,14 +654,14 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         assertThat(multiTermVectorsResponse.getResponses()[0].isFailed(), equalTo(true));
         assertThat(multiTermVectorsResponse.getResponses()[0].getFailure()
                                                              .getCause()
-                                                             .getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
+                                                             .getMessage(), equalTo("routing is required for [test]/[_doc]/[1]"));
         assertThat(multiTermVectorsResponse.getResponses()[0].getResponse(), nullValue());
         assertThat(multiTermVectorsResponse.getResponses()[1].getId(), equalTo("2"));
         assertThat(multiTermVectorsResponse.getResponses()[1].isFailed(), equalTo(true));
         assertThat(multiTermVectorsResponse.getResponses()[1].getResponse(), nullValue());
         assertThat(multiTermVectorsResponse.getResponses()[1].getFailure()
                                                              .getCause()
-                                                             .getMessage(), equalTo("routing is required for [test]/[type1]/[2]"));
+                                                             .getMessage(), equalTo("routing is required for [test]/[_doc]/[2]"));
     }
 
     private static String indexOrAlias() {

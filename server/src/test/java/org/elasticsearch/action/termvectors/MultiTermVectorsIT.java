@@ -84,7 +84,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
-        MultiTermVectorsResponse response = client().prepareMultiTermVectors().add(indexOrAlias(), "type1", "1").get();
+        MultiTermVectorsResponse response = client().prepareMultiTermVectors().add(indexOrAlias(), "1").get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 

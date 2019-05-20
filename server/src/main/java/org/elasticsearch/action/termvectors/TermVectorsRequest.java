@@ -494,7 +494,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         super.writeTo(out);
         if (out.getVersion().before(Version.V_8_0_0)) {
             // types not supported so send an empty array to previous versions
-            out.writeString(null);
+            out.writeString("_doc");
         }
         out.writeString(id);
 

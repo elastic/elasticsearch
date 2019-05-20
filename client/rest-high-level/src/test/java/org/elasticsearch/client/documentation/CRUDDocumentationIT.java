@@ -1614,8 +1614,8 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         // tag::term-vectors-response
         String index = response.getIndex(); // <1>
-        String id = response.getId(); // <3>
-        boolean found = response.getFound(); // <4>
+        String id = response.getId(); // <2>
+        boolean found = response.getFound(); // <3>
         // end::term-vectors-response
 
         if (response.getTermVectorsList() != null) {

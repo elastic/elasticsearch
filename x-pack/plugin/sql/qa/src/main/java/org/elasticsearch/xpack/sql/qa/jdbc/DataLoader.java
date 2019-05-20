@@ -63,7 +63,7 @@ public class DataLoader {
         freeze(client, "archive");
     }
 
-    private static void createString(String name, XContentBuilder builder) throws Exception {
+    public static void createString(String name, XContentBuilder builder) throws Exception {
         builder.startObject(name).field("type", "text")
             .startObject("fields")
                 .startObject("keyword").field("type", "keyword").endObject()
@@ -292,7 +292,7 @@ public class DataLoader {
         Response response = client.performRequest(request);
     }
 
-    protected static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
+    public static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
         for (String index : indices) {
             client.performRequest(new Request("POST", "/" + index + "/_alias/" + aliasName));
         }

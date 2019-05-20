@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.ccr.client.CcrClient;
 import org.elasticsearch.xpack.core.indexlifecycle.client.ILMClient;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.monitoring.client.MonitoringClient;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
 
 import java.util.Collections;
@@ -39,7 +38,6 @@ public class XPackClient {
     private final CcrClient ccrClient;
     private final LicensingClient licensingClient;
     private final MonitoringClient monitoringClient;
-    private final SecurityClient securityClient;
     private final WatcherClient watcherClient;
     private final MachineLearningClient machineLearning;
     private final ILMClient ilmClient;
@@ -49,7 +47,6 @@ public class XPackClient {
         this.ccrClient = new CcrClient(client);
         this.licensingClient = new LicensingClient(client);
         this.monitoringClient = new MonitoringClient(client);
-        this.securityClient = new SecurityClient(client);
         this.watcherClient = new WatcherClient(client);
         this.machineLearning = new MachineLearningClient(client);
         this.ilmClient = new ILMClient(client);
@@ -69,10 +66,6 @@ public class XPackClient {
 
     public MonitoringClient monitoring() {
         return monitoringClient;
-    }
-
-    public SecurityClient security() {
-        return securityClient;
     }
 
     public WatcherClient watcher() {

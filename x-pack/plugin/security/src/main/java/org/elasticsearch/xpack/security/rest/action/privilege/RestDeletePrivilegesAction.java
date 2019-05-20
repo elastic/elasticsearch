@@ -17,8 +17,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesResponse;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -54,21 +54,23 @@ public class RestDeletePrivilegesAction extends SecurityBaseRestHandler {
         final String application = request.param("application");
         final String[] privileges = request.paramAsStringArray("privilege", null);
         final String refresh = request.param("refresh");
-        return channel -> new SecurityClient(client).prepareDeletePrivileges(application, privileges)
-                .setRefreshPolicy(refresh)
-                .execute(new RestBuilderListener<DeletePrivilegesResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(DeletePrivilegesResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        builder.startObject(application);
-                        for (String privilege : new HashSet<>(Arrays.asList(privileges))) {
-                            builder.field(privilege, Collections.singletonMap("found", response.found().contains(privilege)));
-                        }
-                        builder.endObject();
-                        builder.endObject();
-                        return new BytesRestResponse(response.found().isEmpty() ? RestStatus.NOT_FOUND : RestStatus.OK, builder);
+        return channel -> new DeletePrivilegesRequestBuilder(client)
+            .application(application)
+            .privileges(privileges)
+            .setRefreshPolicy(refresh)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(DeletePrivilegesResponse response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    builder.startObject(application);
+                    for (String privilege : new HashSet<>(Arrays.asList(privileges))) {
+                        builder.field(privilege, Collections.singletonMap("found", response.found().contains(privilege)));
                     }
-                });
+                    builder.endObject();
+                    builder.endObject();
+                    return new BytesRestResponse(response.found().isEmpty() ? RestStatus.NOT_FOUND : RestStatus.OK, builder);
+                }
+            });
     }
 
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -52,10 +51,10 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutRoleRequestBuilder requestBuilder = new SecurityClient(client)
-                .preparePutRole(request.param("name"), request.requiredContent(), request.getXContentType())
-                .setRefreshPolicy(request.param("refresh"));
-        return channel -> requestBuilder.execute(new RestBuilderListener<PutRoleResponse>(channel) {
+        PutRoleRequestBuilder requestBuilder = new PutRoleRequestBuilder(client)
+            .source(request.param("name"), request.requiredContent(), request.getXContentType())
+            .setRefreshPolicy(request.param("refresh"));
+        return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());

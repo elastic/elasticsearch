@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -84,13 +84,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     private final Client client;
     private final XPackLicenseState licenseState;
 
-    private SecurityClient securityClient;
     private final SecurityIndexManager securityIndex;
 
     public NativeRolesStore(Settings settings, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex) {
         this.settings = settings;
         this.client = client;
-        this.securityClient = new SecurityClient(client);
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
     }
@@ -338,8 +336,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {
         ClearRolesCacheRequest request = new ClearRolesCacheRequest().names(role);
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                new ActionListener<ClearRolesCacheResponse>() {
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRolesCacheAction.INSTANCE, request,
+                new ActionListener<>() {
                     @Override
                     public void onResponse(ClearRolesCacheResponse nodes) {
                         listener.onResponse(response);
@@ -352,7 +350,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 + "] failed. please clear the role cache manually", e);
                         listener.onFailure(exception);
                     }
-                }, securityClient::clearRolesCache);
+                });
     }
 
     @Nullable

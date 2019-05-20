@@ -14,6 +14,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 
@@ -28,11 +30,12 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
 
     public void testScrollIsPerUser() throws Exception {
         assertSecurityIndexActive();
-        securityClient().preparePutRole("scrollable")
+        new PutRoleRequestBuilder(client()).name("scrollable")
                 .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null, randomBoolean())
                 .get();
-        securityClient().preparePutUser("other", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests(),
-            "scrollable")
+        new PutUserRequestBuilder(client()).username("other")
+            .password(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests())
+            .roles("scrollable")
             .get();
 
         final int numDocs = randomIntBetween(4, 16);

@@ -19,7 +19,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -55,11 +54,11 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String name = request.param("name");
-        PutRoleMappingRequestBuilder requestBuilder = new SecurityClient(client)
-                .preparePutRoleMapping(name, request.requiredContent(), request.getXContentType())
-                .setRefreshPolicy(request.param("refresh"));
+        PutRoleMappingRequestBuilder requestBuilder = new PutRoleMappingRequestBuilder(client)
+            .source(name, request.requiredContent(), request.getXContentType())
+            .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(
-                new RestBuilderListener<PutRoleMappingResponse>(channel) {
+                new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(PutRoleMappingResponse response, XContentBuilder builder) throws Exception {
                         return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role_mapping", response).endObject());

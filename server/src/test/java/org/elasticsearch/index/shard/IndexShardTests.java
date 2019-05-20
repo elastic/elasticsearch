@@ -1739,32 +1739,64 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
         IndexShardTestCase.updateRoutingEntry(shard, ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
+        final CountDownLatch startRecovery = new CountDownLatch(1);
+        final CountDownLatch relocationStarted = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
             try {
-                shard.relocated(primaryContext -> {});
+                startRecovery.await();
+                shard.relocated(primaryContext -> relocationStarted.countDown());
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         });
 
         recoveryThread.start();
-        List<PlainActionFuture<Releasable>> onLockAcquiredActions = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            PlainActionFuture<Releasable> onLockAcquired = new PlainActionFuture<Releasable>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    releasable.close();
-                    super.onResponse(releasable);
-                }
-            };
-            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE, "i_" + i);
-            onLockAcquiredActions.add(onLockAcquired);
-        }
 
-        for (PlainActionFuture<Releasable> onLockAcquired : onLockAcquiredActions) {
-            final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
-            assertThat(e.getCause(), instanceOf(IllegalStateException.class));
-            assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+        final int numberOfAcquisitions = randomIntBetween(1, 10);
+        final int recoveryIndex = randomIntBetween(1, numberOfAcquisitions);
+
+        for (int i = 0; i < numberOfAcquisitions; i++) {
+
+            final PlainActionFuture<Releasable> onLockAcquired;
+            final Runnable assertion;
+            if (i < recoveryIndex) {
+                final AtomicBoolean invoked = new AtomicBoolean();
+                onLockAcquired = new PlainActionFuture<>() {
+
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        invoked.set(true);
+                        releasable.close();
+                        super.onResponse(releasable);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError();
+                    }
+
+                };
+                assertion = () -> assertTrue(invoked.get());
+            } else if (recoveryIndex == i) {
+                startRecovery.countDown();
+                relocationStarted.await();
+                onLockAcquired = new PlainActionFuture<>();
+                assertion = () -> {
+                    final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
+                    assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+                    assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+                };
+            } else {
+                onLockAcquired = new PlainActionFuture<>();
+                assertion = () -> {
+                    final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
+                    assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+                    assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+                };
+            }
+
+            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE, "i_" + i);
+            assertion.run();
         }
 
         recoveryThread.join();

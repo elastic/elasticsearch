@@ -21,8 +21,8 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,7 +31,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.net.InetAddress;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -94,8 +93,12 @@ public class ConnectionManagerTests extends ESTestCase {
         assertFalse(connectionManager.nodeConnected(node));
 
         AtomicReference<Transport.Connection> connectionRef = new AtomicReference<>();
-        CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> validator = (c, p) -> connectionRef.set(c);
-        connectionManager.connectToNode(node, connectionProfile, validator);
+        ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
+            connectionRef.set(c);
+            l.onResponse(null);
+        };
+        PlainActionFuture.get(
+            fut -> connectionManager.connectToNode(node, connectionProfile, validator, ActionListener.map(fut, x -> null)));
 
         assertFalse(connection.isClosed());
         assertTrue(connectionManager.nodeConnected(node));
@@ -141,11 +144,11 @@ public class ConnectionManagerTests extends ESTestCase {
 
         assertFalse(connectionManager.nodeConnected(node));
 
-        CheckedBiConsumer<Transport.Connection, ConnectionProfile, IOException> validator = (c, p) -> {
-            throw new ConnectTransportException(node, "");
-        };
+        ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onFailure(new ConnectTransportException(node, ""));
 
-        expectThrows(ConnectTransportException.class, () -> connectionManager.connectToNode(node, connectionProfile, validator));
+        PlainActionFuture<Void> fut = new PlainActionFuture<>();
+        connectionManager.connectToNode(node, connectionProfile, validator, fut);
+        expectThrows(ConnectTransportException.class, () -> fut.actionGet());
 
         assertTrue(connection.isClosed());
         assertFalse(connectionManager.nodeConnected(node));

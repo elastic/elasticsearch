@@ -863,7 +863,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             disruptedLinks.disconnected.forEach(nodeName -> {
                 if (testClusterNodes.nodes.containsKey(nodeName)) {
                     final DiscoveryNode node = testClusterNodes.nodes.get(nodeName).node;
-                    testClusterNodes.nodes.values().forEach(n -> n.transportService.getConnectionManager().openConnection(node, null));
+                    testClusterNodes.nodes.values().forEach(n -> n.transportService.openConnection(node, null));
                 }
             });
             disruptedLinks.clear();

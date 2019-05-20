@@ -30,7 +30,6 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -355,8 +354,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public HandshakeResponse handshake(Transport.Connection connection, long timeout, Predicate<ClusterName> clusterNamePredicate) {
-            return new HandshakeResponse(connection.getNode(), new ClusterName(""), Version.CURRENT);
+        public void handshake(Transport.Connection connection, long timeout, Predicate<ClusterName> clusterNamePredicate,
+                              ActionListener<HandshakeResponse> listener) {
+            listener.onResponse(new HandshakeResponse(connection.getNode(), new ClusterName(""), Version.CURRENT));
         }
 
         @Override
@@ -406,7 +406,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+        public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
             if (profile == null && randomConnectionExceptions && randomBoolean()) {
                 threadPool.generic().execute(() -> listener.onFailure(new ConnectTransportException(node, "simulated")));
             } else {
@@ -435,8 +435,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                     }
                 }));
             }
-            return () -> {
-            };
         }
 
         @Override

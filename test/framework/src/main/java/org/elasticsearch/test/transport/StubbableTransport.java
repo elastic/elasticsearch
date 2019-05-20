@@ -128,7 +128,7 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public Releasable openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
@@ -137,9 +137,9 @@ public final class StubbableTransport implements Transport {
                 (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
 
         if (behavior == null) {
-            return delegate.openConnection(node, profile, wrappedListener);
+            delegate.openConnection(node, profile, wrappedListener);
         } else {
-            return behavior.openConnection(delegate, node, profile, wrappedListener);
+            behavior.openConnection(delegate, node, profile, wrappedListener);
         }
     }
 
@@ -247,8 +247,8 @@ public final class StubbableTransport implements Transport {
     @FunctionalInterface
     public interface OpenConnectionBehavior {
 
-        Releasable openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
-                                  ActionListener<Connection> listener);
+        void openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
+                            ActionListener<Connection> listener);
 
         default void clearCallback() {}
     }

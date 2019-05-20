@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.bootstrap.JavaVersion;
+
 import javax.crypto.Cipher;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
@@ -338,30 +340,53 @@ public abstract class SslConfigurationLoader {
     }
 
     private static List<String> loadDefaultCiphers() {
-        final List<String> ciphers128 = Arrays.asList(
-            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
-            "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
-            "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
-            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
-            "TLS_RSA_WITH_AES_128_CBC_SHA256",
-            "TLS_RSA_WITH_AES_128_CBC_SHA"
-        );
-        final List<String> ciphers256 = Arrays.asList(
-            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
-            "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
-            "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
-            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
-            "TLS_RSA_WITH_AES_256_CBC_SHA256",
-            "TLS_RSA_WITH_AES_256_CBC_SHA"
-        );
-        if (has256BitAES()) {
-            List<String> ciphers = new ArrayList<>(ciphers256.size() + ciphers128.size());
-            ciphers.addAll(ciphers256);
-            ciphers.addAll(ciphers128);
-            return ciphers;
-        } else {
-            return ciphers128;
+        final boolean has256BitAES = has256BitAES();
+        final boolean useGCM = JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0;
+        final boolean tlsV13Supported = DEFAULT_PROTOCOLS.contains("TLSv1.3");
+        List<String> ciphers = new ArrayList<>();
+        if (tlsV13Supported) { // TLSv1.3 cipher has PFS, AEAD, hardware support
+            if (has256BitAES) {
+                ciphers.add("TLS_AES_256_GCM_SHA384");
+            }
+            ciphers.add("TLS_AES_128_GCM_SHA256");
         }
+        if (useGCM) {  // PFS, AEAD, hardware support
+            if (has256BitAES) {
+                ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
+            } else {
+                ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
+            }
+        }
+
+        // PFS, hardware support
+        if (has256BitAES) {
+            ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",  "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+                "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+                "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+                "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"));
+        } else {
+            ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+                "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"));
+        }
+
+        // AEAD, hardware support
+        if (useGCM) {
+            if (has256BitAES) {
+                ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_256_GCM_SHA384", "TLS_RSA_WITH_AES_128_GCM_SHA256"));
+            } else {
+                ciphers.add("TLS_RSA_WITH_AES_128_GCM_SHA256");
+            }
+        }
+
+        // hardware support
+        if (has256BitAES) {
+            ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_256_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA256",
+                "TLS_RSA_WITH_AES_256_CBC_SHA", "TLS_RSA_WITH_AES_128_CBC_SHA"));
+        } else {
+            ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA"));
+        }
+        return ciphers;
     }
 
     private static boolean has256BitAES() {

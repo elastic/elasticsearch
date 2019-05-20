@@ -1,0 +1,37 @@
+[[release-highlights-6.8.0]]
+== 6.8.0 release highlights
+++++
+<titleabbrev>6.8.0</titleabbrev>
+++++
+
+See also <<release-notes-6.8.0,{es} 6.8.0 release notes>>.
+
+
+[float]
+==== TLS is now licensed under the Elastic Basic license
+
+Transport Layer Security (TLS), commonly referred to as SSL, is now
+licensed under the free-of-charge Elastic Basic license. Previously, this security feature
+required a paid Gold-tier subscription. With the default distribution,
+you can now encrypt all Elasticsearch communication, within a cluster and across remotes
+clusters. Download https://www.elastic.co/downloads/elasticsearch[Elasticsearch],
+https://www.elastic.co/guide/en/elasticsearch/reference/6.8/configuring-tls.html[configure TLS],
+and run your cluster in production, knowing all Elasticsearch communication is safely encrypted.
+For details, see https://www.elastic.co/subscriptions
+
+[float]
+==== RBAC is now licensed under the Elastic Basic license
+
+RBAC (Role Based Access Control) is now licenced under the free-of-charge Elastic Basic licence.
+Previously, this security feature required a paid Gold-tier subscription.
+With the default distribution you can take advantage of RBAC by configuring users, groups, roles
+and permissions for any user from the
+https://www.elastic.co/guide/en/elasticsearch/reference/6.8/configuring-file-realm.html[file realm]
+or the https://www.elastic.co/guide/en/elasticsearch/reference/6.8/configuring-native-realm.html[native realm]
+. Download https://www.elastic.co/downloads/elasticsearch[Elasticsearch],
+https://www.elastic.co/guide/en/elastic-stack-overview/6.8/authorization.html[configure RBAC],
+and run your cluster in production, knowing your private data stays private.
+Note that our advanced security features, such as single sign-on and Active Directory/LDAP
+authentication to field-level and document-level security, remain paid features.
+For details, see https://www.elastic.co/subscriptions
+

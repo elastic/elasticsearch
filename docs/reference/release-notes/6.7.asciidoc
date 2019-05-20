@@ -1,8 +1,6 @@
 [[release-notes-6.7.2]]
 == {es} version 6.7.2
 
-coming[6.7.2]
-
 Also see <<breaking-changes-6.7,Breaking changes in 6.7>>.
 
 [[enhancement-6.7.2]]

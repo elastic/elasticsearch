@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -120,17 +119,6 @@ public class FilterRepository implements Repository {
         return in.isReadOnly();
     }
 
-    @Override
-    public void snapshotShard(IndexShard indexShard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                              IndexShardSnapshotStatus snapshotStatus) {
-        in.snapshotShard(indexShard, snapshotId, indexId, snapshotIndexCommit, snapshotStatus);
-    }
-
-    @Override
-    public void restoreShard(IndexShard shard, Store store, SnapshotId snapshotId, Version version, IndexId indexId,
-                             ShardId snapshotShardId, RecoveryState recoveryState) {
-        in.restoreShard(shard, store, snapshotId, version, indexId, snapshotShardId, recoveryState);
-    }
 
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,

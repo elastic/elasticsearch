@@ -1,12 +1,12 @@
 [[query-dsl-limit-filter]]
 === Limit Filter
 
-ifdef:asciidoctor[]
+ifdef::asciidoctor[]
 deprecated[1.6.0, "Use <<search-request-body,terminate_after>> instead"]
-endif:[]
-ifndef:asciidoctor[]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[1.6.0, Use <<search-request-body,terminate_after>> instead]
-endif:[]
+endif::[]
 
 A limit filter limits the number of documents (per shard) to execute on.
 For example:

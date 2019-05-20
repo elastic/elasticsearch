@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -248,17 +247,9 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         }
         final ClientID clientId = new ClientID(require(config, RP_CLIENT_ID));
         final SecureString clientSecret = config.getSetting(RP_CLIENT_SECRET);
-        char[] clientSecretChars = null;
-        try {
-            clientSecretChars = clientSecret.getChars();
-            if (clientSecretChars.length == 0) {
-                throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, RP_CLIENT_SECRET)
-                    + "] is required");
-            }
-        } finally {
-            if (clientSecretChars != null) {
-                Arrays.fill(clientSecretChars, '\u0000');
-            }
+        if (clientSecret.length() == 0) {
+            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, RP_CLIENT_SECRET)
+                + "] is required");
         }
         final ResponseType responseType;
         try {

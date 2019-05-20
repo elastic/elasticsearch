@@ -33,10 +33,6 @@
           "type": "list",
           "description" : "A comma-separated list of stored fields to return in the response"
         },
-        "parent": {
-          "type" : "string",
-          "description" : "The ID of the parent document"
-        },
         "preference": {
           "type" : "string",
           "description" : "Specify the node or shard the operation should be performed on (default: random)"
@@ -62,14 +58,6 @@
           "description" : "A list of fields to exclude from the returned _source field"
         },
         "_source_includes": {
-          "type" : "list",
-          "description" : "A list of fields to extract and return from the _source field"
-        },
-        "_source_exclude": {
-          "type" : "list",
-          "description" : "A list of fields to exclude from the returned _source field"
-        },
-        "_source_include": {
           "type" : "list",
           "description" : "A list of fields to extract and return from the _source field"
         },

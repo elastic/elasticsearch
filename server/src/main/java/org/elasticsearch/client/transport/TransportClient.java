@@ -184,7 +184,6 @@ public abstract class TransportClient extends AbstractClient {
             resourcesToClose.add(circuitBreakerService);
             PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
             BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
-            resourcesToClose.add(pageCacheRecycler);
             modules.add(settingsModule);
             NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
                 bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, null);
@@ -376,7 +375,6 @@ public abstract class TransportClient extends AbstractClient {
             closeables.add(plugin);
         }
         closeables.add(() -> ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS));
-        closeables.add(injector.getInstance(PageCacheRecycler.class));
         IOUtils.closeWhileHandlingException(closeables);
     }
 

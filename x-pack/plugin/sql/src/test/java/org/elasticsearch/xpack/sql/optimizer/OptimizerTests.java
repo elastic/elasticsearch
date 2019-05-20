@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
@@ -762,6 +763,15 @@ public class OptimizerTests extends ESTestCase {
         NullEquals nullEquals= (NullEquals) result;
         assertEquals(a, nullEquals.left());
         assertEquals(FIVE, nullEquals.right());
+    }
+
+    public void testLiteralsOnTheRightInStDistance() {
+        Alias a = new Alias(EMPTY, "a", L(10));
+        Expression result = new BooleanLiteralsOnTheRight().rule(new StDistance(EMPTY, FIVE, a));
+        assertTrue(result instanceof StDistance);
+        StDistance sd = (StDistance) result;
+        assertEquals(a, sd.left());
+        assertEquals(FIVE, sd.right());
     }
 
     public void testBoolSimplifyNotIsNullAndNotIsNotNull() {

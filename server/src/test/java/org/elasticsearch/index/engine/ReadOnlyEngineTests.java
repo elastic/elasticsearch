@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -32,7 +35,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader.getElasticsearchDirectoryReader;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ReadOnlyEngineTests extends EngineTestCase {
 
@@ -80,6 +85,13 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 Engine.Searcher external = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL);
                 Engine.Searcher internal = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
                 assertSame(external.reader(), internal.reader());
+                assertThat(external.reader(), instanceOf(DirectoryReader.class));
+                DirectoryReader dirReader = external.getDirectoryReader();
+                ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(dirReader);
+                IndexReader.CacheHelper helper = esReader.getReaderCacheHelper();
+                assertNotNull(helper);
+                assertEquals(helper.getKey(), dirReader.getReaderCacheHelper().getKey());
+
                 IOUtils.close(external, internal);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
@@ -88,7 +100,6 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 try (Engine.GetResult getResult = readOnlyEngine.get(get, readOnlyEngine::acquireSearcher)) {
                     assertTrue(getResult.exists());
                 }
-
             }
             // Close and reopen the main engine
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {

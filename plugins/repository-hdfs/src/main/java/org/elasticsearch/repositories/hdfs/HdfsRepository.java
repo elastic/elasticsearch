@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -236,6 +237,12 @@ public final class HdfsRepository extends BlobStoreRepository {
     @Override
     protected BlobPath basePath() {
         return basePath;
+    }
+
+    // // only use for testing
+    @Override
+    protected BlobStore blobStore() {
+        return super.blobStore();
     }
 
     @Override

@@ -75,7 +75,7 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
     }
 
     public void testCurrentExamplePlugin() throws IOException {
-        FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot());
+        FileUtils.copyDirectory(examplePlugin, tmpDir.getRoot(), pathname -> pathname.getPath().contains("/build/") == false);
 
         adaptBuildScriptForTest();
 
@@ -156,5 +156,4 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
             throw new RuntimeException(e);
         }
     }
-
 }

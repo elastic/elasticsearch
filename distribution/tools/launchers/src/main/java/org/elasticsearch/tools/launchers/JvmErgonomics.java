@@ -64,11 +64,15 @@ final class JvmErgonomics {
                 ergonomicChoices.add("-Dio.netty.allocator.type=pooled");
             }
         }
+        final long maxDirectMemorySize = extractMaxDirectMemorySize(finalJvmOptions);
+        if (maxDirectMemorySize == 0) {
+            ergonomicChoices.add("-XX:MaxDirectMemorySize=" + heapSize / 2);
+        }
         return ergonomicChoices;
     }
 
     private static final Pattern OPTION =
-            Pattern.compile("^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}\\s+\\{[^}]+}");
+            Pattern.compile("^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}(\\s+\\{[^}]+})?");
 
     static Map<String, Optional<String>> finalJvmOptions(
             final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
@@ -120,6 +124,10 @@ final class JvmErgonomics {
     // package private for testing
     static Long extractHeapSize(final Map<String, Optional<String>> finalJvmOptions) {
         return Long.parseLong(finalJvmOptions.get("MaxHeapSize").get());
+    }
+
+    static long extractMaxDirectMemorySize(final Map<String, Optional<String>> finalJvmOptions) {
+        return Long.parseLong(finalJvmOptions.get("MaxDirectMemorySize").get());
     }
 
     private static final Pattern SYSTEM_PROPERTY = Pattern.compile("^-D(?<key>[\\w+].*?)=(?<value>.*)$");

@@ -1253,6 +1253,8 @@ See the <<painless-api-reference-shared, Shared API>> for a high-level overview 
 * String {java11-javadoc}/java.base/java/lang/String.html#replace(java.lang.CharSequence,java.lang.CharSequence)[replace](CharSequence, CharSequence)
 * String replaceAll(Pattern, Function)
 * String replaceFirst(Pattern, Function)
+* String[] splitOnToken(String)
+* String[] splitOnToken(String, int)
 * boolean {java11-javadoc}/java.base/java/lang/String.html#startsWith(java.lang.String)[startsWith](String)
 * boolean {java11-javadoc}/java.base/java/lang/String.html#startsWith(java.lang.String,int)[startsWith](String, int)
 * CharSequence {java11-javadoc}/java.base/java/lang/CharSequence.html#subSequence(int,int)[subSequence](int, int)

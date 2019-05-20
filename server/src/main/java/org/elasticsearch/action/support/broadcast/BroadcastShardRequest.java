@@ -60,7 +60,7 @@ public abstract class BroadcastShardRequest extends TransportRequest implements 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 

@@ -182,7 +182,12 @@ Getting a warmer for specific index (or alias, or several indices) based
 on its name. The provided name can be a simple wildcard expression or
 omitted to get all warmers. 
 
+ifdef::asciidoctor[]
+added[1.4.0.Beta1,"The API will always include a `warmers` section, even if there aren't any warmers. Previous versions would not return the `warmers` section"]
+endif::[]
+ifndef::asciidoctor[]
 added[1.4.0.Beta1,The API will always include a `warmers` section, even if there aren't any warmers. Previous versions would not return the `warmers` section]
+endif::[]
 
 Some examples:
 

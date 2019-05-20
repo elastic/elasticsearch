@@ -669,6 +669,7 @@ public class IndexShardTests extends IndexShardTestCase {
             isPrimaryMode = true;
         }
         assert indexShard.getReplicationTracker().isPrimaryMode() == isPrimaryMode;
+        final long primaryTerm = indexShard.getPendingPrimaryTerm();
         if (isPrimaryMode) {
             Releasable operation1 = acquirePrimaryOperationPermitBlockingly(indexShard);
             assertEquals(1, indexShard.getActiveOperationsCount());

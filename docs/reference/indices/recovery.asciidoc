@@ -19,7 +19,13 @@ curl -XGET http://localhost:9200/_recovery?pretty&human
 --------------------------------------------------
 
 Response:
+ifdef::asciidoctor[]
+added:[1.5.0, this syntax was change to fix inconsistencies with other API]
+endif::[]
+ifndef::asciidoctor[]
 added[1.5.0, this syntax was change to fix inconsistencies with other API]
+endif::[]
+
 [source,js]
 --------------------------------------------------
 {

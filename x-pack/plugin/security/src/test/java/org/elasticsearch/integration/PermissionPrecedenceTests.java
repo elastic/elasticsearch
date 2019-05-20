@@ -73,7 +73,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
     }
 
     public void testDifferentCombinationsOfIndices() throws Exception {
-        Client client = internalCluster().transportClient();
+        Client client = client();
 
         // first lets try with "admin"... all should work
 

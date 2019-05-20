@@ -171,9 +171,9 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
                         builder.endObject();
                     } else {
                         builder.startObject("shards");
-                        for (ShardResult shards : shards) {
-                            if (shards.hasFailures()) {
-                                shards.toXContent(builder, params);
+                        for (ShardResult shard : shards) {
+                            if (shard.hasFailures()) {
+                                shard.toXContent(builder, params);
                             }
                         }
                         builder.endObject();

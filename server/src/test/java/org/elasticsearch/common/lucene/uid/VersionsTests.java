@@ -197,15 +197,15 @@ public class VersionsTests extends ESTestCase {
                 version.luceneVersion);
 
         // between two known versions, should use the lucene version of the previous version
-        version = Version.fromString("8.0.50");
-        assertEquals(Version.V_8_0_0.luceneVersion, version.luceneVersion);
+        version = VersionUtils.getPreviousVersion(Version.CURRENT);
+        assertEquals(Version.fromId(version.id + 100).luceneVersion, version.luceneVersion);
 
         // too old version, major should be the oldest supported lucene version minus 1
         version = Version.fromString("5.2.1");
         assertEquals(VersionUtils.getFirstVersion().luceneVersion.major - 1, version.luceneVersion.major);
 
         // future version, should be the same version as today
-        version = Version.fromString("8.77.1");
+        version = Version.fromId(Version.CURRENT.id + 100);
         assertEquals(Version.CURRENT.luceneVersion, version.luceneVersion);
     }
 }

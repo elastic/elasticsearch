@@ -156,12 +156,13 @@ And here is a sample of custom collation:
 
 [horizontal]
 `strength`::
-    The strength property determines the minimum level of difference considered significant during comparison.
-     The default strength for the Collator is `tertiary`, unless specified otherwise by the locale used to create the Collator.
-     Possible values: `primary`, `secondary`, `tertiary`, `quaternary` or `identical`.
- +
- See http://icu-project.org/apiref/icu4j/com/ibm/icu/text/Collator.html[ICU Collation] documentation for a more detailed
- explanation for the specific values.
+The strength property determines the minimum level of difference considered significant during comparison.
++
+The default strength for the Collator is `tertiary`, unless specified otherwise by the locale used to create the Collator.
+Possible values: `primary`, `secondary`, `tertiary`, `quaternary` or `identical`.
++
+See http://icu-project.org/apiref/icu4j/com/ibm/icu/text/Collator.html[ICU Collation] documentation for a more detailed
+explanation for the specific values.
 
 `decomposition`::
     Possible values: `no` or `canonical`. Defaults to `no`. Setting this decomposition property with

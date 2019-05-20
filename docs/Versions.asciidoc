@@ -1,4 +1,4 @@
-:version:               8.0.0-alpha1
+:version:               8.0.0
 ////
 bare_version never includes -alpha or -beta
 ////
@@ -30,8 +30,7 @@ release-state can be: released | prerelease | unreleased
 ///////
 Javadoc roots used to generate links from Painless's API reference
 ///////
-:java8-javadoc: https://docs.oracle.com/javase/8/docs/api
-:java9-javadoc: https://docs.oracle.com/javase/9/docs/api
+:java11-javadoc: https://docs.oracle.com/en/java/javase/11/docs/api
 :joda-time-javadoc: http://www.joda.org/joda-time/apidocs
 :lucene-core-javadoc: http://lucene.apache.org/core/{lucene_version_path}/core
 

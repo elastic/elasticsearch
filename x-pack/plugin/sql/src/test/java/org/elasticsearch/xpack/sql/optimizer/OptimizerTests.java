@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ConditionalFunction;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Iif;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
@@ -194,7 +196,7 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testPruneSubqueryAliases() {
-        ShowTables s = new ShowTables(EMPTY, null, null);
+        ShowTables s = new ShowTables(EMPTY, null, null, false);
         SubQueryAlias plan = new SubQueryAlias(EMPTY, s, "show");
         LogicalPlan result = new PruneSubqueryAliases().apply(plan);
         assertEquals(result, s);
@@ -685,6 +687,28 @@ public class OptimizerTests extends ESTestCase {
         assertEquals("foo2", c.fold());
     }
 
+    public void testSimplifyIif_ConditionTrue() {
+        SimplifyCase rule = new SimplifyCase();
+        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, ONE), Literal.of(EMPTY, "foo"), Literal.of(EMPTY, "bar"));
+        Expression e = rule.rule(iif);
+        assertEquals(Iif.class, e.getClass());
+        iif = (Iif) e;
+        assertEquals(1, iif.conditions().size());
+        assertTrue(iif.foldable());
+        assertEquals("foo", iif.fold());
+    }
+
+    public void testSimplifyIif_ConditionFalse() {
+        SimplifyCase rule = new SimplifyCase();
+        Iif iif = new Iif(EMPTY, new Equals(EMPTY, ONE, TWO), Literal.of(EMPTY, "foo"), Literal.of(EMPTY, "bar"));
+        Expression e = rule.rule(iif);
+        assertEquals(Iif.class, e.getClass());
+        iif = (Iif) e;
+        assertEquals(0, iif.conditions().size());
+        assertTrue(iif.foldable());
+        assertEquals("bar", iif.fold());
+    }
+
     //
     // Logical simplifications
     //
@@ -739,6 +763,15 @@ public class OptimizerTests extends ESTestCase {
         NullEquals nullEquals= (NullEquals) result;
         assertEquals(a, nullEquals.left());
         assertEquals(FIVE, nullEquals.right());
+    }
+
+    public void testLiteralsOnTheRightInStDistance() {
+        Alias a = new Alias(EMPTY, "a", L(10));
+        Expression result = new BooleanLiteralsOnTheRight().rule(new StDistance(EMPTY, FIVE, a));
+        assertTrue(result instanceof StDistance);
+        StDistance sd = (StDistance) result;
+        assertEquals(a, sd.left());
+        assertEquals(FIVE, sd.right());
     }
 
     public void testBoolSimplifyNotIsNullAndNotIsNotNull() {

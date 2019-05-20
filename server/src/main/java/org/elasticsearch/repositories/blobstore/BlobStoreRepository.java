@@ -395,9 +395,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (repositoryData.getAllSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
                 throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
             }
-            if (snapshotFormat.exists(blobContainer(), snapshotId.getUUID())) {
-                throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
-            }
 
             // Write Global MetaData
             globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID());
@@ -635,7 +632,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void endVerification(String seed) {
         if (isReadOnly() == false) {
             try {
-                blobStore().delete(basePath().add(testBlobPrefix(seed)));
+                final String testPrefix = testBlobPrefix(seed);
+                final BlobContainer container = blobStore().blobContainer(basePath().add(testPrefix));
+                container.deleteBlobsIgnoringIfNotExists(List.copyOf(container.listBlobs().keySet()));
+                blobStore().blobContainer(basePath()).deleteBlobIgnoringIfNotExists(testPrefix);
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
@@ -1001,8 +1001,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     blobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs {} during finalization",
-                        snapshotId, shardId, blobNames), e);
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs during finalization",
+                        snapshotId, shardId), e);
                     throw e;
                 }
 
@@ -1017,8 +1017,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     blobContainer.deleteBlobsIgnoringIfNotExists(indexBlobs);
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs {} during finalization",
-                        snapshotId, shardId, indexBlobs), e);
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs during finalization",
+                        snapshotId, shardId), e);
                     throw e;
                 }
 
@@ -1030,8 +1030,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     blobContainer.deleteBlobsIgnoringIfNotExists(orphanedBlobs);
                 } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs {} during finalization",
-                        snapshotId, shardId, orphanedBlobs), e);
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs during finalization",
+                        snapshotId, shardId), e);
                 }
             } catch (IOException e) {
                 String message = "Failed to finalize " + reason + " with shard index [" + currentIndexGen + "]";

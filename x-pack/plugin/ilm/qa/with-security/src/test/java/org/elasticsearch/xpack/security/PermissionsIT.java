@@ -87,7 +87,7 @@ public class PermissionsIT extends ESRestTestCase {
     /**
      * Tests that a policy that simply deletes an index after 0s succeeds when an index
      * with user `test_admin` is created referencing a policy created by `test_ilm` when both
-     * users have read/write permissions on the the index. The goal is to verify that one
+     * users have read/write permissions on the index. The goal is to verify that one
      * does not need to be the same user who created both the policy and the index to have the
      * index be properly managed by ILM.
      */
@@ -137,6 +137,7 @@ public class PermissionsIT extends ESRestTestCase {
      * Tests when the user is limited by alias of an index is able to write to index
      * which was rolled over by an ILM policy.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41440")
     public void testWhenUserLimitedByOnlyAliasOfIndexCanWriteToIndexWhichWasRolledoverByILMPolicy()
             throws IOException, InterruptedException {
         /*

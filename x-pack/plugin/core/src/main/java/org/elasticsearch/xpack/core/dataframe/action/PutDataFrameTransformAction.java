@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfi
 import java.io.IOException;
 import java.util.Objects;
 
-public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAction.Response> {
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+public class PutDataFrameTransformAction extends Action<AcknowledgedResponse> {
 
     public static final PutDataFrameTransformAction INSTANCE = new PutDataFrameTransformAction();
     public static final String NAME = "cluster:admin/data_frame/put";
@@ -30,20 +32,21 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
     }
 
     @Override
-    public Response newResponse() {
-        return new Response();
+    public AcknowledgedResponse newResponse() {
+        return new AcknowledgedResponse();
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
 
-        private DataFrameTransformConfig config;
+        private final DataFrameTransformConfig config;
 
         public Request(DataFrameTransformConfig config) {
-            this.setConfig(config);
+            this.config = config;
         }
 
-        public Request() {
-
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.config = new DataFrameTransformConfig(in);
         }
 
         public static Request fromXContent(final XContentParser parser, final String id) throws IOException {
@@ -52,7 +55,19 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if(config.getPivotConfig() != null
+                && config.getPivotConfig().getMaxPageSearchSize() != null
+                && (config.getPivotConfig().getMaxPageSearchSize() < 10 || config.getPivotConfig().getMaxPageSearchSize() > 10_000)) {
+                validationException = addValidationError(
+                    "pivot.max_page_search_size [" +
+                        config.getPivotConfig().getMaxPageSearchSize() + "] must be greater than 10 and less than 10,000",
+                    validationException);
+            }
+            for(String failure : config.getPivotConfig().aggFieldValidation()) {
+                validationException = addValidationError(failure, validationException);
+            }
+            return validationException;
         }
 
         @Override
@@ -62,16 +77,6 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
 
         public DataFrameTransformConfig getConfig() {
             return config;
-        }
-
-        public void setConfig(DataFrameTransformConfig config) {
-            this.config = config;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            this.config = new DataFrameTransformConfig(in);
         }
 
         @Override
@@ -98,13 +103,4 @@ public class PutDataFrameTransformAction extends Action<PutDataFrameTransformAct
         }
     }
 
-    public static class Response extends AcknowledgedResponse {
-        public Response() {
-            super();
-        }
-
-        public Response(boolean acknowledged) {
-            super(acknowledged);
-        }
-    }
 }

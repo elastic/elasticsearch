@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.core.dataframe.action;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.Nullable;
@@ -18,12 +20,13 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -41,11 +44,16 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> {
-        private String id;
+        private final String id;
         private final boolean waitForCompletion;
         private final boolean force;
         private Set<String> expandedIds;
@@ -57,10 +65,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
             // use the timeout value already present in BaseTasksRequest
             this.setTimeout(timeout == null ? DEFAULT_TIMEOUT : timeout);
-        }
-
-        private Request() {
-            this(null, false, false, null);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -75,10 +79,6 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
         public String getId() {
             return id;
-        }
-
-        public void setId(String id) {
-            this.id = id;
         }
 
         public boolean waitForCompletion() {
@@ -158,15 +158,11 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private boolean stopped;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
+        private final boolean stopped;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            stopped = in.readBoolean();
         }
 
         public Response(boolean stopped) {
@@ -174,14 +170,15 @@ public class StopDataFrameTransformAction extends Action<StopDataFrameTransformA
             this.stopped = stopped;
         }
 
-        public boolean isStopped() {
-            return stopped;
+        public Response(List<TaskOperationFailure> taskFailures,
+                        List<? extends ElasticsearchException> nodeFailures,
+                        boolean stopped) {
+            super(taskFailures, nodeFailures);
+            this.stopped = stopped;
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            stopped = in.readBoolean();
+        public boolean isStopped() {
+            return stopped;
         }
 
         @Override

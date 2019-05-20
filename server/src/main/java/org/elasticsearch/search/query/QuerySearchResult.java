@@ -67,7 +67,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        long id = in.readLong();
+        readFromWithId(id, in);
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
@@ -256,19 +258,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return hasScoreDocs || hasSuggestHits();
     }
 
-    public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
-        QuerySearchResult result = new QuerySearchResult();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        long id = in.readLong();
-        readFromWithId(id, in);
-    }
-
     public void readFromWithId(long id, StreamInput in) throws IOException {
         this.requestId = id;
         from = in.readVInt();
@@ -284,9 +273,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         setTopDocs(readTopDocs(in));
         if (hasAggs = in.readBoolean()) {
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
-        if (in.getVersion().before(Version.V_7_1_0)) {
+        if (in.getVersion().before(Version.V_7_2_0)) {
             List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()
                 .map(a -> (SiblingPipelineAggregator) a).collect(Collectors.toList());
             if (hasAggs && pipelineAggregators.isEmpty() == false) {
@@ -334,7 +323,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeBoolean(true);
             aggregations.writeTo(out);
         }
-        if (out.getVersion().before(Version.V_7_1_0)) {
+        if (out.getVersion().before(Version.V_7_2_0)) {
             //Earlier versions expect sibling pipeline aggs separately as they used to be set to QuerySearchResult directly,
             //while later versions expect them in InternalAggregations. Note that despite serializing sibling pipeline aggs as part of
             //InternalAggregations is supported since 6.7.0, the shards set sibling pipeline aggs to InternalAggregations only from 7.1 on.

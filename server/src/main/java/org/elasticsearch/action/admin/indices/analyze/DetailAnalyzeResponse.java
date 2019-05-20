@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -40,16 +40,13 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
+public class DetailAnalyzeResponse implements Writeable, ToXContentFragment {
 
-    private boolean customAnalyzer = false;
-    private AnalyzeTokenList analyzer;
-    private CharFilteredText[] charfilters;
-    private AnalyzeTokenList tokenizer;
-    private AnalyzeTokenList[] tokenfilters;
-
-    DetailAnalyzeResponse() {
-    }
+    private final boolean customAnalyzer;
+    private final AnalyzeTokenList analyzer;
+    private final CharFilteredText[] charfilters;
+    private final AnalyzeTokenList tokenizer;
+    private final AnalyzeTokenList[] tokenfilters;
 
     public DetailAnalyzeResponse(AnalyzeTokenList analyzer) {
         this(false, analyzer, null, null, null);
@@ -71,44 +68,53 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         this.tokenfilters = tokenfilters;
     }
 
-    public AnalyzeTokenList analyzer() {
-        return this.analyzer;
+    public DetailAnalyzeResponse(StreamInput in) throws IOException {
+        this.customAnalyzer = in.readBoolean();
+        if (customAnalyzer) {
+            tokenizer = new AnalyzeTokenList(in);
+            int size = in.readVInt();
+            if (size > 0) {
+                charfilters = new CharFilteredText[size];
+                for (int i = 0; i < size; i++) {
+                    charfilters[i] = new CharFilteredText(in);
+                }
+            }
+            else {
+                charfilters = null;
+            }
+            size = in.readVInt();
+            if (size > 0) {
+                tokenfilters = new AnalyzeTokenList[size];
+                for (int i = 0; i < size; i++) {
+                    tokenfilters[i] = new AnalyzeTokenList(in);
+                }
+            }
+            else {
+                tokenfilters = null;
+            }
+            analyzer = null;
+        } else {
+            analyzer = new AnalyzeTokenList(in);
+            tokenfilters = null;
+            tokenizer = null;
+            charfilters = null;
+        }
     }
 
-    public DetailAnalyzeResponse analyzer(AnalyzeTokenList analyzer) {
-        this.customAnalyzer = false;
-        this.analyzer = analyzer;
-        return this;
+    public AnalyzeTokenList analyzer() {
+        return this.analyzer;
     }
 
     public CharFilteredText[] charfilters() {
         return this.charfilters;
     }
 
-    public DetailAnalyzeResponse charfilters(CharFilteredText[] charfilters) {
-        this.customAnalyzer = true;
-        this.charfilters = charfilters;
-        return this;
-    }
-
     public AnalyzeTokenList tokenizer() {
         return tokenizer;
     }
 
-    public DetailAnalyzeResponse tokenizer(AnalyzeTokenList tokenizer) {
-        this.customAnalyzer = true;
-        this.tokenizer = tokenizer;
-        return this;
-    }
-
     public AnalyzeTokenList[] tokenfilters() {
         return tokenfilters;
-    }
-
-    public DetailAnalyzeResponse tokenfilters(AnalyzeTokenList[] tokenfilters) {
-        this.customAnalyzer = true;
-        this.tokenfilters = tokenfilters;
-        return this;
     }
 
     @Override
@@ -202,30 +208,6 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.customAnalyzer = in.readBoolean();
-        if (customAnalyzer) {
-            tokenizer = AnalyzeTokenList.readAnalyzeTokenList(in);
-            int size = in.readVInt();
-            if (size > 0) {
-                charfilters = new CharFilteredText[size];
-                for (int i = 0; i < size; i++) {
-                    charfilters[i] = CharFilteredText.readCharFilteredText(in);
-                }
-            }
-            size = in.readVInt();
-            if (size > 0) {
-                tokenfilters = new AnalyzeTokenList[size];
-                for (int i = 0; i < size; i++) {
-                    tokenfilters[i] = AnalyzeTokenList.readAnalyzeTokenList(in);
-                }
-            }
-        } else {
-            analyzer = AnalyzeTokenList.readAnalyzeTokenList(in);
-        }
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(customAnalyzer);
         if (customAnalyzer) {
@@ -251,9 +233,9 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         }
     }
 
-    public static class AnalyzeTokenList implements Streamable, ToXContentObject {
-        private String name;
-        private AnalyzeResponse.AnalyzeToken[] tokens;
+    public static class AnalyzeTokenList implements Writeable, ToXContentObject {
+        private final String name;
+        private final AnalyzeResponse.AnalyzeToken[] tokens;
 
         @Override
         public boolean equals(Object o) {
@@ -271,12 +253,23 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
             return result;
         }
 
-        AnalyzeTokenList() {
-        }
-
         public AnalyzeTokenList(String name, AnalyzeResponse.AnalyzeToken[] tokens) {
             this.name = name;
             this.tokens = tokens;
+        }
+
+        public AnalyzeTokenList(StreamInput in) throws IOException {
+            name = in.readString();
+            int size = in.readVInt();
+            if (size > 0) {
+                tokens = new AnalyzeResponse.AnalyzeToken[size];
+                for (int i = 0; i < size; i++) {
+                    tokens[i] = new AnalyzeResponse.AnalyzeToken(in);
+                }
+            }
+            else {
+                tokens = null;
+            }
         }
 
         public String getName() {
@@ -285,12 +278,6 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
 
         public AnalyzeResponse.AnalyzeToken[] getTokens() {
             return tokens;
-        }
-
-        public static AnalyzeTokenList readAnalyzeTokenList(StreamInput in) throws IOException {
-            AnalyzeTokenList list = new AnalyzeTokenList();
-            list.readFrom(in);
-            return list;
         }
 
         XContentBuilder toXContentWithoutObject(XContentBuilder builder, Params params) throws IOException {
@@ -328,18 +315,6 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            name = in.readString();
-            int size = in.readVInt();
-            if (size > 0) {
-                tokens = new AnalyzeResponse.AnalyzeToken[size];
-                for (int i = 0; i < size; i++) {
-                    tokens[i] = AnalyzeResponse.AnalyzeToken.readAnalyzeToken(in);
-                }
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             if (tokens != null) {
@@ -353,12 +328,9 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
         }
     }
 
-    public static class CharFilteredText implements Streamable, ToXContentObject {
-        private String name;
-        private String[] texts;
-
-        CharFilteredText() {
-        }
+    public static class CharFilteredText implements Writeable, ToXContentObject {
+        private final String name;
+        private final String[] texts;
 
         public CharFilteredText(String name, String[] texts) {
             this.name = name;
@@ -367,6 +339,11 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
             } else {
                 this.texts = Strings.EMPTY_ARRAY;
             }
+        }
+
+        public CharFilteredText(StreamInput in) throws IOException {
+            name = in.readString();
+            texts = in.readStringArray();
         }
 
         public String getName() {
@@ -396,18 +373,6 @@ public class DetailAnalyzeResponse implements Streamable, ToXContentFragment {
 
         public static CharFilteredText fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
-        }
-
-        public static CharFilteredText readCharFilteredText(StreamInput in) throws IOException {
-            CharFilteredText text = new CharFilteredText();
-            text.readFrom(in);
-            return text;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            name = in.readString();
-            texts = in.readStringArray();
         }
 
         @Override

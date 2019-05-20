@@ -170,7 +170,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
                         ElasticsearchException.generateFailureXContent(builder, params, exception, true);
                         builder.endObject();
                     } else {
-                        builder.startObject("shards");
+                        builder.startObject("failedShards");
                         for (ShardResult shard : shards) {
                             if (shard.hasFailures()) {
                                 shard.toXContent(builder, params);

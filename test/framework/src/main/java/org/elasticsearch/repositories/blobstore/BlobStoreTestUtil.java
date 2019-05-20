@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -38,9 +40,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -53,10 +53,14 @@ public final class BlobStoreTestUtil {
     /**
      * Assert that there are no unreferenced indices or unreferenced root-level metadata blobs in any repository.
      * TODO: Expand the logic here to also check for unreferenced segment blobs and shard level metadata
+     * @param repository BlobStoreRepository to check
+     * @param executor Executor to run all repository calls on. This is needed since the production {@link BlobStoreRepository}
+     *                 implementations assert that all IO inducing calls happen on the generic or snapshot thread-pools and hence callers
+     *                 of this assertion must pass an executor on those when using such an implementation.
      */
-    public static void assertConsistency(BlobStoreRepository repository, Executor executor) throws InterruptedException {
-        final CountDownLatch latch = new CountDownLatch(1);
-        executor.execute(new AbstractRunnable() {
+    public static void assertConsistency(BlobStoreRepository repository, Executor executor) {
+        final PlainActionFuture<Void> listener = PlainActionFuture.newFuture();
+        executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() throws Exception {
                 final BlobContainer blobContainer = repository.blobContainer();
@@ -79,19 +83,10 @@ public final class BlobStoreTestUtil {
                 }
                 assertIndexUUIDs(blobContainer, repositoryData);
                 assertSnapshotUUIDs(blobContainer, repositoryData);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-
-            @Override
-            public void onAfter() {
-                latch.countDown();
+                listener.onResponse(null);
             }
         });
-        assertTrue(latch.await(1L, TimeUnit.MINUTES));
+        listener.actionGet(TimeValue.timeValueMinutes(1L));
     }
 
     private static void assertIndexGenerations(BlobContainer repoRoot, long latestGen) throws IOException {

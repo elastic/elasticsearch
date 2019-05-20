@@ -208,7 +208,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     @After
-    public void verifyReposThenStopServices() throws InterruptedException {
+    public void verifyReposThenStopServices() {
         try {
             BlobStoreTestUtil.assertConsistency(
                 (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo"),

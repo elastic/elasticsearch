@@ -26,7 +26,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -54,7 +54,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:
@@ -107,7 +107,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:
@@ -160,7 +160,7 @@ setup:
             page_size: 10
             groups :
               date_histogram:
-                interval: "1h"
+                calendar_interval: "1h"
                 field: "the_field"
                 time_zone: "UTC"
             metrics:

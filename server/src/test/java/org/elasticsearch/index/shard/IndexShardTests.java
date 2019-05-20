@@ -669,7 +669,7 @@ public class IndexShardTests extends IndexShardTestCase {
             isPrimaryMode = true;
         }
         assert indexShard.getReplicationTracker().isPrimaryMode() == isPrimaryMode;
-        final long primaryTerm = indexShard.getPendingPrimaryTerm();
+        final long pendingPrimaryTerm = indexShard.getPendingPrimaryTerm();
         if (isPrimaryMode) {
             Releasable operation1 = acquirePrimaryOperationPermitBlockingly(indexShard);
             assertEquals(1, indexShard.getActiveOperationsCount());
@@ -715,7 +715,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         if (Assertions.ENABLED && indexShard.routingEntry().isRelocationTarget() == false) {
-            assertThat(expectThrows(AssertionError.class, () -> indexShard.acquireReplicaOperationPermit(primaryTerm,
+            assertThat(expectThrows(AssertionError.class, () -> indexShard.acquireReplicaOperationPermit(pendingPrimaryTerm,
                 indexShard.getGlobalCheckpoint(), indexShard.getMaxSeqNoOfUpdatesOrDeletes(), new ActionListener<Releasable>() {
                     @Override
                     public void onResponse(Releasable releasable) {

@@ -36,25 +36,20 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
@@ -80,11 +75,6 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
                 new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB));
         return super.indexSettings();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockTransportService.TestPlugin.class)).collect(Collectors.toList());
     }
 
     public void testCloseMissingIndex() {
@@ -433,9 +423,9 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
     }
 
-    public void testSyncGlobalCheckpointClosedIndices() throws Exception {
+    public void testResyncPropagatePrimaryTerm() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
-        final String indexName = "resync_closed_indices";
+        final String indexName = "closed_indices_promotion";
         createIndex(indexName, Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
@@ -446,22 +436,16 @@ public class CloseIndexIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareClose(indexName));
         assertIndexIsClosed(indexName);
         ensureGreen(indexName);
-        ShardRouting primary = clusterService().state().routingTable().index(indexName).shard(0).primaryShard();
-        AtomicBoolean requestSent = new AtomicBoolean();
-        for (DiscoveryNode node : clusterService().state().nodes()) {
-            MockTransportService transportService =
-                (MockTransportService) internalCluster().getInstance(TransportService.class, node.getName());
-            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.startsWith(GlobalCheckpointSyncAction.ACTION_NAME)) {
-                    requestSent.set(true);
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-        }
-        internalCluster().restartNode(clusterService().state().nodes().get(primary.currentNodeId()).getName(),
-            new InternalTestCluster.RestartCallback());
+        String nodeWithPrimary = clusterService().state().nodes().get(clusterService().state()
+            .routingTable().index(indexName).shard(0).primaryShard().currentNodeId()).getName();
+        internalCluster().restartNode(nodeWithPrimary, new InternalTestCluster.RestartCallback());
         ensureGreen(indexName);
-        assertTrue(requestSent.get());
+        long primaryTerm = clusterService().state().metaData().index(indexName).primaryTerm(0);
+        for (String nodeName : internalCluster().nodesInclude(indexName)) {
+            IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
+                .indexService(resolveIndex(indexName)).getShard(0);
+            assertThat(shard.routingEntry().toString(), shard.getOperationPrimaryTerm(), equalTo(primaryTerm));
+        }
     }
 
     static void assertIndexIsClosed(final String... indices) {

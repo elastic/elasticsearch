@@ -94,7 +94,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertTrue(deserializedRequest.isFinalReduce());
         } else {
             assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
-            assertEquals(searchRequest.getOrCreateAbsoluteStartMillis(), deserializedRequest.getOrCreateAbsoluteStartMillis());
+            assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
             assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
         }
     }

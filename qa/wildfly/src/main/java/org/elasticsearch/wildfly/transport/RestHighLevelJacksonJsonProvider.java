@@ -24,5 +24,5 @@ import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 import javax.ws.rs.ext.Provider;
 
 @Provider
-public class TransportJacksonJsonProvider extends ResteasyJackson2Provider {
+public class RestHighLevelJacksonJsonProvider extends ResteasyJackson2Provider {
 }

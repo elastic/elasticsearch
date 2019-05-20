@@ -94,7 +94,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public static final Set<String> HEADER_FILTERS = new HashSet<>(
             Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
-    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    private static final Logger logger = LogManager.getLogger(DataFrame.class);
 
     private final boolean enabled;
     private final Settings settings;

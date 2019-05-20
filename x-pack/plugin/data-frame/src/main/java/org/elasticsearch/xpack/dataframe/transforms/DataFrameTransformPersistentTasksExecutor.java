@@ -106,8 +106,6 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     protected void nodeOperation(AllocatedPersistentTask task, @Nullable DataFrameTransform params, PersistentTaskState state) {
         final String transformId = params.getId();
         final DataFrameTransformTask buildTask = (DataFrameTransformTask) task;
-        final SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(DataFrameTransformTask.SCHEDULE_NAME + "_" + transformId,
-            next());
         final DataFrameTransformState transformState = (DataFrameTransformState) state;
 
         final DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder =
@@ -137,7 +135,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
             stats -> {
                 indexerBuilder.setInitialStats(stats);
                 buildTask.initializeIndexer(indexerBuilder);
-                scheduleAndStartTask(buildTask, schedulerJob, startTaskListener);
+                startTask(buildTask, startTaskListener);
             },
             error -> {
                 if (error instanceof ResourceNotFoundException == false) {
@@ -145,7 +143,7 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                 }
                 indexerBuilder.setInitialStats(new DataFrameIndexerTransformStats(transformId));
                 buildTask.initializeIndexer(indexerBuilder);
-                scheduleAndStartTask(buildTask, schedulerJob, startTaskListener);
+                startTask(buildTask, startTaskListener);
             }
         );
 
@@ -218,28 +216,18 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
         }
     }
 
-    private void scheduleAndStartTask(DataFrameTransformTask buildTask,
-                                      SchedulerEngine.Job schedulerJob,
-                                      ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
-        // Note that while the task is added to the scheduler here, the internal state will prevent
-        // it from doing any work until the task is "started" via the StartTransform api
-        schedulerEngine.register(buildTask);
-        schedulerEngine.add(schedulerJob);
-        logger.info("Data frame transform [{}] created.", buildTask.getTransformId());
+    private void startTask(DataFrameTransformTask buildTask,
+                           ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         // If we are stopped, and it is an initial run, this means we have never been started,
         // attempt to start the task
         if (buildTask.getState().getTaskState().equals(DataFrameTransformTaskState.STOPPED) && buildTask.isInitialRun()) {
+            logger.info("Data frame transform [{}] created.", buildTask.getTransformId());
             buildTask.start(listener);
+
         } else {
             logger.debug("No need to start task. Its current state is: {}", buildTask.getState().getIndexerState());
             listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));
         }
-    }
-
-    static SchedulerEngine.Schedule next() {
-        return (startTime, now) -> {
-            return now + 1000; // to be fixed, hardcode something
-        };
     }
 
     @Override

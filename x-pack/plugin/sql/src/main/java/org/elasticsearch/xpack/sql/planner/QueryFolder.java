@@ -149,7 +149,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         new AttributeMap<>(processors),
                         queryC.sort(),
                         queryC.limit(),
-                        queryC.shouldTrackHits());
+                        queryC.shouldTrackHits(),
+                        queryC.shouldIncludeFrozen());
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
             return project;
@@ -178,7 +179,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         qContainer.scalarFunctions(),
                         qContainer.sort(),
                         qContainer.limit(),
-                        qContainer.shouldTrackHits());
+                        qContainer.shouldTrackHits(),
+                        qContainer.shouldIncludeFrozen());
 
                 return exec.with(qContainer);
             }

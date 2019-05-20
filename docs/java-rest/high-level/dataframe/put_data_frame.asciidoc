@@ -66,6 +66,11 @@ Defines the pivot function `group by` fields and the aggregation to reduce the d
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-pivot-config]
 --------------------------------------------------
+<1> The `GroupConfig` to use in the pivot
+<2> The aggregations to use
+<3> The maximum paging size for the transform when pulling data
+from the source. The size dynamically adjusts as the transform
+is running to recover from and prevent OOM issues.
 
 ===== GroupConfig
 The grouping terms. Defines the group by and destination fields

@@ -235,7 +235,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
 
         logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, "test-snap")
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).setIndices(indicesToSnapshot).get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
@@ -271,7 +271,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();
 
         logger.info("--> restore all indices from the snapshot");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot(repoName, "test-snap")
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap")
             .setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
@@ -296,7 +296,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> delete indices");
         cluster().wipeIndices("test-idx-1", "test-idx-2");
         logger.info("--> restore one index after deletion");
-        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot(repoName, "test-snap").setWaitForCompletion(true)
+        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true)
             .setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
@@ -322,7 +322,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             // Finish flush
             flushResponseFuture.actionGet();
         }
-        assertRepoConsistency(repoName);
+        assertRepoConsistency("test-repo");
     }
 
     public void testSingleGetAfterRestore() throws Exception {

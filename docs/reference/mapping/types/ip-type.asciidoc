@@ -10,8 +10,15 @@ type:
 [cols="<,<",options="header",]
 |=======================================================================
 |Attribute |Description
-|`index_name` |deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that will be stored in the index.
-Defaults to the property/field name.
+|`index_name` |
+ifdef::asciidoctor[]
+deprecated[1.5.0,"Use <<copy-to,`copy_to`>> instead"] The name of the field that
+will be stored in the index. Defaults to the property/field name.
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.5.0,Use <<copy-to,`copy_to`>> instead] The name of the field that
+will be stored in the index. Defaults to the property/field name.
+endif::[]
 
 |`store` |Set to `true` to store actual field in the index, `false` to not
 store it. Defaults to `false` (note, the JSON document itself is stored,

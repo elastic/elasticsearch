@@ -7,8 +7,8 @@
 process so upgrading does not interrupt service. Rolling upgrades are supported:
 
 * Between minor versions
-* From 5.6 to 6.7
-* From 6.7 to {version}
+* From 5.6 to 6.8
+* From 6.8 to {version}
 
 {es} can read indices created in the previous major version. If you
 have indices created in 5.x or before, you must reindex or delete them
@@ -21,7 +21,7 @@ When upgrading to a new version of {es}, you need to upgrade each
 of the products in your Elastic Stack. For more information, see the
 {stack-ref}/upgrading-elastic-stack.html[Elastic Stack Installation and Upgrade Guide].
 
-To upgrade directly to {version} from 6.6 or earlier, you must shut down the
+To upgrade directly to {version} from 6.7 or earlier, you must shut down the
 cluster, install {version}, and restart. For more information, see
 <<restart-upgrade, Full cluster restart upgrade>>.
 

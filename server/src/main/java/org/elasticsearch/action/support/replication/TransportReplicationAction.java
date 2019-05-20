@@ -307,10 +307,18 @@ public abstract class TransportReplicationAction<
                     primaryRequest.getTargetAllocationID(), primaryRequest.getPrimaryTerm(), actualTerm);
             }
 
-            acquirePrimaryOperationPermit(indexShard, primaryRequest.getRequest(), ActionListener.wrap(
-                releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
-                this::onFailure
-            ));
+            acquirePrimaryOperationPermit(
+                    indexShard,
+                    primaryRequest.getRequest(),
+                    ActionListener.wrap(
+                            releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)),
+                            e -> {
+                                if (e instanceof IllegalStateException && e.getMessage().equals("shard is not in primary mode")) {
+                                    onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
+                                } else {
+                                    onFailure(e);
+                                }
+                            }));
         }
 
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {

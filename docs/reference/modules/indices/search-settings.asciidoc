@@ -3,6 +3,7 @@
 
 The following _expert_ setting can be set to manage global search limits.
 
+[[indices-query-bool-max-clause-count]]
 `indices.query.bool.max_clause_count`::
     Defaults to `1024`.
 

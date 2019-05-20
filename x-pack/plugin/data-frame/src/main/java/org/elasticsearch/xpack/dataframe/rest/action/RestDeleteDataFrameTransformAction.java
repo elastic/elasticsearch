@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.action.DeleteDataFrameTransformAction;
 
@@ -33,7 +34,7 @@ public class RestDeleteDataFrameTransformAction extends BaseRestHandler {
         DeleteDataFrameTransformAction.Request request = new DeleteDataFrameTransformAction.Request(id);
 
         return channel -> client.execute(DeleteDataFrameTransformAction.INSTANCE, request,
-                new BaseTasksResponseToXContentListener<>(channel));
+                new RestToXContentListener<>(channel));
     }
 
     @Override

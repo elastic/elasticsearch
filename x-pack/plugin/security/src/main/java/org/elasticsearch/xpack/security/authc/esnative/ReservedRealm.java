@@ -241,7 +241,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             case RemoteMonitoringUser.NAME:
                 return RemoteMonitoringUser.DEFINED_SINCE;
             default:
-                return Version.V_6_0_0;
+                return Version.CURRENT.minimumIndexCompatibilityVersion();
         }
     }
 

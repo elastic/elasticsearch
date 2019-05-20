@@ -18,7 +18,7 @@ both rolling upgrades and upgrades with full cluster restarts.
 To determine whether a rolling upgrade is supported for your release, please
 consult this table:
 
-[cols="1<m,1<m,3",options="header",]
+[cols="<1m,<1m,3",options="header",]
 |=======================================================================
 |Upgrade From   |Upgrade To     |Supported Upgrade Type
 |0.90.x         |2.x            |<<restart-upgrade,Full cluster restart>>

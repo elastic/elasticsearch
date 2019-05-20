@@ -10,6 +10,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -44,6 +45,10 @@ public class EnrichIT extends ESRestTestCase {
         putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-index*\"], \"enrich_key\": \"host\", " +
             "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"], \"schedule\": \"0 5 * * *\"}");
         assertOK(client().performRequest(putPolicyRequest));
+
+        // create index (remove when execute policy api has been added)
+        String mapping = "\"_meta\": {\"enrich_key_field\": \"host\"}";
+        createIndex(".enrich-my_policy", Settings.EMPTY, mapping);
 
         // Add a single enrich document for now and then refresh:
         Request indexRequest = new Request("PUT", "/.enrich-my_policy/_doc/elastic.co");

@@ -47,6 +47,8 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
+import static org.elasticsearch.xpack.enrich.ExactMatchProcessor.ENRICH_KEY_FIELD_NAME;
+
 public class EnrichPolicyRunner implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(EnrichPolicyRunner.class);
@@ -147,6 +149,9 @@ public class EnrichPolicyRunner implements Runnable {
                             .field("doc_values", false)
                         .endObject()
                     .endObject()
+                    .startObject("_meta")
+                        .field(ENRICH_KEY_FIELD_NAME, policy.getEnrichKey())
+                    .endObject()
                 .endObject()
             .endObject();
 
@@ -158,7 +163,7 @@ public class EnrichPolicyRunner implements Runnable {
 
     private void prepareAndCreateEnrichIndex() {
         long nowTimestamp = nowSupplier.getAsLong();
-        String enrichIndexName = policy.getBaseName(policyName) + "-" + nowTimestamp;
+        String enrichIndexName = EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
         Settings enrichIndexSettings = Settings.builder()
             .put("index.auto_expand_replicas", "0-all")
             .build();
@@ -248,7 +253,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void updateEnrichPolicyAlias(final String destinationIndexName) {
-        String enrichIndexBase = policy.getBaseName(policyName);
+        String enrichIndexBase = EnrichPolicy.getBaseName(policyName);
         logger.debug("Policy [{}]: Promoting new enrich index [{}] to alias [{}]", policyName, destinationIndexName, enrichIndexBase);
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterService.state(), aliasRequest);

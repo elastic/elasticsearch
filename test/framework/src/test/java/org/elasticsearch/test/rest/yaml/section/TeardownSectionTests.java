@@ -75,8 +75,8 @@ public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTe
         TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(false));
-        assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.V_6_0_0));
-        assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.V_6_3_0));
+        assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
+        assertThat(section.getSkipSection().getUpperVersion(), equalTo(Version.fromString("6.3.0")));
         assertThat(section.getSkipSection().getReason(), equalTo("there is a reason"));
         assertThat(section.getDoSections().size(), equalTo(2));
         assertThat(((DoSection)section.getDoSections().get(0)).getApiCallSection().getApi(), equalTo("delete"));

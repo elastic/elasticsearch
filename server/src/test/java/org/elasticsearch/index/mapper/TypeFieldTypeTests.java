@@ -67,7 +67,7 @@ public class TypeFieldTypeTests extends FieldTypeTestCase {
 
         Mockito.when(mapperService.hasNested()).thenReturn(true);
         query = ft.termQuery("my_type", context);
-        assertEquals(Queries.newNonNestedFilter(context.indexVersionCreated()), query);
+        assertEquals(Queries.newNonNestedFilter(), query);
 
         mapper = Mockito.mock(DocumentMapper.class);
         Mockito.when(mapper.type()).thenReturn("other_type");

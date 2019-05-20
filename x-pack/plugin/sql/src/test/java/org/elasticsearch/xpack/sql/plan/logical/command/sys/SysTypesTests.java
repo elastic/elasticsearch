@@ -48,7 +48,7 @@ public class SysTypesTests extends ESTestCase {
                 "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
                 "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
                 "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
-                "UNSUPPORTED", "OBJECT", "NESTED");
+                "GEO_SHAPE", "GEO_POINT", "UNSUPPORTED", "OBJECT", "NESTED");
 
         cmd.execute(null, wrap(r -> {
             assertEquals(19, r.columnCount());

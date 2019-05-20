@@ -476,7 +476,7 @@ formats:
         A postings format that uses disk-based storage but loads
         its terms and postings directly into memory. Note this postings format
         is very memory intensive and has certain limitation that don't allow
-        segments to grow beyond 2.1GB see \{@link DirectPostingsFormat} for
+        segments to grow beyond 2.1GB. See <<direct-postings, Direct postings format>> for
         details. 
 
 `memory`:: 

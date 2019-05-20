@@ -41,7 +41,6 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -67,7 +66,7 @@ final class ShardSplittingQuery extends Query {
     ShardSplittingQuery(IndexMetaData indexMetaData, int shardId, boolean hasNested) {
         this.indexMetaData = indexMetaData;
         this.shardId = shardId;
-        this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer(indexMetaData.getCreationVersion()) : null;
+        this.nestedParentBitSetProducer =  hasNested ? newParentDocBitSetProducer() : null;
     }
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) {
@@ -339,9 +338,9 @@ final class ShardSplittingQuery extends Query {
      * than once. There is no point in using BitsetFilterCache#BitSetProducerWarmer since we use this only as a delete by query which is
      * executed on a recovery-private index writer. There is no point in caching it and it won't have a cache hit either.
      */
-    private static BitSetProducer newParentDocBitSetProducer(Version indexVersionCreated) {
+    private static BitSetProducer newParentDocBitSetProducer() {
         return context -> {
-                Query query = Queries.newNonNestedFilter(indexVersionCreated);
+                Query query = Queries.newNonNestedFilter();
                 final IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
                 final IndexSearcher searcher = new IndexSearcher(topLevelContext);
                 searcher.setQueryCache(null);

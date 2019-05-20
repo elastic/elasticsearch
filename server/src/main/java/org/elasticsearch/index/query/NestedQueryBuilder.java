@@ -281,7 +281,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
-            parentFilter = context.bitsetFilter(Queries.newNonNestedFilter(context.indexVersionCreated()));
+            parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         } else {
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
         }
@@ -388,7 +388,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 SearchHit hit = hits[i];
                 Query rawParentFilter;
                 if (parentObjectMapper == null) {
-                    rawParentFilter = Queries.newNonNestedFilter(context.indexShard().indexSettings().getIndexVersionCreated());
+                    rawParentFilter = Queries.newNonNestedFilter();
                 } else {
                     rawParentFilter = parentObjectMapper.nestedTypeFilter();
                 }

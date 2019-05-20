@@ -3582,7 +3582,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertRepoConsistency("test-repo");
     }
 
-    public void testSnapshottingWithMissingSequenceNumbers() throws InterruptedException {
+    public void testSnapshottingWithMissingSequenceNumbers() {
         final String repositoryName = "test-repo";
         final String snapshotName = "test-snap";
         final String indexName = "test-idx";
@@ -3655,7 +3655,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertRepoConsistency("test-repo");
     }
 
-    public void testParallelRestoreOperations() throws InterruptedException {
+    public void testParallelRestoreOperations() {
         String indexName1 = "testindex1";
         String indexName2 = "testindex2";
         String repoName = "test-restore-snapshot-repo";
@@ -3849,7 +3849,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertRepoConsistency("repository");
     }
 
-    public void testRestoreIncreasesPrimaryTerms() throws InterruptedException {
+    public void testRestoreIncreasesPrimaryTerms() {
         final String indexName = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
             .put(SETTING_NUMBER_OF_SHARDS, 2)
@@ -3913,7 +3913,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         }
     }
 
-    private static void assertRepoConsistency(String repoName) throws InterruptedException {
+    private static void assertRepoConsistency(String repoName) {
         final BlobStoreRepository repo =
             (BlobStoreRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));

@@ -72,7 +72,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             Collections.singletonMap("itemValue", 12));
     private static final Script COMBINE_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptParams",
             Collections.singletonMap("divisor", 4));
-    private static final Script REDUCE_SCRIPT_AGG_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "reduceScriptAggParams",
+    private static final Script REDUCE_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "reduceScriptParams",
             Collections.singletonMap("additional", 2));
     private static final String CONFLICTING_PARAM_NAME = "initialValue";
 
@@ -305,7 +305,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 ScriptedMetricAggregationBuilder aggregationBuilder = new ScriptedMetricAggregationBuilder(AGG_NAME);
                 aggregationBuilder.params(Collections.singletonMap("aggs_param", 1))
                         .initScript(INIT_SCRIPT_PARAMS).mapScript(MAP_SCRIPT_PARAMS)
-                        .combineScript(COMBINE_SCRIPT_PARAMS).reduceScript(REDUCE_SCRIPT_AGG_PARAMS);
+                        .combineScript(COMBINE_SCRIPT_PARAMS).reduceScript(REDUCE_SCRIPT_PARAMS);
                 ScriptedMetric scriptedMetric = searchAndReduce(
                         newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder, 0, scriptService);
 

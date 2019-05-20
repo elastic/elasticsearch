@@ -63,7 +63,8 @@ class JdbcHttpClient {
                 Boolean.FALSE,
                 null,
                 new RequestInfo(Mode.JDBC),
-                conCfg.fieldMultiValueLeniency());
+                conCfg.fieldMultiValueLeniency(),
+                conCfg.indexIncludeFrozen());
         SqlQueryResponse response = httpClient.query(sqlRequest);
         return new DefaultCursor(this, response.cursor(), toJdbcColumnInfo(response.columns()), response.rows(), meta);
     }

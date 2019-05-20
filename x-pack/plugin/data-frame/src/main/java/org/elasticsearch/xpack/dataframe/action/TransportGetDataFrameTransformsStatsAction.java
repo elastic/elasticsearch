@@ -124,6 +124,7 @@ public class TransportGetDataFrameTransformsStatsAction extends
         dataFrameTransformsConfigManager.expandTransformIds(request.getId(), request.getPageParams(), ActionListener.wrap(
             ids -> {
                 request.setExpandedIds(ids);
+                request.setNodes(DataFrameNodes.dataFrameTaskNodes(ids, clusterService.state()));
                 super.doExecute(task, request, ActionListener.wrap(
                     response -> collectStatsForTransformsWithoutTasks(request, response, finalListener),
                     finalListener::onFailure
@@ -131,7 +132,6 @@ public class TransportGetDataFrameTransformsStatsAction extends
             },
             e -> {
                 // If the index to search, or the individual config is not there, just return empty
-                logger.error("failed to expand ids", e);
                 if (e instanceof ResourceNotFoundException) {
                     finalListener.onResponse(new Response(Collections.emptyList()));
                 } else {

@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.indexlifecycle.DeleteAction;
@@ -223,7 +224,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     // otherwise a rolling upgrade would not work as expected, when the node has a .watches shard on it
     public void testThatTemplatesAreAppliedOnNewerNodes() {
         DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(), Version.V_6_0_0);
+        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(),
+            VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT));
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(Arrays.asList(WatcherIndexTemplateRegistryField.TRIGGERED_TEMPLATE_NAME,

@@ -37,7 +37,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.loadDocIdAndVersion;
@@ -189,15 +188,8 @@ public class VersionsTests extends ESTestCase {
     }
 
     public void testLuceneVersionOnUnknownVersions() {
-        List<Version> allVersions = VersionUtils.allVersions();
-
-        // should have the same Lucene version as the latest 6.x version
-        Version version = Version.fromString("6.88.50");
-        assertEquals(allVersions.get(Collections.binarySearch(allVersions, Version.V_7_0_0) - 1).luceneVersion,
-                version.luceneVersion);
-
         // between two known versions, should use the lucene version of the previous version
-        version = VersionUtils.getPreviousVersion(Version.CURRENT);
+        Version version = VersionUtils.getPreviousVersion(Version.CURRENT);
         assertEquals(Version.fromId(version.id + 100).luceneVersion, version.luceneVersion);
 
         // too old version, major should be the oldest supported lucene version minus 1

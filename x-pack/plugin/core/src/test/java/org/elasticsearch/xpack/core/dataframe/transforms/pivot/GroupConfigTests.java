@@ -29,7 +29,7 @@ import java.util.Set;
 public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
     // array of illegal characters, see {@link AggregatorFactories#VALID_AGG_NAME}
-    private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = {'^', '[', ']', '>'};
+    private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = {'[', ']', '>'};
 
     public static GroupConfig randomGroupConfig() {
         Map<String, Object> source = new LinkedHashMap<>();

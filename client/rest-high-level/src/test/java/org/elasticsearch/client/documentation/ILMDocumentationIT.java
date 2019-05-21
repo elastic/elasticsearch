@@ -60,6 +60,7 @@ import org.elasticsearch.client.snapshotlifecycle.ExecuteSnapshotLifecyclePolicy
 import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyRequest;
 import org.elasticsearch.client.snapshotlifecycle.GetSnapshotLifecyclePolicyResponse;
 import org.elasticsearch.client.snapshotlifecycle.PutSnapshotLifecyclePolicyRequest;
+import org.elasticsearch.client.snapshotlifecycle.SnapshotInvocationRecord;
 import org.elasticsearch.client.snapshotlifecycle.SnapshotLifecyclePolicy;
 import org.elasticsearch.client.snapshotlifecycle.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -768,36 +769,203 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             client.snapshot().createRepository(repoRequest, RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
 
+        //////// PUT
+        // tag::slm-put-snapshot-lifecycle-policy
         Map<String, Object> config = new HashMap<>();
         config.put("indices", Collections.singletonList("idx"));
-        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy("id", "name", "1 2 3 * * ?", "my_repository", config);
+        SnapshotLifecyclePolicy policy = new SnapshotLifecyclePolicy(
+            "policy_id", "name", "1 2 3 * * ?", "my_repository", config);
+        PutSnapshotLifecyclePolicyRequest request =
+            new PutSnapshotLifecyclePolicyRequest(policy);
+        // end::slm-put-snapshot-lifecycle-policy
 
-        PutSnapshotLifecyclePolicyRequest request = new PutSnapshotLifecyclePolicyRequest(policy);
-        AcknowledgedResponse resp = client.indexLifecycle().putSnapshotLifecyclePolicy(request, RequestOptions.DEFAULT);
+        // tag::slm-put-snapshot-lifecycle-policy-execute
+        AcknowledgedResponse resp = client.indexLifecycle()
+            .putSnapshotLifecyclePolicy(request, RequestOptions.DEFAULT);
+        // end::slm-put-snapshot-lifecycle-policy-execute
         assertTrue(resp.isAcknowledged());
 
-        GetSnapshotLifecyclePolicyRequest getRequest = new GetSnapshotLifecyclePolicyRequest("id");
+        // tag::slm-put-snapshot-lifecycle-policy-execute-listener
+        ActionListener<AcknowledgedResponse> putListener =
+                new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse resp) {
+                boolean acknowledged = resp.isAcknowledged(); // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::slm-put-snapshot-lifecycle-policy-execute-listener
+
+        // tag::slm-put-snapshot-lifecycle-policy-execute-async
+        client.indexLifecycle().putSnapshotLifecyclePolicyAsync(request,
+            RequestOptions.DEFAULT, putListener);
+        // end::slm-put-snapshot-lifecycle-policy-execute-async
+
+        //////// GET
+        // tag::slm-get-snapshot-lifecycle-policy
+        GetSnapshotLifecyclePolicyRequest getAllRequest =
+            new GetSnapshotLifecyclePolicyRequest(); // <1>
+        GetSnapshotLifecyclePolicyRequest getRequest =
+            new GetSnapshotLifecyclePolicyRequest("policy_id"); // <2>
+        // end::slm-get-snapshot-lifecycle-policy
+
+        // tag::slm-get-snapshot-lifecycle-policy-execute
         GetSnapshotLifecyclePolicyResponse getResponse =
-            client.indexLifecycle().getSnapshotLifecyclePolicy(getRequest, RequestOptions.DEFAULT);
+            client.indexLifecycle()
+                .getSnapshotLifecyclePolicy(getRequest,
+                    RequestOptions.DEFAULT);
+        // end::slm-get-snapshot-lifecycle-policy-execute
+
+        // tag::slm-get-snapshot-lifecycle-policy-execute-listener
+        ActionListener<GetSnapshotLifecyclePolicyResponse> getListener =
+                new ActionListener<>() {
+            @Override
+            public void onResponse(GetSnapshotLifecyclePolicyResponse resp) {
+                Map<String, SnapshotLifecyclePolicyMetadata> policies =
+                    resp.getPolicies(); // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::slm-get-snapshot-lifecycle-policy-execute-listener
+
+        // tag::slm-get-snapshot-lifecycle-policy-execute-async
+        client.indexLifecycle().getSnapshotLifecyclePolicyAsync(getRequest,
+            RequestOptions.DEFAULT, getListener);
+        // end::slm-get-snapshot-lifecycle-policy-execute-async
 
         assertThat(getResponse.getPolicies().size(), equalTo(1));
-        SnapshotLifecyclePolicyMetadata policyMeta = getResponse.getPolicies().get("id");
+        // tag::slm-get-snapshot-lifecycle-policy-response
+        SnapshotLifecyclePolicyMetadata policyMeta =
+            getResponse.getPolicies().get("policy_id"); // <1>
+        long policyVersion = policyMeta.getVersion();
+        long policyModificationDate = policyMeta.getModifiedDate();
+        long nextPolicyExecutionDate = policyMeta.getNextExecution();
+        SnapshotInvocationRecord lastSuccess = policyMeta.getLastSuccess();
+        SnapshotInvocationRecord lastFailure = policyMeta.getLastFailure();
+        SnapshotLifecyclePolicy retrievedPolicy = policyMeta.getPolicy(); // <2>
+        String id = retrievedPolicy.getId();
+        String snapshotNameFormat = retrievedPolicy.getName();
+        String repositoryName = retrievedPolicy.getRepository();
+        String schedule = retrievedPolicy.getSchedule();
+        Map<String, Object> snapshotConfiguration = retrievedPolicy.getConfig();
+        // end::slm-get-snapshot-lifecycle-policy-response
+
         assertNotNull(policyMeta);
-        assertThat(policyMeta.getPolicy(), equalTo(policy));
-        assertThat(policyMeta.getVersion(), equalTo(1L));
+        assertThat(retrievedPolicy, equalTo(policy));
+        assertThat(policyVersion, equalTo(1L));
 
         createIndex("idx", Settings.builder().put("index.number_of_shards", 1).build());
 
-        ExecuteSnapshotLifecyclePolicyRequest executeRequest = new ExecuteSnapshotLifecyclePolicyRequest("id");
-        ExecuteSnapshotLifecyclePolicyResponse executeResponse =
-            client.indexLifecycle().executeSnapshotLifecyclePolicy(executeRequest, RequestOptions.DEFAULT);
-        final String snapshotName = executeResponse.getSnapshotName();
+        //////// EXECUTE
+        // tag::slm-execute-snapshot-lifecycle-policy
+        ExecuteSnapshotLifecyclePolicyRequest executeRequest =
+            new ExecuteSnapshotLifecyclePolicyRequest("policy_id");
+        // end::slm-execute-snapshot-lifecycle-policy
 
+        // tag::slm-execute-snapshot-lifecycle-policy-execute
+        ExecuteSnapshotLifecyclePolicyResponse executeResponse =
+            client.indexLifecycle()
+                .executeSnapshotLifecyclePolicy(executeRequest,
+                    RequestOptions.DEFAULT);
+        // end::slm-execute-snapshot-lifecycle-policy-execute
+
+        // tag::slm-execute-snapshot-lifecycle-policy-response
+        final String snapshotName = executeResponse.getSnapshotName();
+        // end::slm-execute-snapshot-lifecycle-policy-response
+
+        assertSnapshotExists(client, "my_repository", snapshotName);
+
+        // tag::slm-execute-snapshot-lifecycle-policy-execute-listener
+        ActionListener<ExecuteSnapshotLifecyclePolicyResponse> executeListener =
+                new ActionListener<>() {
+            @Override
+            public void onResponse(ExecuteSnapshotLifecyclePolicyResponse r) {
+                String snapshotName = r.getSnapshotName(); // <1>
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // <2>
+            }
+        };
+        // end::slm-execute-snapshot-lifecycle-policy-execute-listener
+
+        // We need a listener that will actually wait for the snapshot to be created
+        CountDownLatch latch = new CountDownLatch(1);
+        executeListener =
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ExecuteSnapshotLifecyclePolicyResponse r) {
+                    try {
+                        assertSnapshotExists(client, "my_repository", r.getSnapshotName());
+                    } catch (Exception e) {
+                        // Ignore
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    latch.countDown();
+                    fail("failed to execute slm execute: " + e);
+                }
+        };
+
+        // tag::slm-execute-snapshot-lifecycle-policy-execute-async
+        client.indexLifecycle()
+            .executeSnapshotLifecyclePolicyAsync(executeRequest,
+                RequestOptions.DEFAULT, executeListener);
+        // end::slm-execute-snapshot-lifecycle-policy-execute-async
+        latch.await(5, TimeUnit.SECONDS);
+
+        //////// DELETE
+        // tag::slm-delete-snapshot-lifecycle-policy
+        DeleteSnapshotLifecyclePolicyRequest deleteRequest =
+            new DeleteSnapshotLifecyclePolicyRequest("policy_id");
+        // end::slm-delete-snapshot-lifecycle-policy
+
+        // tag::slm-delete-snapshot-lifecycle-policy-execute
+        AcknowledgedResponse deleteResp = client.indexLifecycle()
+            .deleteSnapshotLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT);
+        // end::slm-delete-snapshot-lifecycle-policy-execute
+        assertTrue(deleteResp.isAcknowledged());
+
+        ActionListener<AcknowledgedResponse> deleteListener = new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse resp) {
+                // no-op
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // no-op
+            }
+        };
+
+        // tag::slm-delete-snapshot-lifecycle-policy-execute-async
+        client.indexLifecycle()
+            .deleteSnapshotLifecyclePolicyAsync(deleteRequest,
+                RequestOptions.DEFAULT, deleteListener);
+        // end::slm-delete-snapshot-lifecycle-policy-execute-async
+
+        assertTrue(deleteResp.isAcknowledged());
+    }
+
+    private void assertSnapshotExists(final RestHighLevelClient client, final String repo, final String snapshotName) throws Exception {
         assertBusy(() -> {
-            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest("my_repository", new String[]{snapshotName});
+            GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest(repo, new String[]{snapshotName});
             final GetSnapshotsResponse snaps;
             try {
-                 snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
+                snaps = client.snapshot().get(getSnapshotsRequest, RequestOptions.DEFAULT);
             } catch (Exception e) {
                 if (e.getMessage().contains("snapshot_missing_exception")) {
                     fail("snapshot does not exist: " + snapshotName);
@@ -815,11 +983,6 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
                 fail("unable to find snapshot; " + snapshotName);
             }
         });
-
-        DeleteSnapshotLifecyclePolicyRequest deleteRequest = new DeleteSnapshotLifecyclePolicyRequest("id");
-        AcknowledgedResponse deleteResp = client.indexLifecycle().deleteSnapshotLifecyclePolicy(deleteRequest, RequestOptions.DEFAULT);
-        assertTrue(deleteResp.isAcknowledged());
-
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {

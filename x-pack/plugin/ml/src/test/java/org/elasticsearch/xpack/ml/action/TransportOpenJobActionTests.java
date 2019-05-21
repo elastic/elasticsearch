@@ -406,11 +406,13 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Map<String, String> nodeAttr = new HashMap<>();
         nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
+            VersionUtils.getPreviousVersion(Version.V_6_4_0));
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), Version.V_6_2_0))
+                        nodeAttr, Collections.emptySet(), version))
                 .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.V_6_3_0))
+                        nodeAttr, Collections.emptySet(), version))
                 .build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
@@ -437,9 +439,9 @@ public class TransportOpenJobActionTests extends ESTestCase {
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), Version.V_6_2_0))
+                        nodeAttr, Collections.emptySet(), Version.fromString("6.2.0")))
                 .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), Version.V_6_4_0))
+                        nodeAttr, Collections.emptySet(), Version.fromString("6.4.0")))
                 .build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();

@@ -366,7 +366,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testTooManyBucketsException() throws IOException {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_2_0, Version.CURRENT);
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         MultiBucketConsumerService.TooManyBucketsException ex =
             serialize(new MultiBucketConsumerService.TooManyBucketsException("Too many buckets", 100), version);
         assertEquals("Too many buckets", ex.getMessage());

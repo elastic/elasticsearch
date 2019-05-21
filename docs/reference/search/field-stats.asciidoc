@@ -3,7 +3,12 @@
 
 experimental[]
 
+ifdef::asciidoctor[]
+deprecated::[5.4.0, "`_field_stats` is deprecated, use `_field_caps` instead or run an min/max aggregation on the desired fields"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[5.4.0, `_field_stats` is deprecated, use `_field_caps` instead or run an min/max aggregation on the desired fields]
+endif::[]
 
 The field stats api allows one to find statistical properties of a field
 without executing a search, but looking up measurements that are natively

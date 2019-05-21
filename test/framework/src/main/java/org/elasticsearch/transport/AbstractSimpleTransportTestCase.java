@@ -1048,8 +1048,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         MockLogAppender appender = new MockLogAppender();
         appender.start();
-        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
         try {
+            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
             final String requestSent = ".*\\[internal:test].*sent to.*\\{TS_B}.*";
             final MockLogAppender.LoggingExpectation requestSentExpectation =
                 new MockLogAppender.PatternSeenEventExpectation(

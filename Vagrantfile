@@ -69,7 +69,7 @@ Vagrant.configure(2) do |config|
       config.vm.box = 'elastic/debian-8-x86_64'
       deb_common config, box, extra: <<-SHELL
         # this sometimes gets a bad ip, and doesn't appear to be needed
-        rm /etc/apt/sources.list.d/http_debian_net_debian.list
+        rm -f /etc/apt/sources.list.d/http_debian_net_debian.list
       SHELL
     end
   end
@@ -256,10 +256,6 @@ def linux_common(config,
     touch /is_vagrant_vm # for consistency between linux and windows
   SHELL
 
-  config.vm.provision 'jdk-11', type: 'shell', inline: <<-SHELL
-    curl -sSL https://download.oracle.com/java/GA/jdk11/9/GPL/openjdk-11.0.2_linux-x64_bin.tar.gz | tar xz -C /opt/
-  SHELL
-
   # This prevents leftovers from previous tests using the
   # same VM from messing up the current test
   config.vm.provision 'clean es installs in tmp', run: 'always', type: 'shell', inline: <<-SHELL
@@ -355,11 +351,10 @@ def sh_install_deps(config,
       return 1
     }
     cat \<\<JAVA > /etc/profile.d/java_home.sh
-if [ -z "\\\$JAVA_HOME" ]; then
-  export JAVA_HOME=/opt/jdk-11.0.2
+if [ ! -z "\\\$JAVA_HOME" ]; then
+  export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
+  unset JAVA_HOME
 fi
-export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
-unset JAVA_HOME
 JAVA
     ensure tar
     ensure curl
@@ -416,16 +411,9 @@ def windows_common(config, name)
     $ps_prompt | Out-File $PsHome/Microsoft.PowerShell_profile.ps1
   SHELL
 
-  config.vm.provision 'windows-jdk-11', type: 'shell', inline: <<-SHELL
-    New-Item -ItemType Directory -Force -Path "C:/java"
-    Invoke-WebRequest "https://download.oracle.com/java/GA/jdk11/9/GPL/openjdk-11.0.2_windows-x64_bin.zip" -OutFile "C:/java/jdk-11.zip"
-    Expand-Archive -Path "C:/java/jdk-11.zip" -DestinationPath "C:/java/"
-  SHELL
-
   config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
     [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
-    [Environment]::SetEnvironmentVariable("SYSTEM_JAVA_HOME", "C:\java\jdk-11.0.2", "Machine")
     [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
     [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
   SHELL

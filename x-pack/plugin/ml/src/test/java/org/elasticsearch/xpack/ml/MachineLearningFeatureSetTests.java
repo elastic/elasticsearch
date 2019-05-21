@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -29,11 +28,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -295,21 +294,6 @@ public class MachineLearningFeatureSetTests extends ESTestCase {
             source = new XContentSource(builder);
         }
         assertThat(source.getValue("node_count"), equalTo(nodeCount));
-
-        BytesStreamOutput oldOut = new BytesStreamOutput();
-        oldOut.setVersion(Version.V_6_0_0);
-        usage.writeTo(oldOut);
-        StreamInput oldInput = oldOut.bytes().streamInput();
-        oldInput.setVersion(Version.V_6_0_0);
-        XPackFeatureSet.Usage oldSerializedUsage = new MachineLearningFeatureSetUsage(oldInput);
-
-        XContentSource oldSource;
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            oldSerializedUsage.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            oldSource = new XContentSource(builder);
-        }
-
-        assertNull(oldSource.getValue("node_count"));
     }
 
     public void testUsageGivenMlMetadataNotInstalled() throws Exception {

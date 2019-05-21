@@ -101,27 +101,27 @@ public class Reconfigurator {
             .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet());
         final Set<String> currentConfigNodeIds = currentConfig.getNodeIds();
 
-        final Set<VotingConfigNode> nonRetiredOrderedMasterNodes = new TreeSet<>();
+        final Set<VotingConfigNode> orderedCandidateNodes = new TreeSet<>();
         liveNodes.stream()
             .filter(DiscoveryNode::isMasterNode)
             .filter(n -> retiredNodeIds.contains(n.getId()) == false)
-            .forEach(n -> nonRetiredOrderedMasterNodes.add(new VotingConfigNode(n.getId(), true,
+            .forEach(n -> orderedCandidateNodes.add(new VotingConfigNode(n.getId(), true,
                 n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))));
         currentConfigNodeIds.stream()
             .filter(nid -> liveNodeIds.contains(nid) == false)
             .filter(nid -> retiredNodeIds.contains(nid) == false)
-            .forEach(nid -> nonRetiredOrderedMasterNodes.add(new VotingConfigNode(nid, false, false, true)));
+            .forEach(nid -> orderedCandidateNodes.add(new VotingConfigNode(nid, false, false, true)));
 
         /*
          * Now we work out how many nodes should be in the configuration:
          */
-        final int nonRetiredConfigSize = Math.toIntExact(nonRetiredOrderedMasterNodes.stream().filter(n -> n.inCurrentConfig).count());
+        final int nonRetiredConfigSize = Math.toIntExact(orderedCandidateNodes.stream().filter(n -> n.inCurrentConfig).count());
         final int minimumConfigEnforcedSize = autoShrinkVotingConfiguration ? (nonRetiredConfigSize < 3 ? 1 : 3) : nonRetiredConfigSize;
-        final int nonRetiredLiveNodeCount = Math.toIntExact(nonRetiredOrderedMasterNodes.stream().filter(n -> n.live).count());
+        final int nonRetiredLiveNodeCount = Math.toIntExact(orderedCandidateNodes.stream().filter(n -> n.live).count());
         final int targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), minimumConfigEnforcedSize);
 
         final VotingConfiguration newConfig = new VotingConfiguration(
-            nonRetiredOrderedMasterNodes.stream()
+            orderedCandidateNodes.stream()
                 .limit(targetSize)
                 .map(n -> n.id)
                 .collect(Collectors.toSet()));

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,11 +17,6 @@ import java.util.Map;
 
 class PostStartTrialResponse extends ActionResponse {
 
-    // Nodes Prior to 6.3 did not have NEED_ACKNOWLEDGEMENT as part of status
-    enum Pre63Status {
-        UPGRADED_TO_TRIAL,
-        TRIAL_ALREADY_ACTIVATED;
-    }
     enum Status {
         UPGRADED_TO_TRIAL(true, null, RestStatus.OK),
         TRIAL_ALREADY_ACTIVATED(false, "Operation failed: Trial was already activated.", RestStatus.FORBIDDEN),

@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -233,46 +234,41 @@ public class RepositoriesService implements ClusterStateApplier {
 
     public void verifyRepository(final String repositoryName, final ActionListener<List<DiscoveryNode>> listener) {
         final Repository repository = repository(repositoryName);
-        try {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                try {
-                    final String verificationToken = repository.startVerification();
-                    if (verificationToken != null) {
-                        try {
-                            verifyAction.verify(repositoryName, verificationToken, ActionListener.delegateFailure(listener,
-                                (delegatedListener, verifyResponse) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                                    try {
-                                        repository.endVerification(verificationToken);
-                                    } catch (Exception e) {
-                                        logger.warn(() -> new ParameterizedMessage(
-                                            "[{}] failed to finish repository verification", repositoryName), e);
-                                        delegatedListener.onFailure(e);
-                                        return;
-                                    }
-                                    delegatedListener.onResponse(verifyResponse);
-                                })));
-                        } catch (Exception e) {
-                            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                final String verificationToken = repository.startVerification();
+                if (verificationToken != null) {
+                    try {
+                        verifyAction.verify(repositoryName, verificationToken, ActionListener.delegateFailure(listener,
+                            (delegatedListener, verifyResponse) -> threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
                                 try {
                                     repository.endVerification(verificationToken);
-                                } catch (Exception inner) {
-                                    inner.addSuppressed(e);
+                                } catch (Exception e) {
                                     logger.warn(() -> new ParameterizedMessage(
-                                        "[{}] failed to finish repository verification", repositoryName), inner);
+                                        "[{}] failed to finish repository verification", repositoryName), e);
+                                    delegatedListener.onFailure(e);
+                                    return;
                                 }
-                                listener.onFailure(e);
-                            });
-                        }
-                    } else {
-                        listener.onResponse(Collections.emptyList());
+                                delegatedListener.onResponse(verifyResponse);
+                            })));
+                    } catch (Exception e) {
+                        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                            try {
+                                repository.endVerification(verificationToken);
+                            } catch (Exception inner) {
+                                inner.addSuppressed(e);
+                                logger.warn(() -> new ParameterizedMessage(
+                                    "[{}] failed to finish repository verification", repositoryName), inner);
+                            }
+                            listener.onFailure(e);
+                        });
                     }
-                } catch (Exception e) {
-                    listener.onFailure(e);
+                } else {
+                    listener.onResponse(Collections.emptyList());
                 }
-            });
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+            }
+        });
     }
 
 

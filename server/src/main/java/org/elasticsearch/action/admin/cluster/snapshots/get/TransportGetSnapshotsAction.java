@@ -81,7 +81,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     @Override
     protected void masterOperation(final GetSnapshotsRequest request, final ClusterState state,
                                    final ActionListener<GetSnapshotsResponse> listener) {
-        try {
+        ActionListener.completeWith(listener, () -> {
             final String repository = request.repository();
             final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
             final List<SnapshotInfo> currentSnapshots = new ArrayList<>();
@@ -144,10 +144,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     CollectionUtil.timSort(snapshotInfos);
                 }
             }
-            listener.onResponse(new GetSnapshotsResponse(snapshotInfos));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+           return new GetSnapshotsResponse(snapshotInfos);
+        });
     }
 
     private boolean isAllSnapshots(String[] snapshots) {

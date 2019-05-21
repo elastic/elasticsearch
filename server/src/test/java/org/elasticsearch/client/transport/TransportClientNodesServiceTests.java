@@ -21,6 +21,7 @@ package org.elasticsearch.client.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
@@ -255,27 +256,12 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                     }
 
                     iteration.transportService.sendRequest(node, "action", new TestRequest(),
-                            TransportRequestOptions.EMPTY, new TransportResponseHandler<TestResponse>() {
-                        @Override
-                        public TestResponse read(StreamInput in) {
-                            return new TestResponse(in);
-                        }
-
-                        @Override
-                        public void handleResponse(TestResponse response1) {
-                            retryListener.onResponse(response1);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            retryListener.onFailure(exp);
-                        }
-
-                        @Override
-                        public String executor() {
-                            return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
-                        }
-                    });
+                        TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(retryListener, TestResponse::new) {
+                            @Override
+                            public String executor() {
+                                return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                            }
+                        });
                 }, actionListener);
 
                 latch.await();

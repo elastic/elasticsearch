@@ -35,7 +35,6 @@ import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -538,11 +537,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
      */
     private void fetch(Client client, GetRequest getRequest, String path, ActionListener<ShapeBuilder> listener) {
         getRequest.preference("_local");
-        client.get(getRequest, new ActionListener<GetResponse>(){
-
-            @Override
-            public void onResponse(GetResponse response) {
-                try {
+        client.get(getRequest, ActionListener.wrap(response -> {
                     if (!response.isExists()) {
                         throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type()
                             + "] not found");
@@ -576,16 +571,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
                         }
                         throw new IllegalStateException("Shape with name [" + getRequest.id() + "] found but missing " + path + " field");
                     }
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            }, listener::onFailure));
 
     }
 

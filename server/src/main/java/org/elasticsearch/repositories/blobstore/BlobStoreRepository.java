@@ -472,34 +472,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         final ActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
-        for (IndexId indexId: indices) {
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(groupedListener) {
-
-                @Override
-                protected void doRun() {
-                    IndexMetaData indexMetaData = null;
-                    try {
-                        indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
-                    } catch (Exception ex) {
-                        logger.warn(() ->
-                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, indexId.getName()), ex);
-                    }
-                    deleteIndexMetaDataBlobIgnoringErrors(snapshotId, indexId);
-                    if (indexMetaData != null) {
-                        for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
-                            try {
-                                final ShardId sid = new ShardId(indexMetaData.getIndex(), shardId);
-                                new Context(snapshotId, indexId, sid, sid).delete();
-                            } catch (SnapshotException ex) {
-                                final int finalShardId = shardId;
-                                logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
-                                    snapshotId, indexId.getName(), finalShardId), ex);
-                            }
+        for (IndexId indexId : indices) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(groupedListener, l -> {
+                IndexMetaData indexMetaData = null;
+                try {
+                    indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
+                } catch (Exception ex) {
+                    logger.warn(() ->
+                        new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, indexId.getName()), ex);
+                }
+                deleteIndexMetaDataBlobIgnoringErrors(snapshotId, indexId);
+                if (indexMetaData != null) {
+                    for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                        try {
+                            final ShardId sid = new ShardId(indexMetaData.getIndex(), shardId);
+                            new Context(snapshotId, indexId, sid, sid).delete();
+                        } catch (SnapshotException ex) {
+                            final int finalShardId = shardId;
+                            logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
+                                snapshotId, indexId.getName(), finalShardId), ex);
                         }
                     }
-                    groupedListener.onResponse(null);
                 }
-            });
+                l.onResponse(null);
+            }));
         }
     }
 

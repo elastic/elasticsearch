@@ -116,6 +116,32 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         }
     }
 
+    /**
+     * Returns a list of realms that are configured, but are not permitted under the current license.
+     */
+    public List<Realm> getUnlicensedRealms() {
+        // If auth is not allowed, then everything is unlicensed
+        if (licenseState.isAuthAllowed() == false) {
+            return Collections.unmodifiableList(realms);
+        }
+
+        AllowedRealmType allowedRealmType = licenseState.allowedRealmType();
+        // If all realms are allowed, then nothing is unlicensed
+        if (allowedRealmType == AllowedRealmType.ALL) {
+            return Collections.emptyList();
+        }
+
+        final List<Realm> allowedRealms = this.asList();
+        // Shortcut for the typical case, all the configured realms are allowed
+        if (allowedRealms.equals(this.realms.size())) {
+            return Collections.emptyList();
+        }
+
+        // Otherwise, we return anything in "all realms" that is not in the allowed realm list
+        List<Realm> unlicensed = realms.stream().filter(r -> allowedRealms.contains(r) == false).collect(Collectors.toList());
+        return Collections.unmodifiableList(unlicensed);
+    }
+
     public Stream<Realm> stream() {
         return StreamSupport.stream(this.spliterator(), false);
     }

@@ -9,9 +9,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 
+@TestLogging("org.elasticsearch.xpack.core.XPackPlugin:TRACE,org.elasticsearch.xpack.CompositeTestingXPackPlugin:TRACE")
 public class LicenseTribeTests extends TribeTransportTestCase {
 
     @Override

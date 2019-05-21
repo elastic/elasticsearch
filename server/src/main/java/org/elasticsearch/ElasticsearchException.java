@@ -1022,7 +1022,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.seqno.RetentionLeaseNotFoundException.class,
                 org.elasticsearch.index.seqno.RetentionLeaseNotFoundException::new,
                 154,
-                Version.V_6_7_0);
+                Version.V_6_7_0),
+        SHARD_NOT_IN_PRIMARY_MODE_EXCEPTION(
+                org.elasticsearch.index.shard.ShardNotInPrimaryModeException.class,
+                org.elasticsearch.index.shard.ShardNotInPrimaryModeException::new,
+                155,
+                Version.V_6_8_1);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

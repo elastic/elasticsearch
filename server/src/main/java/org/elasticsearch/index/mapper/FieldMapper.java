@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -265,6 +266,23 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return copyTo;
     }
 
+    private String readComplexJsonElement(XContentParser parser, int tokenDepth) throws IOException {
+        XContentParser.Token closingToken = null;
+        if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+            closingToken = XContentParser.Token.END_ARRAY;
+        } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
+            closingToken = XContentParser.Token.END_OBJECT;
+        } else throw new IOException("Incorrect token type");
+
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0;i < tokenDepth
+            && parser.currentToken() != null
+            && parser.currentToken() != XContentParser.Token.END_OBJECT;i++) {
+            builder.append(parser.text());
+        }
+        return builder.toString();
+    }
+
     /**
      * Parse the field value using the provided {@link ParseContext}.
      */
@@ -276,8 +294,27 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse field [{}] of type [{}] in document with id '{}'", e, fieldType().name(),
-                    fieldType().typeName(), context.sourceToParse().id());
+            String valuePreview = "";
+            try {
+
+                XContentParser parser = context.parser();
+                int tokenDepth = 10;
+                if (parser.currentToken().isValue()) {
+                    valuePreview = parser.text();
+                } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                    valuePreview = "null";
+                } else {
+                    valuePreview = readComplexJsonElement(parser, tokenDepth);
+                }
+            } catch (Exception innerException) {
+                throw new MapperParsingException("failed to parse field [{}] of type [{}] in document with id '{}'. " +
+                    "Could not parse field value preview,",
+                    e, fieldType().name(), fieldType().typeName(), context.sourceToParse().id());
+            }
+
+            throw new MapperParsingException("failed to parse field [{}] of type [{}] in document with id '{}'. " +
+                "Preview of field's value: '{}'", e, fieldType().name(), fieldType().typeName(),
+                context.sourceToParse().id(), valuePreview);
         }
         multiFields.parse(this, context);
     }

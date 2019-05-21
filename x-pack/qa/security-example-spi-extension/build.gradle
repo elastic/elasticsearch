@@ -9,6 +9,7 @@ esplugin {
 
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
+  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}"
 }
 
 

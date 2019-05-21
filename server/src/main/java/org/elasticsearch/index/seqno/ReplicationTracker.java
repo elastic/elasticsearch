@@ -345,7 +345,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private final Object retentionLeasePersistenceLock = new Object();
 
     /**
-     * Persists the current retention leases to their dedicated state file.
+     * Persists the current retention leases to their dedicated state file. If this version of the retention leases are already persisted
+     * then persistence is skipped.
      *
      * @param path the path to the directory containing the state file
      * @throws WriteStateException if an exception occurs writing the state file

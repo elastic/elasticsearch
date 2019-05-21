@@ -70,16 +70,26 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
 
     /**
      * Checks if this retention leases collection supersedes the specified retention leases collection. A retention leases collection
-     * supersedes another retention leases collection if its primary term is higher, or if for equal primary terms its version is higher
+     * supersedes another retention leases collection if its primary term is higher, or if for equal primary terms its version is higher.
      *
      * @param that the retention leases collection to test against
      * @return true if this retention leases collection supercedes the specified retention lease collection, otherwise false
      */
-    public boolean supersedes(final RetentionLeases that) {
+    boolean supersedes(final RetentionLeases that) {
         return supersedes(that.primaryTerm, that.version);
     }
 
-    public boolean supersedes(final long primaryTerm, final long version) {
+    /**
+     * Checks if this retention leases collection would supersede a retention leases collection with the specified primary term and version.
+     * A retention leases collection supersedes another retention leases collection if its primary term is higher, or if for equal primary
+     * terms its version is higher.
+     *
+     * @param primaryTerm the primary term
+     * @param version     the version
+     * @return true if this retention leases collection would supercedes a retention lease collection with the specified primary term and
+     * version
+     */
+    boolean supersedes(final long primaryTerm, final long version) {
         return this.primaryTerm > primaryTerm || this.primaryTerm == primaryTerm && this.version > version;
     }
 

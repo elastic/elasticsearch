@@ -42,6 +42,9 @@ teardown:
 
 ---
 "Test get transform stats":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/42309"
   - do:
       data_frame.get_data_frame_transform_stats:
         transform_id: "airline-transform-stats"

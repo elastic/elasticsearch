@@ -149,6 +149,9 @@ teardown:
 
 ---
 "Test get multiple transform stats where one does not have a task":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/42309"
   - do:
       data_frame.put_data_frame_transform:
         transform_id: "airline-transform-stats-dos"

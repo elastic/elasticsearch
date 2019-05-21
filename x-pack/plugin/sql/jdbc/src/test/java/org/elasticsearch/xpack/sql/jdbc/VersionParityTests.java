@@ -25,7 +25,8 @@ import java.sql.SQLException;
 public class VersionParityTests extends WebServerTestCase {
 
     public void testExceptionThrownOnIncompatibleVersions() throws IOException, SQLException {
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.CURRENT);
+        Version version = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion());
+        logger.info("Checking exception is thrown for version {}", version);
         prepareRequest(version);
         
         String url = JdbcConfiguration.URL_PREFIX + webServer().getHostName() + ":" + webServer().getPort();

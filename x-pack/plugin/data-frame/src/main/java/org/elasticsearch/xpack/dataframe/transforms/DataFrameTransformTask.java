@@ -208,6 +208,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         persistStateToClusterState(state, ActionListener.wrap(
             task -> {
                 auditor.info(transform.getId(), "Updated state to [" + state.getTaskState() + "]");
+                long now = System.currentTimeMillis();
+                // kick off the indexer
+                triggered(new Event(schedulerJobName(), now, now));
+                registerWithSchedulerJob();
                 listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));
             },
             exc -> {
@@ -238,7 +242,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             return;
         }
         //  for now no rerun, so only trigger if checkpoint == 0
-        if (currentCheckpoint.get() == 0 && event.getJobName().equals(SCHEDULE_NAME + "_" + transform.getId())) {
+        if (currentCheckpoint.get() == 0 && event.getJobName().equals(schedulerJobName())) {
             logger.debug("Data frame indexer [{}] schedule has triggered, state: [{}]", event.getJobName(), getIndexer().getState());
             getIndexer().maybeTriggerAsyncJob(System.currentTimeMillis());
         }
@@ -249,13 +253,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
      * This tries to remove the job from the scheduler and completes the persistent task
      */
     synchronized void shutdown() {
-        try {
-            schedulerEngine.remove(SCHEDULE_NAME + "_" + transform.getId());
-            schedulerEngine.unregister(this);
-        } catch (Exception e) {
-            markAsFailed(e);
-            return;
-        }
+        deregisterSchedulerJob();
         markAsCompleted();
     }
 
@@ -309,6 +307,27 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
             // there is no background transform running, we can shutdown safely
             shutdown();
         }
+    }
+
+    private void registerWithSchedulerJob() {
+        schedulerEngine.register(this);
+        final SchedulerEngine.Job schedulerJob = new SchedulerEngine.Job(schedulerJobName(), next());
+        schedulerEngine.add(schedulerJob);
+    }
+
+    private void deregisterSchedulerJob() {
+        schedulerEngine.remove(schedulerJobName());
+        schedulerEngine.unregister(this);
+    }
+
+    private String schedulerJobName() {
+        return DataFrameTransformTask.SCHEDULE_NAME + "_" + getTransformId();
+    }
+
+    private SchedulerEngine.Schedule next() {
+        return (startTime, now) -> {
+            return now + 1000; // to be fixed, hardcode something
+        };
     }
 
     synchronized void initializeIndexer(ClientDataFrameIndexerBuilder indexerBuilder) {

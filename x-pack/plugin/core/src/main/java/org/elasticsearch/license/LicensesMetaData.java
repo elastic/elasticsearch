@@ -166,13 +166,11 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
             streamOutput.writeBoolean(true); // has a license
             license.writeTo(streamOutput);
         }
-        if (streamOutput.getVersion().onOrAfter(Version.V_6_1_0)) {
-            if (trialVersion == null) {
-                streamOutput.writeBoolean(false);
-            } else {
-                streamOutput.writeBoolean(true);
-                Version.writeVersion(trialVersion, streamOutput);
-            }
+        if (trialVersion == null) {
+            streamOutput.writeBoolean(false);
+        } else {
+            streamOutput.writeBoolean(true);
+            Version.writeVersion(trialVersion, streamOutput);
         }
     }
 
@@ -182,11 +180,9 @@ public class LicensesMetaData extends AbstractNamedDiffable<MetaData.Custom> imp
         } else {
             license = LICENSE_TOMBSTONE;
         }
-        if (streamInput.getVersion().onOrAfter(Version.V_6_1_0)) {
-            boolean hasExercisedTrial = streamInput.readBoolean();
-            if (hasExercisedTrial) {
-                this.trialVersion = Version.readVersion(streamInput);
-            }
+        boolean hasExercisedTrial = streamInput.readBoolean();
+        if (hasExercisedTrial) {
+            this.trialVersion = Version.readVersion(streamInput);
         }
     }
 

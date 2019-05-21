@@ -254,27 +254,16 @@ public abstract class TransportInstanceSingleOperationAction<
 
         @Override
         public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            shardOperation(request, new ActionListener<Response>() {
-                @Override
-                public void onResponse(Response response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Exception e) {
-                        onFailure(e);
+            shardOperation(request,
+                ActionListener.wrap(channel::sendResponse, e -> {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            logger.warn("failed to send response for get", inner);
+                        }
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (Exception inner) {
-                        inner.addSuppressed(e);
-                        logger.warn("failed to send response for get", inner);
-                    }
-                }
-            });
-
+                ));
         }
     }
 }

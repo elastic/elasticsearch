@@ -82,7 +82,7 @@ return just 10 results.  This process has to be repeated for every page
 requested.
 
 ifdef::asciidoctor[]
-added[1.2.0,"Before 1.2.0, scrolling of sorted results was just as heavy as deep pagination"]
+added::[1.2.0,"Before 1.2.0, scrolling of sorted results was just as heavy as deep pagination"]
 endif::[]
 ifndef::asciidoctor[]
 added[1.2.0,Before 1.2.0, scrolling of sorted results was just as heavy as deep pagination]

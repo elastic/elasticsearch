@@ -17,19 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.repositories.azure;
+package org.elasticsearch.index.shard;
 
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import org.elasticsearch.common.io.stream.StreamInput;
 
+import java.io.IOException;
 
-public class AzureBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
-    @Override
-    protected BlobStore newBlobStore() {
-        RepositoryMetaData repositoryMetaData = new RepositoryMetaData("azure", "ittest", Settings.EMPTY);
-        AzureStorageServiceMock client = new AzureStorageServiceMock();
-        return new AzureBlobStore(repositoryMetaData, client);
+public class ShardNotInPrimaryModeException extends IllegalIndexShardStateException {
+
+    public ShardNotInPrimaryModeException(final ShardId shardId, final IndexShardState currentState) {
+        super(shardId, currentState, "shard is not in primary mode");
     }
+
+    public ShardNotInPrimaryModeException(final StreamInput in) throws IOException {
+        super(in);
+    }
+
 }

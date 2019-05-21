@@ -44,7 +44,7 @@ import java.util.Objects;
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
     protected final NamedXContentRegistry namedXContentRegistry;
-    static final String DELIMITER = "------------------------------------------------------------------------\n";
+    protected static final String DELIMITER = "------------------------------------------------------------------------\n";
 
     static final String STOP_WARNING_MSG =
             DELIMITER +
@@ -81,9 +81,8 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
             processNodePaths(terminal, dataPaths, env);
-        } catch (LockObtainFailedException ex) {
-            throw new ElasticsearchException(
-                    FAILED_TO_OBTAIN_NODE_LOCK_MSG + " [" + ex.getMessage() + "]");
+        } catch (LockObtainFailedException e) {
+            throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
     }
 
@@ -163,6 +162,18 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
             terminal.println(Terminal.Verbosity.VERBOSE, "Cleaning up new metadata");
             MetaData.FORMAT.cleanupOldFiles(oldManifest.getGlobalGeneration(), dataPaths);
             throw new ElasticsearchException(WRITE_METADATA_EXCEPTION_MSG, e);
+        }
+    }
+
+    protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
+        return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
+    }
+
+    private static NodeEnvironment.NodePath createNodePath(Path path) {
+        try {
+            return new NodeEnvironment.NodePath(path);
+        } catch (IOException e) {
+            throw new ElasticsearchException("Unable to investigate path [" + path + "]", e);
         }
     }
 

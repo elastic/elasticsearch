@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -123,6 +124,20 @@ public class XPackSettings {
     /** Setting for enabling or disabling sql. Defaults to true. */
     public static final Setting<Boolean> SQL_ENABLED = Setting.boolSetting("xpack.sql.enabled", true, Setting.Property.NodeScope);
 
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
+
+    static {
+        boolean supportsTLSv13 = false;
+        try {
+            SSLContext.getInstance("TLSv1.3");
+            supportsTLSv13 = true;
+        } catch (NoSuchAlgorithmException e) {
+            LogManager.getLogger(XPackSettings.class).debug("TLSv1.3 is not supported", e);
+        }
+        DEFAULT_SUPPORTED_PROTOCOLS = supportsTLSv13 ?
+            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
+    }
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)
@@ -130,24 +145,58 @@ public class XPackSettings {
     public static final List<String> DEFAULT_CIPHERS;
 
     static {
-        List<String> ciphers = Arrays.asList("TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
-                "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", "TLS_RSA_WITH_AES_128_CBC_SHA256",
-                "TLS_RSA_WITH_AES_128_CBC_SHA");
+        List<String> ciphers = new ArrayList<>();
+        final boolean useGCM = JavaVersion.current().compareTo(JavaVersion.parse("11")) >= 0;
+        final boolean tlsV13Supported = DEFAULT_SUPPORTED_PROTOCOLS.contains("TLSv1.3");
         try {
             final boolean use256Bit = Cipher.getMaxAllowedKeyLength("AES") > 128;
+            if (tlsV13Supported) { // TLSv1.3 cipher has PFS, AEAD, hardware support
+                if (use256Bit) {
+                    ciphers.add("TLS_AES_256_GCM_SHA384");
+                }
+                ciphers.add("TLS_AES_128_GCM_SHA256");
+            }
+            if (useGCM) {  // PFS, AEAD, hardware support
+                if (use256Bit) {
+                    ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+                        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
+                } else {
+                    ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
+                }
+            }
+
+            // PFS, hardware support
             if (use256Bit) {
-                List<String> strongerCiphers = new ArrayList<>(ciphers.size() * 2);
-                strongerCiphers.addAll(Arrays.asList("TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
-                        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384", "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
-                        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", "TLS_RSA_WITH_AES_256_CBC_SHA256", "TLS_RSA_WITH_AES_256_CBC_SHA"));
-                strongerCiphers.addAll(ciphers);
-                ciphers = strongerCiphers;
+                ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",  "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+                    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"));
+            } else {
+                ciphers.addAll(Arrays.asList("TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"));
+            }
+
+            // AEAD, hardware support
+            if (useGCM) {
+                if (use256Bit) {
+                    ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_256_GCM_SHA384", "TLS_RSA_WITH_AES_128_GCM_SHA256"));
+                } else {
+                    ciphers.add("TLS_RSA_WITH_AES_128_GCM_SHA256");
+                }
+            }
+
+            // hardware support
+            if (use256Bit) {
+                ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_256_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_RSA_WITH_AES_256_CBC_SHA", "TLS_RSA_WITH_AES_128_CBC_SHA"));
+            } else {
+                ciphers.addAll(Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA"));
             }
         } catch (NoSuchAlgorithmException e) {
             // ignore it here - there will be issues elsewhere and its not nice to throw in a static initializer
         }
 
-        DEFAULT_CIPHERS = ciphers;
+        DEFAULT_CIPHERS = Collections.unmodifiableList(ciphers);
     }
 
     /*
@@ -168,20 +217,6 @@ public class XPackSettings {
             }
         }
     }, Setting.Property.NodeScope);
-
-    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
-
-    static {
-        boolean supportsTLSv13 = false;
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            supportsTLSv13 = true;
-        } catch (NoSuchAlgorithmException e) {
-            LogManager.getLogger(XPackSettings.class).debug("TLSv1.3 is not supported", e);
-        }
-        DEFAULT_SUPPORTED_PROTOCOLS = supportsTLSv13 ?
-            Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1") : Arrays.asList("TLSv1.2", "TLSv1.1");
-    }
 
     public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
     public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;

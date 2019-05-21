@@ -300,7 +300,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
         Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Setting.Property.NodeScope);
 
-    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
     private final Environment env;

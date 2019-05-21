@@ -116,6 +116,22 @@ class BuildPlugin implements Plugin<Project> {
         configureTestTasks(project)
         configurePrecommit(project)
         configureDependenciesInfo(project)
+
+        // Common config when running with a FIPS-140 runtime JVM
+        // Need to do it here to support external plugins 
+        if (project.ext.inFipsJvm) {
+            project.tasks.withType(Test) {
+                systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+            }
+            project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                project.testClusters.all {
+                    systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                    systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                }
+            }
+        }
+
     }
 
 

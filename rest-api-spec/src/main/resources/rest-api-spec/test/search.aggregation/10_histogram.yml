@@ -143,7 +143,8 @@ setup:
 "Deprecated _time order":
 
   - skip:
-      reason:  _time order deprecated in 6.0, replaced by _key
+      version: " - 7.1.99"
+      reason:  _time order deprecated in 6.0, replaced by _key. Calendar_interval added in 7.2
       features: "warnings"
 
   - do:
@@ -176,7 +177,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        body: { "aggs" : { "histo" : { "date_histogram" : { "field" : "date", "interval" : "month", "order" : { "_time" : "desc" } } } } }
+        body: { "aggs" : { "histo" : { "date_histogram" : { "field" : "date", "calendar_interval" : "month", "order" : { "_time" : "desc" } } } } }
       warnings:
         - "Deprecated aggregation order key [_time] used, replaced by [_key]"
 

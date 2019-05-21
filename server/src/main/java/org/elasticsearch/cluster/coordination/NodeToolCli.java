@@ -22,6 +22,7 @@ import org.elasticsearch.cli.CommandLoggingConfigurator;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.NodeRepurposeCommand;
+import org.elasticsearch.env.OverrideNodeVersionCommand;
 
 // NodeToolCli does not extend LoggingAwareCommand, because LoggingAwareCommand performs logging initialization
 // after LoggingAwareCommand instance is constructed.
@@ -39,6 +40,7 @@ public class NodeToolCli extends MultiCommand {
         subcommands.put("repurpose", new NodeRepurposeCommand());
         subcommands.put("unsafe-bootstrap", new UnsafeBootstrapMasterCommand());
         subcommands.put("detach-cluster", new DetachClusterCommand());
+        subcommands.put("override-version", new OverrideNodeVersionCommand());
     }
 
     public static void main(String[] args) throws Exception {

@@ -51,6 +51,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
@@ -473,7 +474,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
                 = new GeoBoundsAggregationBuilder("histo").field("bar");
 
         DateHistogramAggregationBuilder histoBuilder = new DateHistogramAggregationBuilder("histo")
-                .field("bar").interval(100);
+                .field("bar").fixedInterval(new DateHistogramInterval("100ms"));
         FilterAggregationBuilder filterBuilder = new FilterAggregationBuilder("filter", new TermQueryBuilder("foo", "bar"));
         filterBuilder.subAggregation(histoBuilder);
 
@@ -517,11 +518,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testDateHisto() throws IOException {
         DateHistogramAggregationBuilder nonRollupHisto = new DateHistogramAggregationBuilder("histo")
-                .field("timestamp").interval(100);
+                .field("timestamp").fixedInterval(new DateHistogramInterval("100ms"));
 
         DateHistogramAggregationBuilder rollupHisto = new DateHistogramAggregationBuilder("histo")
                 .field("timestamp.date_histogram." + RollupField.TIMESTAMP)
-                .interval(100)
+                .fixedInterval(new DateHistogramInterval("100ms"))
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
@@ -561,12 +562,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testDateHistoWithGap() throws IOException {
         DateHistogramAggregationBuilder nonRollupHisto = new DateHistogramAggregationBuilder("histo")
-                .field("timestamp").interval(100)
+                .field("timestamp").fixedInterval(new DateHistogramInterval("100ms"))
                 .minDocCount(0);
 
         DateHistogramAggregationBuilder rollupHisto = new DateHistogramAggregationBuilder("histo")
                 .field("timestamp.date_histogram." + RollupField.TIMESTAMP)
-                .interval(100)
+                .fixedInterval(new DateHistogramInterval("100ms"))
                 .minDocCount(0)
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
@@ -618,12 +619,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testNonMatchingPartition() throws IOException {
         DateHistogramAggregationBuilder nonRollupHisto = new DateHistogramAggregationBuilder("histo")
-                .field("timestamp").interval(100)
+                .field("timestamp").fixedInterval(new DateHistogramInterval("100ms"))
                 .minDocCount(0);
 
         DateHistogramAggregationBuilder rollupHisto = new DateHistogramAggregationBuilder("histo")
                 .field("timestamp.date_histogram." + RollupField.TIMESTAMP)
-                .interval(100)
+                .fixedInterval(new DateHistogramInterval("100ms"))
                 .minDocCount(0)
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
@@ -731,11 +732,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testDateHistoOverlappingAggTrees() throws IOException {
         DateHistogramAggregationBuilder nonRollupHisto = new DateHistogramAggregationBuilder("histo")
-                .field("timestamp").interval(100);
+                .field("timestamp").fixedInterval(new DateHistogramInterval("100ms"));
 
         DateHistogramAggregationBuilder rollupHisto = new DateHistogramAggregationBuilder("histo")
                 .field("timestamp.date_histogram." + RollupField.TIMESTAMP)
-                .interval(100)
+                .fixedInterval(new DateHistogramInterval("100ms"))
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
@@ -792,11 +793,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testDateHistoOverlappingMergeRealIntoZero() throws IOException {
         DateHistogramAggregationBuilder nonRollupHisto = new DateHistogramAggregationBuilder("histo")
-                .field("timestamp").interval(100);
+                .field("timestamp").fixedInterval(new DateHistogramInterval("100ms"));
 
         DateHistogramAggregationBuilder rollupHisto = new DateHistogramAggregationBuilder("histo")
                 .field("timestamp.date_histogram." + RollupField.TIMESTAMP)
-                .interval(100)
+                .fixedInterval(new DateHistogramInterval("100ms"))
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 
@@ -859,11 +860,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testDateHistoOverlappingMergeZeroIntoReal() throws IOException {
         DateHistogramAggregationBuilder nonRollupHisto = new DateHistogramAggregationBuilder("histo")
-                .field("timestamp").interval(100).minDocCount(0);
+                .field("timestamp").fixedInterval(new DateHistogramInterval("100ms")).minDocCount(0);
 
         DateHistogramAggregationBuilder rollupHisto = new DateHistogramAggregationBuilder("histo")
                 .field("timestamp.date_histogram." + RollupField.TIMESTAMP)
-                .interval(100)
+                .fixedInterval(new DateHistogramInterval("100ms"))
                 .minDocCount(0)
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
@@ -1218,11 +1219,11 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testOverlappingBuckets() throws IOException {
         DateHistogramAggregationBuilder nonRollupHisto = new DateHistogramAggregationBuilder("histo")
-                .field("timestamp").interval(100);
+                .field("timestamp").fixedInterval(new DateHistogramInterval("100ms"));
 
         DateHistogramAggregationBuilder rollupHisto = new DateHistogramAggregationBuilder("histo")
                 .field("timestamp.date_histogram." + RollupField.TIMESTAMP)
-                .interval(100)
+                .fixedInterval(new DateHistogramInterval("100ms"))
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)
                         .field("timestamp.date_histogram." + RollupField.COUNT_FIELD));
 

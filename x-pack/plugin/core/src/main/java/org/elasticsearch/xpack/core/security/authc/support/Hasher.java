@@ -351,6 +351,24 @@ public enum Hasher {
             return CharArrays.constantTimeEquals(computedHash, new String(saltAndHash, 12, saltAndHash.length - 12));
         }
     },
+    /*
+     * Unsalted SHA-256 , not suited for password storage.
+     */
+    SHA256() {
+        @Override
+        public char[] hash(SecureString text) {
+            MessageDigest md = MessageDigests.sha256();
+            md.update(CharArrays.toUtf8Bytes(text.getChars()));
+            return Base64.getEncoder().encodeToString(md.digest()).toCharArray();
+        }
+
+        @Override
+        public boolean verify(SecureString text, char[] hash) {
+            MessageDigest md = MessageDigests.sha256();
+            md.update(CharArrays.toUtf8Bytes(text.getChars()));
+            return CharArrays.constantTimeEquals(Base64.getEncoder().encodeToString(md.digest()).toCharArray(), hash);
+        }
+    },
 
     NOOP() {
         @Override

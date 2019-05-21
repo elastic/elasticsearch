@@ -58,6 +58,11 @@ public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
+
+    public static final String DEFAULT_ANALYZER_NAME = "default";
+    public static final String DEFAULT_SEARCH_ANALYZER_NAME = "default_search";
+    public static final String DEFAULT_SEARCH_QUOTED_ANALYZER_NAME = "default_search_quoted";
+
     private final PrebuiltAnalysis prebuiltAnalysis;
     private final Map<String, Analyzer> cachedAnalyzer = new ConcurrentHashMap<>();
 
@@ -432,29 +437,22 @@ public final class AnalysisRegistry implements Closeable {
                     "whitespace", () -> new WhitespaceTokenizer(), tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
-        if (!analyzers.containsKey("default")) {
-            NamedAnalyzer defaultAnalyzer = produceAnalyzer("default", new StandardAnalyzerProvider(indexSettings, null, "default",
-                    Settings.Builder.EMPTY_SETTINGS), tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
-            analyzers.put("default", defaultAnalyzer);
+        if (!analyzers.containsKey(DEFAULT_ANALYZER_NAME)) {
+            analyzers.put(DEFAULT_ANALYZER_NAME,
+                    produceAnalyzer(DEFAULT_ANALYZER_NAME,
+                            new StandardAnalyzerProvider(indexSettings, null, DEFAULT_ANALYZER_NAME, Settings.Builder.EMPTY_SETTINGS),
+                            tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories));
         }
-        if (!analyzers.containsKey("default_search")) {
-            analyzers.put("default_search", analyzers.get("default"));
-        }
-        if (!analyzers.containsKey("default_search_quoted")) {
-            analyzers.put("default_search_quoted", analyzers.get("default_search"));
-        }
-
-        NamedAnalyzer defaultAnalyzer = analyzers.get("default");
+        NamedAnalyzer defaultAnalyzer = analyzers.get(DEFAULT_ANALYZER_NAME);
         if (defaultAnalyzer == null) {
             throw new IllegalArgumentException("no default analyzer configured");
         }
         defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
+
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +
                 "[index.analysis.analyzer.default] instead for index [" + indexSettings.getIndex().getName() + "]");
         }
-        NamedAnalyzer defaultSearchAnalyzer = analyzers.getOrDefault("default_search", defaultAnalyzer);
-        NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.getOrDefault("default_search_quote", defaultSearchAnalyzer);
 
         for (Map.Entry<String, NamedAnalyzer> analyzer : analyzers.entrySet()) {
             if (analyzer.getKey().startsWith("_")) {
@@ -463,8 +461,7 @@ public final class AnalysisRegistry implements Closeable {
         }
         IndexAnalysisProviders analysisProviders = new IndexAnalysisProviders(tokenizerFactoryFactories, charFilterFactoryFactories,
                 tokenFilterFactoryFactories);
-        return new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer, analyzers, normalizers,
-                whitespaceNormalizers, analysisProviders);
+        return new IndexAnalyzers(indexSettings, analyzers, normalizers, whitespaceNormalizers, analysisProviders);
     }
 
     private static NamedAnalyzer produceAnalyzer(String name,
@@ -566,10 +563,6 @@ public final class AnalysisRegistry implements Closeable {
         // char filters and tokenizers are not updateable, so we can use the old ones
         Map<String, CharFilterFactory> currentCharFilterFactories = indexAnalyzers.getCharFilterFactoryFactories();
         Map<String, TokenizerFactory> currentTokenizerFactories = indexAnalyzers.getTokenizerFactoryFactories();
-        NamedAnalyzer newDefaultSearchAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchAnalyzer(), indexSettings,
-                currentCharFilterFactories, currentTokenizerFactories, newTokenFilterFactories);
-        NamedAnalyzer newDefaultSearchQuoteAnalyzer = rebuildIfNecessary(indexAnalyzers.getDefaultSearchQuoteAnalyzer(), indexSettings,
-                currentCharFilterFactories, currentTokenizerFactories, newTokenFilterFactories);
         Map<String, NamedAnalyzer> newAnalyzers = new HashMap<>();
         for (String analyzerName : oldAnalyzers.keySet()) {
             NamedAnalyzer analyzer = rebuildIfNecessary(oldAnalyzers.get(analyzerName), indexSettings, currentCharFilterFactories,
@@ -579,7 +572,7 @@ public final class AnalysisRegistry implements Closeable {
 
         IndexAnalysisProviders analysisProviders = new IndexAnalysisProviders(currentTokenizerFactories, currentCharFilterFactories,
                 newTokenFilterFactories);
-        return new IndexAnalyzers(indexAnalyzers, newDefaultSearchAnalyzer, newDefaultSearchQuoteAnalyzer, newAnalyzers, analysisProviders);
+        return new IndexAnalyzers(indexAnalyzers, newAnalyzers, analysisProviders);
     }
 
     static Set<String> filtersThatNeedReloading(List<NamedAnalyzer> analyzers) {

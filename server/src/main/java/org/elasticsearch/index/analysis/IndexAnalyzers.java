@@ -27,9 +27,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
+import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
+import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
 
 /**
  * IndexAnalyzers contains a name to analyzer mapping for a specific index.
@@ -39,32 +43,24 @@ import static java.util.Collections.unmodifiableMap;
  * @see AnalysisRegistry
  */
 public final class IndexAnalyzers extends AbstractIndexComponent implements Closeable {
-    private final NamedAnalyzer defaultIndexAnalyzer;
-    private final NamedAnalyzer defaultSearchAnalyzer;
-    private final NamedAnalyzer defaultSearchQuoteAnalyzer;
     private final Map<String, NamedAnalyzer> analyzers;
     private final Map<String, NamedAnalyzer> normalizers;
     private final Map<String, NamedAnalyzer> whitespaceNormalizers;
     private final IndexAnalysisProviders analysisProviders;
 
-    public IndexAnalyzers(IndexSettings indexSettings, NamedAnalyzer defaultIndexAnalyzer, NamedAnalyzer defaultSearchAnalyzer,
-            NamedAnalyzer defaultSearchQuoteAnalyzer, Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> normalizers,
+    public IndexAnalyzers(IndexSettings indexSettings, Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> normalizers,
             Map<String, NamedAnalyzer> whitespaceNormalizers) {
-        this(indexSettings, defaultIndexAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer, analyzers, normalizers,
-                whitespaceNormalizers, IndexAnalysisProviders.EMPTY);
+        this(indexSettings, analyzers, normalizers, whitespaceNormalizers, IndexAnalysisProviders.EMPTY);
     }
 
-    public IndexAnalyzers(IndexSettings indexSettings, NamedAnalyzer defaultIndexAnalyzer, NamedAnalyzer defaultSearchAnalyzer,
-                          NamedAnalyzer defaultSearchQuoteAnalyzer, Map<String, NamedAnalyzer> analyzers,
-                          Map<String, NamedAnalyzer> normalizers, Map<String, NamedAnalyzer> whitespaceNormalizers,
-                          IndexAnalysisProviders analysisProviders) {
+    public IndexAnalyzers(IndexSettings indexSettings, Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> normalizers,
+            Map<String, NamedAnalyzer> whitespaceNormalizers, IndexAnalysisProviders analysisProviders) {
         super(indexSettings);
-        if (defaultIndexAnalyzer.name().equals("default") == false) {
-            throw new IllegalStateException("default analyzer must have the name [default] but was: [" + defaultIndexAnalyzer.name() + "]");
+        Objects.requireNonNull(analyzers.get(DEFAULT_ANALYZER_NAME), "the default analyzer must be set");
+        if (analyzers.get(DEFAULT_ANALYZER_NAME).name().equals(DEFAULT_ANALYZER_NAME) == false) {
+            throw new IllegalStateException(
+                    "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]");
         }
-        this.defaultIndexAnalyzer = defaultIndexAnalyzer;
-        this.defaultSearchAnalyzer = defaultSearchAnalyzer;
-        this.defaultSearchQuoteAnalyzer = defaultSearchQuoteAnalyzer;
         this.analyzers =  unmodifiableMap(new HashMap<>(analyzers));
         this.normalizers = unmodifiableMap(new HashMap<>(normalizers));
         this.whitespaceNormalizers = unmodifiableMap(new HashMap<>(whitespaceNormalizers));
@@ -73,14 +69,10 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
 
     /**
      * Partial copy-constructor that keeps references to settings, default index analyzer and normalizers from original
-     * {@link IndexAnalyzers} passed in but takes other search time analyzers as inputs.
+     * {@link IndexAnalyzers} passed in but takes other analyzers as inputs.
      */
-    IndexAnalyzers(IndexAnalyzers original, NamedAnalyzer defaultSearchAnalyzer, NamedAnalyzer defaultSearchQuoteAnalyzer,
-            Map<String, NamedAnalyzer> analyzers, IndexAnalysisProviders analysisProviders) {
+    IndexAnalyzers(IndexAnalyzers original, Map<String, NamedAnalyzer> analyzers, IndexAnalysisProviders analysisProviders) {
         super(original.getIndexSettings());
-        this.defaultIndexAnalyzer = original.defaultIndexAnalyzer;
-        this.defaultSearchAnalyzer = defaultSearchAnalyzer;
-        this.defaultSearchQuoteAnalyzer = defaultSearchQuoteAnalyzer;
         this.analyzers =  unmodifiableMap(new HashMap<>(analyzers));
         this.normalizers = original.normalizers;
         this.whitespaceNormalizers = original.whitespaceNormalizers;
@@ -133,21 +125,21 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
      * Returns the default index analyzer for this index
      */
     public NamedAnalyzer getDefaultIndexAnalyzer() {
-        return defaultIndexAnalyzer;
+        return analyzers.get(DEFAULT_ANALYZER_NAME);
     }
 
     /**
-     * Returns the default search analyzer for this index
+     * Returns the default search analyzer for this index. If not set, this will return the default analyzer
      */
     public NamedAnalyzer getDefaultSearchAnalyzer() {
-        return defaultSearchAnalyzer;
+        return analyzers.getOrDefault(DEFAULT_SEARCH_ANALYZER_NAME, getDefaultIndexAnalyzer());
     }
 
     /**
      * Returns the default search quote analyzer for this index
      */
     public NamedAnalyzer getDefaultSearchQuoteAnalyzer() {
-        return defaultSearchQuoteAnalyzer;
+        return analyzers.getOrDefault(DEFAULT_SEARCH_QUOTED_ANALYZER_NAME, getDefaultSearchAnalyzer());
     }
 
     Map<String, TokenizerFactory> getTokenizerFactoryFactories() {

@@ -89,7 +89,7 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     /**
      * Returns an (unmodifiable) map of containing the index analyzers
      */
-    Map<String, NamedAnalyzer> getAnalyzers() {
+    public Map<String, NamedAnalyzer> getAnalyzers() {
         return analyzers;
     }
 

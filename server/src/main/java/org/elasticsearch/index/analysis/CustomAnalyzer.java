@@ -22,73 +22,126 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.util.CloseableThreadLocal;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.CustomAnalyzerProvider.AnalyzerComponents;
 
 import java.io.Reader;
+import java.util.Map;
 
 public final class CustomAnalyzer extends Analyzer {
+    private CloseableThreadLocal<AnalyzerComponents> storedComponents = new CloseableThreadLocal<>();
+    private volatile AnalyzerComponents current;
 
-    private final String tokenizerName;
-    private final TokenizerFactory tokenizerFactory;
-
-    private final CharFilterFactory[] charFilters;
-
-    private final TokenFilterFactory[] tokenFilters;
-
-    private final int positionIncrementGap;
-    private final int offsetGap;
     private final AnalysisMode analysisMode;
 
+    private static final ReuseStrategy UPDATE_STRATEGY = new ReuseStrategy() {
+        @Override
+        public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
+            CustomAnalyzer custom = (CustomAnalyzer) analyzer;
+            AnalyzerComponents components = custom.getStoredComponents();
+            if (components == null || custom.shouldReload(components)) {
+                custom.setStoredComponents(custom.current);
+                return null;
+            }
+            TokenStreamComponents tokenStream = (TokenStreamComponents) getStoredValue(analyzer);
+            assert tokenStream != null;
+            return tokenStream;
+        }
+
+        @Override
+        public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tokenStream) {
+            setStoredValue(analyzer, tokenStream);
+        }
+    };
+
     public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters) {
-        this(tokenizerName, tokenizerFactory, charFilters, tokenFilters, 0, -1);
+                          TokenFilterFactory[] tokenFilters) {
+        this(new AnalyzerComponents(tokenizerName, tokenizerFactory, charFilters, tokenFilters, -1, -1));
     }
 
     public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
-        this.tokenizerName = tokenizerName;
-        this.tokenizerFactory = tokenizerFactory;
-        this.charFilters = charFilters;
-        this.tokenFilters = tokenFilters;
-        this.positionIncrementGap = positionIncrementGap;
-        this.offsetGap = offsetGap;
+                          TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
+       this(new AnalyzerComponents(tokenizerName, tokenizerFactory, charFilters, tokenFilters, positionIncrementGap, offsetGap));
+    }
+
+    public CustomAnalyzer(AnalyzerComponents components) {
+        super(UPDATE_STRATEGY);
+        this.current = components;
         // merge and transfer token filter analysis modes with analyzer
         AnalysisMode mode = AnalysisMode.ALL;
-        for (TokenFilterFactory f : tokenFilters) {
+        for (TokenFilterFactory f : current.tokenFilters) {
             mode = mode.merge(f.getAnalysisMode());
         }
         this.analysisMode = mode;
     }
 
     /**
+     * TODO: We should not expose functions that return objects from the <code>current</code>,
+     * only the full {@link AnalyzerComponents} should be returned
+     */
+
+    /**
      * The name of the tokenizer as configured by the user.
      */
     public String getTokenizerName() {
-        return tokenizerName;
+        return current.tokenizerName;
     }
 
     public TokenizerFactory tokenizerFactory() {
-        return tokenizerFactory;
+        return current.tokenizerFactory;
     }
 
     public TokenFilterFactory[] tokenFilters() {
-        return tokenFilters;
+        return current.tokenFilters;
     }
 
     public CharFilterFactory[] charFilters() {
-        return charFilters;
+        return current.charFilters;
     }
 
     @Override
     public int getPositionIncrementGap(String fieldName) {
-        return this.positionIncrementGap;
+        return current.positionIncrementGap;
+    }
+
+    private boolean shouldReload(AnalyzerComponents source) {
+        return this.current != source;
+    }
+
+    public synchronized void reload(String name,
+                                    Settings settings,
+                                    final Map<String, TokenizerFactory> tokenizers,
+                                    final Map<String, CharFilterFactory> charFilters,
+                                    final Map<String, TokenFilterFactory> tokenFilters) {
+        AnalyzerComponents components = CustomAnalyzerProvider.createComponents(name, settings, tokenizers, charFilters, tokenFilters);
+        this.current = components;
+    }
+
+    @Override
+    public void close() {
+        storedComponents.close();
+    }
+
+    void setStoredComponents(AnalyzerComponents components) {
+        storedComponents.set(components);
+    }
+
+    AnalyzerComponents getStoredComponents() {
+        return storedComponents.get();
+    }
+
+    public AnalyzerComponents getComponents() {
+        return current;
     }
 
     @Override
     public int getOffsetGap(String field) {
-        if (offsetGap < 0) {
+        final AnalyzerComponents components = getComponents();
+        if (components.offsetGap < 0) {
             return super.getOffsetGap(field);
         }
-        return this.offsetGap;
+        return components.offsetGap;
     }
 
     public AnalysisMode getAnalysisMode() {
@@ -97,9 +150,10 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        Tokenizer tokenizer = tokenizerFactory.create();
+        final AnalyzerComponents components = getStoredComponents();
+        Tokenizer tokenizer = components.tokenizerFactory.create();
         TokenStream tokenStream = tokenizer;
-        for (TokenFilterFactory tokenFilter : tokenFilters) {
+        for (TokenFilterFactory tokenFilter : components.tokenFilters) {
             tokenStream = tokenFilter.create(tokenStream);
         }
         return new TokenStreamComponents(tokenizer, tokenStream);
@@ -107,8 +161,9 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        if (charFilters != null && charFilters.length > 0) {
-            for (CharFilterFactory charFilter : charFilters) {
+        final AnalyzerComponents components = getStoredComponents();
+        if (components.charFilters != null && components.charFilters.length > 0) {
+            for (CharFilterFactory charFilter : components.charFilters) {
                 reader = charFilter.create(reader);
             }
         }
@@ -117,7 +172,8 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected Reader initReaderForNormalization(String fieldName, Reader reader) {
-      for (CharFilterFactory charFilter : charFilters) {
+        final AnalyzerComponents components = getComponents();
+      for (CharFilterFactory charFilter : components.charFilters) {
           reader = charFilter.normalize(reader);
       }
       return reader;
@@ -125,10 +181,11 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected TokenStream normalize(String fieldName, TokenStream in) {
-      TokenStream result = in;
-      for (TokenFilterFactory filter : tokenFilters) {
-          result = filter.normalize(result);
-      }
-      return result;
+        final AnalyzerComponents components = getComponents();
+        TokenStream result = in;
+        for (TokenFilterFactory filter : components.tokenFilters) {
+            result = filter.normalize(result);
+        }
+        return result;
     }
 }

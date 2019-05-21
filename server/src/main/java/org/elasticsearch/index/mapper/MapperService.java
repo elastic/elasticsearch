@@ -37,6 +37,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -48,8 +49,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -72,9 +77,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -126,7 +129,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(MapperService.class));
 
-    private volatile IndexAnalyzers indexAnalyzers;
+    private final IndexAnalyzers indexAnalyzers;
 
     private volatile String defaultMappingSource;
 
@@ -140,8 +143,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentMapperParser documentParser;
 
     private final MapperAnalyzerWrapper indexAnalyzer;
-    private volatile MapperAnalyzerWrapper searchAnalyzer;
-    private volatile  MapperAnalyzerWrapper searchQuoteAnalyzer;
+    private final MapperAnalyzerWrapper searchAnalyzer;
+    private final MapperAnalyzerWrapper searchQuoteAnalyzer;
 
     private volatile Map<String, MappedFieldType> unmappedFieldTypes = emptyMap();
 
@@ -848,34 +851,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public synchronized     void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
+    public synchronized void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
         logger.info("reloading search analyzers");
         // refresh indexAnalyzers and search analyzers
-        IndexAnalyzers reloadedIndexAnalyzers = registry.reloadIndexAnalyzers(this.indexAnalyzers);
-        if (indexAnalyzers == reloadedIndexAnalyzers) {
-            // nothing changed, so we can simply return;
-            return;
-        }
-        this.indexAnalyzers = reloadedIndexAnalyzers;
-        this.searchAnalyzer = new MapperAnalyzerWrapper(this.indexAnalyzers.getDefaultSearchAnalyzer(), p -> p.searchAnalyzer());
-        this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(this.indexAnalyzers.getDefaultSearchQuoteAnalyzer(),
-                p -> p.searchQuoteAnalyzer());
-
-        // refresh search time analyzers in MappedFieldTypes
-        List<MappedFieldType> mftsToRefresh = StreamSupport.stream(fieldTypes.spliterator(), false)
-                .filter(mft -> (mft.searchAnalyzer() != null && mft.searchAnalyzer().getAnalysisMode() == AnalysisMode.SEARCH_TIME)
-                        || (mft.searchQuoteAnalyzer() != null && mft.searchQuoteAnalyzer().getAnalysisMode() == AnalysisMode.SEARCH_TIME))
-                .collect(Collectors.toList());
-        List<MappedFieldType> updated = mftsToRefresh.stream().map(mft -> {
-            MappedFieldType newMft = mft.clone();
-            newMft.setSearchAnalyzer(indexAnalyzers.get(mft.searchAnalyzer().name()));
-            newMft.setSearchQuoteAnalyzer(indexAnalyzers.get(mft.searchQuoteAnalyzer().name()));
-            newMft.freeze();
-            return newMft;
-        }).collect(Collectors.toList());
-        fieldTypes = fieldTypes.copyAndAddAll(updated);
-        if (mapper != null) {
-            mapper.root().updateFieldType(fieldTypes.fullNameToFieldType);
+        final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
+        final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
+        final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
+        final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+        for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
+            if (namedAnalyzer.analyzer() instanceof CustomAnalyzer) {
+                CustomAnalyzer analyzer = (CustomAnalyzer) namedAnalyzer.analyzer();
+                if (analyzer.getAnalysisMode() == AnalysisMode.SEARCH_TIME) {
+                    Settings analyzerSettings = settings.get(namedAnalyzer.name());
+                    analyzer.reload(namedAnalyzer.name(), analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+                }
+            }
         }
     }
 }

@@ -49,8 +49,7 @@ public class AzureBlobStore implements BlobStore {
     private final String container;
     private final LocationMode locationMode;
 
-    public AzureBlobStore(RepositoryMetaData metadata, AzureStorageService service)
-            throws URISyntaxException, StorageException {
+    public AzureBlobStore(RepositoryMetaData metadata, AzureStorageService service) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
@@ -71,10 +70,6 @@ public class AzureBlobStore implements BlobStore {
      */
     public LocationMode getLocationMode() {
         return locationMode;
-    }
-
-    public String getClientName() {
-        return clientName;
     }
 
     @Override

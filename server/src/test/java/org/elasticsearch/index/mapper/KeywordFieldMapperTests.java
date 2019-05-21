@@ -401,7 +401,8 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 () -> indexService.mapperService().merge("type",
                         new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
         assertEquals(
-                "Mapper for [field] conflicts with existing mapping:\n[mapper [field] has different [normalizer]]",
+                "Mapper for [field] conflicts with existing mapping:\n" +
+                    "[mapper [field] has different [analyzer], mapper [field] has different [normalizer]]",
                 e.getMessage());
     }
 

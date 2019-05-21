@@ -222,7 +222,6 @@ public class Archives {
             "elasticsearch-certgen",
             "elasticsearch-certutil",
             "elasticsearch-croneval",
-            "elasticsearch-migrate",
             "elasticsearch-saml-metadata",
             "elasticsearch-setup-passwords",
             "elasticsearch-sql-cli",

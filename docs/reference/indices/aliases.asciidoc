@@ -313,7 +313,7 @@ Possible options:
 The rest endpoint is: `/{index}/_alias/{alias}`.
 
 ifdef::asciidoctor[]
-added[1.4.0.Beta1,"The API will always include an `aliases` section, even if there aren't any aliases. Previous versions would not return the `aliases` section"]
+added::[1.4.0.Beta1,"The API will always include an `aliases` section, even if there aren't any aliases. Previous versions would not return the `aliases` section"]
 endif::[]
 ifndef::asciidoctor[]
 added[1.4.0.Beta1,The API will always include an `aliases` section, even if there aren't any aliases. Previous versions would not return the `aliases` section]

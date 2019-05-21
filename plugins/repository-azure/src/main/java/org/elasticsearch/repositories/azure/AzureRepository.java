@@ -112,20 +112,16 @@ public class AzureRepository extends BlobStoreRepository {
         }
     }
 
-    // only use for testing
     @Override
     protected BlobStore getBlobStore() {
         return super.getBlobStore();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    protected AzureBlobStore createBlobStore() throws URISyntaxException, StorageException {
+    protected AzureBlobStore createBlobStore() {
         final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService);
 
-        logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+        logger.debug(() -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
             blobStore, chunkSize, isCompress(), basePath));
         return blobStore;
@@ -136,9 +132,6 @@ public class AzureRepository extends BlobStoreRepository {
         return basePath;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;

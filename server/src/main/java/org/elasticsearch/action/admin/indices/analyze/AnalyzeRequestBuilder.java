@@ -23,14 +23,14 @@ import org.elasticsearch.client.ElasticsearchClient;
 
 import java.util.Map;
 
-public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
+public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<AnalyzeAction.Request, AnalyzeResponse, AnalyzeRequestBuilder> {
 
     public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action) {
-        super(client, action, new AnalyzeRequest());
+        super(client, action, new AnalyzeAction.Request());
     }
 
     public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action, String index, String... text) {
-        super(client, action, new AnalyzeRequest(index).text(text));
+        super(client, action, new AnalyzeAction.Request(index).text(text));
     }
 
     /**

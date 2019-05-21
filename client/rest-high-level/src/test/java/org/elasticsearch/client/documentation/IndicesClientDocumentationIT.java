@@ -2418,32 +2418,29 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::analyze-builtin-request
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.text("Some text to analyze", "Some more text to analyze");  // <1>
-            request.analyzer("english");    // <2>
+            AnalyzeRequest request = AnalyzeRequest.withGlobalAnalyzer("english", // <1>
+                "Some text to analyze", "Some more text to analyze");       // <2>
             // end::analyze-builtin-request
         }
 
         {
             // tag::analyze-custom-request
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.text("<b>Some text to analyze</b>");
-            request.addCharFilter("html_strip");                // <1>
-            request.tokenizer("standard");                      // <2>
-            request.addTokenFilter("lowercase");                // <3>
-
             Map<String, Object> stopFilter = new HashMap<>();
             stopFilter.put("type", "stop");
             stopFilter.put("stopwords", new String[]{ "to" });  // <4>
-            request.addTokenFilter(stopFilter);                 // <5>
+            AnalyzeRequest request = AnalyzeRequest.buildCustomAnalyzer("standard")  // <1>
+                .addCharFilter("html_strip")    // <2>
+                .addTokenFilter("lowercase")    // <3>
+                .addTokenFilter(stopFilter)     // <4>
+                .build("<b>Some text to analyze</b>");  // <5>
             // end::analyze-custom-request
         }
 
         {
             // tag::analyze-custom-normalizer-request
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.text("<b>BaR</b>");
-            request.addTokenFilter("lowercase");
+            AnalyzeRequest request = AnalyzeRequest.buildCustomNormalizer()
+                .addTokenFilter("lowercase")
+                .build("<b>BaR</b>");
             // end::analyze-custom-normalizer-request
 
             // tag::analyze-request-explain
@@ -2484,10 +2481,11 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::analyze-index-request
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.index("my_index");              // <1>
-            request.analyzer("my_analyzer");        // <2>
-            request.text("some text to analyze");
+            AnalyzeRequest request = AnalyzeRequest.withIndexAnalyzer(
+                "my_index",         // <1>
+                "my_analyzer",        // <2>
+                "some text to analyze"
+            );
             // end::analyze-index-request
 
             // tag::analyze-execute-listener
@@ -2505,10 +2503,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::analyze-execute-listener
 
             // use a built-in analyzer in the test
-            request = new AnalyzeRequest();
-            request.index("my_index");
-            request.field("my_field");
-            request.text("some text to analyze");
+            request = AnalyzeRequest.withField("my_index", "my_field", "some text to analyze");
             // Use a blocking listener in the test
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
@@ -2522,19 +2517,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::analyze-index-normalizer-request
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.index("my_index");                  // <1>
-            request.normalizer("my_normalizer");        // <2>
-            request.text("some text to analyze");
+            AnalyzeRequest request = AnalyzeRequest.withNormalizer(
+                "my_index",             // <1>
+                "my_normalizer",        // <2>
+                "some text to analyze"
+            );
             // end::analyze-index-normalizer-request
         }
 
         {
             // tag::analyze-field-request
-            AnalyzeRequest request = new AnalyzeRequest();
-            request.index("my_index");
-            request.field("my_field");
-            request.text("some text to analyze");
+            AnalyzeRequest request = AnalyzeRequest.withField("my_index", "my_field", "some text to analyze");
             // end::analyze-field-request
         }
 

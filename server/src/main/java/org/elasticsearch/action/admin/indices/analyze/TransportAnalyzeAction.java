@@ -79,7 +79,7 @@ import java.util.function.Function;
 /**
  * Transport action used to execute analyze requests
  */
-public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRequest, AnalyzeResponse> {
+public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAction.Request, AnalyzeResponse> {
 
     private final Settings settings;
     private final IndicesService indicesService;
@@ -90,7 +90,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver, Environment environment) {
         super(AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-            AnalyzeRequest::new, ThreadPool.Names.ANALYZE);
+            AnalyzeAction.Request::new, ThreadPool.Names.ANALYZE);
         this.settings = settings;
         this.indicesService = indicesService;
         this.environment = environment;
@@ -102,7 +102,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     }
 
     @Override
-    protected boolean resolveIndex(AnalyzeRequest request) {
+    protected boolean resolveIndex(AnalyzeAction.Request request) {
         return request.index() != null;
     }
 
@@ -124,7 +124,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     }
 
     @Override
-    protected AnalyzeResponse shardOperation(AnalyzeRequest request, ShardId shardId) {
+    protected AnalyzeResponse shardOperation(AnalyzeAction.Request request, ShardId shardId) {
         try {
             final IndexService indexService;
             if (shardId != null) {
@@ -170,8 +170,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
 
     }
 
-    public static AnalyzeResponse analyze(AnalyzeRequest request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers,
-            AnalysisRegistry analysisRegistry, Environment environment, int maxTokenCount) throws IOException {
+    public static AnalyzeResponse analyze(AnalyzeAction.Request request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers,
+                                          AnalysisRegistry analysisRegistry, Environment environment, int maxTokenCount) throws IOException {
         boolean closeAnalyzer = false;
         if (analyzer == null && request.analyzer() != null) {
             if (indexAnalyzers == null) {
@@ -253,8 +253,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return new AnalyzeResponse(tokens, detail);
     }
 
-    private static List<AnalyzeResponse.AnalyzeToken> simpleAnalyze(AnalyzeRequest request,
-            Analyzer analyzer, String field, int maxTokenCount) {
+    private static List<AnalyzeResponse.AnalyzeToken> simpleAnalyze(AnalyzeAction.Request request,
+                                                                    Analyzer analyzer, String field, int maxTokenCount) {
         TokenCounter tc = new TokenCounter(maxTokenCount);
         List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
@@ -290,7 +290,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return tokens;
     }
 
-    private static DetailAnalyzeResponse detailAnalyze(AnalyzeRequest request, Analyzer analyzer, String field, int maxTokenCount) {
+    private static DetailAnalyzeResponse detailAnalyze(AnalyzeAction.Request request, Analyzer analyzer, String field, int maxTokenCount) {
         DetailAnalyzeResponse detailResponse;
         final Set<String> includeAttributes = new HashSet<>();
         if (request.attributes() != null) {
@@ -526,13 +526,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return extendedAttributes;
     }
 
-    private static List<CharFilterFactory> parseCharFilterFactories(AnalyzeRequest request, IndexSettings indexSettings,
+    private static List<CharFilterFactory> parseCharFilterFactories(AnalyzeAction.Request request, IndexSettings indexSettings,
                                                                     AnalysisRegistry analysisRegistry, Environment environment,
                                                                     boolean normalizer) throws IOException {
         List<CharFilterFactory> charFilterFactoryList = new ArrayList<>();
         if (request.charFilters() != null && request.charFilters().size() > 0) {
-            List<AnalyzeRequest.NameOrDefinition> charFilters = request.charFilters();
-            for (AnalyzeRequest.NameOrDefinition charFilter : charFilters) {
+            List<AnalyzeAction.Request.NameOrDefinition> charFilters = request.charFilters();
+            for (AnalyzeAction.Request.NameOrDefinition charFilter : charFilters) {
                 CharFilterFactory charFilterFactory;
                 // parse anonymous settings
                 if (charFilter.definition != null) {
@@ -619,7 +619,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         }
     }
 
-    private static List<TokenFilterFactory> parseTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings,
+    private static List<TokenFilterFactory> parseTokenFilterFactories(AnalyzeAction.Request request, IndexSettings indexSettings,
                                                                       AnalysisRegistry analysisRegistry, Environment environment,
                                                                       Tuple<String, TokenizerFactory> tokenizerFactory,
                                                                       List<CharFilterFactory> charFilterFactoryList,
@@ -627,8 +627,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
         DeferredTokenFilterRegistry deferredRegistry = new DeferredTokenFilterRegistry(analysisRegistry, indexSettings);
         if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
-            List<AnalyzeRequest.NameOrDefinition> tokenFilters = request.tokenFilters();
-            for (AnalyzeRequest.NameOrDefinition tokenFilter : tokenFilters) {
+            List<AnalyzeAction.Request.NameOrDefinition> tokenFilters = request.tokenFilters();
+            for (AnalyzeAction.Request.NameOrDefinition tokenFilter : tokenFilters) {
                 TokenFilterFactory tokenFilterFactory;
                 // parse anonymous settings
                 if (tokenFilter.definition != null) {
@@ -683,11 +683,11 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return tokenFilterFactoryList;
     }
 
-    private static Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,
-                                                          AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+    private static Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalyzeAction.Request request, IndexAnalyzers indexAnalzyers,
+                                                                         AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
         String name;
         TokenizerFactory tokenizerFactory;
-        final AnalyzeRequest.NameOrDefinition tokenizer = request.tokenizer();
+        final AnalyzeAction.Request.NameOrDefinition tokenizer = request.tokenizer();
         // parse anonymous settings
         if (tokenizer.definition != null) {
             Settings settings = getAnonymousSettings(tokenizer.definition);

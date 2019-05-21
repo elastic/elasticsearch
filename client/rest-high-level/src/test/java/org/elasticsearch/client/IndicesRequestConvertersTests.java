@@ -86,18 +86,14 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndicesRequestConvertersTests extends ESTestCase {
 
     public void testAnalyzeRequest() throws Exception {
-        AnalyzeRequest indexAnalyzeRequest = new AnalyzeRequest()
-            .text("Here is some text")
-            .index("test_index")
-            .analyzer("test_analyzer");
+        AnalyzeRequest indexAnalyzeRequest
+            = AnalyzeRequest.withIndexAnalyzer("test_index", "test_analyzer", "Here is some text");
 
         Request request = IndicesRequestConverters.analyze(indexAnalyzeRequest);
         assertThat(request.getEndpoint(), equalTo("/test_index/_analyze"));
         RequestConvertersTests.assertToXContentBody(indexAnalyzeRequest, request.getEntity());
 
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest()
-            .text("more text")
-            .analyzer("test_analyzer");
+        AnalyzeRequest analyzeRequest = AnalyzeRequest.withGlobalAnalyzer("test_analyzer", "more text");
         assertThat(IndicesRequestConverters.analyze(analyzeRequest).getEndpoint(), equalTo("/_analyze"));
     }
 

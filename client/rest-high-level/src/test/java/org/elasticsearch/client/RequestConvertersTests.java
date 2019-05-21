@@ -1637,18 +1637,14 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testAnalyzeRequest() throws Exception {
-        AnalyzeRequest indexAnalyzeRequest = new AnalyzeRequest()
-            .text("Here is some text")
-            .index("test_index")
-            .analyzer("test_analyzer");
+        AnalyzeRequest indexAnalyzeRequest
+            = AnalyzeRequest.withIndexAnalyzer("text_index", "test_analyzer", "Here is some text");
 
         Request request = RequestConverters.analyze(indexAnalyzeRequest);
         assertThat(request.getEndpoint(), equalTo("/test_index/_analyze"));
         assertToXContentBody(indexAnalyzeRequest, request.getEntity());
 
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest()
-            .text("more text")
-            .analyzer("test_analyzer");
+        AnalyzeRequest analyzeRequest = AnalyzeRequest.withGlobalAnalyzer("test_analyzer", "more text");
         assertThat(RequestConverters.analyze(analyzeRequest).getEndpoint(), equalTo("/_analyze"));
     }
 

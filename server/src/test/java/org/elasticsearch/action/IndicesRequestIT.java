@@ -21,7 +21,6 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -207,7 +206,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String analyzeShardAction = AnalyzeAction.NAME + "[s]";
         interceptTransportActions(analyzeShardAction);
 
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias());
+        AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(randomIndexOrAlias());
         analyzeRequest.text("text");
         internalCluster().coordOnlyNodeClient().admin().indices().analyze(analyzeRequest).actionGet();
 

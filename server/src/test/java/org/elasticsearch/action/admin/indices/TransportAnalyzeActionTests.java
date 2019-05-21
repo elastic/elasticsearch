@@ -22,7 +22,7 @@ import org.apache.lucene.analysis.MockTokenFilter;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -136,7 +136,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
      */
     public void testNoIndexAnalyzers() throws IOException {
         // Refer to an analyzer by its type so we get its default configuration
-        AnalyzeRequest request = new AnalyzeRequest();
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text("the quick brown fox");
         request.analyzer("standard");
         AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, null, registry, environment, maxTokenCount);
@@ -144,7 +144,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals(4, tokens.size());
 
         // Refer to a token filter by its type so we get its default configuration
-        request = new AnalyzeRequest();
+        request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
         request.addTokenFilter("mock");
@@ -157,7 +157,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("fox", tokens.get(2).getTerm());
 
         // We can refer to a pre-configured token filter by its name to get it
-        request = new AnalyzeRequest();
+        request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
         request.addCharFilter("append_foo");
@@ -171,7 +171,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("foxfoo", tokens.get(3).getTerm());
 
         // We can refer to a token filter by its type to get its default configuration
-        request = new AnalyzeRequest();
+        request = new AnalyzeAction.Request();
         request.text("the qu1ck brown fox");
         request.tokenizer("standard");
         request.addCharFilter("append");
@@ -187,7 +187,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     public void testFillsAttributes() throws IOException {
-        AnalyzeRequest request = new AnalyzeRequest();
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.analyzer("standard");
         request.text("the 1 brown fox");
         AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, null, registry, environment, maxTokenCount);
@@ -219,7 +219,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     public void testWithIndexAnalyzers() throws IOException {
-        AnalyzeRequest request = new AnalyzeRequest();
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text("the quick brown fox");
         request.analyzer("custom_analyzer");
         AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
@@ -263,7 +263,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     public void testGetIndexAnalyserWithoutIndexAnalyzers() throws IOException {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TransportAnalyzeAction.analyze(
-                new AnalyzeRequest()
+                new AnalyzeAction.Request()
                     .analyzer("custom_analyzer")
                     .text("the qu1ck brown fox-dog"),
                 "text", null, null, registry, environment, maxTokenCount));
@@ -274,7 +274,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         boolean notGlobal = randomBoolean();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TransportAnalyzeAction.analyze(
-                new AnalyzeRequest()
+                new AnalyzeAction.Request()
                     .analyzer("foobar")
                     .text("the qu1ck brown fox"),
                 "text", null, notGlobal ? indexAnalyzers : null, registry, environment, maxTokenCount));
@@ -286,7 +286,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         e = expectThrows(IllegalArgumentException.class,
             () -> TransportAnalyzeAction.analyze(
-                new AnalyzeRequest()
+                new AnalyzeAction.Request()
                     .tokenizer("foobar")
                     .text("the qu1ck brown fox"),
                 "text", null, notGlobal ? indexAnalyzers : null, registry, environment, maxTokenCount));
@@ -298,7 +298,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         e = expectThrows(IllegalArgumentException.class,
             () -> TransportAnalyzeAction.analyze(
-                new AnalyzeRequest()
+                new AnalyzeAction.Request()
                     .tokenizer("standard")
                     .addTokenFilter("foobar")
                     .text("the qu1ck brown fox"),
@@ -311,7 +311,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         e = expectThrows(IllegalArgumentException.class,
             () -> TransportAnalyzeAction.analyze(
-                new AnalyzeRequest()
+                new AnalyzeAction.Request()
                     .tokenizer("standard")
                     .addTokenFilter("lowercase")
                     .addCharFilter("foobar")
@@ -325,7 +325,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         e = expectThrows(IllegalArgumentException.class,
             () -> TransportAnalyzeAction.analyze(
-                new AnalyzeRequest()
+                new AnalyzeAction.Request()
                     .normalizer("foobar")
                     .text("the qu1ck brown fox"),
                 "text", null, indexAnalyzers, registry, environment, maxTokenCount));
@@ -333,7 +333,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     public void testNonPreBuildTokenFilter() throws IOException {
-        AnalyzeRequest request = new AnalyzeRequest();
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.tokenizer("standard");
         request.addTokenFilter("stop"); // stop token filter is not prebuilt in AnalysisModule#setupPreConfiguredTokenFilters()
         request.text("the quick brown fox");
@@ -347,7 +347,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
     }
 
     public void testNormalizerWithIndex() throws IOException {
-        AnalyzeRequest request = new AnalyzeRequest("index");
+        AnalyzeAction.Request request = new AnalyzeAction.Request("index");
         request.normalizer("my_normalizer");
         request.text("ABc");
         AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
@@ -372,7 +372,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         String text = sbText.toString();
 
         // request with explain=false to test simpleAnalyze path in TransportAnalyzeAction
-        AnalyzeRequest request = new AnalyzeRequest();
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text(text);
         request.analyzer("standard");
         IllegalStateException e = expectThrows(IllegalStateException.class,
@@ -382,7 +382,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
             + maxTokenCount + "]." + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.");
 
         // request with explain=true to test detailAnalyze path in TransportAnalyzeAction
-        AnalyzeRequest request2 = new AnalyzeRequest();
+        AnalyzeAction.Request request2 = new AnalyzeAction.Request();
         request2.text(text);
         request2.analyzer("standard");
         request2.explain(true);
@@ -406,7 +406,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         }
         String text = sbText.toString();
 
-        AnalyzeRequest request = new AnalyzeRequest();
+        AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text(text);
         request.analyzer("standard");
         IllegalStateException e = expectThrows(IllegalStateException.class,

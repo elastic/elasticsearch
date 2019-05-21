@@ -48,6 +48,8 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -134,6 +136,13 @@ import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.ml.dataframe.OutlierDetection;
 import org.elasticsearch.client.ml.dataframe.QueryConfig;
+import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.AucRocMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.ConfusionMatrixMetric.ConfusionMatrix;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.PrecisionMetric;
+import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.RecallMetric;
 import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
 import org.elasticsearch.client.ml.job.config.AnalysisLimits;
@@ -3059,7 +3068,102 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             30, TimeUnit.SECONDS);
     }
 
-    public void testCreateFilter() throws Exception {
+    public void testEvaluateDataFrame() throws Exception {
+        String indexName = "evaluate-test-index";
+        CreateIndexRequest createIndexRequest =
+            new CreateIndexRequest(indexName)
+                .mapping(XContentFactory.jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("label")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("p")
+                    .field("type", "double")
+                    .endObject()
+                    .endObject()
+                    .endObject());
+        BulkRequest bulkRequest =
+            new BulkRequest(indexName)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.1)) // #0
+                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.2)) // #1
+                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.3)) // #2
+                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.4)) // #3
+                .add(new IndexRequest().source(XContentType.JSON, "label", false, "p", 0.7)) // #4
+                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.2)) // #5
+                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.3)) // #6
+                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.4)) // #7
+                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.8)) // #8
+                .add(new IndexRequest().source(XContentType.JSON, "label", true,  "p", 0.9)); // #9
+        RestHighLevelClient client = highLevelClient();
+        client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        client.bulk(bulkRequest, RequestOptions.DEFAULT);
+        {
+            // tag::evaluate-data-frame-request
+            EvaluateDataFrameRequest request = new EvaluateDataFrameRequest( // <1>
+                indexName, // <2>
+                new BinarySoftClassification( // <3>
+                    "label", // <4>
+                    "p", // <5>
+                    // Evaluation metrics // <6>
+                    PrecisionMetric.at(0.4, 0.5, 0.6), // <7>
+                    RecallMetric.at(0.5, 0.7), // <8>
+                    ConfusionMatrixMetric.at(0.5), // <9>
+                    AucRocMetric.withCurve())); // <10>
+            // end::evaluate-data-frame-request
+
+            // tag::evaluate-data-frame-execute
+            EvaluateDataFrameResponse response = client.machineLearning().evaluateDataFrame(request, RequestOptions.DEFAULT);
+            // end::evaluate-data-frame-execute
+
+            // tag::evaluate-data-frame-response
+            List<EvaluationMetric.Result> metrics = response.getMetrics(); // <1>
+
+            PrecisionMetric.Result precisionResult = response.getMetricByName(PrecisionMetric.NAME); // <2>
+            double precision = precisionResult.getScoreByThreshold("0.4"); // <3>
+
+            ConfusionMatrixMetric.Result confusionMatrixResult = response.getMetricByName(ConfusionMatrixMetric.NAME); // <4>
+            ConfusionMatrix confusionMatrix = confusionMatrixResult.getScoreByThreshold("0.5"); // <5>
+            // end::evaluate-data-frame-response
+
+            assertThat(
+                metrics.stream().map(m -> m.getMetricName()).collect(Collectors.toList()),
+                containsInAnyOrder(PrecisionMetric.NAME, RecallMetric.NAME, ConfusionMatrixMetric.NAME, AucRocMetric.NAME));
+            assertThat(precision, closeTo(0.6, 1e-9));
+            assertThat(
+                confusionMatrix,
+                equalTo(
+                    ConfusionMatrix.builder()
+                        .setTruePositives(2)  // docs #8 and #9
+                        .setFalsePositives(1)  // doc #4
+                        .setTrueNegatives(4)  // docs #0, #1, #2 and #3
+                        .setFalseNegatives(3)  // docs #5, #6 and #7
+                        .build()));
+        }
+        {
+            EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(
+                indexName,
+                new BinarySoftClassification(
+                    "label",
+                    "p",
+                    PrecisionMetric.at(0.4, 0.5, 0.6),
+                    RecallMetric.at(0.5, 0.7),
+                    ConfusionMatrixMetric.at(0.5),
+                    AucRocMetric.withCurve()));
+
+            // tag::evaluate-data-frame-execute-listener
+            ActionListener<EvaluateDataFrameResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(EvaluateDataFrameResponse response) {
+                    // end::evaluate-data-frame-execute-listener
+                    // tag::evaluate-data-frame-execute-async
+                    client.machineLearning().evaluateDataFrameAsync(request, RequestOptions.DEFAULT, listener); // <1>
+                    // end::evaluate-data-frame-execute-async
+                }
+            }
+        }
+
+        public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::put-filter-config

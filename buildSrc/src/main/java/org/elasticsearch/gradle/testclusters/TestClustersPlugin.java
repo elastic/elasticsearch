@@ -62,11 +62,13 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
+    private static final String TESTCLUSTERS_DISABLE_CLUSTER_STOP = "testclusters.disable.cluster.stop";
 
     private final Map<Task, List<ElasticsearchCluster>> usedClusters = new HashMap<>();
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
     private final Set<ElasticsearchCluster> runningClusters =new HashSet<>();
     private final Thread shutdownHook = new Thread(this::shutDownAllClusters);
+    private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_DISABLE_CLUSTER_STOP, "false"));
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public static String getHelperConfigurationName(String version) {
@@ -221,7 +223,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
                         // executed at all, so we will never get to un-claim and terminate it.
-                        clustersUsedByTask.forEach(each -> each.stop(true));
+                        clustersUsedByTask.forEach(each -> stopCluster(each, true));
                     } else {
                         clustersUsedByTask.forEach(
                             each -> claimsInventory.put(each, claimsInventory.getOrDefault(each, 0) - 1)
@@ -231,7 +233,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                             .filter(entry -> runningClusters.contains(entry.getKey()))
                             .map(Map.Entry::getKey)
                             .forEach(each -> {
-                                each.stop(false);
+                                stopCluster(each, false);
                                 runningClusters.remove(each);
                             });
                     }
@@ -240,6 +242,29 @@ public class TestClustersPlugin implements Plugin<Project> {
                 public void beforeExecute(Task task) {}
             }
         );
+    }
+
+    private void stopCluster(ElasticsearchCluster each, boolean taskFailed) {
+        if (allowClusterToSurvive) {
+            logger.info("Not stopping clusters, disabled by property");
+            if (taskFailed || runningClusters.size() == 1) {
+                // task failed or this is the last one to stop
+                for (int i=1 ; ; i += i) {
+                    logger.lifecycle(
+                        "No more test clusters left to run, going to sleep because {} was set," +
+                            " interrupt to stop clusters.", TESTCLUSTERS_DISABLE_CLUSTER_STOP
+                    );
+                    try {
+                        Thread.sleep(1000 * i);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
+            return;
+        }
+        each.stop(taskFailed);
     }
 
     /**
@@ -428,11 +453,17 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private void shutDownAllClusters() {
         synchronized (runningClusters) {
-            Iterator<ElasticsearchCluster> iterator = runningClusters.iterator();
-            while (iterator.hasNext()) {
-                iterator.remove();
-                iterator.next().stop(true);
+            if (runningClusters.isEmpty()) {
+                return;
             }
+            // this will only show up in the Gradle Daemon log
+            new RuntimeException("Just to show how we got to shut down all clusters, not really an exception").printStackTrace();
+
+            Set<ElasticsearchCluster> running = new HashSet<>(runningClusters);
+            running.forEach(each -> {
+                runningClusters.remove(each);
+                each.stop(false);
+            });
         }
     }
 

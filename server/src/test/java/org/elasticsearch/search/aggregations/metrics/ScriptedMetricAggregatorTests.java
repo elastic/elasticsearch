@@ -71,7 +71,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     private static final Script MAP_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "mapScriptParams",
             Collections.singletonMap("itemValue", 12));
     private static final Script COMBINE_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "combineScriptParams",
-            Collections.singletonMap("divisor", 4));
+            Collections.singletonMap("multiplier", 4));
     private static final Script REDUCE_SCRIPT_PARAMS = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "reduceScriptParams",
             Collections.singletonMap("additional", 2));
     private static final String CONFLICTING_PARAM_NAME = "initialValue";
@@ -142,11 +142,13 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         });
         SCRIPTS.put("combineScriptParams", params -> {
             Map<String, Object> state = (Map<String, Object>) params.get("state");
-            int divisor = ((Integer) params.get("divisor"));
-            return ((List<Integer>) state.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i / divisor).sum();
+            int multiplier = ((Integer) params.get("multiplier"));
+            return ((List<Integer>) state.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i * multiplier).sum();
         });
         SCRIPTS.put("reduceScriptParams", params ->
-            (int)((List)params.get("states")).get(0) + (int)params.get("aggs_param") + (int)params.get("additional")
+            ((List)params.get("states")).stream().mapToInt(i -> (int)i).sum() +
+                    (int)params.get("aggs_param") + (int)params.get("additional") -
+                    ((List)params.get("states")).size()*24*4
         );
 
         SCRIPTS.put("initScriptSelfRef", params -> {
@@ -284,7 +286,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                 ScriptedMetric scriptedMetric = search(newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder);
 
                 // The result value depends on the script params.
-                assertEquals(306, scriptedMetric.aggregation());
+                assertEquals(4896, scriptedMetric.aggregation());
             }
         }
     }
@@ -310,7 +312,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
                         newSearcher(indexReader, true, true), new MatchAllDocsQuery(), aggregationBuilder, 0, scriptService);
 
                 // The result value depends on the script params.
-                assertEquals(309, scriptedMetric.aggregation());
+                assertEquals(4803, scriptedMetric.aggregation());
             }
         }
     }

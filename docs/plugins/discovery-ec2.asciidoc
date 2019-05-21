@@ -59,9 +59,9 @@ The available settings for the EC2 discovery plugin are as follows.
 `discovery.ec2.access_key`::
 
     An EC2 access key. If set, you must also set `discovery.ec2.secret_key`.
-    If unset, `discovery-ec2` will instead use the instance role as
-    appropriate. This setting is sensitive and must be stored in the
-    {ref}/secure-settings.html[{es} keystore].
+    If unset, `discovery-ec2` will instead use the instance role. This setting
+    is sensitive and must be stored in the {ref}/secure-settings.html[{es}
+    keystore].
 
 `discovery.ec2.secret_key`::
 

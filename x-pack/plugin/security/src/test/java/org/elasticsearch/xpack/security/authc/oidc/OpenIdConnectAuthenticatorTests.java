@@ -37,6 +37,7 @@ import com.nimbusds.openid.connect.sdk.Nonce;
 import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.InvalidHashException;
+import net.minidev.json.JSONObject;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -96,7 +97,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     @After
     public void cleanup() {
-        authenticator.close();
+        if (authenticator != null) {
+            authenticator.close();
+        }
     }
 
     private OpenIdConnectAuthenticator buildAuthenticator() throws URISyntaxException {
@@ -630,6 +633,85 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWTException.class));
         assertThat(e.getCause().getMessage(), containsString("Signed ID token expected"));
+    }
+
+    public void testJsonObjectMerging() throws Exception {
+        final Nonce nonce = new Nonce();
+        final String subject = "janedoe";
+        final Tuple<Key, JWKSet> keyMaterial = getRandomJwkForType(randomFrom("ES", "RS"));
+        final JWK jwk = keyMaterial.v2().getKeys().get(0);
+        RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
+        OpenIdConnectProviderConfiguration opConfig = getOpConfig();
+        JSONObject idTokenObject = new JWTClaimsSet.Builder()
+            .jwtID(randomAlphaOfLength(8))
+            .audience(rpConfig.getClientId().getValue())
+            .expirationTime(Date.from(now().plusSeconds(3600)))
+            .issuer(opConfig.getIssuer().getValue())
+            .issueTime(Date.from(now().minusSeconds(200)))
+            .notBeforeTime(Date.from(now().minusSeconds(200)))
+            .claim("nonce", nonce)
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", "Doe")
+            .claim("profile", "https://test-profiles.com/jane.doe")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@example.com")
+            .subject(subject)
+            .build()
+            .toJSONObject();
+
+        JSONObject userinfoObject = new JWTClaimsSet.Builder()
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", "Doe")
+            .claim("profile", "https://test-profiles.com/jane.doe")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@example.com")
+            .subject(subject)
+            .build()
+            .toJSONObject();
+
+        OpenIdConnectAuthenticator.merge(idTokenObject, userinfoObject);
+        assertTrue(idTokenObject.containsKey("given_name"));
+        assertTrue(idTokenObject.containsKey("family_name"));
+        assertTrue(idTokenObject.containsKey("profile"));
+        assertTrue(idTokenObject.containsKey("name"));
+        assertTrue(idTokenObject.containsKey("email"));
+        assertTrue(idTokenObject.containsKey("nonce"));
+        assertTrue(idTokenObject.containsKey("sub"));
+        assertTrue(idTokenObject.containsKey("jti"));
+        assertTrue(idTokenObject.containsKey("aud"));
+        assertTrue(idTokenObject.containsKey("exp"));
+        assertTrue(idTokenObject.containsKey("iss"));
+        assertTrue(idTokenObject.containsKey("iat"));
+        assertTrue(idTokenObject.containsKey("email"));
+
+        JSONObject wrongTypeInfo = new JWTClaimsSet.Builder()
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", 123334434)
+            .claim("profile", "https://test-profiles.com/jane.doe")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@example.com")
+            .subject(subject)
+            .build()
+            .toJSONObject();
+
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            OpenIdConnectAuthenticator.merge(idTokenObject, wrongTypeInfo);
+        });
+
+        // Userinfo Claims overwrite ID Token claims
+        JSONObject overwriteUserInfo = new JWTClaimsSet.Builder()
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", "Doe")
+            .claim("profile", "https://test-profiles.com/jane.doe2")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@mail.com")
+            .subject(subject)
+            .build()
+            .toJSONObject();
+
+        OpenIdConnectAuthenticator.merge(idTokenObject, overwriteUserInfo);
+        assertThat(idTokenObject.getAsString("email"), equalTo("jane.doe@example.com"));
+        assertThat(idTokenObject.getAsString("profile"), equalTo("https://test-profiles.com/jane.doe"));
     }
 
     private OpenIdConnectProviderConfiguration getOpConfig() throws URISyntaxException {

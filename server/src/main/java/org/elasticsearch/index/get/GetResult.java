@@ -250,9 +250,6 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
     public Iterator<DocumentField> iterator() {
         // need to join the fields and metadata fields
         Map<String, DocumentField> allFields = this.getFields();
-        if (allFields == null) {
-            return Collections.emptyIterator();
-        }
         return allFields.values().iterator();
     }
 
@@ -428,7 +425,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
             if (source.length() == 0) {
                 source = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
                 documentFields = readFields(in);
                 metaFields = readFields(in);            
             } else {
@@ -451,7 +448,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         out.writeBoolean(exists);
         if (exists) {
             out.writeBytesReference(source);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
                 writeFields(out, documentFields);
                 writeFields(out, metaFields);
             } else {

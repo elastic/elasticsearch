@@ -57,7 +57,7 @@ teardown:
   - match: { transforms.0.stats.index_time_in_ms: 0 }
   - match: { transforms.0.stats.index_total: 0 }
   - match: { transforms.0.stats.index_failures: 0 }
-  - match: { transforms.0.stats.search_time_in_ms: 0 }
+  - gte: { transforms.0.stats.search_time_in_ms: 0 }
   - lte: { transforms.0.stats.search_total: 1 }
   - match: { transforms.0.stats.search_failures: 0 }
 

@@ -145,7 +145,7 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             int divisor = ((Integer) params.get("divisor"));
             return ((List<Integer>) state.get("collector")).stream().mapToInt(Integer::intValue).map(i -> i / divisor).sum();
         });
-        SCRIPTS.put("reduceScriptAggParams", params ->
+        SCRIPTS.put("reduceScriptParams", params ->
             (int)((List)params.get("states")).get(0) + (int)params.get("aggs_param") + (int)params.get("additional")
         );
 

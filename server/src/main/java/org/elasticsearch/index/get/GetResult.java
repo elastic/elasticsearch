@@ -400,7 +400,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         return fields;
     }
     
-    public static void splitFieldsByMetadata(Map<String, DocumentField> fields, Map<String, DocumentField> outOther,
+    static void splitFieldsByMetadata(Map<String, DocumentField> fields, Map<String, DocumentField> outOther,
                                        Map<String, DocumentField> outMetadata) {
         if (fields == null) {
             return;

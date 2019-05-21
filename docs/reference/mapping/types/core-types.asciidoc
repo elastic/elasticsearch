@@ -708,7 +708,7 @@ navigation notation: `name.raw`, or using the typed navigation notation
 `tweet.name.raw`. 
 
 ifdef::asciidoctor[]
-deprecated[1.0.0,"The `path` option below is deprecated.  Use <<copy-to,`copy_to`>> instead for setting up custom _all fields"]
+deprecated::[1.0.0,"The `path` option below is deprecated.  Use <<copy-to,`copy_to`>> instead for setting up custom _all fields"]
 endif::[]
 ifndef::asciidoctor[]
 deprecated[1.0.0,The `path` option below is deprecated.  Use <<copy-to,`copy_to`>> instead for setting up custom _all fields]

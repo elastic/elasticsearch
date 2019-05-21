@@ -292,7 +292,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         wipeIndices();
     }
 
-    public void wipeDataFrameTransforms() throws IOException, InterruptedException {
+    public void wipeDataFrameTransforms() throws IOException {
         List<Map<String, Object>> transformConfigs = getDataFrameTransforms();
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");

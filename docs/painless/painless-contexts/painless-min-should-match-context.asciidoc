@@ -25,7 +25,7 @@ results.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+The standard <<painless-api-reference-shared, Painless API>> is available.
 
 *Example*
 

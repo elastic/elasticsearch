@@ -1736,7 +1736,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42325")
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
         IndexShardTestCase.updateRoutingEntry(shard, ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
@@ -1754,12 +1753,11 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryThread.start();
 
         final int numberOfAcquisitions = randomIntBetween(1, 10);
-        final int recoveryIndex = randomIntBetween(1, numberOfAcquisitions);
+        final List<Runnable> assertions = new ArrayList<>(numberOfAcquisitions);
+        final int recoveryIndex = randomIntBetween(0, numberOfAcquisitions - 1);
 
         for (int i = 0; i < numberOfAcquisitions; i++) {
-
             final PlainActionFuture<Releasable> onLockAcquired;
-            final Runnable assertion;
             if (i < recoveryIndex) {
                 final AtomicBoolean invoked = new AtomicBoolean();
                 onLockAcquired = new PlainActionFuture<>() {
@@ -1777,26 +1775,29 @@ public class IndexShardTests extends IndexShardTestCase {
                     }
 
                 };
-                assertion = () -> assertTrue(invoked.get());
+                assertions.add(() -> assertTrue(invoked.get()));
             } else if (recoveryIndex == i) {
                 startRecovery.countDown();
                 relocationStarted.await();
                 onLockAcquired = new PlainActionFuture<>();
-                assertion = () -> {
+                assertions.add(() -> {
                     final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
                     assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
                     assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
-                };
+                });
             } else {
                 onLockAcquired = new PlainActionFuture<>();
-                assertion = () -> {
+                assertions.add(() -> {
                     final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
                     assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
                     assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
-                };
+                });
             }
 
             shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE, "i_" + i);
+        }
+
+        for (final Runnable assertion : assertions) {
             assertion.run();
         }
 

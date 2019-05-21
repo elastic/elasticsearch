@@ -21,11 +21,20 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
+import org.junit.Before;
 import org.junit.Ignore;
+
 
 import java.util.Arrays;
 
 public class TestClustersPluginIT extends GradleIntegrationTestCase {
+
+    private GradleRunner runner;
+
+    @Before
+    public void setUp() throws Exception {
+        runner = getGradleRunner("testclusters");
+    }
 
     public void testListClusters() {
         BuildResult result = getTestClustersRunner("listTestClusters").build();
@@ -105,6 +114,14 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         );
     }
 
+    public void testReleased() {
+        BuildResult result = getTestClustersRunner("testReleased").build();
+        assertTaskSuccessful(result, ":testReleased");
+        assertStartedAndStoppedOnce(result, "releasedVersionDefault-1");
+        assertStartedAndStoppedOnce(result, "releasedVersionOSS-1");
+        assertStartedAndStoppedOnce(result, "releasedVersionIntegTest-1");
+    }
+
     public void testIncremental() {
         BuildResult result = getTestClustersRunner("clean", ":user1").build();
         assertTaskSuccessful(result, ":user1");
@@ -182,10 +199,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         arguments[tasks.length] = "-s";
         arguments[tasks.length + 1] = "-i";
         arguments[tasks.length + 2] = "-Dlocal.repo.path=" + getLocalTestRepoPath();
-        return GradleRunner.create()
-            .withProjectDir(getProjectDir("testclusters"))
-            .withArguments(arguments)
-            .withPluginClasspath();
+        return runner.withArguments(arguments);
     }
 
     private void assertStartedAndStoppedOnce(BuildResult result, String nodeName) {

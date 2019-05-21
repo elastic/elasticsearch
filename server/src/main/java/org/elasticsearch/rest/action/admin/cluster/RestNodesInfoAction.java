@@ -36,7 +36,7 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesInfoAction extends BaseRestHandler {
-    private static final Set<String> ALLOWED_METRICS = Sets.newHashSet(
+    static final Set<String> ALLOWED_METRICS = Sets.newHashSet(
             "http",
             "ingest",
             "indices",
@@ -69,6 +69,13 @@ public class RestNodesInfoAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final NodesInfoRequest nodesInfoRequest = prepareRequest(request);
+        settingsFilter.addFilterSettingParams(request);
+
+        return channel -> client.admin().cluster().nodesInfo(nodesInfoRequest, new NodesResponseRestListener<>(channel));
+    }
+
+    static NodesInfoRequest prepareRequest(final RestRequest request) {
         String[] nodeIds;
         Set<String> metrics;
 
@@ -76,17 +83,18 @@ public class RestNodesInfoAction extends BaseRestHandler {
         // still, /_nodes/_local (or any other node id) should work and be treated as usual
         // this means one must differentiate between allowed metrics and arbitrary node ids in the same place
         if (request.hasParam("nodeId") && !request.hasParam("metrics")) {
-            Set<String> metricsOrNodeIds = Strings.tokenizeByCommaToSet(request.param("nodeId", "_all"));
+            String nodeId = request.param("nodeId", "_all");
+            Set<String> metricsOrNodeIds = Strings.tokenizeByCommaToSet(nodeId);
             boolean isMetricsOnly = ALLOWED_METRICS.containsAll(metricsOrNodeIds);
             if (isMetricsOnly) {
                 nodeIds = new String[]{"_all"};
                 metrics = metricsOrNodeIds;
             } else {
-                nodeIds = metricsOrNodeIds.toArray(new String[]{});
+                nodeIds = Strings.tokenizeToStringArray(nodeId, ",");
                 metrics = Sets.newHashSet("_all");
             }
         } else {
-            nodeIds = Strings.splitStringByCommaToArray(request.param("nodeId", "_all"));
+            nodeIds = Strings.tokenizeToStringArray(request.param("nodeId", "_all"), ",");
             metrics = Strings.tokenizeByCommaToSet(request.param("metrics", "_all"));
         }
 
@@ -108,10 +116,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
             nodesInfoRequest.ingest(metrics.contains("ingest"));
             nodesInfoRequest.indices(metrics.contains("indices"));
         }
-
-        settingsFilter.addFilterSettingParams(request);
-
-        return channel -> client.admin().cluster().nodesInfo(nodesInfoRequest, new NodesResponseRestListener<>(channel));
+        return nodesInfoRequest;
     }
 
     @Override

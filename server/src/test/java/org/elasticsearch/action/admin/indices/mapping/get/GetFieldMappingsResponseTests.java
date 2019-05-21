@@ -23,11 +23,12 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,7 +39,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTestCase<GetFieldMappingsResponse> {
+public class GetFieldMappingsResponseTests extends AbstractSerializingTestCase<GetFieldMappingsResponse> {
 
     public void testManualSerialization() throws IOException {
         Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = new HashMap<>();
@@ -48,9 +49,8 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
-            GetFieldMappingsResponse serialized = new GetFieldMappingsResponse();
             try (StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
-                serialized.readFrom(in);
+                GetFieldMappingsResponse serialized = new GetFieldMappingsResponse(in);
                 FieldMappingMetaData metaData = serialized.fieldMappings("index", "type", "field");
                 assertNotNull(metaData);
                 assertEquals(new BytesArray("{}"), metaData.getSource());
@@ -106,13 +106,13 @@ public class GetFieldMappingsResponseTests extends AbstractStreamableXContentTes
     }
 
     @Override
-    protected GetFieldMappingsResponse createBlankInstance() {
-        return new GetFieldMappingsResponse();
+    protected GetFieldMappingsResponse createTestInstance() {
+        return new GetFieldMappingsResponse(randomMapping());
     }
 
     @Override
-    protected GetFieldMappingsResponse createTestInstance() {
-        return new GetFieldMappingsResponse(randomMapping());
+    protected Writeable.Reader<GetFieldMappingsResponse> instanceReader() {
+        return GetFieldMappingsResponse::new;
     }
 
     @Override

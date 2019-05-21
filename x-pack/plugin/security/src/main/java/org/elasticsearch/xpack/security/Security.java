@@ -195,9 +195,9 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
-import org.elasticsearch.xpack.security.rest.action.RestCreateApiKeyAction;
-import org.elasticsearch.xpack.security.rest.action.RestGetApiKeyAction;
-import org.elasticsearch.xpack.security.rest.action.RestInvalidateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
@@ -258,8 +258,8 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
@@ -408,8 +408,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.set(SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService));
 
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(),
-                SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
+        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, getLicenseState(),
+            securityIndex.get(), SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
@@ -450,8 +450,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
 
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService,
-            threadPool);
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
+            clusterService, threadPool);
         components.add(apiKeyService);
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
@@ -1002,7 +1002,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
-                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
+                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings), settings)
                 .andThen(new ValidateUpgradedSecurityIndex())
                 .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
@@ -1012,18 +1012,21 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     static final class ValidateTLSOnJoin implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean isTLSEnabled;
         private final String discoveryType;
+        private final Settings settings;
 
-        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType) {
+        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType, Settings settings) {
             this.isTLSEnabled = isTLSEnabled;
             this.discoveryType = discoveryType;
+            this.settings = settings;
         }
 
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             License license = LicenseService.getLicense(state.metaData());
-            if (license != null && license.isProductionLicense() &&
-                    isTLSEnabled == false && "single-node".equals(discoveryType) == false) {
-                throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name() + "]");
+            if (isTLSEnabled == false && "single-node".equals(discoveryType) == false
+                && XPackLicenseState.isTransportTlsRequired(license, settings)) {
+                throw new IllegalStateException("Transport TLS ([" + XPackSettings.TRANSPORT_SSL_ENABLED.getKey() +
+                    "]) is required for license type [" + license.operationMode().description() + "] when security is enabled");
             }
         }
     }

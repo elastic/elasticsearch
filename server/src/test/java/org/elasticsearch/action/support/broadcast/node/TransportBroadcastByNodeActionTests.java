@@ -287,7 +287,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             action.new AsyncAction(null, request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
-            assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
+            assertEquals("index [" + TEST_INDEX + "] blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
         }
     }
 

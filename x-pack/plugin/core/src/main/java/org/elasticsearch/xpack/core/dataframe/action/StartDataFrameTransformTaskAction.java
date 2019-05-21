@@ -15,8 +15,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,18 +34,20 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
 
     @Override
     public Response newResponse() {
-        return new Response();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<Response> getResponseReader() {
+        return Response::new;
     }
 
     public static class Request extends BaseTasksRequest<Request> {
 
-        private String id;
+        private final String id;
 
         public Request(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, DataFrameField.ID.getPreferredName());
-        }
-
-        public Request() {
         }
 
         public Request(StreamInput in) throws IOException {
@@ -60,6 +63,11 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+        }
+
+        @Override
+        public boolean match(Task task) {
+            return task.getDescription().equals(DataFrameField.PERSISTENT_TASK_DESCRIPTION_PREFIX + id);
         }
 
         @Override
@@ -85,16 +93,12 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
         }
     }
 
-    public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
-        private boolean started;
-
-        public Response() {
-            super(Collections.emptyList(), Collections.emptyList());
-        }
+    public static class Response extends BaseTasksResponse implements ToXContentObject {
+        private final boolean started;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            readFrom(in);
+            started = in.readBoolean();
         }
 
         public Response(boolean started) {
@@ -104,12 +108,6 @@ public class StartDataFrameTransformTaskAction extends Action<StartDataFrameTran
 
         public boolean isStarted() {
             return started;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            started = in.readBoolean();
         }
 
         @Override

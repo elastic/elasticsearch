@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 
+import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
@@ -27,6 +29,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
 import static org.elasticsearch.xpack.sql.type.DataType.NULL;
 import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
+import static org.elasticsearch.xpack.sql.type.DataType.TIME;
 import static org.elasticsearch.xpack.sql.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.sql.type.DataType.fromTypeName;
 
@@ -67,6 +70,9 @@ public final class DataTypes {
         if (value instanceof Short) {
             return SHORT;
         }
+        if (value instanceof OffsetTime) {
+            return TIME;
+        }
         if (value instanceof ZonedDateTime) {
             return DATETIME;
         }
@@ -75,6 +81,9 @@ public final class DataTypes {
         }
         if (value instanceof Interval) {
             return ((Interval<?>) value).dataType();
+        }
+        if (value instanceof GeoShape) {
+            return DataType.GEO_SHAPE;
         }
         throw new SqlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
     }
@@ -224,5 +233,16 @@ public final class DataTypes {
             return t.defaultPrecision;
         }
         return t.displaySize;
+    }
+
+    public static boolean areTypesCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return
+                (left == DataType.NULL || right == DataType.NULL) ||
+                    (left.isString() && right.isString()) ||
+                    (left.isNumeric() && right.isNumeric());
+        }
     }
 }

@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -94,7 +95,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
@@ -428,7 +428,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
-            shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
+            shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
             success = true;
             return indexShard;
         } catch (ShardLockObtainFailedException e) {
@@ -830,7 +830,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     case STARTED:
                         try {
                             shard.runUnderPrimaryPermit(
-                                    () -> sync.accept(shard),
+                                    () -> {
+                                        if (shard.isRelocatedPrimary() == false) {
+                                            sync.accept(shard);
+                                        }
+                                    },
                                     e -> {
                                         if (e instanceof AlreadyClosedException == false
                                                 && e instanceof IndexShardClosedException == false) {

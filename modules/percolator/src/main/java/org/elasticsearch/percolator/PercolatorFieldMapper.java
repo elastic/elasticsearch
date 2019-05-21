@@ -53,8 +53,6 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -84,7 +82,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -264,7 +261,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             }
             Query filter = null;
             if (excludeNestedDocuments) {
-                filter = Queries.newNonNestedFilter(indexVersion);
+                filter = Queries.newNonNestedFilter();
             }
             return new PercolateQuery(name, queryStore, documents, candidateQuery, searcher, filter, verifiedMatchesQuery);
         }
@@ -288,7 +285,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             }
 
             BooleanQuery.Builder candidateQuery = new BooleanQuery.Builder();
-            if (canUseMinimumShouldMatchField && indexVersion.onOrAfter(Version.V_6_1_0)) {
+            if (canUseMinimumShouldMatchField) {
                 LongValuesSource valuesSource = LongValuesSource.fromIntField(minimumShouldMatchField.name());
                 for (BytesRef extractedTerm : extractedTerms) {
                     subQueries.add(new TermQuery(new Term(queryTermsField.name(), extractedTerm)));
@@ -423,21 +420,12 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
                                         QueryBuilder queryBuilder, ParseContext context) throws IOException {
-        if (indexVersion.onOrAfter(Version.V_6_0_0_beta2)) {
-            try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
-                try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
-                    out.setVersion(indexVersion);
-                    out.writeNamedWriteable(queryBuilder);
-                    byte[] queryBuilderAsBytes = stream.toByteArray();
-                    qbField.parse(context.createExternalValueContext(queryBuilderAsBytes));
-                }
-            }
-        } else {
-            try (XContentBuilder builder = XContentFactory.contentBuilder(QUERY_BUILDER_CONTENT_TYPE)) {
-                queryBuilder.toXContent(builder, new MapParams(Collections.emptyMap()));
-                builder.flush();
-                byte[] queryBuilderAsBytes = BytesReference.toBytes(BytesReference.bytes(builder));
-                context.doc().add(new Field(qbField.name(), queryBuilderAsBytes, qbField.fieldType()));
+        try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
+            try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
+                out.setVersion(indexVersion);
+                out.writeNamedWriteable(queryBuilder);
+                byte[] queryBuilderAsBytes = stream.toByteArray();
+                qbField.parse(context.createExternalValueContext(queryBuilderAsBytes));
             }
         }
     }
@@ -483,9 +471,7 @@ public class PercolatorFieldMapper extends FieldMapper {
         for (IndexableField field : fields) {
             context.doc().add(field);
         }
-        if (indexVersionCreated.onOrAfter(Version.V_6_1_0)) {
-            doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
-        }
+        doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 
     static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, XContentParser parser) throws IOException {

@@ -126,9 +126,7 @@ The Azure repository supports following settings:
     setting doesn't affect index files that are already compressed by default.
     Defaults to `true`.
 
-`readonly`::
-
-    Makes repository read-only. Defaults to `false`.
+include::repository-shared-settings.asciidoc[]
 
 `location_mode`::
 

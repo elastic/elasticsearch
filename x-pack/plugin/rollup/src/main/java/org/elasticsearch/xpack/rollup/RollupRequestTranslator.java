@@ -11,10 +11,9 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
@@ -22,8 +21,8 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -47,7 +46,7 @@ import java.util.function.Supplier;
  * }</pre>
  *
  *
- * The only publicly "consumable" API is {@link #translateAggregation(AggregationBuilder, List, NamedWriteableRegistry)}.
+ * The only publicly "consumable" API is {@link #translateAggregation(AggregationBuilder, NamedWriteableRegistry)}.
  */
 public class RollupRequestTranslator {
 
@@ -62,7 +61,7 @@ public class RollupRequestTranslator {
      *     "the_histo": {
      *       "date_histogram" : {
      *         "field" : "ts",
-     *         "interval" : "1d"
+     *         "calendar_interval" : "1d"
      *       },
      *       "aggs": {
      *         "the_max": {
@@ -95,7 +94,7 @@ public class RollupRequestTranslator {
      *         "the_histo" : {
      *           "date_histogram" : {
      *             "field" : "ts.date_histogram.timestamp",
-     *             "interval" : "1d"
+     *             "calendar_interval" : "1d"
      *           },
      *           "aggregations" : {
      *             "the_histo._count" : {
@@ -116,26 +115,22 @@ public class RollupRequestTranslator {
      * relevant method below.
      *
      * @param source           The source aggregation to translate into rollup-enabled version
-     * @param filterConditions A list used to track any filter conditions that sub-aggs may
-     *                         require.
      * @param registry  Registry containing the various aggregations so that we can easily
      *                  deserialize into a stream for cloning
      * @return  Returns the fully translated aggregation tree. Note that it returns a list instead
      *          of a single AggBuilder, since some aggregations (e.g. avg) may result in two
      *          translated aggs (sum + count)
      */
-    public static List<AggregationBuilder> translateAggregation(AggregationBuilder source,
-                                                                List<QueryBuilder> filterConditions,
-                                                                NamedWriteableRegistry registry) {
+    public static List<AggregationBuilder> translateAggregation(AggregationBuilder source, NamedWriteableRegistry registry) {
 
         if (source.getWriteableName().equals(DateHistogramAggregationBuilder.NAME)) {
-            return translateDateHistogram((DateHistogramAggregationBuilder) source, filterConditions, registry);
+            return translateDateHistogram((DateHistogramAggregationBuilder) source, registry);
         } else if (source.getWriteableName().equals(HistogramAggregationBuilder.NAME)) {
-            return translateHistogram((HistogramAggregationBuilder) source, filterConditions, registry);
+            return translateHistogram((HistogramAggregationBuilder) source, registry);
         } else if (RollupField.SUPPORTED_METRICS.contains(source.getWriteableName())) {
             return translateVSLeaf((ValuesSourceAggregationBuilder.LeafOnly)source, registry);
         } else if (source.getWriteableName().equals(TermsAggregationBuilder.NAME)) {
-            return translateTerms((TermsAggregationBuilder)source, filterConditions, registry);
+            return translateTerms((TermsAggregationBuilder)source, registry);
         } else {
             throw new IllegalArgumentException("Unable to translate aggregation tree into Rollup.  Aggregation ["
                     + source.getName() + "] is of type [" + source.getClass().getSimpleName() + "] which is " +
@@ -156,7 +151,7 @@ public class RollupRequestTranslator {
      *     "the_histo": {
      *       "date_histogram" : {
      *         "field" : "ts",
-     *         "interval" : "day"
+     *         "calendar_interval" : "day"
      *       }
      *     }
      *   }
@@ -195,34 +190,30 @@ public class RollupRequestTranslator {
      *             <li>Field: `{timestamp field}.date_histogram._count`</li>
      *         </ul>
      *     </li>
-     *     <li>Add a filter condition:</li>
-     *     <li>
-     *         <ul>
-     *             <li>Query type: TermQuery</li>
-     *             <li>Field: `{timestamp_field}.date_histogram.interval`</li>
-     *             <li>Value: `{source interval}`</li>
-     *         </ul>
-     *     </li>
      * </ul>
      *
      */
     private static List<AggregationBuilder> translateDateHistogram(DateHistogramAggregationBuilder source,
-                                                                   List<QueryBuilder> filterConditions,
                                                                    NamedWriteableRegistry registry) {
 
-        return translateVSAggBuilder(source, filterConditions, registry, () -> {
+        return translateVSAggBuilder(source, registry, () -> {
             DateHistogramAggregationBuilder rolledDateHisto
                     = new DateHistogramAggregationBuilder(source.getName());
 
-            if (source.dateHistogramInterval() != null) {
+            if (source.getCalendarInterval() != null) {
+                rolledDateHisto.calendarInterval(source.getCalendarInterval());
+            } else if (source.getFixedInterval() != null) {
+                rolledDateHisto.fixedInterval(source.getFixedInterval());
+            } else if (source.dateHistogramInterval() != null) {
+                // We have to fall back to deprecated interval because we're not sure if this is fixed or cal
                 rolledDateHisto.dateHistogramInterval(source.dateHistogramInterval());
             } else {
-                rolledDateHisto.interval(source.interval());
+                // if interval() was used we know it is fixed and can upgrade
+                rolledDateHisto.fixedInterval(new DateHistogramInterval(source.interval() + "ms"));
             }
 
-            String timezone = source.timeZone() == null ? DateTimeZone.UTC.toString() : source.timeZone().toString();
-            filterConditions.add(new TermQueryBuilder(RollupField.formatFieldName(source,
-                DateHistogramGroupConfig.TIME_ZONE), timezone));
+            ZoneId timeZone = source.timeZone() == null ? DateHistogramGroupConfig.DEFAULT_ZONEID_TIMEZONE : source.timeZone();
+            rolledDateHisto.timeZone(timeZone);
 
             rolledDateHisto.offset(source.offset());
             if (source.extendedBounds() != null) {
@@ -245,14 +236,13 @@ public class RollupRequestTranslator {
      * Notably, it adds a Sum metric to calculate the doc_count in each bucket.
      *
      * Conventions are identical to a date_histogram (excepting date-specific details), so see
-     * {@link #translateDateHistogram(DateHistogramAggregationBuilder, List, NamedWriteableRegistry)} for
+     * {@link #translateDateHistogram(DateHistogramAggregationBuilder, NamedWriteableRegistry)} for
      * a complete list of conventions, examples, etc
      */
     private static List<AggregationBuilder> translateHistogram(HistogramAggregationBuilder source,
-                                                               List<QueryBuilder> filterConditions,
                                                                NamedWriteableRegistry registry) {
 
-        return translateVSAggBuilder(source, filterConditions, registry, () -> {
+        return translateVSAggBuilder(source, registry, () -> {
             HistogramAggregationBuilder rolledHisto
                     = new HistogramAggregationBuilder(source.getName());
 
@@ -325,10 +315,9 @@ public class RollupRequestTranslator {
      *
      */
     private static List<AggregationBuilder> translateTerms(TermsAggregationBuilder source,
-                                                           List<QueryBuilder> filterConditions,
                                                            NamedWriteableRegistry registry) {
 
-        return translateVSAggBuilder(source, filterConditions, registry, () -> {
+        return translateVSAggBuilder(source, registry, () -> {
             TermsAggregationBuilder rolledTerms
                     = new TermsAggregationBuilder(source.getName(), source.valueType());
             rolledTerms.field(RollupField.formatFieldName(source, RollupField.VALUE));
@@ -356,8 +345,6 @@ public class RollupRequestTranslator {
      * ValueSourceBuilder.  This method is called by all the agg-specific methods (e.g. translateDateHistogram())
      *
      * @param source The source aggregation that we wish to translate
-     * @param filterConditions A list of existing filter conditions, in case we need to add some
-     *                         for this particular agg
      * @param registry Named registry for serializing leaf metrics.  Not actually used by this method,
      *                 but is passed downwards for leaf usage
      * @param factory A factory closure that generates a new shallow clone of the `source`. E.g. if `source` is
@@ -368,15 +355,14 @@ public class RollupRequestTranslator {
      * @return the translated multi-bucket ValueSourceAggBuilder
      */
     private static <T extends ValuesSourceAggregationBuilder> List<AggregationBuilder>
-        translateVSAggBuilder(ValuesSourceAggregationBuilder source, List<QueryBuilder> filterConditions,
-                          NamedWriteableRegistry registry, Supplier<T> factory) {
+        translateVSAggBuilder(ValuesSourceAggregationBuilder source, NamedWriteableRegistry registry, Supplier<T> factory) {
 
         T rolled = factory.get();
 
         // Translate all subaggs and add to the newly translated agg
         // NOTE: using for loop instead of stream because compiler explodes with a bug :/
         for (AggregationBuilder subAgg : source.getSubAggregations()) {
-            List<AggregationBuilder> translated = translateAggregation(subAgg, filterConditions, registry);
+            List<AggregationBuilder> translated = translateAggregation(subAgg, registry);
             for (AggregationBuilder t : translated) {
                 rolled.subAggregation(t);
             }

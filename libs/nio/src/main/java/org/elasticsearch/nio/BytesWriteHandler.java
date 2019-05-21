@@ -35,6 +35,9 @@ public abstract class BytesWriteHandler implements ReadWriteHandler {
     }
 
     @Override
+    public void channelRegistered() {}
+
+    @Override
     public List<FlushOperation> writeToBytes(WriteOperation writeOperation) {
         assert writeOperation instanceof FlushReadyWrite : "Write operation must be flush ready";
         return Collections.singletonList((FlushReadyWrite) writeOperation);

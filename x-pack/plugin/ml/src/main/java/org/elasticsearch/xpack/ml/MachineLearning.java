@@ -31,6 +31,8 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -188,6 +190,7 @@ import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeControllerHolder;
+import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestFindFileStructureAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
@@ -271,8 +274,14 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final String MACHINE_MEMORY_NODE_ATTR = "ml.machine_memory";
     public static final Setting<Integer> CONCURRENT_JOB_ALLOCATIONS =
             Setting.intSetting("xpack.ml.node_concurrent_job_allocations", 2, 0, Property.Dynamic, Property.NodeScope);
+    // Values higher than 100% are allowed to accommodate use cases where swapping has been determined to be acceptable.
+    // Anomaly detector jobs only use their full model memory during background persistence, and this is deliberately
+    // staggered, so with large numbers of jobs few will generally be persisting state at the same time.
+    // Settings higher than available memory are only recommended for OEM type situations where a wrapper tightly
+    // controls the types of jobs that can be created, and each job alone is considerably smaller than what each node
+    // can handle.
     public static final Setting<Integer> MAX_MACHINE_MEMORY_PERCENT =
-            Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 90, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting("xpack.ml.max_machine_memory_percent", 30, 5, 200, Property.Dynamic, Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
             Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, 3, Property.Dynamic, Property.NodeScope);
 
@@ -287,7 +296,11 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
             Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, MAX_MAX_OPEN_JOBS_PER_NODE, Property.Dynamic, Property.NodeScope);
 
-    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    // Undocumented setting for integration test purposes
+    public static final Setting<ByteSizeValue> MIN_DISK_SPACE_OFF_HEAP =
+        Setting.byteSizeSetting("xpack.ml.min_disk_space_off_heap", new ByteSizeValue(5, ByteSizeUnit.GB), Setting.Property.NodeScope);
+
+    private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
     private final Settings settings;
     private final Environment env;
@@ -317,18 +330,18 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     }
 
     public List<Setting<?>> getSettings() {
-        return Collections.unmodifiableList(
-                Arrays.asList(MachineLearningField.AUTODETECT_PROCESS,
-                        ML_ENABLED,
-                        CONCURRENT_JOB_ALLOCATIONS,
-                        MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
-                        MAX_LAZY_ML_NODES,
-                        MAX_MACHINE_MEMORY_PERCENT,
-                        AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
-                        AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
-                        MAX_OPEN_JOBS_PER_NODE,
-                        AutodetectProcessManager.MIN_DISK_SPACE_OFF_HEAP,
-                        MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION));
+        return List.of(
+                MachineLearningField.AUTODETECT_PROCESS,
+                ML_ENABLED,
+                CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
+                MAX_LAZY_ML_NODES,
+                MAX_MACHINE_MEMORY_PERCENT,
+                AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING,
+                AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
+                MAX_OPEN_JOBS_PER_NODE,
+                MIN_DISK_SPACE_OFF_HEAP,
+                MlConfigMigrationEligibilityCheck.ENABLE_CONFIG_MIGRATION);
     }
 
     public Settings additionalSettings() {
@@ -418,6 +431,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client);
         JobResultsPersister jobResultsPersister = new JobResultsPersister(client);
 
+        NativeStorageProvider nativeStorageProvider = new NativeStorageProvider(environment, MIN_DISK_SPACE_OFF_HEAP.get(settings));
+
         AutodetectProcessFactory autodetectProcessFactory;
         NormalizerProcessFactory normalizerProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
@@ -448,8 +463,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME));
         AutodetectProcessManager autodetectProcessManager = new AutodetectProcessManager(env, settings, client, threadPool,
-                jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
-                normalizerFactory, xContentRegistry, auditor, clusterService);
+                xContentRegistry, auditor, clusterService, jobManager, jobResultsProvider, jobResultsPersister, jobDataCountsPersister,
+                autodetectProcessFactory, normalizerFactory, nativeStorageProvider);
         this.autodetectProcessManager.set(autodetectProcessManager);
         DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(client, settings, xContentRegistry,
                 auditor, System::currentTimeMillis);
@@ -461,11 +476,13 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(environment, clusterService, datafeedManager,
                 autodetectProcessManager, memoryTracker);
 
-        // This object's constructor attaches to the license state, so there's no need to retain another reference to it
-        new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+        // this object registers as a license state listener, and is never removed, so there's no need to retain another reference to it
+        final InvalidLicenseEnforcer enforcer =
+                new InvalidLicenseEnforcer(getLicenseState(), threadPool, datafeedManager, autodetectProcessManager);
+        enforcer.listenForLicenseStateChanges();
 
-        // run node startup tasks
-        autodetectProcessManager.onNodeStartup();
+        // Perform node startup operations
+        nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
 
         return Arrays.asList(
                 mlLifeCycleService,
@@ -480,7 +497,8 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                 datafeedManager,
                 auditor,
                 new MlAssignmentNotifier(settings, auditor, threadPool, client, clusterService),
-                memoryTracker
+                memoryTracker,
+                nativeStorageProvider
         );
     }
 

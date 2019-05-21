@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
@@ -36,7 +36,8 @@ public class DataFrameTransformStateTests extends ESTestCase {
                 DataFrameTransformStateTests::randomDataFrameTransformState,
                 DataFrameTransformStateTests::toXContent,
                 DataFrameTransformState::fromXContent)
-                .supportsUnknownFields(false)
+                .supportsUnknownFields(true)
+                .randomFieldsExcludeFilter(field -> field.equals("current_position"))
                 .test();
     }
 
@@ -44,7 +45,9 @@ public class DataFrameTransformStateTests extends ESTestCase {
         return new DataFrameTransformState(randomFrom(DataFrameTransformTaskState.values()),
             randomFrom(IndexerState.values()),
             randomPositionMap(),
-            randomLongBetween(0,10));
+            randomLongBetween(0,10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : DataFrameTransformProgressTests.randomInstance());
     }
 
     public static void toXContent(DataFrameTransformState state, XContentBuilder builder) throws IOException {
@@ -54,7 +57,14 @@ public class DataFrameTransformStateTests extends ESTestCase {
         if (state.getPosition() != null) {
             builder.field("current_position", state.getPosition());
         }
-        builder.field("generation", state.getGeneration());
+        builder.field("checkpoint", state.getCheckpoint());
+        if (state.getReason() != null) {
+            builder.field("reason", state.getReason());
+        }
+        if (state.getProgress() != null) {
+            builder.field("progress");
+            DataFrameTransformProgressTests.toXContent(state.getProgress(), builder);
+        }
         builder.endObject();
     }
 
@@ -63,7 +73,7 @@ public class DataFrameTransformStateTests extends ESTestCase {
             return null;
         }
         int numFields = randomIntBetween(1, 5);
-        Map<String, Object> position = new HashMap<>();
+        Map<String, Object> position = new LinkedHashMap<>();
         for (int i = 0; i < numFields; i++) {
             Object value;
             if (randomBoolean()) {

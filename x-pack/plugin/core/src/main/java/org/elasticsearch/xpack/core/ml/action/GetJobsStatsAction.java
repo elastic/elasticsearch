@@ -85,9 +85,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             super(in);
             jobId = in.readString();
             expandedJobsIds = in.readStringList();
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoJobs = in.readBoolean();
-            }
+            allowNoJobs = in.readBoolean();
         }
 
         @Override
@@ -95,9 +93,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Response> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeStringCollection(expandedJobsIds);
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoJobs);
-            }
+            out.writeBoolean(allowNoJobs);
         }
 
         public List<String> getExpandedJobsIds() { return expandedJobsIds; }

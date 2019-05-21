@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -118,13 +119,13 @@ public class BroadcastReplicationTests extends ESTestCase {
         threadPool = null;
     }
 
-    public void testNotStartedPrimary() throws InterruptedException, ExecutionException, IOException {
+    public void testNotStartedPrimary() throws InterruptedException, ExecutionException {
         final String index = "test";
         setState(clusterService, state(index, randomBoolean(),
                 randomBoolean() ? ShardRoutingState.INITIALIZING : ShardRoutingState.UNASSIGNED, ShardRoutingState.UNASSIGNED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index), response);
+        broadcastReplicationAction.execute(new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             if (randomBoolean()) {
                 shardRequests.v2().onFailure(new NoShardAvailableActionException(shardRequests.v1()));
@@ -138,13 +139,13 @@ public class BroadcastReplicationTests extends ESTestCase {
         assertBroadcastResponse(2, 0, 0, response.get(), null);
     }
 
-    public void testStartedPrimary() throws InterruptedException, ExecutionException, IOException {
+    public void testStartedPrimary() throws InterruptedException, ExecutionException {
         final String index = "test";
         setState(clusterService, state(index, randomBoolean(),
                 ShardRoutingState.STARTED));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BroadcastResponse> response = PlainActionFuture.newFuture();
-        broadcastReplicationAction.execute(new DummyBroadcastRequest().indices(index), response);
+        broadcastReplicationAction.execute(new DummyBroadcastRequest(index), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             ReplicationResponse replicationResponse = new ReplicationResponse();
             replicationResponse.setShardInfo(new ReplicationResponse.ShardInfo(1, 1));
@@ -225,7 +226,7 @@ public class BroadcastReplicationTests extends ESTestCase {
 
         @Override
         protected BasicReplicationRequest newShardRequest(DummyBroadcastRequest request, ShardId shardId) {
-            return new BasicReplicationRequest().setShardId(shardId);
+            return new BasicReplicationRequest(shardId);
         }
 
         @Override
@@ -269,6 +270,12 @@ public class BroadcastReplicationTests extends ESTestCase {
     }
 
     public static class DummyBroadcastRequest extends BroadcastRequest<DummyBroadcastRequest> {
+        DummyBroadcastRequest(String... indices) {
+            super(indices);
+        }
 
+        DummyBroadcastRequest(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 }

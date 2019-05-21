@@ -202,7 +202,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39172")
     public void testThreeNodesNoMasterBlock() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(2);
 

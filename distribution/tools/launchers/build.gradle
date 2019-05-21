@@ -24,7 +24,7 @@ dependencies {
     compile parent.project('java-version-checker')
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 archivesBaseName = 'elasticsearch-launchers'

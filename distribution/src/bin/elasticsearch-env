@@ -82,9 +82,6 @@ ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
 ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 ES_DISTRIBUTION_TYPE=${es.distribution.type}
-
-if [ -z "$ES_TMPDIR" ]; then
-  ES_TMPDIR=`"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.TempDirectory`
-fi
+ES_BUNDLED_JDK=${es.bundled_jdk}
 
 cd "$ES_HOME"

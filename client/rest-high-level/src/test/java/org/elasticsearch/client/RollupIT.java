@@ -152,7 +152,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
 
     public void testDeleteRollupJob() throws Exception {
-        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
         PutRollupJobRequest putRollupJobRequest =
@@ -174,7 +174,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
 
     public void testPutStartAndGetRollupJob() throws Exception {
         // TODO expand this to also test with histogram and terms?
-        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
@@ -233,7 +233,6 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         assertEquals(1, job.getStats().getOutputDocuments());
         assertThat(job.getStatus().getState(), either(equalTo(IndexerState.STARTED)).or(equalTo(IndexerState.INDEXING)));
         assertThat(job.getStatus().getCurrentPosition(), hasKey("date.date_histogram"));
-        assertEquals(true, job.getStatus().getUpgradedDocumentId());
 
         // stop the job
         StopRollupJobRequest stopRequest = new StopRollupJobRequest(id);
@@ -334,7 +333,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final String cron = "*/1 * * * * ?";
         final int pageSize = randomIntBetween(numDocs, numDocs * 10);
         // TODO expand this to also test with histogram and terms?
-        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
@@ -378,7 +377,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 case "delay":
                     assertThat(entry.getValue(), equalTo("foo"));
                     break;
-                case "interval":
+                case "calendar_interval":
                     assertThat(entry.getValue(), equalTo("1d"));
                     break;
                 case "time_zone":
@@ -446,7 +445,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
         final String cron = "*/1 * * * * ?";
         final int pageSize = randomIntBetween(numDocs, numDocs * 10);
         // TODO expand this to also test with histogram and terms?
-        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig("date", DateHistogramInterval.DAY));
+        final GroupConfig groups = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("date", DateHistogramInterval.DAY));
         final List<MetricConfig> metrics = Collections.singletonList(new MetricConfig("value", SUPPORTED_METRICS));
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(30, 600));
 
@@ -490,7 +489,7 @@ public class RollupIT extends ESRestHighLevelClientTestCase {
                 case "delay":
                     assertThat(entry.getValue(), equalTo("foo"));
                     break;
-                case "interval":
+                case "calendar_interval":
                     assertThat(entry.getValue(), equalTo("1d"));
                     break;
                 case "time_zone":

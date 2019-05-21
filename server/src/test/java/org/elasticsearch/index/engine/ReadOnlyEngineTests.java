@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -32,7 +35,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader.getElasticsearchDirectoryReader;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ReadOnlyEngineTests extends EngineTestCase {
 
@@ -44,13 +49,10 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
             int numDocs = scaledRandomIntBetween(10, 1000);
             final SeqNoStats lastSeqNoStats;
-            final List<DocIdSeqNoAndTerm> lastDocIds;
+            final List<DocIdSeqNoAndSource> lastDocIds;
             try (InternalEngine engine = createEngine(config)) {
                 Engine.Get get = null;
                 for (int i = 0; i < numDocs; i++) {
-                    if (rarely()) {
-                        continue; // gap in sequence number
-                    }
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
                         System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
@@ -83,6 +85,13 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 Engine.Searcher external = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.EXTERNAL);
                 Engine.Searcher internal = readOnlyEngine.acquireSearcher("test", Engine.SearcherScope.INTERNAL);
                 assertSame(external.reader(), internal.reader());
+                assertThat(external.reader(), instanceOf(DirectoryReader.class));
+                DirectoryReader dirReader = external.getDirectoryReader();
+                ElasticsearchDirectoryReader esReader = getElasticsearchDirectoryReader(dirReader);
+                IndexReader.CacheHelper helper = esReader.getReaderCacheHelper();
+                assertNotNull(helper);
+                assertEquals(helper.getKey(), dirReader.getReaderCacheHelper().getKey());
+
                 IOUtils.close(external, internal);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
@@ -91,12 +100,9 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 try (Engine.GetResult getResult = readOnlyEngine.get(get, readOnlyEngine::acquireSearcher)) {
                     assertTrue(getResult.exists());
                 }
-
             }
             // Close and reopen the main engine
-            InternalEngineTests.trimUnsafeCommits(config);
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
-                recoveringEngine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                 recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
@@ -117,17 +123,15 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             int numDocs = scaledRandomIntBetween(10, 1000);
             try (InternalEngine engine = createEngine(config)) {
                 for (int i = 0; i < numDocs; i++) {
-                    if (rarely()) {
-                        continue; // gap in sequence number
-                    }
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
                         System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
                     if (rarely()) {
                         engine.flush();
                     }
-                    globalCheckpoint.set(i);
+                    globalCheckpoint.set(engine.getLocalCheckpoint());
                 }
+                globalCheckpoint.set(engine.getLocalCheckpoint());
                 engine.syncTranslog();
                 engine.flushAndClose();
                 readOnlyEngine = new ReadOnlyEngine(engine.engineConfig, null , null, true, Function.identity());
@@ -141,7 +145,6 @@ public class ReadOnlyEngineTests extends EngineTestCase {
 
     public void testEnsureMaxSeqNoIsEqualToGlobalCheckpoint() throws IOException {
         IOUtils.close(engine, store);
-        Engine readOnlyEngine = null;
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, globalCheckpoint::get);
@@ -159,16 +162,15 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 engine.flushAndClose();
 
                 IllegalStateException exception = expectThrows(IllegalStateException.class,
-                    () -> new ReadOnlyEngine(engine.engineConfig, null, null, true, Function.identity()) {
+                    () -> new ReadOnlyEngine(config, null, null, true, Function.identity()) {
                         @Override
-                        protected void assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
+                        protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
                             // we don't want the assertion to trip in this test
+                            return true;
                         }
                     });
                 assertThat(exception.getMessage(), equalTo("Maximum sequence number [" + maxSeqNo
                     + "] from last commit does not match global checkpoint [" + globalCheckpoint.get() + "]"));
-            } finally {
-                IOUtils.close(readOnlyEngine);
             }
         }
     }
@@ -219,9 +221,6 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             int numDocs = scaledRandomIntBetween(10, 1000);
             try (InternalEngine engine = createEngine(config)) {
                 for (int i = 0; i < numDocs; i++) {
-                    if (rarely()) {
-                        continue; // gap in sequence number
-                    }
                     ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
                     engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
                         System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
@@ -235,7 +234,6 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null , null, true, Function.identity())) {
                 final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
-                readOnlyEngine.reinitializeMaxSeqNoOfUpdatesOrDeletes();
                 readOnlyEngine.recoverFromTranslog(translogHandler, randomNonNegativeLong());
 
                 assertThat(translogHandler.appliedOperations(), equalTo(0L));

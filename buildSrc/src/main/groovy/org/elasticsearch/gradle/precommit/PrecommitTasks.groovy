@@ -34,6 +34,9 @@ import org.gradle.api.plugins.quality.Checkstyle
 class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
+
+    public static final String CHECKSTYLE_VERSION = '8.20'
+
     public static Task create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
@@ -131,8 +134,7 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis) {
             dependsOn(buildResources)
-            targetCompatibility = project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 ?
-                    project.runtimeJavaVersion.getMajorVersion() : project.runtimeJavaVersion
+            targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
             if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
                 doLast {
                     project.logger.info(
@@ -214,7 +216,7 @@ class PrecommitTasks {
             configProperties = [
                 suppressions: checkstyleSuppressions
             ]
-            toolVersion = '8.10.1'
+            toolVersion = CHECKSTYLE_VERSION
         }
 
         project.tasks.withType(Checkstyle) { task ->

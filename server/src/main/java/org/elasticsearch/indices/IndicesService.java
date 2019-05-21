@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader.CacheHelper;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
@@ -62,8 +63,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -154,7 +157,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.META_DATA_VERIFICATION;
@@ -200,6 +202,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories;
     final AbstractRefCounted indicesRefCount; // pkg-private for testing
+    private final CountDownLatch closeLatch = new CountDownLatch(1);
 
     @Override
     protected void doStart() {
@@ -273,6 +276,8 @@ public class IndicesService extends AbstractLifecycleComponent
                             indicesQueryCache);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
+                } finally {
+                    closeLatch.countDown();
                 }
             }
         };
@@ -309,6 +314,18 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     protected void doClose() throws IOException {
         indicesRefCount.decRef();
+    }
+
+    /**
+     * Wait for this {@link IndicesService} to be effectively closed. When this returns {@code true}, all shards and shard stores
+     * are closed and all shard {@link CacheHelper#addClosedListener(org.apache.lucene.index.IndexReader.ClosedListener) closed
+     * listeners} have run. However some {@link IndexEventListener#onStoreClosed(ShardId) shard closed listeners} might not have
+     * run.
+     * @return true if all shards closed within the given timeout, false otherwise
+     * @throws InterruptedException if the current thread got interrupted while waiting for shards to close
+     */
+    public boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        return closeLatch.await(timeout, timeUnit);
     }
 
     /**
@@ -502,7 +519,7 @@ public class IndicesService extends AbstractLifecycleComponent
         boolean success = false;
         try {
             indexService.getIndexEventListener().afterIndexCreated(indexService);
-            indices = newMapBuilder(indices).put(index.getUUID(), indexService).immutableMap();
+            indices = Maps.copyMapWithAddedEntry(indices, index.getUUID(), indexService);
             success = true;
             return indexService;
         } finally {
@@ -1203,7 +1220,13 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
-                threadPool.schedule(this, interval, ThreadPool.Names.SAME);
+                try {
+                    threadPool.schedule(this, interval, ThreadPool.Names.SAME);
+                } catch (EsRejectedExecutionException e) {
+                    if (closed.get() == false) {
+                        throw e;
+                    }
+                }
             }
         }
 
@@ -1379,7 +1402,7 @@ public class IndicesService extends AbstractLifecycleComponent
         (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index, indexSettings);
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
+    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
         CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
@@ -1388,8 +1411,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 return parseInnerQueryBuilder(parser);
             }
         };
-        String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, expressions);
         IndexMetaData indexMetaData = state.metaData().index(index);
+        String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
         return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliases), aliases);
     }
 

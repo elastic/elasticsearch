@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.ElasticsearchException;
@@ -30,28 +26,23 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
 public abstract class AggregationScript implements ScorerAware {
 
     public static final String[] PARAMETERS = {};
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs", Factory.class);
 
-    private static final Map<String, String> DEPRECATIONS;
-
-    static {
-        Map<String, String> deprecations = new HashMap<>();
-        deprecations.put(
+    private static final Map<String, String> DEPRECATIONS = Map.of(
             "doc",
-            "Accessing variable [doc] via [params.doc] from within an aggregation-script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        deprecations.put(
+            "Accessing variable [doc] via [params.doc] from within an aggregation-script "
+                    + "is deprecated in favor of directly accessing [doc].",
             "_doc",
-            "Accessing variable [doc] via [params._doc] from within an aggregation-script " +
-                "is deprecated in favor of directly accessing [doc]."
-        );
-        DEPRECATIONS = Collections.unmodifiableMap(deprecations);
-    }
+            "Accessing variable [doc] via [params._doc] from within an aggregation-script "
+                    + "is deprecated in favor of directly accessing [doc].");
 
     /**
      * The generic runtime parameters for the script.

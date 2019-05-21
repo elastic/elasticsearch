@@ -26,7 +26,6 @@ import org.elasticsearch.packaging.util.Shell;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -56,7 +55,7 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
     protected abstract Distribution distribution();
 
     @BeforeClass
-    public static void cleanup() {
+    public static void cleanup() throws Exception {
         installation = null;
         cleanEverything();
     }
@@ -67,14 +66,14 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test10Install() throws IOException {
+    public void test10Install() throws Exception {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), newShell());
     }
 
-    public void test20Remove() {
+    public void test20Remove() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         remove(distribution());
@@ -89,7 +88,7 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assertFalse(Files.exists(installation.envFile));
     }
 
-    public void test30PreserveConfig() throws IOException {
+    public void test30PreserveConfig() throws Exception {
         final Shell sh = new Shell();
 
         installation = install(distribution());

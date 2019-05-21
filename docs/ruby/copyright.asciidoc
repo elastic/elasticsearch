@@ -1,3 +1,4 @@
+[[copyright]]
 == Copyright and License
 
 This software is Copyright (c) 2013-2018 by Elasticsearch BV.

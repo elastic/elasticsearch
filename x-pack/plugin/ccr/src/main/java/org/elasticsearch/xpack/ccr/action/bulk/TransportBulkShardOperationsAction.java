@@ -57,17 +57,17 @@ public class TransportBulkShardOperationsAction
                 indexNameExpressionResolver,
                 BulkShardOperationsRequest::new,
                 BulkShardOperationsRequest::new,
-                ThreadPool.Names.WRITE);
+                ThreadPool.Names.WRITE, false);
     }
 
     @Override
-    protected WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> shardOperationOnPrimary(
-            final BulkShardOperationsRequest request, final IndexShard primary) throws Exception {
+    protected void shardOperationOnPrimary(BulkShardOperationsRequest request, IndexShard primary,
+            ActionListener<PrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse>> listener) {
         if (logger.isTraceEnabled()) {
             logger.trace("index [{}] on the following primary shard {}", request.getOperations(), primary.routingEntry());
         }
-        return shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(), request.getOperations(),
-            request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
+        ActionListener.completeWith(listener, () -> shardOperationOnPrimary(request.shardId(), request.getHistoryUUID(),
+            request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger));
     }
 
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {

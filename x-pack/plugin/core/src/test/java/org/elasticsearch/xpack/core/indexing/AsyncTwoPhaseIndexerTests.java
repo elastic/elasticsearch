@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,17 +35,26 @@ import static org.hamcrest.Matchers.equalTo;
 public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
     AtomicBoolean isFinished = new AtomicBoolean(false);
+    AtomicBoolean isStopped = new AtomicBoolean(false);
+
+    @Before
+    public void reset() {
+        isFinished.set(false);
+        isStopped.set(false);
+    }
 
     private class MockIndexer extends AsyncTwoPhaseIndexer<Integer, MockJobStats> {
 
         private final CountDownLatch latch;
         // test the execution order
-        private int step;
+        private volatile int step;
+        private final boolean stoppedBeforeFinished;
 
         protected MockIndexer(Executor executor, AtomicReference<IndexerState> initialState, Integer initialPosition,
-                              CountDownLatch latch) {
+                              CountDownLatch latch, boolean stoppedBeforeFinished) {
             super(executor, initialState, initialPosition, new MockJobStats());
             this.latch = latch;
+            this.stoppedBeforeFinished = stoppedBeforeFinished;
         }
 
         @Override
@@ -57,7 +67,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             awaitForLatch();
             assertThat(step, equalTo(3));
             ++step;
-            return new IterationResult<Integer>(Collections.emptyList(), 3, true);
+            return new IterationResult<>(Collections.emptyList(), 3, true);
         }
 
         private void awaitForLatch() {
@@ -72,13 +82,14 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected SearchRequest buildSearchRequest() {
             assertThat(step, equalTo(1));
             ++step;
-            return null;
+            return new SearchRequest();
         }
 
         @Override
-        protected void onStartJob(long now) {
+        protected void onStart(long now, ActionListener<Void> listener) {
             assertThat(step, equalTo(0));
             ++step;
+            listener.onResponse(null);
         }
 
         @Override
@@ -98,7 +109,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            assertThat(step, equalTo(4));
+            int expectedStep = stoppedBeforeFinished ? 3 : 5;
+            assertThat(step, equalTo(expectedStep));
             ++step;
             next.run();
         }
@@ -109,10 +121,16 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void onFinish() {
-            assertThat(step, equalTo(5));
+        protected void onFinish(ActionListener<Void> listener) {
+            assertThat(step, equalTo(4));
             ++step;
-            isFinished.set(true);
+            listener.onResponse(null);
+            assertTrue(isFinished.compareAndSet(false, true));
+        }
+
+        @Override
+        protected void onStop() {
+            assertTrue(isStopped.compareAndSet(false, true));
         }
 
         @Override
@@ -149,13 +167,14 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         protected SearchRequest buildSearchRequest() {
             assertThat(step, equalTo(1));
             ++step;
-            return null;
+            return new SearchRequest();
         }
 
         @Override
-        protected void onStartJob(long now) {
+        protected void onStart(long now, ActionListener<Void> listener) {
             assertThat(step, equalTo(0));
             ++step;
+            listener.onResponse(null);
         }
 
         @Override
@@ -170,20 +189,18 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected void doSaveState(IndexerState state, Integer position, Runnable next) {
-            assertThat(step, equalTo(2));
-            ++step;
-            next.run();
+            fail("should not be called");
         }
 
         @Override
         protected void onFailure(Exception exc) {
-            assertThat(step, equalTo(3));
+            assertThat(step, equalTo(2));
             ++step;
-            isFinished.set(true);
+            assertTrue(isFinished.compareAndSet(false, true));
         }
 
         @Override
-        protected void onFinish() {
+        protected void onFinish(ActionListener<Void> listener) {
             fail("should not be called");
         }
 
@@ -205,13 +222,13 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
         }
     }
 
-    public void testStateMachine() throws InterruptedException {
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42084")
+    public void testStateMachine() throws Exception {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ExecutorService executor = Executors.newFixedThreadPool(1);
-        isFinished.set(false);
         try {
             CountDownLatch countDownLatch = new CountDownLatch(1);
-            MockIndexer indexer = new MockIndexer(executor, state, 2, countDownLatch);
+            MockIndexer indexer = new MockIndexer(executor, state, 2, countDownLatch, false);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -219,7 +236,8 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             countDownLatch.countDown();
 
             assertThat(indexer.getPosition(), equalTo(2));
-            ESTestCase.awaitBusy(() -> isFinished.get());
+            assertTrue(awaitBusy(() -> isFinished.get()));
+            assertFalse(isStopped.get());
             assertThat(indexer.getStep(), equalTo(6));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
@@ -233,16 +251,57 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
     public void testStateMachineBrokenSearch() throws InterruptedException {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ExecutorService executor = Executors.newFixedThreadPool(1);
-        isFinished.set(false);
         try {
 
             MockIndexerThrowsFirstSearch indexer = new MockIndexerThrowsFirstSearch(executor, state, 2);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
-            assertTrue(ESTestCase.awaitBusy(() -> isFinished.get()));
-            assertThat(indexer.getStep(), equalTo(4));
+            assertTrue(awaitBusy(() -> isFinished.get(), 10000, TimeUnit.SECONDS));
+            assertThat(indexer.getStep(), equalTo(3));
 
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42084")
+    public void testStop_AfterIndexerIsFinished() throws InterruptedException {
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        try {
+            CountDownLatch countDownLatch = new CountDownLatch(1);
+            MockIndexer indexer = new MockIndexer(executor, state, 2, countDownLatch, false);
+            indexer.start();
+            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+            countDownLatch.countDown();
+            assertTrue(awaitBusy(() -> isFinished.get()));
+
+            indexer.stop();
+            assertTrue(isStopped.get());
+            assertThat(indexer.getState(), equalTo(IndexerState.STOPPED));
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42084")
+    public void testStop_WhileIndexing() throws InterruptedException {
+        AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
+        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        try {
+            CountDownLatch countDownLatch = new CountDownLatch(1);
+            MockIndexer indexer = new MockIndexer(executor, state, 2, countDownLatch, true);
+            indexer.start();
+            assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
+            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+            assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+            indexer.stop();
+            countDownLatch.countDown();
+
+            assertThat(indexer.getPosition(), equalTo(2));
+            assertTrue(awaitBusy(() -> isStopped.get()));
+            assertFalse(isFinished.get());
         } finally {
             executor.shutdownNow();
         }

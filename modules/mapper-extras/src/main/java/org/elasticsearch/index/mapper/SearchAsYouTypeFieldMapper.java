@@ -160,8 +160,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             final NamedAnalyzer searchQuoteAnalyzer = fieldType().searchQuoteAnalyzer();
 
             // set up the prefix field
-            final String prefixFieldName = name() + PREFIX_FIELD_SUFFIX;
-            final PrefixFieldType prefixFieldType = new PrefixFieldType(name(), prefixFieldName, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
+            final String fullName = buildFullName(context);
+            final String prefixFieldName = fullName + PREFIX_FIELD_SUFFIX;
+            final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixFieldName, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
             prefixFieldType.setIndexOptions(fieldType().indexOptions());
             // wrap the root field's index analyzer with shingles and edge ngrams
             final SearchAsYouTypeAnalyzer prefixIndexWrapper =
@@ -180,7 +181,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             for (int i = 0; i < shingleFieldMappers.length; i++) {
                 final int shingleSize = i + 2;
                 final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldType(), shingleSize);
-                shingleFieldType.setName(getShingleFieldName(name(), shingleSize));
+                shingleFieldType.setName(getShingleFieldName(buildFullName(context), shingleSize));
                 // wrap the root field's index, search, and search quote analyzers with shingles
                 final SearchAsYouTypeAnalyzer shingleIndexWrapper =
                     SearchAsYouTypeAnalyzer.withShingle(indexAnalyzer.analyzer(), shingleSize);
@@ -516,7 +517,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         @Override
         protected String contentType() {
-            return CONTENT_TYPE;
+            return "shingle";
         }
     }
 
@@ -664,6 +665,16 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
+    public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
+        SearchAsYouTypeFieldMapper fieldMapper = (SearchAsYouTypeFieldMapper) super.updateFieldType(fullNameToFieldType);
+        fieldMapper.prefixField = (PrefixFieldMapper) fieldMapper.prefixField.updateFieldType(fullNameToFieldType);
+        for (int i = 0; i < fieldMapper.shingleFields.length; i++) {
+            fieldMapper.shingleFields[i] = (ShingleFieldMapper) fieldMapper.shingleFields[i].updateFieldType(fullNameToFieldType);
+        }
+        return fieldMapper;
+    }
+
+    @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         final String value = context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
         if (value == null) {
@@ -692,10 +703,10 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         super.doMerge(mergeWith);
         SearchAsYouTypeFieldMapper mw = (SearchAsYouTypeFieldMapper) mergeWith;
         if (mw.maxShingleSize != maxShingleSize) {
-            throw new IllegalArgumentException("mapper [" + name() + "] has different maxShingleSize setting, current ["
+            throw new IllegalArgumentException("mapper [" + name() + "] has different [max_shingle_size] setting, current ["
                 + this.maxShingleSize + "], merged [" + mw.maxShingleSize + "]");
         }
-        this.prefixField = (PrefixFieldMapper) this.prefixField.merge(mw);
+        this.prefixField = (PrefixFieldMapper) this.prefixField.merge(mw.prefixField);
 
         ShingleFieldMapper[] shingleFieldMappers = new ShingleFieldMapper[mw.shingleFields.length];
         for (int i = 0; i < shingleFieldMappers.length; i++) {

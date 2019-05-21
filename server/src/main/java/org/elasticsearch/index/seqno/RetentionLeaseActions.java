@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -102,23 +103,13 @@ public class RetentionLeaseActions {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
             indexShard.acquirePrimaryOperationPermit(
-                    new ActionListener<Releasable>() {
-
-                        @Override
-                        public void onResponse(final Releasable releasable) {
-                            try (Releasable ignore = releasable) {
-                                doRetentionLeaseAction(indexShard, request, listener);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(final Exception e) {
-                            listener.onFailure(e);
-                        }
-
-                    },
-                    ThreadPool.Names.SAME,
-                    request);
+                ActionListener.delegateFailure(listener, (delegatedListener, releasable) -> {
+                    try (Releasable ignore = releasable) {
+                        doRetentionLeaseAction(indexShard, request, delegatedListener);
+                    }
+                }),
+                ThreadPool.Names.SAME,
+                request);
         }
 
         @Override
@@ -129,8 +120,8 @@ public class RetentionLeaseActions {
         abstract void doRetentionLeaseAction(IndexShard indexShard, T request, ActionListener<Response> listener);
 
         @Override
-        protected Response newResponse() {
-            return new Response();
+        protected Writeable.Reader<Response> getResponseReader() {
+            return Response::new;
         }
 
         @Override
@@ -179,6 +170,10 @@ public class RetentionLeaseActions {
                         ActionListener.map(listener, r -> new Response()));
             }
 
+            @Override
+            protected Writeable.Reader<Response> getResponseReader() {
+                return Response::new;
+            }
         }
 
         @Override
@@ -312,7 +307,7 @@ public class RetentionLeaseActions {
         @Override
         public void readFrom(final StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             id = in.readString();
         }
 
@@ -402,6 +397,12 @@ public class RetentionLeaseActions {
 
     public static class Response extends ActionResponse {
 
+        public Response() {
+        }
+
+        Response(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
 }

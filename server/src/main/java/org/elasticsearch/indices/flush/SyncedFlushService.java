@@ -538,7 +538,7 @@ public class SyncedFlushService implements IndexEventListener {
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
         int opCount = indexShard.getActiveOperationsCount();
-        return new InFlightOpsResponse(opCount);
+        return new InFlightOpsResponse(opCount == IndexShard.OPERATIONS_BLOCKED ? 0 : opCount);
     }
 
     public static final class PreShardSyncedFlushRequest extends TransportRequest {
@@ -567,7 +567,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.shardId = ShardId.readShardId(in);
+            this.shardId = new ShardId(in);
         }
 
         public ShardId shardId() {
@@ -647,7 +647,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             expectedCommitId = new Engine.CommitId(in);
             syncId = in.readString();
         }
@@ -749,7 +749,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         }
 
         @Override
@@ -781,6 +781,7 @@ public class SyncedFlushService implements IndexEventListener {
         }
 
         InFlightOpsResponse(int opCount) {
+            assert opCount >= 0 : opCount;
             this.opCount = opCount;
         }
 

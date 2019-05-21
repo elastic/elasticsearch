@@ -52,7 +52,7 @@ done on UTC. It is possible to provide a time zone value, which will cause all c
 into account. The time returned for each bucket/entry is milliseconds since the epoch of the provided time zone.
 
 ifdef::asciidoctor[]
-deprecated[1.5.0, "`pre_zone`, `post_zone` are replaced by `time_zone`"]
+deprecated::[1.5.0, "`pre_zone`, `post_zone` are replaced by `time_zone`"]
 endif::[]
 ifndef::asciidoctor[]
 deprecated[1.5.0, `pre_zone`, `post_zone` are replaced by `time_zone`]

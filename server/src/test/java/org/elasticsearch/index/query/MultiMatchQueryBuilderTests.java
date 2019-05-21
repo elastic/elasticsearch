@@ -243,10 +243,9 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
         assertThat(dQuery.getTieBreakerMultiplier(), equalTo(1.0f));
-        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 2).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
     }
 
     public void testToQueryFieldMissing() throws Exception {
@@ -268,23 +267,6 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
     }
 
     public void testToQueryBooleanPrefixMultipleFields() throws IOException {
-        {
-            final MultiMatchQueryBuilder builder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
-            builder.type(Type.BOOL_PREFIX);
-            final Query query = builder.toQuery(createShardContext());
-            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-            final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
-            assertThat(disMaxQuery.getDisjuncts(), hasSize(2));
-            for (Query disjunctQuery : disMaxQuery.getDisjuncts()) {
-                assertThat(disjunctQuery, instanceOf(BooleanQuery.class));
-                final BooleanQuery booleanQuery = (BooleanQuery) disjunctQuery;
-                assertThat(booleanQuery.clauses(), hasSize(2));
-                assertThat(assertBooleanSubQuery(booleanQuery, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "foo")));
-                assertThat(assertBooleanSubQuery(booleanQuery, PrefixQuery.class, 1).getPrefix(),
-                    equalTo(new Term(STRING_FIELD_NAME, "bar")));
-            }
-        }
-
         {
             // STRING_FIELD_NAME_2 is a keyword field
             final MultiMatchQueryBuilder queryBuilder = new MultiMatchQueryBuilder("foo bar", STRING_FIELD_NAME, STRING_FIELD_NAME_2);

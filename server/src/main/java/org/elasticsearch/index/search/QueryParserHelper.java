@@ -149,7 +149,12 @@ public final class QueryParserHelper {
                     // other exceptions are parsing errors or not indexed fields: keep
                 }
             }
-            fields.put(fieldName, weight);
+            // handle duplicates
+            float w = weight;
+            if (fields.containsKey(fieldType.name())) {
+                w *= fields.get(fieldType.name());
+            }
+            fields.put(fieldType.name(), w);
         }
         checkForTooManyFields(fields, context);
         return fields;

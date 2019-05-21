@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.anyOf;
@@ -102,7 +103,7 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
         int fieldCount = randomIntBetween(0, 2);
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
-            if (randomBoolean()) {
+            if (i == 0) {
                 String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME);
                 fields.put(fieldName, AbstractQueryBuilder.DEFAULT_BOOST);
             } else {

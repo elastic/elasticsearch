@@ -160,7 +160,7 @@ setup() {
 
 @test "[INIT.D] GC logs exist" {
     start_elasticsearch_service
-    assert_file_exist /var/log/elasticsearch/gc.log.0.current
+    assert_file_exist /var/log/elasticsearch/gc.log
     stop_elasticsearch_service
 }
 

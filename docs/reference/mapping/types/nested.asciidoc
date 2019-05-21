@@ -65,6 +65,7 @@ GET my_index/_search
 // CONSOLE
 // TEST[continued]
 
+[[nested-fields-array-objects]]
 ==== Using `nested` fields for arrays of objects
 
 If you need to index arrays of objects and to maintain the independence of
@@ -78,11 +79,9 @@ queried independently of the others, with the <<query-dsl-nested-query,`nested` 
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "user": {
-          "type": "nested" <1>
-        }
+    "properties": {
+      "user": {
+        "type": "nested" <1>
       }
     }
   }
@@ -202,7 +201,7 @@ document is indexed as a separate document. To safeguard against ill-defined map
 the number of nested fields that can be defined per index has been limited to 50. See
 <<mapping-limit-settings>>.
 
-
+[[limit-nested-json-objects-number]]
 ==== Limiting the number of `nested` json objects
 Indexing a document with an array of 100 objects within a nested field, will actually
 create 101 documents, as each nested object will be indexed as a separate document.

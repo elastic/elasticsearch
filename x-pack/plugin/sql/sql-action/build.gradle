@@ -42,7 +42,7 @@ dependencyLicenses {
     ignoreSha 'elasticsearch-core'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
         'com.fasterxml.jackson.dataformat.yaml.YAMLFactory',
         'com.fasterxml.jackson.dataformat.yaml.YAMLMapper',
 
@@ -138,4 +138,4 @@ thirdPartyAudit.excludes = [
         'org.zeromq.ZMQ$Context',
         'org.zeromq.ZMQ$Socket',
         'org.zeromq.ZMQ'
-]
+)

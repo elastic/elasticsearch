@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ml.utils.time;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -15,6 +16,7 @@ import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
 public final class TimeUtils {
+
     private TimeUtils() {
         // Do nothing
     }
@@ -55,7 +57,7 @@ public final class TimeUtils {
 
         try {
             return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(date);
-        } catch (IllegalArgumentException e) {
+        } catch (ElasticsearchParseException | IllegalArgumentException e) {
         }
         // Could not do the conversion
         return -1;

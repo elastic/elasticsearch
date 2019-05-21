@@ -11,7 +11,7 @@
         "username": {
           "type" : "string",
           "description" : "The username of the user to disable",
-          "required" : false
+          "required" : true
         }
       },
       "params": {

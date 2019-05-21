@@ -10,11 +10,10 @@ import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -22,11 +21,12 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class QuotingTests extends ESTestCase {
 
     private static UnresolvedAttribute from(String s) {
-        return new UnresolvedAttribute(Location.EMPTY, s);
+        return new UnresolvedAttribute(Source.EMPTY, s);
     }
 
     public void testBasicString() {
@@ -48,7 +48,7 @@ public class QuotingTests extends ESTestCase {
     public void testMultiSingleQuotedLiteral() {
         String first = "bucket";
         String second = "head";
-        Expression exp = new SqlParser().createExpression(String.format(Locale.ROOT, "'%s' '%s'", first, second));
+        Expression exp = new SqlParser().createExpression(format(null, "'{}' '{}'", first, second));
         assertThat(exp, instanceOf(Literal.class));
         Literal l = (Literal) exp;
         assertThat(l.value(), equalTo(first + second));

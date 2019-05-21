@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -271,12 +271,12 @@ public class DatafeedJobTests extends ESTestCase {
 
         Annotation expectedAnnotation = new Annotation(msg,
             new Date(currentTime),
-            SystemUser.NAME,
+            XPackUser.NAME,
             bucket.getTimestamp(),
             new Date((bucket.getEpoch() + bucket.getBucketSpan()) * 1000),
             jobId,
             new Date(currentTime),
-            SystemUser.NAME,
+            XPackUser.NAME,
             "annotation");
 
         IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
@@ -312,7 +312,7 @@ public class DatafeedJobTests extends ESTestCase {
         Annotation updatedAnnotation = new Annotation(expectedAnnotation);
         updatedAnnotation.setAnnotation(msg);
         updatedAnnotation.setModifiedTime(new Date(currentTime));
-        updatedAnnotation.setModifiedUsername(SystemUser.NAME);
+        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
         updatedAnnotation.setEndTimestamp(new Date((bucket2.getEpoch() + bucket2.getBucketSpan()) * 1000));
         try (XContentBuilder xContentBuilder = updatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             indexRequest.source(xContentBuilder);
@@ -370,13 +370,15 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
-    public void testPostAnalysisProblem() throws Exception {
+    public void testPostAnalysisProblem() {
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenThrow(new RuntimeException());
+
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
         DatafeedJob.AnalysisProblemException analysisProblemException =
@@ -397,13 +399,15 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
-    public void testPostAnalysisProblemIsConflict() throws Exception {
+    public void testPostAnalysisProblemIsConflict() {
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenThrow(ExceptionsHelper.conflictStatusException("conflict"));
+
+        when(dataExtractor.getEndTime()).thenReturn(1000L);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
         DatafeedJob.AnalysisProblemException analysisProblemException =
@@ -424,7 +428,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
     }
 
-    public void testFlushAnalysisProblem() throws Exception {
+    public void testFlushAnalysisProblem() {
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenThrow(new RuntimeException());
 
         currentTime = 60000L;
@@ -436,7 +440,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertThat(analysisProblemException.shouldStop, is(false));
     }
 
-    public void testFlushAnalysisProblemIsConflict() throws Exception {
+    public void testFlushAnalysisProblemIsConflict() {
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenThrow(ExceptionsHelper.conflictStatusException("conflict"));
 
         currentTime = 60000L;

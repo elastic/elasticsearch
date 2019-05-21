@@ -11,6 +11,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
@@ -22,6 +23,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -119,6 +121,7 @@ public final class RemoteClusterLicenseChecker {
 
     }
 
+    private static final ClusterNameExpressionResolver clusterNameExpressionResolver = new ClusterNameExpressionResolver();
     private final Client client;
     private final Predicate<License.OperationMode> predicate;
 
@@ -243,15 +246,19 @@ public final class RemoteClusterLicenseChecker {
 
     /**
      * Extract the list of remote cluster aliases from the list of index names. Remote index names are of the form
-     * {@code cluster_alias:index_name} and the cluster_alias is extracted for each index name that represents a remote index.
+     * {@code cluster_alias:index_name} and the cluster_alias is extracted (and expanded if it is a wildcard) for
+     * each index name that represents a remote index.
      *
-     * @param indices the collection of index names
+     * @param remoteClusters the aliases for remote clusters
+     * @param indices        the collection of index names
      * @return the remote cluster names
      */
-    public static List<String> remoteClusterAliases(final List<String> indices) {
+    public static List<String> remoteClusterAliases(final Set<String> remoteClusters, final List<String> indices) {
         return indices.stream()
                 .filter(RemoteClusterLicenseChecker::isRemoteIndex)
                 .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
+                .distinct()
+                .flatMap(clusterExpression -> clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
                 .distinct()
                 .collect(Collectors.toList());
     }

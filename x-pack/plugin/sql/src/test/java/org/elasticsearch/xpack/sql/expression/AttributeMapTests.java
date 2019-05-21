@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 public class AttributeMapTests extends ESTestCase {
 
     private static Attribute a(String name) {
-        return new UnresolvedAttribute(Location.EMPTY, name);
+        return new UnresolvedAttribute(Source.EMPTY, name);
     }
 
     private static AttributeMap<String> threeMap() {

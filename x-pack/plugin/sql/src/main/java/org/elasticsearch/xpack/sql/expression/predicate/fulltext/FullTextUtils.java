@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.fulltext;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.FullTextPredicate.Operator;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -21,7 +21,7 @@ abstract class FullTextUtils {
 
     private static final String DELIMITER = ";";
 
-    static Map<String, String> parseSettings(String options, Location location) {
+    static Map<String, String> parseSettings(String options, Source source) {
         if (!Strings.hasText(options)) {
             return emptyMap();
         }
@@ -31,23 +31,23 @@ abstract class FullTextUtils {
         for (String entry : list) {
             String[] split = splitInTwo(entry, "=");
             if (split == null) {
-                throw new ParsingException(location, "Cannot parse entry {} in options {}", entry, options);
+                throw new ParsingException(source, "Cannot parse entry {} in options {}", entry, options);
             }
 
             String previous = op.put(split[0], split[1]);
             if (previous != null) {
-                throw new ParsingException(location, "Duplicate option {} detected in options {}", entry, options);
+                throw new ParsingException(source, "Duplicate option {} detected in options {}", entry, options);
             }
 
         }
         return op;
     }
 
-    static Map<String, Float> parseFields(Map<String, String> options, Location location) {
-        return parseFields(options.get("fields"), location);
+    static Map<String, Float> parseFields(Map<String, String> options, Source source) {
+        return parseFields(options.get("fields"), source);
     }
 
-    static Map<String, Float> parseFields(String fieldString, Location location) {
+    static Map<String, Float> parseFields(String fieldString, Source source) {
         if (!Strings.hasText(fieldString)) {
             return emptyMap();
         }
@@ -66,7 +66,7 @@ abstract class FullTextUtils {
                     try {
                         fields.put(split[0], Float.parseFloat(split[1]));
                     } catch (NumberFormatException nfe) {
-                        throw new ParsingException(location, "Cannot parse boosting for {}", fieldName);
+                        throw new ParsingException(source, "Cannot parse boosting for {}", fieldName);
                     }
                 }
             }

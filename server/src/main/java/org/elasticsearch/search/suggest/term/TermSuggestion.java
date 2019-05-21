@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,8 +51,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     private SortBy sort;
 
-    public TermSuggestion() {}
-
     public TermSuggestion(String name, int size, SortBy sort) {
         super(name, size);
         this.sort = sort;
@@ -61,10 +58,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     public TermSuggestion(StreamInput in) throws IOException {
         super(in);
-
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            sort = SortBy.readFromStream(in);
-        }
+        sort = SortBy.readFromStream(in);
     }
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
@@ -80,7 +74,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             }
             return FREQUENCY.compare(first, second);
         }
-
     }
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
@@ -105,7 +98,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             // third criteria: term text
             return first.getText().compareTo(second.getText());
         }
-
     }
 
     @Override
@@ -136,10 +128,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            sort.writeTo(out);
-        }
+        sort.writeTo(out);
     }
 
     @Override
@@ -152,11 +141,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
         TermSuggestion suggestion = new TermSuggestion(name, -1, SortBy.SCORE);
         parseEntries(parser, suggestion, TermSuggestion.Entry::fromXContent);
         return suggestion;
-    }
-
-    @Override
-    protected Entry newEntry() {
-        return new Entry();
     }
 
     @Override
@@ -184,15 +168,10 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             super(text, offset, length);
         }
 
-        public Entry() {}
+        private Entry() {}
 
         public Entry(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        protected Option newOption() {
-            return new Option();
         }
 
         @Override
@@ -234,10 +213,6 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             protected void mergeInto(Suggestion.Entry.Option otherOption) {
                 super.mergeInto(otherOption);
                 freq += ((Option) otherOption).freq;
-            }
-
-            protected Option() {
-                super();
             }
 
             public void setFreq(int freq) {
@@ -283,6 +258,5 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
                 return PARSER.apply(parser, null);
             }
         }
-
     }
 }

@@ -6,7 +6,7 @@
 package org.elasticsearch.smoketest;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.junit.After;
 import org.junit.Before;
 
@@ -25,14 +25,14 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HIT_AS_INT_PARAM;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
 public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
@@ -83,7 +83,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
         });
 
         assertBusy(() -> {
-            for (String template : WatcherIndexTemplateRegistryField.TEMPLATE_NAMES) {
+            for (String template : XPackRestTestConstants.TEMPLATE_NAMES_NO_ILM) {
                 assertOK(adminClient().performRequest(new Request("HEAD", "_template/" + template)));
             }
         });
@@ -198,7 +198,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "my_test_index")
-                    .field("doc_type", "doc")
                     .field("doc_id", "my-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -229,7 +228,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                     .endObject().endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "my_test_index")
-                    .field("doc_type", "doc")
                     .field("doc_id", "some-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -250,7 +248,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             builder.startObject("input").startObject("simple").field("spam", "eggs").endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "my_test_index")
-                    .field("doc_type", "doc")
                     .field("doc_id", "my-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -274,7 +271,6 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             builder.startObject("input").startObject("simple").field("spam", "eggs").endObject().endObject();
             builder.startObject("actions").startObject("index").startObject("index")
                     .field("index", "index_not_allowed_to_read")
-                    .field("doc_type", "doc")
                     .field("doc_id", "my-id")
                     .endObject().endObject().endObject();
             builder.endObject();
@@ -324,7 +320,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
                 builder.endObject();
 
                 Request searchRequest = new Request("POST", "/.watcher-history-*/_search");
-                searchRequest.addParameter(TOTAL_HIT_AS_INT_PARAM, "true");
+                searchRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
                 searchRequest.setJsonEntity(Strings.toString(builder));
                 Response response = client().performRequest(searchRequest);
                 ObjectPath objectPath = ObjectPath.createFromResponse(response);

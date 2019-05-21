@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -45,16 +43,9 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
-            in.readLong(); // maxUnsafeAutoIdTimestamp
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            fileBasedRecovery = in.readBoolean();
-        } else {
-            fileBasedRecovery = true;
-        }
+        fileBasedRecovery = in.readBoolean();
     }
 
     public long recoveryId() {
@@ -82,11 +73,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         out.writeLong(recoveryId);
         shardId.writeTo(out);
         out.writeVInt(totalTranslogOps);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
-            out.writeLong(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP); // maxUnsafeAutoIdTimestamp
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeBoolean(fileBasedRecovery);
-        }
+        out.writeBoolean(fileBasedRecovery);
     }
 }

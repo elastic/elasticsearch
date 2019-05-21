@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.hamcrest.CoreMatchers.is;
 
 // TODO delete this test?
@@ -33,18 +34,18 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false), false);
+                .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false), false);
         settings = builder.build();
 
         // The default Unicast test behavior is to use 'localhost' with the port number. For this test we need to use IP
          List<String> newUnicastAddresses = new ArrayList<>();
-         for (String address : settings.getAsList("discovery.zen.ping.unicast.hosts")) {
+         for (String address : settings.getAsList(DISCOVERY_SEED_HOSTS_SETTING.getKey())) {
              newUnicastAddresses.add(address.replace("localhost", "127.0.0.1"));
          }
 
         Settings.Builder settingsBuilder = Settings.builder()
                 .put(settings)
-                .putList("discovery.zen.ping.unicast.hosts", newUnicastAddresses);
+                .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), newUnicastAddresses);
 
         try {
             //Use a cert with a CN of "Elasticsearch Test Node" and IPv4+IPv6 ip addresses as SubjectAlternativeNames
@@ -56,27 +57,27 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
         }
 
         SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
-            secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode-ip-only");
+            secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode-ip-only");
         });
-        return settingsBuilder.put("xpack.ssl.key", keyPath.toAbsolutePath())
-            .put("xpack.ssl.certificate", certPath.toAbsolutePath())
-            .put("xpack.ssl.certificate_authorities", certPath.toAbsolutePath())
+        return settingsBuilder.put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
+            .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())
+            .put("xpack.security.transport.ssl.certificate_authorities", certPath.toAbsolutePath())
             .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
             .put("network.host", "127.0.0.1")
-            .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
-            .put("xpack.ssl.verification_mode", "full")
+            .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
+            .put("xpack.security.transport.ssl.verification_mode", "full")
             .build();
     }
 
     @Override
     protected Settings transportClientSettings() {
         Settings clientSettings = super.transportClientSettings();
-        return Settings.builder().put(clientSettings.filter(k -> k.startsWith("xpack.ssl.") == false))
-            .put("xpack.ssl.verification_mode", "certificate")
-            .put("xpack.ssl.key", keyPath.toAbsolutePath())
-            .put("xpack.ssl.certificate", certPath.toAbsolutePath())
-            .put("xpack.ssl.key_passphrase", "testnode-ip-only")
-            .put("xpack.ssl.certificate_authorities", certPath)
+        return Settings.builder().put(clientSettings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false))
+            .put("xpack.security.transport.ssl.verification_mode", "certificate")
+            .put("xpack.security.transport.ssl.key", keyPath.toAbsolutePath())
+            .put("xpack.security.transport.ssl.certificate", certPath.toAbsolutePath())
+            .put("xpack.security.transport.ssl.key_passphrase", "testnode-ip-only")
+            .put("xpack.security.transport.ssl.certificate_authorities", certPath)
             .build();
     }
 

@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.CheckedConsumer;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 
@@ -33,5 +35,11 @@ public class ActionTestUtils {
         PlainActionFuture<Response> future = newFuture();
         action.execute(request, future);
         return future.actionGet();
+    }
+
+    public static <T> ActionListener<T> assertNoFailureListener(CheckedConsumer<T, Exception> consumer) {
+        return ActionListener.wrap(consumer, e -> {
+            throw new AssertionError(e);
+        });
     }
 }

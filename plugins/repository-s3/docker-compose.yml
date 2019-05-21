@@ -1,0 +1,9 @@
+version: '3'
+services:
+  minio-fixture:
+    build:
+      context: ./build/minio-docker
+      dockerfile: Dockerfile
+    ports:
+      - "9000"
+    command: ["server", "/minio/data"]

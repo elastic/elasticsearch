@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
@@ -32,6 +33,10 @@ public abstract class ClusterPermission {
     }
 
     public abstract boolean check(String action, TransportRequest request);
+
+    public boolean grants(ClusterPrivilege clusterPrivilege) {
+        return Operations.subsetOf(clusterPrivilege.getAutomaton(), this.privilege().getAutomaton());
+    }
 
     public abstract List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges();
 
@@ -110,6 +115,11 @@ public abstract class ClusterPermission {
         @Override
         public boolean check(String action, TransportRequest request) {
             return children.stream().anyMatch(p -> p.check(action, request));
+        }
+
+        @Override
+        public boolean grants(ClusterPrivilege clusterPrivilege) {
+            return children.stream().anyMatch(p -> p.grants(clusterPrivilege));
         }
     }
 }

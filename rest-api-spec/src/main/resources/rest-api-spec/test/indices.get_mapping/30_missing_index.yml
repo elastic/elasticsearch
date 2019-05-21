@@ -4,10 +4,9 @@
       catch: missing
       indices.get_mapping:
         index: test_index
-        type: not_test_type
   
 ---
-"Index missing, no indexes, no types":
+"Index missing, no indexes":
   - do:
       catch: missing
       indices.get_mapping:
@@ -15,9 +14,6 @@
 
 ---
 "Index missing, ignore_unavailable=true":
-  - skip:
-      version: " - 6.99.99"
-      reason: ignore_unavailable was ignored in previous versions
   - do:
       indices.get_mapping:
         index: test_index

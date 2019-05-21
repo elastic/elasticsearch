@@ -34,6 +34,9 @@ import org.gradle.api.plugins.quality.Checkstyle
 class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
+
+    public static final String CHECKSTYLE_VERSION = '8.20'
+
     public static Task create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
@@ -43,7 +46,6 @@ class PrecommitTasks {
         List<Task> precommitTasks = [
             configureCheckstyle(project),
             configureForbiddenApisCli(project),
-            configureNamingConventions(project),
             project.tasks.create('forbiddenPatterns', ForbiddenPatternsTask.class),
             project.tasks.create('licenseHeaders', LicenseHeadersTask.class),
             project.tasks.create('filepermissions', FilePermissionsTask.class),
@@ -91,7 +93,17 @@ class PrecommitTasks {
     }
 
     static Task configureTestingConventions(Project project) {
-        project.getTasks().create("testingConventions", TestingConventionsTasks.class)
+        TestingConventionsTasks task = project.getTasks().create("testingConventions", TestingConventionsTasks.class)
+        task.naming {
+            Tests {
+                baseClass "org.apache.lucene.util.LuceneTestCase"
+            }
+            IT {
+                baseClass "org.elasticsearch.test.ESIntegTestCase"
+                baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+            }
+        }
+        return task
     }
 
     private static Task configureJarHell(Project project) {
@@ -122,9 +134,16 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis) {
             dependsOn(buildResources)
-            targetCompatibility = project.runtimeJavaVersion >= JavaVersion.VERSION_1_9 ?
-                    project.runtimeJavaVersion.getMajorVersion() :
-                    project.runtimeJavaVersion
+            targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
+            if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
+                doLast {
+                    project.logger.info(
+                            "Forbidden APIs does not support java version past 11. Will use the signatures from 11 for ",
+                            project.runtimeJavaVersion
+                    )
+                }
+                targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
+            }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
             ]
@@ -197,7 +216,7 @@ class PrecommitTasks {
             configProperties = [
                 suppressions: checkstyleSuppressions
             ]
-            toolVersion = '8.10.1'
+            toolVersion = CHECKSTYLE_VERSION
         }
 
         project.tasks.withType(Checkstyle) { task ->
@@ -210,15 +229,6 @@ class PrecommitTasks {
         }
 
         return checkstyleTask
-    }
-
-    private static Task configureNamingConventions(Project project) {
-        if (project.sourceSets.findByName("test")) {
-            Task namingConventionsTask = project.tasks.create('namingConventions', NamingConventionsTask)
-            namingConventionsTask.javaHome = project.compilerJavaHome
-            return namingConventionsTask
-        }
-        return null
     }
 
     private static Task configureLoggerUsage(Project project) {

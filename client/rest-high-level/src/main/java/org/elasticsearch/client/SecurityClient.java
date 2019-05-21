@@ -27,6 +27,8 @@ import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.CreateApiKeyRequest;
+import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
@@ -38,8 +40,9 @@ import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
-import org.elasticsearch.client.security.EmptyResponse;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetApiKeyRequest;
+import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetPrivilegesResponse;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
@@ -54,6 +57,8 @@ import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GetUsersResponse;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
+import org.elasticsearch.client.security.InvalidateApiKeyRequest;
+import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
@@ -235,12 +240,28 @@ public final class SecurityClient {
      *
      * @param request the request with the user to enable
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the enable user call
+     * @return {@code true} if the request succeeded (the user is enabled)
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public EmptyResponse enableUser(EnableUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::enableUser, options,
-            EmptyResponse::fromXContent, emptySet());
+    public boolean enableUser(EnableUserRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(request, SecurityRequestConverters::enableUser, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
+    }
+
+    /**
+     * Enable a native realm or built-in user synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html">
+     * the docs</a> for more.
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param request the request with the user to enable
+     * @return {@code true} if the request succeeded (the user is enabled)
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #enableUser(EnableUserRequest, RequestOptions)} instead
+     */
+    @Deprecated
+    public boolean enableUser(RequestOptions options, EnableUserRequest request) throws IOException {
+        return enableUser(request, options);
     }
 
     /**
@@ -253,9 +274,25 @@ public final class SecurityClient {
      * @param listener the listener to be notified upon request completion
      */
     public void enableUserAsync(EnableUserRequest request, RequestOptions options,
-                                ActionListener<EmptyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::enableUser, options,
-            EmptyResponse::fromXContent, listener, emptySet());
+                                ActionListener<Boolean> listener) {
+        restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::enableUser, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Enable a native realm or built-in user asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-enable-user.html">
+     * the docs</a> for more.
+     *
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param request  the request with the user to enable
+     * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #enableUserAsync(EnableUserRequest, RequestOptions, ActionListener)} instead
+     */
+    @Deprecated
+    public void enableUserAsync(RequestOptions options, EnableUserRequest request,
+                                ActionListener<Boolean> listener) {
+        enableUserAsync(request, options, listener);
     }
 
     /**
@@ -265,12 +302,28 @@ public final class SecurityClient {
      *
      * @param request the request with the user to disable
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the enable user call
+     * @return {@code true} if the request succeeded (the user is disabled)
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public EmptyResponse disableUser(DisableUserRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::disableUser, options,
-            EmptyResponse::fromXContent, emptySet());
+    public boolean disableUser(DisableUserRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(request, SecurityRequestConverters::disableUser, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
+    }
+
+    /**
+     * Disable a native realm or built-in user synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html">
+     * the docs</a> for more.
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param request the request with the user to disable
+     * @return {@code true} if the request succeeded (the user is disabled)
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #disableUser(DisableUserRequest, RequestOptions)} instead
+     */
+    @Deprecated
+    public boolean disableUser(RequestOptions options, DisableUserRequest request) throws IOException {
+        return disableUser(request, options);
     }
 
     /**
@@ -283,9 +336,25 @@ public final class SecurityClient {
      * @param listener the listener to be notified upon request completion
      */
     public void disableUserAsync(DisableUserRequest request, RequestOptions options,
-                                 ActionListener<EmptyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::disableUser, options,
-            EmptyResponse::fromXContent, listener, emptySet());
+                                 ActionListener<Boolean> listener) {
+        restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::disableUser, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Disable a native realm or built-in user asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-disable-user.html">
+     * the docs</a> for more.
+     *
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param request  the request with the user to disable
+     * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #disableUserAsync(DisableUserRequest, RequestOptions, ActionListener)} instead
+     */
+    @Deprecated
+    public void disableUserAsync(RequestOptions options, DisableUserRequest request,
+                                 ActionListener<Boolean> listener) {
+        disableUserAsync(request, options, listener);
     }
 
     /**
@@ -455,12 +524,28 @@ public final class SecurityClient {
      *
      * @param request the request with the user's new password
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the change user password call
+     * @return {@code true} if the request succeeded (the new password was set)
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public EmptyResponse changePassword(ChangePasswordRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::changePassword, options,
-            EmptyResponse::fromXContent, emptySet());
+    public boolean changePassword(ChangePasswordRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequest(request, SecurityRequestConverters::changePassword, options,
+            RestHighLevelClient::convertExistsResponse, emptySet());
+    }
+
+    /**
+     * Change the password of a user of a native realm or built-in user synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-change-password.html">
+     * the docs</a> for more.
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param request the request with the user's new password
+     * @return {@code true} if the request succeeded (the new password was set)
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     * @deprecated use {@link #changePassword(ChangePasswordRequest, RequestOptions)} instead
+     */
+    @Deprecated
+    public boolean changePassword(RequestOptions options, ChangePasswordRequest request) throws IOException {
+        return changePassword(request, options);
     }
 
     /**
@@ -473,9 +558,25 @@ public final class SecurityClient {
      * @param listener the listener to be notified upon request completion
      */
     public void changePasswordAsync(ChangePasswordRequest request, RequestOptions options,
-                                    ActionListener<EmptyResponse> listener) {
-        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::changePassword, options,
-            EmptyResponse::fromXContent, listener, emptySet());
+                                    ActionListener<Boolean> listener) {
+        restHighLevelClient.performRequestAsync(request, SecurityRequestConverters::changePassword, options,
+            RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Change the password of a user of a native realm or built-in user asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-change-password.html">
+     * the docs</a> for more.
+     *
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param request  the request with the user's new password
+     * @param listener the listener to be notified upon request completion
+     * @deprecated use {@link #changePasswordAsync(ChangePasswordRequest, RequestOptions, ActionListener)} instead
+     */
+    @Deprecated
+    public void changePasswordAsync(RequestOptions options, ChangePasswordRequest request,
+                                    ActionListener<Boolean> listener) {
+        changePasswordAsync(request, options, listener);
     }
 
     /**
@@ -746,5 +847,96 @@ public final class SecurityClient {
                                       ActionListener<DeletePrivilegesResponse> listener) {
         restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deletePrivileges, options,
             DeletePrivilegesResponse::fromXContent, listener, singleton(404));
+    }
+
+    /**
+     * Create an API Key.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create a API key
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create API key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CreateApiKeyResponse createApiKey(final CreateApiKeyRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::createApiKey, options,
+                CreateApiKeyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates an API key.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create a API key
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void createApiKeyAsync(final CreateApiKeyRequest request, final RequestOptions options,
+            final ActionListener<CreateApiKeyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createApiKey, options,
+                CreateApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Retrieve API Key(s) information.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to retrieve API key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create API key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetApiKeyResponse getApiKey(final GetApiKeyRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getApiKey, options,
+                GetApiKeyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously retrieve API Key(s) information.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to retrieve API key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void getApiKeyAsync(final GetApiKeyRequest request, final RequestOptions options,
+            final ActionListener<GetApiKeyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getApiKey, options,
+                GetApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Invalidate API Key(s).<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to invalidate API key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the invalidate API key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public InvalidateApiKeyResponse invalidateApiKey(final InvalidateApiKeyRequest request, final RequestOptions options)
+            throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::invalidateApiKey, options,
+                InvalidateApiKeyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously invalidates API key(s).<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to invalidate API key(s)
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public void invalidateApiKeyAsync(final InvalidateApiKeyRequest request, final RequestOptions options,
+                                      final ActionListener<InvalidateApiKeyResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateApiKey, options,
+                InvalidateApiKeyResponse::fromXContent, listener, emptySet());
     }
 }

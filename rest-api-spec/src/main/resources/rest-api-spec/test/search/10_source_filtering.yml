@@ -5,16 +5,14 @@ setup:
           index:  test
           body:
             mappings:
-              test:
-                properties:
-                  bigint:
-                    type: keyword
+              properties:
+                bigint:
+                  type: keyword
 
 
   - do:
       index:
         index:  test_1
-        type:   test
         id:     1
         body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1, "bigint": 72057594037927936 }
   - do:
@@ -143,13 +141,8 @@ setup:
 
 ---
 "docvalue_fields":
-  - skip:
-      version: " - 6.4.0"
-      reason: format option was added in 6.4 and the deprecation message changed in 6.4.1
-      features: warnings
+
   - do:
-      warnings:
-        - 'There are doc-value fields which are not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with a doc value field in order to opt in for the future behaviour and ease the migration to 7.0: [count]'
       search:
         body:
           docvalue_fields: [ "count" ]
@@ -157,13 +150,8 @@ setup:
 
 ---
 "multiple docvalue_fields":
-  - skip:
-      version: " - 6.4.0"
-      reason: format option was added in 6.4 and the deprecation message changed in 6.4.1
-      features: warnings
+
   - do:
-      warnings:
-        - 'There are doc-value fields which are not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with a doc value field in order to opt in for the future behaviour and ease the migration to 7.0: [count, include.field1.keyword]'
       search:
         body:
           docvalue_fields: [ "count", "include.field1.keyword" ]
@@ -171,35 +159,15 @@ setup:
 
 ---
 "docvalue_fields as url param":
-  - skip:
-      version: " - 6.4.0"
-      reason: format option was added in 6.4 and the deprecation message changed in 6.4.1
-      features: warnings
+
   - do:
-      warnings:
-        - 'There are doc-value fields which are not using a format. The output will change in 7.0 when doc value fields get formatted based on mappings by default. It is recommended to pass [format=use_field_mapping] with a doc value field in order to opt in for the future behaviour and ease the migration to 7.0: [count]'
       search:
         docvalue_fields: [ "count" ]
   - match: { hits.hits.0.fields.count: [1] }
 
 ---
-"docvalue_fields with default format":
-  - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
-  - do:
-      search:
-        body:
-          docvalue_fields:
-            - field: "count"
-              format: "use_field_mapping"
-  - match: { hits.hits.0.fields.count: [1] }
-
----
 "docvalue_fields with explicit format":
-  - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
+
   - do:
       search:
         body:

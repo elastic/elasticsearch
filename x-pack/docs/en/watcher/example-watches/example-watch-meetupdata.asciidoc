@@ -50,7 +50,7 @@ output { <2>
 [source,shell]
 ----------------------------------------------------------
 curl http://stream.meetup.com/2/rsvps | bin/logstash -f livestream.conf
----------------------------------------------------------
+----------------------------------------------------------
 // NOTCONSOLE
 -- 
 
@@ -143,7 +143,7 @@ To set up the watch:
       }
     }
   },
---------------------------------------------------
+-------------------------------------------------
 // NOTCONSOLE
 <1> Elasticsearch Date math is used to select the Logstash indices that contain the meetup data. The second pattern is needed in case the previous hour crosses days.
 <2> Find all of the RSVPs with `Open Source` as a topic.
@@ -167,7 +167,7 @@ To set up the watch:
 +
 --
 [source,js]
---------------------------------------------------
+---------------------------------------------------
 "actions": {
     "email_me": {
       "throttle_period": "10m",

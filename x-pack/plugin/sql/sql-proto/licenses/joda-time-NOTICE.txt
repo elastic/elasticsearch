@@ -1,5 +1,0 @@
-=============================================================================
-= NOTICE file corresponding to section 4d of the Apache License Version 2.0 =
-=============================================================================
-This product includes software developed by
-Joda.org (http://www.joda.org/).

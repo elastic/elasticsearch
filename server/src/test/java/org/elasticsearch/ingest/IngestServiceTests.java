@@ -19,6 +19,9 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
@@ -39,11 +42,13 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.CustomTypeSafeMatcher;
 import org.mockito.ArgumentMatcher;
@@ -254,7 +259,7 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(pipeline.getProcessors().size(), equalTo(0));
     }
 
-    public void testPutWithErrorResponse() {
+    public void testPutWithErrorResponse() throws IllegalAccessException {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
         Pipeline pipeline = ingestService.getPipeline(id);
@@ -265,11 +270,22 @@ public class IngestServiceTests extends ESTestCase {
             new PutPipelineRequest(id, new BytesArray("{\"description\": \"empty processors\"}"), XContentType.JSON);
         ClusterState previousClusterState = clusterState;
         clusterState = IngestService.innerPut(putRequest, clusterState);
+        MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "test1",
+                IngestService.class.getCanonicalName(),
+                Level.WARN,
+                "failed to update ingest pipelines"));
+        Logger ingestLogger = LogManager.getLogger(IngestService.class);
+        Loggers.addAppender(ingestLogger, mockAppender);
         try {
             ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-            fail("should fail");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[processors] required property is missing"));
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(ingestLogger, mockAppender);
+            mockAppender.stop();
         }
         pipeline = ingestService.getPipeline(id);
         assertNotNull(pipeline);

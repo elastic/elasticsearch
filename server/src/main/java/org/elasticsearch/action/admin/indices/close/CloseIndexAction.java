@@ -20,9 +20,8 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.Action;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-public class CloseIndexAction extends Action<AcknowledgedResponse> {
+public class CloseIndexAction extends Action<CloseIndexResponse> {
 
     public static final CloseIndexAction INSTANCE = new CloseIndexAction();
     public static final String NAME = "indices:admin/close";
@@ -32,7 +31,7 @@ public class CloseIndexAction extends Action<AcknowledgedResponse> {
     }
 
     @Override
-    public AcknowledgedResponse newResponse() {
-        return new AcknowledgedResponse();
+    public CloseIndexResponse newResponse() {
+        return new CloseIndexResponse();
     }
 }

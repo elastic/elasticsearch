@@ -211,9 +211,9 @@ public class PeerFinderTests extends ESTestCase {
         localNode = newDiscoveryNode("local-node");
 
         ConnectionManager innerConnectionManager
-            = new ConnectionManager(settings, capturingTransport, deterministicTaskQueue.getThreadPool());
+            = new ConnectionManager(settings, capturingTransport);
         StubbableConnectionManager connectionManager
-            = new StubbableConnectionManager(innerConnectionManager, settings, capturingTransport, deterministicTaskQueue.getThreadPool());
+            = new StubbableConnectionManager(innerConnectionManager, settings, capturingTransport);
         connectionManager.setDefaultNodeConnectedBehavior((cm, discoveryNode) -> {
             final boolean isConnected = connectedNodes.contains(discoveryNode);
             final boolean isDisconnected = disconnectedNodes.contains(discoveryNode);

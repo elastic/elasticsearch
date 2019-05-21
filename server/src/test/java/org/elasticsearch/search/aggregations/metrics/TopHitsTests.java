@@ -55,6 +55,9 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             factory.version(randomBoolean());
         }
         if (randomBoolean()) {
+            factory.seqNoAndPrimaryTerm(randomBoolean());
+        }
+        if (randomBoolean()) {
             factory.trackScores(randomBoolean());
         }
         switch (randomInt(3)) {

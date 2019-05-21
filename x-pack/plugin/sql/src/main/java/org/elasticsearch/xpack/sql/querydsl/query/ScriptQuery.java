@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.querydsl.query;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.gen.script.Scripts;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Objects;
 
@@ -18,8 +18,8 @@ public class ScriptQuery extends LeafQuery {
 
     private final ScriptTemplate script;
 
-    public ScriptQuery(Location location, ScriptTemplate script) {
-        super(location);
+    public ScriptQuery(Source source, ScriptTemplate script) {
+        super(source);
         // make script null safe
         this.script = Scripts.nullSafeFilter(script);
     }

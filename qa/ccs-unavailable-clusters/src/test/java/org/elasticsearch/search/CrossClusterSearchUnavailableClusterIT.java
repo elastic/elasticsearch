@@ -22,6 +22,7 @@ package org.elasticsearch.search;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -32,9 +33,11 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -49,6 +52,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -107,6 +112,14 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         channel.sendResponse(new ClusterSearchShardsResponse(new ClusterSearchShardsGroup[0],
                                 knownNodes.toArray(new DiscoveryNode[0]), Collections.emptyMap()));
                     });
+            newService.registerRequestHandler(SearchAction.NAME, ThreadPool.Names.SAME, SearchRequest::new,
+                (request, channel, task) -> {
+                    InternalSearchResponse response = new InternalSearchResponse(new SearchHits(new SearchHit[0],
+                        new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN), InternalAggregations.EMPTY, null, null, false, null, 1);
+                    SearchResponse searchResponse = new SearchResponse(response, null, 1, 1, 0, 100, ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY);
+                    channel.sendResponse(searchResponse);
+                });
             newService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,
                 (request, channel, task) -> {
                         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
@@ -114,7 +127,7 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                             builder.add(node);
                         }
                         ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                        channel.sendResponse(new ClusterStateResponse(clusterName, build, 0L, false));
+                        channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
                     });
             newService.start();
             newService.acceptIncomingRequests();

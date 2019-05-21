@@ -9,15 +9,13 @@ Individual fields can be _boosted_ automatically -- count more towards the relev
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "boost": 2 <1>
-        },
-        "content": {
-          "type": "text"
-        }
+    "properties": {
+      "title": {
+        "type": "text",
+        "boost": 2 <1>
+      },
+      "content": {
+        "type": "text"
       }
     }
   }
@@ -66,7 +64,7 @@ POST _search
 // CONSOLE
 
 
-deprecated[5.0.0, index time boost is deprecated.  Instead, the field mapping boost is applied at query time. For indices created before 5.0.0 the boost will still be applied at index time.]
+deprecated[5.0.0, "Index time boost is deprecated.  Instead, the field mapping boost is applied at query time. For indices created before 5.0.0, the boost will still be applied at index time."]
 [WARNING]
 .Why index time boosting is a bad idea
 ==================================================

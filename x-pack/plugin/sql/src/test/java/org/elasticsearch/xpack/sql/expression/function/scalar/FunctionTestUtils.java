@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.expression.Literal;
 import java.util.BitSet;
 import java.util.Iterator;
 
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
 
 public final class FunctionTestUtils {
 

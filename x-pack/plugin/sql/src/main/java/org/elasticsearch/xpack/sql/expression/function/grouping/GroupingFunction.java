@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggNameInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import java.util.List;
@@ -30,12 +30,12 @@ public abstract class GroupingFunction extends Function {
 
     private GroupingFunctionAttribute lazyAttribute;
 
-    protected GroupingFunction(Location location, Expression field) {
-        this(location, field, emptyList());
+    protected GroupingFunction(Source source, Expression field) {
+        this(source, field, emptyList());
     }
 
-    protected GroupingFunction(Location location, Expression field, List<Expression> parameters) {
-        super(location, CollectionUtils.combine(singletonList(field), parameters));
+    protected GroupingFunction(Source source, Expression field, List<Expression> parameters) {
+        super(source, CollectionUtils.combine(singletonList(field), parameters));
         this.field = field;
         this.parameters = parameters;
     }
@@ -51,26 +51,16 @@ public abstract class GroupingFunction extends Function {
     @Override
     public GroupingFunctionAttribute toAttribute() {
         if (lazyAttribute == null) {
-            // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-            lazyAttribute = new GroupingFunctionAttribute(location(), name(), dataType(), id(), functionId());
+            // this is highly correlated with QueryFolder$FoldAggregate#addAggFunction (regarding the function name within the querydsl)
+            lazyAttribute = new GroupingFunctionAttribute(source(), name(), dataType(), id(), functionId());
         }
         return lazyAttribute;
     }
 
     @Override
-    public final GroupingFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
-        return replaceChild(newChildren.get(0));
-    }
-
-    protected abstract GroupingFunction replaceChild(Expression newChild);
-
-    @Override
     protected Pipe makePipe() {
         // unresolved AggNameInput (should always get replaced by the folder)
-        return new AggNameInput(location(), this, name());
+        return new AggNameInput(source(), this, name());
     }
 
     @Override

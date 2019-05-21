@@ -1,0 +1,47 @@
+[role="xpack"]
+[testenv="basic"]
+[[start-data-frame-transform]]
+=== Start {dataframe-transforms} API
+
+[subs="attributes"]
+++++
+<titleabbrev>Start {dataframe-transforms}</titleabbrev>
+++++
+
+Starts one or more {dataframe-transforms}.
+
+==== Request
+
+`POST _data_frame/transforms/<data_frame_transform_id>/_start`
+
+//==== Description
+
+==== Path Parameters
+
+`data_frame_transform_id` (required)::
+  (string) Identifier for the {dataframe-transform}. This identifier can contain
+  lowercase alphanumeric characters (a-z and 0-9), hyphens, and underscores. It
+  must start and end with alphanumeric characters.
+
+//==== Request Body
+//==== Authorization
+
+==== Examples
+
+The following example starts the `ecommerce_transform` {dataframe-transform}:
+
+[source,js]
+--------------------------------------------------
+POST _data_frame/transforms/ecommerce_transform/_start
+--------------------------------------------------
+// CONSOLE
+// TEST[skip:set up kibana samples]
+
+When the {dataframe-transform} starts, you receive the following results:
+[source,js]
+----
+{
+  "started" : true
+}
+----
+// TESTRESPONSE

@@ -53,7 +53,7 @@ import static org.hamcrest.Matchers.instanceOf;
 @TestRuleLimitSysouts.Limit(bytes = 14000)
 public class WildflyIT extends LuceneTestCase {
 
-    Logger logger = Logger.getLogger(WildflyIT.class);
+    private Logger logger = Logger.getLogger(WildflyIT.class);
 
     public void testTransportClient() throws URISyntaxException, IOException {
         try (CloseableHttpClient client = HttpClientBuilder.create().build()) {

@@ -16,16 +16,14 @@
                     type: synonym
                     synonyms: [ "foo,renamed"]
             mappings:
-              test:
-                properties:
-                  field:
-                    type: completion
-                    analyzer: suggest_analyzer_synonyms
+              properties:
+                field:
+                  type: completion
+                  analyzer: suggest_analyzer_synonyms
 
   - do:
       index:
           index: test
-          type: test
           id: 1
           body:
             field:

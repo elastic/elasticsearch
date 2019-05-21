@@ -1,0 +1,20 @@
+// This file is auto-generated. Do not edit.
+
+
+[role="exclude",id="painless-api-reference-ingest-org-elasticsearch-ingest-common"]
+=== Ingest API for package org.elasticsearch.ingest.common
+See the <<painless-api-reference-ingest, Ingest API>> for a high-level overview of all packages and classes.
+
+[[painless-api-reference-ingest-Processors]]
+==== Processors
+* static long bytes(String)
+* static Object json(Object)
+* static void json(Map, String)
+* static String lowercase(String)
+* static String uppercase(String)
+* static String urlDecode(String)
+* boolean {java11-javadoc}/java.base/java/lang/Object.html#equals(java.lang.Object)[equals](Object)
+* int {java11-javadoc}/java.base/java/lang/Object.html#hashCode()[hashCode]()
+* String {java11-javadoc}/java.base/java/lang/Object.html#toString()[toString]()
+
+

@@ -63,7 +63,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     private static List<GeoPoint> randomPolygon() {
-        ShapeBuilder<?, ?> shapeBuilder = null;
+        ShapeBuilder<?, ?, ?> shapeBuilder = null;
         // This is a temporary fix because sometimes the RandomShapeGenerator
         // returns null. This is if there is an error generating the polygon. So
         // in this case keep trying until we successfully generate one

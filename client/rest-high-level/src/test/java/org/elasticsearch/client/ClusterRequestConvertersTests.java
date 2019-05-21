@@ -72,7 +72,7 @@ public class ClusterRequestConvertersTests extends ESTestCase {
     public void testClusterHealth() {
         ClusterHealthRequest healthRequest = new ClusterHealthRequest();
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomLocal(healthRequest, expectedParams);
+        RequestConvertersTests.setRandomLocal(healthRequest::local, expectedParams);
         String timeoutType = ESTestCase.randomFrom("timeout", "masterTimeout", "both", "none");
         String timeout = ESTestCase.randomTimeValue();
         String masterTimeout = ESTestCase.randomTimeValue();

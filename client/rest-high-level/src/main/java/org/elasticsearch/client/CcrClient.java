@@ -23,8 +23,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ccr.CcrStatsRequest;
 import org.elasticsearch.client.ccr.CcrStatsResponse;
 import org.elasticsearch.client.ccr.DeleteAutoFollowPatternRequest;
+import org.elasticsearch.client.ccr.FollowInfoRequest;
+import org.elasticsearch.client.ccr.FollowInfoResponse;
 import org.elasticsearch.client.ccr.FollowStatsRequest;
 import org.elasticsearch.client.ccr.FollowStatsResponse;
+import org.elasticsearch.client.ccr.ForgetFollowerRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.GetAutoFollowPatternResponse;
 import org.elasticsearch.client.ccr.PauseFollowRequest;
@@ -34,6 +37,7 @@ import org.elasticsearch.client.ccr.PutFollowResponse;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
+import org.elasticsearch.client.core.BroadcastResponse;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -229,6 +233,48 @@ public final class CcrClient {
             listener,
             Collections.emptySet()
         );
+    }
+
+    /**
+     * Instructs an index acting as a leader index to forget the specified follower index.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-forget-follower.html">the docs</a> for more details
+     * on the intended usage of this API.
+     *
+     * @param request the request
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if the defaults are acceptable.
+     * @return the response
+     * @throws IOException if an I/O exception occurs while executing this request
+     */
+    public BroadcastResponse forgetFollower(final ForgetFollowerRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+                request,
+                CcrRequestConverters::forgetFollower,
+                options,
+                BroadcastResponse::fromXContent,
+                Collections.emptySet());
+    }
+
+    /**
+     * Asynchronously instructs an index acting as a leader index to forget the specified follower index.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-forget-follower.html">the docs</a> for more details
+     * on the intended usage of this API.
+     *
+     * @param request the request
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if the defaults are acceptable.
+     */
+    public void forgetFollowerAsync(
+            final ForgetFollowerRequest request,
+            final RequestOptions options,
+            final ActionListener<BroadcastResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+                request,
+                CcrRequestConverters::forgetFollower,
+                options,
+                BroadcastResponse::fromXContent,
+                listener,
+                Collections.emptySet());
     }
 
     /**
@@ -452,4 +498,46 @@ public final class CcrClient {
         );
     }
 
+    /**
+     * Gets follow info for specific indices.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-info.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public FollowInfoResponse getFollowInfo(FollowInfoRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            CcrRequestConverters::getFollowInfo,
+            options,
+            FollowInfoResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously gets follow info for specific indices.
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-info.html">
+     * the docs</a> for more.
+     *
+     * @param request the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     */
+    public void getFollowInfoAsync(FollowInfoRequest request,
+                                   RequestOptions options,
+                                   ActionListener<FollowInfoResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            CcrRequestConverters::getFollowInfo,
+            options,
+            FollowInfoResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
 }

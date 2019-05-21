@@ -26,7 +26,6 @@ teardown:
 - do:
     index:
       index: test
-      type: test
       id: 1
       pipeline: "my_pipeline"
       body: {
@@ -36,7 +35,6 @@ teardown:
 - do:
     index:
       index: test
-      type: test
       id: 2
       pipeline: "my_pipeline"
       body: {
@@ -47,14 +45,12 @@ teardown:
     catch: missing
     get:
       index: test
-      type: test
       id: 1
 - match: { found: false }
 
 - do:
     get:
       index: test
-      type: test
       id: 2
 - match: { _source.foo: "blub" }
 
@@ -84,7 +80,6 @@ teardown:
 - do:
     index:
       index: test
-      type: test
       id: 3
       pipeline: "my_pipeline_with_failure"
       body: {
@@ -95,6 +90,5 @@ teardown:
     catch: missing
     get:
       index: test
-      type: test
       id: 3
-- match: { found: false }
+

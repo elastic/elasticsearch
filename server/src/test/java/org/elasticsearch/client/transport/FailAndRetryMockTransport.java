@@ -28,13 +28,13 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -101,7 +101,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     } else if (ClusterStateAction.NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         ClusterState clusterState = getMockClusterState(node);
-                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L, false));
+                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, false));
                     } else if (TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         Version version = node.getVersion();
@@ -170,7 +170,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
+    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
         throw new UnsupportedOperationException();
     }
 
@@ -214,7 +214,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
             if (requestHandlers.containsKey(reg.getAction())) {
                 throw new IllegalArgumentException("transport handlers for action " + reg.getAction() + " is already registered");
             }
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+            requestHandlers = Maps.copyMapWithAddedEntry(requestHandlers, reg.getAction(), reg);
         }
     }
     @Override
@@ -229,13 +229,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
 
     @Override
-    public void addMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener listener) {
         this.listener = listener;
     }
-
-    @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        throw new UnsupportedOperationException();
-    }
-
 }

@@ -52,7 +52,6 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     private final String serviceName;
 
     public AzureComputeServiceImpl(Settings settings) {
-        super(settings);
         String subscriptionId = getRequiredSetting(settings, Management.SUBSCRIPTION_ID_SETTING);
 
         serviceName = getRequiredSetting(settings, Management.SERVICE_NAME_SETTING);

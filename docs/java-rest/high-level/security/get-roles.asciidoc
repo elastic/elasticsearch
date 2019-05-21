@@ -2,7 +2,7 @@
 --
 :api: get-roles
 :request: GetRolesRequest
-:respnse: GetRolesResponse
+:response: GetRolesResponse
 --
 
 [id="{upid}-{api}"]

@@ -39,7 +39,7 @@ ES_HOME=/usr/share/$NAME
 #ES_JAVA_OPTS=
 
 # Maximum number of open files
-MAX_OPEN_FILES=65536
+MAX_OPEN_FILES=65535
 
 # Maximum amount of locked memory
 #MAX_LOCKED_MEMORY=
@@ -122,7 +122,7 @@ case "$1" in
 		ulimit -l $MAX_LOCKED_MEMORY
 	fi
 
-	if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count -a "$MAX_MAP_COUNT" -gt $(cat /proc/sys/vm/max_map_count) ]; then
+	if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count ] && [ "$MAX_MAP_COUNT" -gt $(cat /proc/sys/vm/max_map_count) ]; then
 		sysctl -q -w vm.max_map_count=$MAX_MAP_COUNT
 	fi
 

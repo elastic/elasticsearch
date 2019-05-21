@@ -28,7 +28,6 @@ import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -38,6 +37,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -48,13 +48,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
+@ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     @Override
@@ -73,7 +73,8 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     public static final class MyPlugin extends Plugin implements RepositoryPlugin, EnginePlugin {
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                               ThreadPool threadPool) {
             return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
         }
         @Override
@@ -92,12 +93,6 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         }
     }
 
-    public void testToStopSuiteFailing() {
-        // This is required because otherwise every test in the suite is muted
-        // TODO remove this when one of the other tests is fixed
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36330")
     public void testSnapshotAndRestore() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
@@ -128,7 +123,6 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36276")
     public void testSnapshotAndRestoreWithNested() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
@@ -215,12 +209,13 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
                 client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
             }
         }
-
     }
 
-    private IndexRequestBuilder[] snashotAndRestore(String sourceIdx, int numShards, boolean minimal, boolean requireRouting, boolean
-        useNested)
-        throws ExecutionException, InterruptedException, IOException {
+    private IndexRequestBuilder[] snashotAndRestore(final String sourceIdx,
+                                                    final int numShards,
+                                                    final boolean minimal,
+                                                    final boolean requireRouting,
+                                                    final boolean useNested) throws InterruptedException, IOException {
         logger.info("-->  starting a master node and a data node");
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -284,12 +279,8 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("1");
 
-        logger.info("--> start a new data node");
-        final Settings dataSettings = Settings.builder()
-            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLength(5))
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()) // to get a new node id
-            .build();
-        internalCluster().startDataOnlyNode(dataSettings);
+        final String newDataNode = internalCluster().startDataOnlyNode();
+        logger.info("--> start a new data node " + newDataNode);
         client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("2");
 
         logger.info("--> restore the index and ensure all shards are allocated");

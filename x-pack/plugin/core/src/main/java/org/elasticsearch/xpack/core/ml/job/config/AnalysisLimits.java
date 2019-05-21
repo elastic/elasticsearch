@@ -36,7 +36,7 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
      * the old default value should be used. From 6.3 onwards, the value will always be explicit.
      */
     public static final long DEFAULT_MODEL_MEMORY_LIMIT_MB = 1024L;
-    static final long PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB = 4096L;
+    public static final long PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB = 4096L;
 
     public static final long DEFAULT_CATEGORIZATION_EXAMPLES_LIMIT = 4;
 

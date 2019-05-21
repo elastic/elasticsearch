@@ -56,10 +56,6 @@ The following table lists all available settings for the search transform:
 
 | `request.indices`                             | no        | all indices       | One or more indices to search on.
 
-| `request.types`                               | no        | all types         | One or more document types to search on (may be a
-                                                                                  comma-delimited string or an array of document types
-                                                                                  names)
-
 | `request.body`                                | no        | `match_all` query | The body of the request. The
                                                                                   {ref}/search-request-body.html[request body] follows
                                                                                   the same structure you normally send in the body of
@@ -105,7 +101,6 @@ time of the watch:
     "search" : {
       "request" : {
         "indices" : [ "logstash-*" ],
-        "types" : [ "event" ],
         "body" : {
           "size" : 0,
           "query" : {
@@ -145,7 +140,6 @@ The following is an example of using templates that refer to provided parameters
     "search" : {
       "request" : {
         "indices" : [ "logstash-*" ],
-        "types" : [ "event" ],
         "template" : {
           "source" : {
             "size" : 0,

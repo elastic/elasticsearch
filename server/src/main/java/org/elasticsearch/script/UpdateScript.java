@@ -27,6 +27,9 @@ import java.util.Map;
  */
 public abstract class UpdateScript {
 
+    private static final Map<String, String> DEPRECATIONS =
+            Map.of("_type", "[types removal] Looking up doc types [_type] in scripts is deprecated.");
+
     public static final String[] PARAMETERS = { };
 
     /** The context used to compile {@link UpdateScript} factories. */
@@ -40,7 +43,7 @@ public abstract class UpdateScript {
 
     public UpdateScript(Map<String, Object> params, Map<String, Object> ctx) {
         this.params = params;
-        this.ctx = ctx;
+        this.ctx = new DeprecationMap(ctx, DEPRECATIONS, "update-script");
     }
 
     /** Return the parameters for this script. */

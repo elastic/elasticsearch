@@ -10,12 +10,11 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NonIsoDateTimeProcessor.NonIsoDateTimeExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -28,14 +27,9 @@ abstract class NonIsoDateTimeFunction extends BaseDateTimeFunction {
 
     private final NonIsoDateTimeExtractor extractor;
 
-    NonIsoDateTimeFunction(Location location, Expression field, ZoneId zoneId, NonIsoDateTimeExtractor extractor) {
-        super(location, field, zoneId);
+    NonIsoDateTimeFunction(Source source, Expression field, ZoneId zoneId, NonIsoDateTimeExtractor extractor) {
+        super(source, field, zoneId);
         this.extractor = extractor;
-    }
-
-    @Override
-    protected Object doFold(ZonedDateTime dateTime) {
-        return extractor.extract(dateTime);
     }
 
     @Override

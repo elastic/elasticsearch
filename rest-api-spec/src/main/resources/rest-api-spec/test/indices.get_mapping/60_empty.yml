@@ -1,6 +1,5 @@
 ---
 setup:
-
   - do:
       indices.create:
         index: test_1

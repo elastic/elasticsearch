@@ -1,0 +1,40 @@
+--
+:api: create-api-key
+:request: CreateApiKeyRequest
+:response: CreateApiKeyResponse
+--
+
+[id="{upid}-{api}"]
+=== Create API Key API
+
+API Key can be created using this API.
+
+[id="{upid}-{api}-request"]
+==== Create API Key Request
+
+A +{request}+ contains name for the API key,
+list of role descriptors to define permissions and
+optional expiration for the generated API key.
+If expiration is not provided then by default the API
+keys do not expire.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Create API Key Response
+
+The returned +{response}+ contains an id,
+API key, name for the API key and optional
+expiration.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> the API key that can be used to authenticate to Elasticsearch.
+<2> expiration if the API keys expire

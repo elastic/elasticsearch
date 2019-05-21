@@ -26,8 +26,8 @@ integTestRunner {
    *    when running against an external cluster.
    */
   if (System.getProperty("tests.rest.cluster") == null) {
-    systemProperty 'tests.logfile',
-      "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }.log"
+    nonInputProperties.systemProperty 'tests.logfile',
+      "${ -> integTest.nodes[0].homeDir}/logs/${ -> integTest.nodes[0].clusterName }_server.json"
   } else {
     systemProperty 'tests.logfile', '--external--'
   }

@@ -7,28 +7,27 @@ you are using Elasticsearch as a web session store.  You may want to index the
 session ID and last update time, but you don't need to query or run
 aggregations on the session data itself.
 
-The `enabled` setting, which can be applied only to the mapping type and to
-<<object,`object`>> fields, causes Elasticsearch to skip parsing of the
-contents of the field entirely.  The JSON can still be retrieved from the
-<<mapping-source-field,`_source`>> field, but it is not searchable or stored
-in any other way:
+The `enabled` setting, which can be applied only to the top-level mapping
+definition and to <<object,`object`>> fields, causes Elasticsearch to skip
+parsing of the contents of the field entirely.  The JSON can still be retrieved
+from the <<mapping-source-field,`_source`>> field, but it is not searchable or
+stored in any other way:
 
 [source,js]
 --------------------------------------------------
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "user_id": {
-          "type":  "keyword"
-        },
-        "last_updated": {
-          "type": "date"
-        },
-        "session_data": { <1>
-          "enabled": false
-        }
+    "properties": {
+      "user_id": {
+        "type":  "keyword"
+      },
+      "last_updated": {
+        "type": "date"
+      },
+      "session_data": { <1>
+        "type": "object",
+        "enabled": false
       }
     }
   }
@@ -57,7 +56,7 @@ PUT my_index/_doc/session_2
 <2> Any arbitrary data can be passed to the `session_data` field as it will be entirely ignored.
 <3> The `session_data` will also ignore values that are not JSON objects.
 
-The entire mapping type may be disabled as well, in which case the document is
+The entire mapping may be disabled as well, in which case the document is
 stored in the <<mapping-source-field,`_source`>> field, which means it can be
 retrieved, but none of its contents are indexed in any way:
 
@@ -66,9 +65,7 @@ retrieved, but none of its contents are indexed in any way:
 PUT my_index
 {
   "mappings": {
-    "_doc": { <1>
-      "enabled": false
-    }
+    "enabled": false <1>
   }
 }
 
@@ -88,10 +85,34 @@ GET my_index/_doc/session_1 <2>
 GET my_index/_mapping <3>
 --------------------------------------------------
 // CONSOLE
-<1> The entire `_doc` mapping type is disabled.
+<1> The entire mapping is disabled.
 <2> The document can be retrieved.
 <3> Checking the mapping reveals that no fields have been added.
 
 TIP: The `enabled` setting can be updated on existing fields
 using the <<indices-put-mapping,PUT mapping API>>.
 
+Note that because Elasticsearch completely skips parsing the field
+contents, it is possible to add non-object data to a disabled field:
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "session_data": {
+        "type": "object",
+        "enabled": false
+      }
+    }
+  }
+}
+
+PUT my_index/_doc/session_1
+{
+  "session_data": "foo bar" <1>
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> The document is added successfully, even though `session_data` contains non-object data.

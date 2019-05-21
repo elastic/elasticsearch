@@ -30,7 +30,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
-PUT /emails/_doc/_bulk?refresh
+PUT /emails/_bulk?refresh
 { "index" : { "_id" : 1 } }
 { "accounts" : ["hillary", "sidney"]}
 { "index" : { "_id" : 2 } }

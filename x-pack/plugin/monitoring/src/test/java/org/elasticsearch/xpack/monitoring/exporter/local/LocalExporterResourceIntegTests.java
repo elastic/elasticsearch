@@ -81,7 +81,8 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
                 .field("index.number_of_replicas", 0)
             .endObject()
             .startObject("mappings")
-                .startObject("doc")
+                // The internal representation still requires a default type of _doc
+                .startObject("_doc")
                     .startObject("_meta")
                         .field("test", true)
                     .endObject()
@@ -193,7 +194,7 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         final String name = MonitoringTemplateUtils.templateName(system.getSystem());
 
         for (IndexTemplateMetaData template : client().admin().indices().prepareGetTemplates(name).get().getIndexTemplates()) {
-            final String docMapping = template.getMappings().get("doc").toString();
+            final String docMapping = template.getMappings().get("_doc").toString();
 
             assertThat(docMapping, notNullValue());
             assertThat(docMapping, containsString("test"));

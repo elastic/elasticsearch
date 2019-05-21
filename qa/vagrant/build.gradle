@@ -26,8 +26,7 @@ plugins {
 
 dependencies {
   compile "junit:junit:${versions.junit}"
-  compile "org.hamcrest:hamcrest-core:${versions.hamcrest}"
-  compile "org.hamcrest:hamcrest-library:${versions.hamcrest}"
+  compile "org.hamcrest:hamcrest:${versions.hamcrest}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
 
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -71,13 +70,15 @@ forbiddenApisMain {
 }
 
 // we don't have additional tests for the tests themselves
-tasks.unitTest.enabled = false
+tasks.test.enabled = false
+// Tests are destructive and meant to run in a VM, they don't adhere to general conventions
+testingConventions.enabled = false
 
 // this project doesn't get published
 tasks.dependencyLicenses.enabled = false
 tasks.dependenciesInfo.enabled = false
 
-tasks.thirdPartyAudit.excludes = [
+tasks.thirdPartyAudit.ignoreMissingClasses (
         // commons-logging optional dependencies
         'org.apache.avalon.framework.logger.Logger',
         'org.apache.log.Hierarchy',
@@ -89,4 +90,4 @@ tasks.thirdPartyAudit.excludes = [
         // commons-logging provided dependencies
         'javax.servlet.ServletContextEvent',
         'javax.servlet.ServletContextListener'
-]
+)

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import java.util.Objects;
 
@@ -18,8 +18,8 @@ public class UnresolvedAlias extends UnresolvedNamedExpression {
 
     private final Expression child;
 
-    public UnresolvedAlias(Location location, Expression child) {
-        super(location, singletonList(child));
+    public UnresolvedAlias(Source source, Expression child) {
+        super(source, singletonList(child));
         this.child = child;
     }
 
@@ -33,7 +33,7 @@ public class UnresolvedAlias extends UnresolvedNamedExpression {
         if (newChildren.size() != 1) {
             throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
         }
-        return new UnresolvedAlias(location(), newChildren.get(0));
+        return new UnresolvedAlias(source(), newChildren.get(0));
     }
 
     public Expression child() {
@@ -46,7 +46,7 @@ public class UnresolvedAlias extends UnresolvedNamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         throw new UnresolvedException("nullable", this);
     }
 

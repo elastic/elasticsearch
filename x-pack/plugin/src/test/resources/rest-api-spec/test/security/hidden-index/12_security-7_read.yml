@@ -1,0 +1,85 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "all_access"
+        body:  >
+            {
+              "cluster": [ "all" ],
+              "indices": [
+                { "names": ["*"], "privileges": ["all"] }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "all_access" ],
+            "full_name" : "user with all possible privileges (but not superuser)"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "all_access"
+        ignore: 404
+
+---
+"Test get security index metadata":
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.get:
+        index: ".security-7"
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.get:
+        index: ".security*7"
+  - length: { $body: 0 }
+
+---
+"Test get security document":
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      get:
+        index: ".security-7"
+        type: "doc"
+        id: "user-test_user"
+
+---
+"Test search security index":
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: ".security-7"
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: ".security*7"
+  - match: { hits.total: 0 }
+

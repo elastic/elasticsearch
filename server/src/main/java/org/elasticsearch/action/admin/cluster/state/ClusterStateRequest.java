@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -57,10 +56,8 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         customs = in.readBoolean();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
-            waitForTimeout = in.readTimeValue();
-            waitForMetaDataVersion = in.readOptionalLong();
-        }
+        waitForTimeout = in.readTimeValue();
+        waitForMetaDataVersion = in.readOptionalLong();
     }
 
     @Override
@@ -73,10 +70,8 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         out.writeBoolean(customs);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
-            out.writeTimeValue(waitForTimeout);
-            out.writeOptionalLong(waitForMetaDataVersion);
-        }
+        out.writeTimeValue(waitForTimeout);
+        out.writeOptionalLong(waitForMetaDataVersion);
     }
 
     @Override

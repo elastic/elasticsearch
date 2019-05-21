@@ -27,7 +27,6 @@
   - do:
       index:
         index: queries
-        type: doc
         id: q4
         refresh: true
         body:
@@ -125,3 +124,5 @@
         wait_for_completion: true
         task_id: $task_id
   - match: { task.headers.X-Opaque-Id: "Reindexing Again" }
+
+

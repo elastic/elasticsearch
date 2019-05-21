@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 
 import java.util.Objects;
@@ -30,7 +31,7 @@ public class ForceMergeStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, Listener listener) {
+    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
         ForceMergeRequest request = new ForceMergeRequest(indexMetaData.getIndex().getName());
         request.maxNumSegments(maxNumSegments);
         getClient().admin().indices()

@@ -63,8 +63,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValues() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                Version.CURRENT);
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndexService indexService = createIndex("test", settings);
         MapperRegistry mapperRegistry = new MapperRegistry(
@@ -75,8 +74,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
-                queryShardContext);
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
@@ -123,8 +121,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
-                queryShardContext);
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 Strings
@@ -186,8 +183,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
             return indexService.newQueryShardContext(0, null, () -> { throw new UnsupportedOperationException(); }, null);
         };
         DocumentMapperParser parser = new DocumentMapperParser(indexService.getIndexSettings(), indexService.mapperService(),
-                indexService.getIndexAnalyzers(), indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry,
-                queryShardContext);
+                indexService.xContentRegistry(), indexService.similarityService(), mapperRegistry, queryShardContext);
 
         DocumentMapper documentMapper = parser.parse("type", new CompressedXContent(
                 Strings

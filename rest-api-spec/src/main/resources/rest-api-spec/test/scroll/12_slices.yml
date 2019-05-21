@@ -11,28 +11,24 @@ setup:
   - do:
       index:
         index:  test_sliced_scroll
-        type:   test
         id:     1
         body:   { foo: 1 }
 
   - do:
       index:
         index:  test_sliced_scroll
-        type:   test
         id:     2
         body:   { foo: 2 }
 
   - do:
       index:
         index:  test_sliced_scroll
-        type:   test
         id:     3
         body:   { foo: 3 }
 
   - do:
       index:
         index:  test_sliced_scroll
-        type:   test
         id:     4
         body:   { foo: 4 }
 
@@ -107,9 +103,6 @@ setup:
 
 ---
 "Sliced scroll with invalid arguments":
-  - skip:
-      version: " - 6.99.99"
-      reason: Prior versions return 500 rather than 404
 
   - do:
         catch: bad_request
@@ -149,4 +142,3 @@ setup:
   - do:
         clear_scroll:
           scroll_id: $scroll_id
-

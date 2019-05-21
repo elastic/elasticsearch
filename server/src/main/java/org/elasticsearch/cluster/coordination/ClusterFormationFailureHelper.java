@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -42,7 +43,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
-import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODE_COUNT_SETTING;
 
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
@@ -54,14 +54,16 @@ public class ClusterFormationFailureHelper {
     private final Supplier<ClusterFormationState> clusterFormationStateSupplier;
     private final ThreadPool threadPool;
     private final TimeValue clusterFormationWarningTimeout;
+    private final Runnable logLastFailedJoinAttempt;
     @Nullable // if no warning is scheduled
     private volatile WarningScheduler warningScheduler;
 
     public ClusterFormationFailureHelper(Settings settings, Supplier<ClusterFormationState> clusterFormationStateSupplier,
-                                         ThreadPool threadPool) {
+                                         ThreadPool threadPool, Runnable logLastFailedJoinAttempt) {
         this.clusterFormationStateSupplier = clusterFormationStateSupplier;
         this.threadPool = threadPool;
         this.clusterFormationWarningTimeout = DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING.get(settings);
+        this.logLastFailedJoinAttempt = logLastFailedJoinAttempt;
     }
 
     public boolean isRunning() {
@@ -94,6 +96,7 @@ public class ClusterFormationFailureHelper {
                 @Override
                 protected void doRun() {
                     if (isActive()) {
+                        logLastFailedJoinAttempt.run();
                         logger.warn(clusterFormationStateSupplier.get().getDescription());
                     }
                 }
@@ -118,22 +121,25 @@ public class ClusterFormationFailureHelper {
         private final ClusterState clusterState;
         private final List<TransportAddress> resolvedAddresses;
         private final List<DiscoveryNode> foundPeers;
+        private final long currentTerm;
 
         ClusterFormationState(Settings settings, ClusterState clusterState, List<TransportAddress> resolvedAddresses,
-                              List<DiscoveryNode> foundPeers) {
+                              List<DiscoveryNode> foundPeers, long currentTerm) {
             this.settings = settings;
             this.clusterState = clusterState;
             this.resolvedAddresses = resolvedAddresses;
             this.foundPeers = foundPeers;
+            this.currentTerm = currentTerm;
         }
 
         String getDescription() {
-            final List<String> clusterStateNodes
-                = StreamSupport.stream(clusterState.nodes().spliterator(), false).map(DiscoveryNode::toString).collect(Collectors.toList());
+            final List<String> clusterStateNodes = StreamSupport.stream(clusterState.nodes().getMasterNodes().values().spliterator(), false)
+                .map(n -> n.value.toString()).collect(Collectors.toList());
 
             final String discoveryWillContinueDescription = String.format(Locale.ROOT,
-                "discovery will continue using %s from hosts providers and %s from last-known cluster state",
-                resolvedAddresses, clusterStateNodes);
+                "discovery will continue using %s from hosts providers and %s from last-known cluster state; " +
+                    "node term %d, last-accepted version %d in term %d",
+                resolvedAddresses, clusterStateNodes, currentTerm, clusterState.version(), clusterState.term());
 
             final String discoveryStateIgnoringQuorum = String.format(Locale.ROOT, "have discovered %s; %s",
                 foundPeers, discoveryWillContinueDescription);
@@ -148,23 +154,13 @@ public class ClusterFormationFailureHelper {
 
                 final String bootstrappingDescription;
 
-                if (INITIAL_MASTER_NODE_COUNT_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODE_COUNT_SETTING.get(settings))
-                    && INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
+                if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
                     bootstrappingDescription = "[" + INITIAL_MASTER_NODES_SETTING.getKey() + "] is empty on this node";
-                } else if (INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY).equals(INITIAL_MASTER_NODES_SETTING.get(settings))) {
-                    bootstrappingDescription = String.format(Locale.ROOT,
-                        "this node must discover at least [%d] master-eligible nodes to bootstrap a cluster",
-                        INITIAL_MASTER_NODE_COUNT_SETTING.get(settings));
-                } else if (INITIAL_MASTER_NODE_COUNT_SETTING.get(settings) <= INITIAL_MASTER_NODES_SETTING.get(settings).size()) {
+                } else {
                     // TODO update this when we can bootstrap on only a quorum of the initial nodes
                     bootstrappingDescription = String.format(Locale.ROOT,
                         "this node must discover master-eligible nodes %s to bootstrap a cluster",
                         INITIAL_MASTER_NODES_SETTING.get(settings));
-                } else {
-                    // TODO update this when we can bootstrap on only a quorum of the initial nodes
-                    bootstrappingDescription = String.format(Locale.ROOT,
-                        "this node must discover at least [%d] master-eligible nodes, including %s, to bootstrap a cluster",
-                        INITIAL_MASTER_NODE_COUNT_SETTING.get(settings), INITIAL_MASTER_NODES_SETTING.get(settings));
                 }
 
                 return String.format(Locale.ROOT,
@@ -173,6 +169,12 @@ public class ClusterFormationFailureHelper {
             }
 
             assert clusterState.getLastCommittedConfiguration().isEmpty() == false;
+
+            if (clusterState.getLastCommittedConfiguration().equals(VotingConfiguration.MUST_JOIN_ELECTED_MASTER)) {
+                return String.format(Locale.ROOT,
+                        "master not discovered yet and this node was detached from its previous cluster, have discovered %s; %s",
+                        foundPeers, discoveryWillContinueDescription);
+            }
 
             final String quorumDescription;
             if (clusterState.getLastAcceptedConfiguration().equals(clusterState.getLastCommittedConfiguration())) {
@@ -196,13 +198,22 @@ public class ClusterFormationFailureHelper {
         private String describeQuorum(VotingConfiguration votingConfiguration) {
             final Set<String> nodeIds = votingConfiguration.getNodeIds();
             assert nodeIds.isEmpty() == false;
+            final int requiredNodes = nodeIds.size() / 2 + 1;
+
+            final Set<String> realNodeIds = new HashSet<>(nodeIds);
+            realNodeIds.removeIf(ClusterBootstrapService::isBootstrapPlaceholder);
+            assert requiredNodes <= realNodeIds.size() : nodeIds;
 
             if (nodeIds.size() == 1) {
-                return "a node with id " + nodeIds;
+                return "a node with id " + realNodeIds;
             } else if (nodeIds.size() == 2) {
-                return "two nodes with ids " + nodeIds;
+                return "two nodes with ids " + realNodeIds;
             } else {
-                return "at least " + (nodeIds.size() / 2 + 1) + " nodes with ids from " + nodeIds;
+                if (requiredNodes < realNodeIds.size()) {
+                    return "at least " + requiredNodes + " nodes with ids from " + realNodeIds;
+                } else {
+                    return requiredNodes + " nodes with ids " + realNodeIds;
+                }
             }
         }
     }

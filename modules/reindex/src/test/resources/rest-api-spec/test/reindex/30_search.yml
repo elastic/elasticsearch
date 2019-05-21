@@ -3,13 +3,11 @@
   - do:
       index:
         index:  test
-        type:   test
         id:     1
         body:   { "text": "test" }
   - do:
       index:
         index:  test
-        type:   test
         id:     2
         body:   { "text": "junk" }
   - do:
@@ -38,13 +36,11 @@
   - do:
       index:
         index:  test
-        type:   test
         id:     1
         body:   { "order": 1 }
   - do:
       index:
         index:  test
-        type:   test
         id:     2
         body:   { "order": 2 }
   - do:

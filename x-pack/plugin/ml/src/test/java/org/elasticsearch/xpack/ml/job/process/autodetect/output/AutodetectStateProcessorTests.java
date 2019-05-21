@@ -39,13 +39,13 @@ import static org.mockito.Mockito.when;
 public class AutodetectStateProcessorTests extends ESTestCase {
 
     private static final String STATE_SAMPLE = ""
-            + "{\"index\": {\"_index\": \"test\", \"_type\": \"type1\", \"_id\": \"1\"}}\n"
+            + "{\"index\": {\"_index\": \"test\", \"_id\": \"1\"}}\n"
             + "{ \"field\" : \"value1\" }\n"
             + "\0"
-            + "{\"index\": {\"_index\": \"test\", \"_type\": \"type1\", \"_id\": \"2\"}}\n"
+            + "{\"index\": {\"_index\": \"test\", \"_id\": \"2\"}}\n"
             + "{ \"field\" : \"value2\" }\n"
             + "\0"
-            + "{\"index\": {\"_index\": \"test\", \"_type\": \"type1\", \"_id\": \"3\"}}\n"
+            + "{\"index\": {\"_index\": \"test\", \"_id\": \"3\"}}\n"
             + "{ \"field\" : \"value3\" }\n"
             + "\0";
 
@@ -118,7 +118,7 @@ public class AutodetectStateProcessorTests extends ESTestCase {
     public void testLargeStateRead() throws Exception {
         StringBuilder builder = new StringBuilder(NUM_LARGE_DOCS * (LARGE_DOC_SIZE + 10)); // 10 for header and separators
         for (int docNum = 1; docNum <= NUM_LARGE_DOCS; ++docNum) {
-            builder.append("{\"index\":{\"_index\":\"header").append(docNum).append("\",\"_type\":\"type\"}}\n");
+            builder.append("{\"index\":{\"_index\":\"header").append(docNum).append("\"}}\n");
             for (int count = 0; count < (LARGE_DOC_SIZE / "data".length()); ++count) {
                 builder.append("data");
             }

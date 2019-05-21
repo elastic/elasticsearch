@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
 
@@ -28,7 +29,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
      */
     @Before
     public void waitForTemplates() throws Exception {
-        XPackRestTestHelper.waitForTemplates(client(), XPackRestTestHelper.ML_POST_V660_TEMPLATES);
+        XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V660_TEMPLATES);
     }
 
     @Override
@@ -68,7 +69,6 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
                 // we increase the timeout here to 90 seconds to handle long waits for a green
                 // cluster health. the waits for green need to be longer than a minute to
                 // account for delayed shards
-                .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
                 .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
                 .build();
     }

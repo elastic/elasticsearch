@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.seqno;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -32,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -48,6 +49,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
@@ -61,8 +63,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
-public class ReplicationTrackerTests extends ESTestCase {
-    
+public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
+
     public void testEmptyShards() {
         final ReplicationTracker tracker = newTracker(AllocationId.newInitializing());
         assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
@@ -76,27 +78,6 @@ public class ReplicationTrackerTests extends ESTestCase {
         return allocations;
     }
 
-    private static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {
-        final ShardId shardId = new ShardId("test", "_na_", 0);
-        final ShardRouting primaryShard =
-                TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(10), null, true, ShardRoutingState.STARTED, primaryId);
-        return routingTable(initializingIds, primaryShard);
-    }
-
-    private static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final ShardRouting primaryShard) {
-        assert !initializingIds.contains(primaryShard.allocationId());
-        ShardId shardId = new ShardId("test", "_na_", 0);
-        IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
-        for (AllocationId initializingId : initializingIds) {
-            builder.addShard(TestShardRouting.newShardRouting(
-                    shardId, randomAlphaOfLength(10), null, false, ShardRoutingState.INITIALIZING, initializingId));
-        }
-
-        builder.addShard(primaryShard);
-
-        return builder.build();
-    }
-
     private static Set<String> ids(Set<AllocationId> allocationIds) {
         return allocationIds.stream().map(AllocationId::getId).collect(Collectors.toSet());
     }
@@ -105,7 +86,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         tracker.updateLocalCheckpoint(allocationId, localCheckpoint);
         assertThat(updatedGlobalCheckpoint.get(), equalTo(tracker.getGlobalCheckpoint()));
     }
-    
+
     public void testGlobalCheckpointUpdate() {
         final long initialClusterStateVersion = randomNonNegativeLong();
         Map<AllocationId, Long> allocations = new HashMap<>();
@@ -139,7 +120,7 @@ public class ReplicationTrackerTests extends ESTestCase {
             logger.info("  - [{}], local checkpoint [{}], [{}]", aId, allocations.get(aId), type);
         });
 
-        tracker.updateFromMaster(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId), emptySet());
+        tracker.updateFromMaster(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1));
         initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED));
@@ -166,7 +147,7 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         Set<AllocationId> newInitializing = new HashSet<>(initializing);
         newInitializing.add(extraId);
-        tracker.updateFromMaster(initialClusterStateVersion + 1, ids(active), routingTable(newInitializing, primaryId), emptySet());
+        tracker.updateFromMaster(initialClusterStateVersion + 1, ids(active), routingTable(newInitializing, primaryId));
 
         tracker.initiateTracking(extraId.getId());
 
@@ -206,7 +187,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         final AllocationId primaryId = active.iterator().next();
         final AllocationId replicaId = initializing.iterator().next();
         final ReplicationTracker tracker = newTracker(primaryId);
-        tracker.updateFromMaster(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId), emptySet());
+        tracker.updateFromMaster(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
         final long localCheckpoint = randomLongBetween(0, Long.MAX_VALUE - 1);
         tracker.activatePrimaryMode(localCheckpoint);
         tracker.initiateTracking(replicaId.getId());
@@ -248,7 +229,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         assigned.putAll(initializing);
         AllocationId primaryId = active.keySet().iterator().next();
         final ReplicationTracker tracker = newTracker(primaryId);
-        tracker.updateFromMaster(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId), emptySet());
+        tracker.updateFromMaster(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         randomSubsetOf(initializing.keySet()).forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
         final AllocationId missingActiveID = randomFrom(active.keySet());
@@ -275,7 +256,7 @@ public class ReplicationTrackerTests extends ESTestCase {
 
         AllocationId primaryId = active.keySet().iterator().next();
         final ReplicationTracker tracker = newTracker(primaryId);
-        tracker.updateFromMaster(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId), emptySet());
+        tracker.updateFromMaster(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         randomSubsetOf(randomIntBetween(1, initializing.size() - 1),
             initializing.keySet()).forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED));
@@ -297,7 +278,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         final Map<AllocationId, Long> nonApproved = randomAllocationsWithLocalCheckpoints(1, 5);
         final AllocationId primaryId = active.keySet().iterator().next();
         final ReplicationTracker tracker = newTracker(primaryId);
-        tracker.updateFromMaster(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId), emptySet());
+        tracker.updateFromMaster(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         initializing.keySet().forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
         nonApproved.keySet().forEach(k ->
@@ -332,7 +313,7 @@ public class ReplicationTrackerTests extends ESTestCase {
             allocations.putAll(initializingToBeRemoved);
         }
         final ReplicationTracker tracker = newTracker(primaryId);
-        tracker.updateFromMaster(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId), emptySet());
+        tracker.updateFromMaster(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         if (randomBoolean()) {
             initializingToStay.keySet().forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
@@ -348,16 +329,14 @@ public class ReplicationTrackerTests extends ESTestCase {
             tracker.updateFromMaster(
                     initialClusterStateVersion + 1,
                     ids(activeToStay.keySet()),
-                    routingTable(initializingToStay.keySet(), primaryId),
-                    emptySet());
+                    routingTable(initializingToStay.keySet(), primaryId));
             allocations.forEach((aid, ckp) -> updateLocalCheckpoint(tracker, aid.getId(), ckp + 10L));
         } else {
             allocations.forEach((aid, ckp) -> updateLocalCheckpoint(tracker, aid.getId(), ckp + 10L));
             tracker.updateFromMaster(
                     initialClusterStateVersion + 2,
                     ids(activeToStay.keySet()),
-                    routingTable(initializingToStay.keySet(), primaryId),
-                    emptySet());
+                    routingTable(initializingToStay.keySet(), primaryId));
         }
 
         final long checkpoint = Stream.concat(activeToStay.values().stream(), initializingToStay.values().stream())
@@ -376,7 +355,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         final ReplicationTracker tracker = newTracker(inSyncAllocationId);
         final long clusterStateVersion = randomNonNegativeLong();
         tracker.updateFromMaster(clusterStateVersion, Collections.singleton(inSyncAllocationId.getId()),
-            routingTable(Collections.singleton(trackingAllocationId), inSyncAllocationId), emptySet());
+            routingTable(Collections.singleton(trackingAllocationId), inSyncAllocationId));
         tracker.activatePrimaryMode(globalCheckpoint);
         final Thread thread = new Thread(() -> {
             try {
@@ -416,7 +395,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         } else {
             // master changes its mind and cancels the allocation
             tracker.updateFromMaster(clusterStateVersion + 1, Collections.singleton(inSyncAllocationId.getId()),
-                routingTable(emptySet(), inSyncAllocationId), emptySet());
+                routingTable(emptySet(), inSyncAllocationId));
             barrier.await();
             assertTrue(complete.get());
             assertNull(tracker.getTrackedLocalCheckpointForShard(trackingAllocationId.getId()));
@@ -424,16 +403,11 @@ public class ReplicationTrackerTests extends ESTestCase {
         assertFalse(tracker.pendingInSync.contains(trackingAllocationId.getId()));
         thread.join();
     }
-    
+
     private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
     private ReplicationTracker newTracker(final AllocationId allocationId) {
-        return new ReplicationTracker(
-                new ShardId("test", "_na_", 0),
-                allocationId.getId(),
-                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
-                UNASSIGNED_SEQ_NO,
-                updatedGlobalCheckpoint::set);
+        return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L);
     }
 
     public void testWaitForAllocationIdToBeInSyncCanBeInterrupted() throws BrokenBarrierException, InterruptedException {
@@ -445,7 +419,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         final AllocationId trackingAllocationId = AllocationId.newInitializing();
         final ReplicationTracker tracker = newTracker(inSyncAllocationId);
         tracker.updateFromMaster(randomNonNegativeLong(), Collections.singleton(inSyncAllocationId.getId()),
-            routingTable(Collections.singleton(trackingAllocationId), inSyncAllocationId), emptySet());
+            routingTable(Collections.singleton(trackingAllocationId), inSyncAllocationId));
         tracker.activatePrimaryMode(globalCheckpoint);
         final Thread thread = new Thread(() -> {
             try {
@@ -494,7 +468,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         AllocationId primaryId = activeAllocationIds.iterator().next();
         IndexShardRoutingTable routingTable = routingTable(initializingIds, primaryId);
         final ReplicationTracker tracker = newTracker(primaryId);
-        tracker.updateFromMaster(initialClusterStateVersion, ids(activeAllocationIds), routingTable, emptySet());
+        tracker.updateFromMaster(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
         assertThat(tracker.getReplicationGroup().getInSyncAllocationIds(), equalTo(ids(activeAllocationIds)));
         assertThat(tracker.getReplicationGroup().getRoutingTable(), equalTo(routingTable));
@@ -524,7 +498,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         final Set<AllocationId> newInitializingAllocationIds =
                 initializingIds.stream().filter(a -> !removingInitializingAllocationIds.contains(a)).collect(Collectors.toSet());
         routingTable = routingTable(newInitializingAllocationIds, primaryId);
-        tracker.updateFromMaster(initialClusterStateVersion + 1, ids(newActiveAllocationIds), routingTable, emptySet());
+        tracker.updateFromMaster(initialClusterStateVersion + 1, ids(newActiveAllocationIds), routingTable);
         assertTrue(newActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
         assertTrue(removingActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()) == null));
         assertTrue(newInitializingAllocationIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
@@ -541,8 +515,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         tracker.updateFromMaster(
                 initialClusterStateVersion + 2,
                 ids(newActiveAllocationIds),
-                routingTable(newInitializingAllocationIds, primaryId),
-                emptySet());
+                routingTable(newInitializingAllocationIds, primaryId));
         assertTrue(newActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
         assertTrue(
                 newActiveAllocationIds
@@ -574,10 +547,10 @@ public class ReplicationTrackerTests extends ESTestCase {
                         .entrySet()
                         .stream()
                         .allMatch(e -> tracker.getTrackedLocalCheckpointForShard(e.getKey().getId()).getLocalCheckpoint() == e.getValue()));
-        final long minimumActiveLocalCheckpoint = (long) activeLocalCheckpoints.values().stream().min(Integer::compareTo).get();
+        final long minimumActiveLocalCheckpoint = activeLocalCheckpoints.values().stream().min(Integer::compareTo).get();
         assertThat(tracker.getGlobalCheckpoint(), equalTo(minimumActiveLocalCheckpoint));
         assertThat(updatedGlobalCheckpoint.get(), equalTo(minimumActiveLocalCheckpoint));
-        final long minimumInitailizingLocalCheckpoint = (long) initializingLocalCheckpoints.values().stream().min(Integer::compareTo).get();
+        final long minimumInitailizingLocalCheckpoint = initializingLocalCheckpoints.values().stream().min(Integer::compareTo).get();
 
         // now we are going to add a new allocation ID and bring it in sync which should move it to the in-sync allocation IDs
         final long localCheckpoint =
@@ -589,8 +562,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         tracker.updateFromMaster(
                 initialClusterStateVersion + 3,
                 ids(newActiveAllocationIds),
-                routingTable(newInitializingAllocationIds, primaryId),
-                emptySet());
+                routingTable(newInitializingAllocationIds, primaryId));
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final Thread thread = new Thread(() -> {
             try {
@@ -628,8 +600,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         tracker.updateFromMaster(
                 initialClusterStateVersion + 4,
                 ids(newActiveAllocationIds),
-                routingTable(newInitializingAllocationIds, primaryId),
-                emptySet());
+                routingTable(newInitializingAllocationIds, primaryId));
         assertTrue(tracker.getTrackedLocalCheckpointForShard(newSyncingAllocationId.getId()).inSync);
         assertFalse(tracker.pendingInSync.contains(newSyncingAllocationId.getId()));
     }
@@ -657,8 +628,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         tracker.updateFromMaster(
                 randomNonNegativeLong(),
                 Collections.singleton(active.getId()),
-                routingTable(Collections.singleton(initializing), active),
-                emptySet());
+                routingTable(Collections.singleton(initializing), active));
         tracker.activatePrimaryMode(activeLocalCheckpoint);
         final int nextActiveLocalCheckpoint = randomIntBetween(activeLocalCheckpoint + 1, Integer.MAX_VALUE);
         final Thread activeThread = new Thread(() -> {
@@ -707,12 +677,16 @@ public class ReplicationTrackerTests extends ESTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
 
         FakeClusterState clusterState = initialState();
-        final AllocationId primaryAllocationId = clusterState.routingTable.primaryShard().allocationId();
+        final AllocationId aId = clusterState.routingTable.primaryShard().allocationId();
         final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
-        ReplicationTracker oldPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getId(), indexSettings, UNASSIGNED_SEQ_NO, onUpdate);
-        ReplicationTracker newPrimary =
-                new ReplicationTracker(shardId, primaryAllocationId.getRelocationId(), indexSettings, UNASSIGNED_SEQ_NO, onUpdate);
+        final long primaryTerm = randomNonNegativeLong();
+        final long globalCheckpoint = UNASSIGNED_SEQ_NO;
+        final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease =
+                (leases, listener) -> {};
+        ReplicationTracker oldPrimary = new ReplicationTracker(
+                shardId, aId.getId(), indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
+        ReplicationTracker newPrimary = new ReplicationTracker(
+                shardId, aId.getRelocationId(), indexSettings, primaryTerm, globalCheckpoint, onUpdate, () -> 0L, onNewRetentionLease);
 
         Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
 
@@ -855,7 +829,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         final AllocationId initializing = AllocationId.newInitializing();
         final ReplicationTracker tracker = newTracker(active);
         tracker.updateFromMaster(randomNonNegativeLong(), Collections.singleton(active.getId()),
-            routingTable(Collections.singleton(initializing), active), emptySet());
+            routingTable(Collections.singleton(initializing), active));
         tracker.activatePrimaryMode(NO_OPS_PERFORMED);
 
         expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(randomAlphaOfLength(10)));
@@ -883,7 +857,7 @@ public class ReplicationTrackerTests extends ESTestCase {
         }
 
         public void apply(ReplicationTracker gcp) {
-            gcp.updateFromMaster(version, ids(inSyncIds), routingTable, Collections.emptySet());
+            gcp.updateFromMaster(version, ids(inSyncIds), routingTable);
         }
     }
 

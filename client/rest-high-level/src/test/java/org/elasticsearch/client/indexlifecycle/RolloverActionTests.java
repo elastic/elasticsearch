@@ -33,7 +33,7 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override

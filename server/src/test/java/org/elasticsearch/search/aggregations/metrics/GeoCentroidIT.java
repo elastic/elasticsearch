@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -159,11 +159,11 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
                 .get();
         assertSearchResponse(response);
 
-        GeoHashGrid grid = response.getAggregations().get("geoGrid");
+        GeoGrid grid = response.getAggregations().get("geoGrid");
         assertThat(grid, notNullValue());
         assertThat(grid.getName(), equalTo("geoGrid"));
-        List<? extends GeoHashGrid.Bucket> buckets = grid.getBuckets();
-        for (GeoHashGrid.Bucket cell : buckets) {
+        List<? extends GeoGrid.Bucket> buckets = grid.getBuckets();
+        for (GeoGrid.Bucket cell : buckets) {
             String geohash = cell.getKeyAsString();
             GeoPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
             GeoCentroid centroidAgg = cell.getAggregations().get(aggName);

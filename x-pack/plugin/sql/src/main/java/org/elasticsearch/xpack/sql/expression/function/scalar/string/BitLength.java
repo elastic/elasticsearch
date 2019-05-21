@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.StringOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.sql.type.DataType;
  */
 public class BitLength extends UnaryStringFunction {
 
-    public BitLength(Location location, Expression field) {
-        super(location, field);
+    public BitLength(Source source, Expression field) {
+        super(source, field);
     }
 
     @Override
@@ -27,7 +27,7 @@ public class BitLength extends UnaryStringFunction {
 
     @Override
     protected BitLength replaceChild(Expression newChild) {
-        return new BitLength(location(), newChild);
+        return new BitLength(source(), newChild);
     }
 
     @Override

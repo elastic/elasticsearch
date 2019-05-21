@@ -23,9 +23,9 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.Map;
-import java.util.concurrent.ScheduledFuture;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
 
@@ -39,6 +39,9 @@ public interface Processor {
 
     /**
      * Introspect and potentially modify the incoming data.
+     *
+     * @return If <code>null</code> is returned then the current document will be dropped and not be indexed,
+     *         otherwise this document will be kept and indexed
      */
     IngestDocument execute(IngestDocument ingestDocument) throws Exception;
 
@@ -105,10 +108,10 @@ public interface Processor {
         /**
          * Provides scheduler support
          */
-        public final BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler;
+        public final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler;
 
         public Parameters(Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,  ThreadContext threadContext,
-                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, ScheduledFuture<?>> scheduler,
+                          LongSupplier relativeTimeSupplier, BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
             IngestService ingestService) {
             this.env = env;
             this.scriptService = scriptService;

@@ -66,8 +66,7 @@ setup:
         body:  >
           {
             "job_id":"jobs-get-stats-datafeed-job",
-            "indexes":["farequote"],
-            "types":["response"]
+            "indexes":["farequote"]
           }
 
 ---
@@ -235,7 +234,6 @@ setup:
         Content-Type: application/json
       index:
         index: .ml-anomalies-shared
-        type: doc
         id: job-stats-v54-bwc-test-data-counts
         body:
           {
@@ -260,7 +258,6 @@ setup:
         Content-Type: application/json
       index:
         index: .ml-anomalies-shared
-        type: doc
         id: job-stats-v54-bwc-test-model_size_stats
         body:
           {

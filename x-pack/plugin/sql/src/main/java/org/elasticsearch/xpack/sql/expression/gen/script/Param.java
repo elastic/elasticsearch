@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.gen.script;
 
-import java.util.Locale;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 abstract class Param<T> {
     private final T value;
@@ -22,6 +22,6 @@ abstract class Param<T> {
 
     @Override
     public String toString() {
-        return String.format(Locale.ROOT, "{%s=%s}", prefix(), value);
+        return format(null, "{{}={}}", prefix(), value);
     }
 }

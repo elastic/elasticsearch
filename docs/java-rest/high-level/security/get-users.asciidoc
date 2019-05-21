@@ -2,7 +2,7 @@
 --
 :api: get-users
 :request: GetUsersRequest
-:respnse: GetUsersResponse
+:response: GetUsersResponse
 --
 
 [id="{upid}-{api}"]

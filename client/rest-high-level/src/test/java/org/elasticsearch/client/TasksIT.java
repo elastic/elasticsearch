@@ -72,7 +72,7 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         assertTrue("List tasks were not found", listTasksFound);
     }
     
-    public void testGetValidTask() throws IOException {
+    public void testGetValidTask() throws Exception {
 
         // Run a Reindex to create a task
 
@@ -112,7 +112,10 @@ public class TasksIT extends ESRestHighLevelClientTestCase {
         TaskInfo info = taskResponse.getTaskInfo();
         assertTrue(info.isCancellable());
         assertEquals("reindex from [source1] to [dest][_doc]", info.getDescription());
-        assertEquals("indices:data/write/reindex", info.getAction());                
+        assertEquals("indices:data/write/reindex", info.getAction());
+        if (taskResponse.isCompleted() == false) {
+            assertBusy(ReindexIT.checkCompletionStatus(client(), taskId.toString()));
+        }
     }    
     
     public void testGetInvalidTask() throws IOException {

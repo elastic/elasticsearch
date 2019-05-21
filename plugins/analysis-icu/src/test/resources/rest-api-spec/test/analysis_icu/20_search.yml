@@ -19,16 +19,14 @@
                                     language: en
                                     strength: primary
                 mappings:
-                    type:
-                        properties:
-                            text:
-                                type:     text
-                                analyzer: my_analyzer
+                    properties:
+                        text:
+                            type:     text
+                            analyzer: my_analyzer
 
     - do:
         index:
             index:  test
-            type:   type
             id:     1
             body:   { "text": "Bâton enflammé" }
     - do:

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.Params;
@@ -17,8 +18,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProce
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonPipe;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -32,24 +33,17 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends ScalarFunction {
 
-    private final String name;
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
 
-    public Range(Location location, Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
-        super(location, asList(value, lower, upper));
+    public Range(Source source, Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
+        super(source, asList(value, lower, upper));
 
         this.value = value;
         this.lower = lower;
         this.upper = upper;
         this.includeLower = includeLower;
         this.includeUpper = includeUpper;
-        this.name = name(value, lower, upper, includeLower, includeUpper);
-    }
-
-    @Override
-    public String name() {
-        return name;
     }
 
     @Override
@@ -62,7 +56,7 @@ public class Range extends ScalarFunction {
         if (newChildren.size() != 3) {
             throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
         }
-        return new Range(location(), newChildren.get(0), newChildren.get(1), includeLower, newChildren.get(2), includeUpper);
+        return new Range(source(), newChildren.get(0), newChildren.get(1), includeLower, newChildren.get(2), includeUpper);
     }
 
     public Expression value() {
@@ -119,8 +113,8 @@ public class Range extends ScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return value.nullable() && lower.nullable() && upper.nullable();
+    public Nullability nullable() {
+        return Nullability.and(value.nullable(), lower.nullable(), upper.nullable());
     }
 
     @Override
@@ -156,11 +150,11 @@ public class Range extends ScalarFunction {
 
     @Override
     protected Pipe makePipe() {
-        BinaryComparisonPipe lowerPipe = new BinaryComparisonPipe(location(), this, Expressions.pipe(value()), Expressions.pipe(lower()),
+        BinaryComparisonPipe lowerPipe = new BinaryComparisonPipe(source(), this, Expressions.pipe(value()), Expressions.pipe(lower()),
                 includeLower() ? BinaryComparisonOperation.GTE : BinaryComparisonOperation.GT);
-        BinaryComparisonPipe upperPipe = new BinaryComparisonPipe(location(), this, Expressions.pipe(value()), Expressions.pipe(upper()),
+        BinaryComparisonPipe upperPipe = new BinaryComparisonPipe(source(), this, Expressions.pipe(value()), Expressions.pipe(upper()),
                 includeUpper() ? BinaryComparisonOperation.LTE : BinaryComparisonOperation.LT);
-        BinaryLogicPipe and = new BinaryLogicPipe(location(), this, lowerPipe, upperPipe, BinaryLogicOperation.AND);
+        BinaryLogicPipe and = new BinaryLogicPipe(source(), this, lowerPipe, upperPipe, BinaryLogicOperation.AND);
         return and;
     }
 
@@ -210,10 +204,5 @@ public class Range extends ScalarFunction {
         }
 
         return sb.toString();
-    }
-
-    @Override
-    public String toString() {
-        return name();
     }
 }

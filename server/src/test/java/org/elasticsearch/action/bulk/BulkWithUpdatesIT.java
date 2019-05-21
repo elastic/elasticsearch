@@ -31,9 +31,11 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -57,6 +59,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -193,8 +196,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(((Number) getResponse.getSource().get("field")).longValue(), equalTo(4L));
     }
 
-    public void testBulkVersioning() throws Exception {
-        createIndex("test");
+    public void testBulkWithCAS() throws Exception {
+        createIndex("test", Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build());
         ensureGreen();
         BulkResponse bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex("test", "type", "1").setCreate(true).setSource("field", "1"))
@@ -202,20 +205,22 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 .add(client().prepareIndex("test", "type", "1").setSource("field", "2")).get();
 
         assertEquals(DocWriteResponse.Result.CREATED, bulkResponse.getItems()[0].getResponse().getResult());
-        assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
+        assertThat(bulkResponse.getItems()[0].getResponse().getSeqNo(), equalTo(0L));
         assertEquals(DocWriteResponse.Result.CREATED, bulkResponse.getItems()[1].getResponse().getResult());
-        assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(1L));
+        assertThat(bulkResponse.getItems()[1].getResponse().getSeqNo(), equalTo(1L));
         assertEquals(DocWriteResponse.Result.UPDATED, bulkResponse.getItems()[2].getResponse().getResult());
-        assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(2L));
+        assertThat(bulkResponse.getItems()[2].getResponse().getSeqNo(), equalTo(2L));
 
         bulkResponse = client().prepareBulk()
-                .add(client().prepareUpdate("test", "type", "1").setVersion(4L).setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
+                .add(client().prepareUpdate("test", "type", "1").setIfSeqNo(40L).setIfPrimaryTerm(20)
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
                 .add(client().prepareUpdate("test", "type", "2").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2"))
-                .add(client().prepareUpdate("test", "type", "1").setVersion(2L).setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3")).get();
+                .add(client().prepareUpdate("test", "type", "1").setIfSeqNo(2L).setIfPrimaryTerm(1)
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3")).get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
-        assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(2L));
-        assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(3L));
+        assertThat(bulkResponse.getItems()[1].getResponse().getSeqNo(), equalTo(3L));
+        assertThat(bulkResponse.getItems()[2].getResponse().getSeqNo(), equalTo(4L));
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex("test", "type", "e1")
@@ -235,9 +240,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate("test", "type", "e1")
-                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2").setVersion(10)) // INTERNAL
+                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "2").setIfSeqNo(10L).setIfPrimaryTerm(1))
                 .add(client().prepareUpdate("test", "type", "e1")
-                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3").setVersion(13).setVersionType(VersionType.INTERNAL))
+                        .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "3").setIfSeqNo(20L).setIfPrimaryTerm(1))
                 .get();
 
         assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("version conflict"));
@@ -469,7 +474,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                     return;
                 }
                 BulkRequestBuilder requestBuilder = client().prepareBulk();
-                requestBuilder.add(client().prepareUpdate("test", "type", "1").setVersion(1)
+                requestBuilder.add(client().prepareUpdate("test", "type", "1").setIfSeqNo(0L).setIfPrimaryTerm(1)
                     .setDoc(Requests.INDEX_CONTENT_TYPE, "field", threadID));
                 responses[threadID] = requestBuilder.get();
 
@@ -569,7 +574,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("bulkindex*").get();
         assertHitCount(searchResponse, 3);
 
-        assertAcked(client().admin().indices().prepareClose("bulkindex2"));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex2")));
 
         BulkResponse bulkResponse = client().bulk(bulkRequest).get();
         assertThat(bulkResponse.hasFailures(), is(true));
@@ -581,7 +586,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         createIndex("bulkindex1");
 
         client().prepareIndex("bulkindex1", "index1_type", "1").setSource("text", "test").get();
-        assertAcked(client().admin().indices().prepareClose("bulkindex1"));
+        assertBusy(() -> assertAcked(client().admin().indices().prepareClose("bulkindex1")));
 
         BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(RefreshPolicy.IMMEDIATE);
         bulkRequest.add(new IndexRequest("bulkindex1", "index1_type", "1").source(Requests.INDEX_CONTENT_TYPE, "text", "hallo1"))
@@ -593,8 +598,11 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         BulkItemResponse[] responseItems = bulkResponse.getItems();
         assertThat(responseItems.length, is(3));
         assertThat(responseItems[0].getOpType(), is(OpType.INDEX));
+        assertThat(responseItems[0].getFailure().getCause(), instanceOf(IndexClosedException.class));
         assertThat(responseItems[1].getOpType(), is(OpType.UPDATE));
+        assertThat(responseItems[1].getFailure().getCause(), instanceOf(IndexClosedException.class));
         assertThat(responseItems[2].getOpType(), is(OpType.DELETE));
+        assertThat(responseItems[2].getFailure().getCause(), instanceOf(IndexClosedException.class));
     }
 
     // issue 9821

@@ -125,12 +125,10 @@ PUT my_index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "text": {
-          "type": "text",
-          "analyzer": "my_analyzer"
-        }
+    "properties": {
+      "text": {
+        "type": "text",
+        "analyzer": "my_analyzer"
       }
     }
   }

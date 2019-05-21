@@ -69,7 +69,7 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
                         + KeepTypesMode.EXCLUDE + "] but was [" + modeString + "].");
             }
         }
-    };
+    }
 
     KeepTypesFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);

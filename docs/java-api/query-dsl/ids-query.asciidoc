@@ -8,4 +8,3 @@ See {ref}/query-dsl-ids-query.html[Ids Query]
 --------------------------------------------------
 include-tagged::{query-dsl-test}[ids]
 --------------------------------------------------
-<1> type is optional

@@ -20,6 +20,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Phaser;
 import java.util.stream.Collectors;
 
 /**
@@ -54,6 +56,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private final ClusterService clusterService;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
+    private final Phaser stopPhaser;
     private volatile boolean isMaster;
     private volatile Instant lastUpdateTime;
     private volatile Duration reassignmentRecheckInterval;
@@ -64,6 +67,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         this.clusterService = clusterService;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
+        this.stopPhaser = new Phaser(1);
         setReassignmentRecheckInterval(PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
         clusterService.addLocalNodeMasterListener(this);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(
@@ -86,6 +90,23 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         logger.trace("ML memory tracker off master");
         memoryRequirementByJob.clear();
         lastUpdateTime = null;
+    }
+
+    /**
+     * Wait for all outstanding searches to complete.
+     * After returning, no new searches can be started.
+     */
+    public void stop() {
+        logger.trace("ML memory tracker stop called");
+        // We never terminate the phaser
+        assert stopPhaser.isTerminated() == false;
+        // If there are no registered parties or no unarrived parties then there is a flaw
+        // in the register/arrive/unregister logic in another method that uses the phaser
+        assert stopPhaser.getRegisteredParties() > 0;
+        assert stopPhaser.getUnarrivedParties() > 0;
+        stopPhaser.arriveAndAwaitAdvance();
+        assert stopPhaser.getPhase() > 0;
+        logger.debug("ML memory tracker stopped");
     }
 
     @Override
@@ -145,13 +166,13 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             try {
                 ActionListener<Void> listener = ActionListener.wrap(
                     aVoid -> logger.trace("Job memory requirement refresh request completed successfully"),
-                    e -> logger.error("Failed to refresh job memory requirements", e)
+                    e -> logger.warn("Failed to refresh job memory requirements", e)
                 );
                 threadPool.executor(executorName()).execute(
                     () -> refresh(clusterService.state().getMetaData().custom(PersistentTasksCustomMetaData.TYPE), listener));
                 return true;
             } catch (EsRejectedExecutionException e) {
-                logger.debug("Couldn't schedule ML memory update - node might be shutting down", e);
+                logger.warn("Couldn't schedule ML memory update - node might be shutting down", e);
             }
         }
 
@@ -245,39 +266,58 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return;
         }
 
+        // The phaser prevents searches being started after the memory tracker's stop() method has returned
+        if (stopPhaser.register() != 0) {
+            // Phases above 0 mean we've been stopped, so don't do any operations that involve external interaction
+            stopPhaser.arriveAndDeregister();
+            listener.onFailure(new EsRejectedExecutionException("Couldn't run ML memory update - node is shutting down"));
+            return;
+        }
+        ActionListener<Long> phaserListener = ActionListener.wrap(
+            r -> {
+                stopPhaser.arriveAndDeregister();
+                listener.onResponse(r);
+            },
+            e -> {
+                stopPhaser.arriveAndDeregister();
+                listener.onFailure(e);
+            }
+        );
+
         try {
             jobResultsProvider.getEstablishedMemoryUsage(jobId, null, null,
                 establishedModelMemoryBytes -> {
                     if (establishedModelMemoryBytes <= 0L) {
-                        setJobMemoryToLimit(jobId, listener);
+                        setJobMemoryToLimit(jobId, phaserListener);
                     } else {
                         Long memoryRequirementBytes = establishedModelMemoryBytes + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
                         memoryRequirementByJob.put(jobId, memoryRequirementBytes);
-                        listener.onResponse(memoryRequirementBytes);
+                        phaserListener.onResponse(memoryRequirementBytes);
                     }
                 },
                 e -> {
                     logger.error("[" + jobId + "] failed to calculate job established model memory requirement", e);
-                    setJobMemoryToLimit(jobId, listener);
+                    setJobMemoryToLimit(jobId, phaserListener);
                 }
             );
         } catch (Exception e) {
             logger.error("[" + jobId + "] failed to calculate job established model memory requirement", e);
-            setJobMemoryToLimit(jobId, listener);
+            setJobMemoryToLimit(jobId, phaserListener);
         }
     }
 
     private void setJobMemoryToLimit(String jobId, ActionListener<Long> listener) {
         jobManager.getJob(jobId, ActionListener.wrap(job -> {
-            Long memoryLimitMb = job.getAnalysisLimits().getModelMemoryLimit();
-            if (memoryLimitMb != null) {
-                Long memoryRequirementBytes = ByteSizeUnit.MB.toBytes(memoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
-                memoryRequirementByJob.put(jobId, memoryRequirementBytes);
-                listener.onResponse(memoryRequirementBytes);
-            } else {
-                memoryRequirementByJob.remove(jobId);
-                listener.onResponse(null);
+            Long memoryLimitMb = (job.getAnalysisLimits() != null) ? job.getAnalysisLimits().getModelMemoryLimit() : null;
+            // Although recent versions of the code enforce a non-null model_memory_limit
+            // when parsing, the job could have been streamed from an older version node in
+            // a mixed version cluster
+            if (memoryLimitMb == null) {
+                memoryLimitMb = AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB;
             }
+            Long memoryRequirementBytes = ByteSizeUnit.MB.toBytes(memoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes();
+            memoryRequirementByJob.put(jobId, memoryRequirementBytes);
+            listener.onResponse(memoryRequirementBytes);
         }, e -> {
             if (e instanceof ResourceNotFoundException) {
                 // TODO: does this also happen if the .ml-config index exists but is unavailable?

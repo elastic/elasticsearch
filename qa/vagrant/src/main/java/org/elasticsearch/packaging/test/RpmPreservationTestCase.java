@@ -43,10 +43,7 @@ import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallatio
 import static org.elasticsearch.packaging.util.Platforms.isRPM;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
@@ -58,7 +55,7 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
     protected abstract Distribution distribution();
 
     @BeforeClass
-    public static void cleanup() {
+    public static void cleanup() throws Exception {
         installation = null;
         cleanEverything();
     }
@@ -69,14 +66,14 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test10Install() {
+    public void test10Install() throws Exception {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
     }
 
-    public void test20Remove() {
+    public void test20Remove() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         remove(distribution());
@@ -91,12 +88,12 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assertFalse(Files.exists(installation.envFile));
     }
 
-    public void test30PreserveConfig() {
+    public void test30PreserveConfig() throws Exception {
         final Shell sh = new Shell();
 
         installation = install(distribution());
         assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution());
+        verifyPackageInstallation(installation, distribution(), newShell());
 
         sh.run("echo foobar | " + installation.executables().elasticsearchKeystore + " add --stdin foo.bar");
         Stream.of(

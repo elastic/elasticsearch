@@ -4,7 +4,19 @@
     "methods": ["GET"],
     "url": {
       "path": "/_mapping/field/{fields}",
-      "paths": ["/_mapping/field/{fields}", "/{index}/_mapping/field/{fields}", "/_mapping/{type}/field/{fields}", "/{index}/_mapping/{type}/field/{fields}"],
+      "paths": ["/_mapping/field/{fields}", "/{index}/_mapping/field/{fields}"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/_mapping/{type}/field/{fields}",
+          "description" : "Specifying types in urls has been deprecated"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/_mapping/{type}/field/{fields}",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "index": {
           "type" : "list",
@@ -21,6 +33,10 @@
         }
       },
       "params": {
+        "include_type_name": {
+          "type" : "boolean",
+          "description" : "Whether a type should be returned in the body of the mappings."
+        },
         "include_defaults": {
           "type" : "boolean",
           "description" : "Whether the default mapping values should be returned as well"

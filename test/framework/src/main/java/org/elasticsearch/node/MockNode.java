@@ -174,4 +174,9 @@ public class MockNode extends Node {
             return new MockHttpTransport();
         }
     }
+
+    @Override
+    protected void configureNodeAndClusterIdStateListener(ClusterService clusterService) {
+        //do not configure this in tests as this is causing SetOnce to throw exceptions when jvm is used for multiple tests
+    }
 }

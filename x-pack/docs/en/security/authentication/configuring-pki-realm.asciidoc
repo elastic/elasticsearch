@@ -90,7 +90,7 @@ In particular this means:
 * The interface must _trust_ the certificate that is presented by the client
   by configuring either the `truststore` or `certificate_authorities` paths,
   or by setting `verification_mode` to `none`. See 
-  <<ssl-tls-settings,`xpack.ssl.verification_mode`>> for an explanation of this 
+  <<ssl-tls-settings,`ssl.verification_mode`>> for an explanation of this
   setting.
 * The _protocols_ supported by the interface must be compatible with those
   used by the client.
@@ -159,7 +159,7 @@ user: <1>
 <1> The name of a role.
 <2> The distinguished name (DN) of a PKI user.
 
-The disinguished name for a PKI user follows X.500 naming conventions which
+The distinguished name for a PKI user follows X.500 naming conventions which
 place the most specific fields (like `cn` or `uid`) at the beginning of the
 name, and the most general fields (like `o` or `dc`) at the end of the name.
 Some tools, such as _openssl_, may print out the subject name in a different

@@ -62,13 +62,11 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.core.watcher.actions.ActionRegistry;
-import org.elasticsearch.xpack.core.watcher.condition.ConditionFactory;
 import org.elasticsearch.xpack.core.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
-import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
@@ -82,8 +80,6 @@ import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.email.EmailActionFactory;
-import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
-import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatActionFactory;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexActionFactory;
 import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
@@ -135,7 +131,6 @@ import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttach
 import org.elasticsearch.xpack.watcher.notification.email.attachment.HttpEmailAttachementParser;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.ReportingAttachmentParser;
 import org.elasticsearch.xpack.watcher.notification.email.support.BodyPartSource;
-import org.elasticsearch.xpack.watcher.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.elasticsearch.xpack.watcher.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.watcher.notification.slack.SlackService;
@@ -176,12 +171,12 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.WeeklySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.YearlySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -270,20 +265,18 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
             throw new UncheckedIOException(e);
         }
 
-        new WatcherIndexTemplateRegistry(clusterService, threadPool, client);
+        new WatcherIndexTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
 
         // http client
-        httpClient = new HttpClient(settings, getSslService(), cryptoService);
+        httpClient = new HttpClient(settings, getSslService(), cryptoService, clusterService);
 
         // notification
         EmailService emailService = new EmailService(settings, cryptoService, clusterService.getClusterSettings());
-        HipChatService hipChatService = new HipChatService(settings, httpClient, clusterService.getClusterSettings());
         JiraService jiraService = new JiraService(settings, httpClient, clusterService.getClusterSettings());
         SlackService slackService = new SlackService(settings, httpClient, clusterService.getClusterSettings());
         PagerDutyService pagerDutyService = new PagerDutyService(settings, httpClient, clusterService.getClusterSettings());
 
         reloadableServices.add(emailService);
-        reloadableServices.add(hipChatService);
         reloadableServices.add(jiraService);
         reloadableServices.add(slackService);
         reloadableServices.add(pagerDutyService);
@@ -296,18 +289,18 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(emailAttachmentParsers);
 
         // conditions
-        final Map<String, ConditionFactory> parsers = new HashMap<>();
-        parsers.put(InternalAlwaysCondition.TYPE, (c, id, p) -> InternalAlwaysCondition.parse(id, p));
-        parsers.put(NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p));
-        parsers.put(ArrayCompareCondition.TYPE, ArrayCompareCondition::parse);
-        parsers.put(CompareCondition.TYPE, CompareCondition::parse);
-        parsers.put(ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p));
 
-        final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), getClock());
-        final Map<String, TransformFactory> transformFactories = new HashMap<>();
-        transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(scriptService));
-        transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService));
-        final TransformRegistry transformRegistry = new TransformRegistry(Collections.unmodifiableMap(transformFactories));
+        final ConditionRegistry conditionRegistry = new ConditionRegistry(
+                Map.of(
+                        InternalAlwaysCondition.TYPE, (c, id, p) -> InternalAlwaysCondition.parse(id, p),
+                        NeverCondition.TYPE, (c, id, p) -> NeverCondition.parse(id, p),
+                        ArrayCompareCondition.TYPE, ArrayCompareCondition::parse,
+                        CompareCondition.TYPE, CompareCondition::parse,
+                        ScriptCondition.TYPE, (c, id, p) -> ScriptCondition.parse(scriptService, id, p)),
+                getClock());
+        final TransformRegistry transformRegistry = new TransformRegistry(Map.of(
+                ScriptTransform.TYPE, new ScriptTransformFactory(scriptService),
+                SearchTransform.TYPE, new SearchTransformFactory(settings, client, xContentRegistry, scriptService)));
 
         // actions
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
@@ -315,7 +308,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         actionFactoryMap.put(WebhookAction.TYPE, new WebhookActionFactory(httpClient, templateEngine));
         actionFactoryMap.put(IndexAction.TYPE, new IndexActionFactory(settings, client));
         actionFactoryMap.put(LoggingAction.TYPE, new LoggingActionFactory(templateEngine));
-        actionFactoryMap.put(HipChatAction.TYPE, new HipChatActionFactory(templateEngine, hipChatService));
         actionFactoryMap.put(JiraAction.TYPE, new JiraActionFactory(templateEngine, jiraService));
         actionFactoryMap.put(SlackAction.TYPE, new SlackActionFactory(templateEngine, slackService));
         actionFactoryMap.put(PagerDutyAction.TYPE, new PagerDutyActionFactory(templateEngine, pagerDutyService));
@@ -420,7 +412,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
         return Arrays.asList(registry, inputRegistry, historyStore, triggerService, triggeredWatchParser,
                 watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService, hipChatService);
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, slackService, pagerDutyService);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -481,7 +473,6 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         settings.addAll(SlackService.getSettings());
         settings.addAll(EmailService.getSettings());
         settings.addAll(HtmlSanitizer.getSettings());
-        settings.addAll(HipChatService.getSettings());
         settings.addAll(JiraService.getSettings());
         settings.addAll(PagerDutyService.getSettings());
         settings.add(ReportingAttachmentParser.RETRIES_SETTING);
@@ -581,11 +572,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         }
 
         assert listener != null;
-        // for now, we only add this index operation listener to indices starting with .watches
-        // this also means, that aliases pointing to this index have to follow this notation
-        if (module.getIndex().getName().startsWith(Watch.INDEX)) {
-            module.addIndexOperationListener(listener);
-        }
+        // Attach a listener to every index so that we can react to alias changes.
+        // This listener will be a no-op except on the index pointed to by .watches
+        module.addIndexOperationListener(listener);
     }
 
     static void validAutoCreateIndex(Settings settings, Logger logger) {
@@ -609,7 +598,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         List<String> indices = new ArrayList<>();
         indices.add(".watches");
         indices.add(".triggered_watches");
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now));
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusDays(1)));
         indices.add(HistoryStoreField.getHistoryIndexNameForTime(now.plusMonths(1)));
@@ -645,7 +634,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         logger.warn("the [action.auto_create_index] setting is configured to be restrictive [{}]. " +
                 " for the next 6 months daily history indices are allowed to be created, but please make sure" +
                 " that any future history indices after 6 months with the pattern " +
-                "[.watcher-history-YYYY.MM.dd] are allowed to be created", value);
+                "[.watcher-history-yyyy.MM.dd] are allowed to be created", value);
     }
 
     // These are all old templates from pre 6.0 era, that need to be deleted
@@ -669,10 +658,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public void close() throws IOException {
-        bulkProcessor.flush();
+        if (enabled) {
+            bulkProcessor.flush();
+        }
         IOUtils.closeWhileHandlingException(httpClient);
         try {
-            if (bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
+            if (enabled && bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
                 logger.warn("failed to properly close watcher bulk processor");
             }
         } catch (InterruptedException e) {

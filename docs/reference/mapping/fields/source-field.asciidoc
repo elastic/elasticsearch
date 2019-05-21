@@ -6,6 +6,7 @@ at index time.  The `_source` field itself is not indexed (and thus is not
 searchable), but it is stored so that it can be returned when executing
 _fetch_ requests, like <<docs-get,get>> or <<search-search,search>>.
 
+[[disable-source-field]]
 ==== Disabling the `_source` field
 
 Though very handy to have around, the source field does incur storage overhead
@@ -16,10 +17,8 @@ within the index. For this reason, it can be disabled as follows:
 PUT tweets
 {
   "mappings": {
-    "_doc": {
-      "_source": {
-        "enabled": false
-      }
+    "_source": {
+      "enabled": false
     }
   }
 }
@@ -88,17 +87,15 @@ as follows:
 PUT logs
 {
   "mappings": {
-    "_doc": {
-      "_source": {
-        "includes": [
-          "*.count",
-          "meta.*"
-        ],
-        "excludes": [
-          "meta.description",
-          "meta.other.*"
-        ]
-      }
+    "_source": {
+      "includes": [
+        "*.count",
+        "meta.*"
+      ],
+      "excludes": [
+        "meta.description",
+        "meta.other.*"
+      ]
     }
   }
 }

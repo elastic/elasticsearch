@@ -31,6 +31,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -51,6 +52,7 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
+            assertFalse(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks)ranks)));
         }
     }
 
@@ -83,6 +85,7 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
                 assertEquals(12, rank.getValue(), 0d);
                 assertThat(rank.getPercent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks)ranks)));
             }
         }
     }

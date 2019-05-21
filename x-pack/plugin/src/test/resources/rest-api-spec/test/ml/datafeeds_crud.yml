@@ -80,8 +80,7 @@ setup:
         body:  >
           {
             "job_id":"a-missing-job",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
 
 ---
@@ -105,13 +104,11 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-1",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
   - match: { datafeed_id: "test-datafeed-1" }
   - match: { job_id: "datafeeds-crud-1" }
   - match: { indices: ["index-foo"] }
-  - match: { types: ["type-bar"] }
   - match: { scroll_size: 1000 }
   - is_true: query.match_all
   - match: { chunking_config: { mode: "auto" }}
@@ -124,8 +121,7 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-1",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
   - match: { datafeed_id: "test-datafeed-1" }
 
@@ -136,8 +132,7 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-2",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
 
 ---
@@ -148,8 +143,7 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-1",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
   - match: { datafeed_id: "test-datafeed-1" }
 
@@ -160,8 +154,7 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-1",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
 
 ---
@@ -174,7 +167,6 @@ setup:
           {
             "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
-            "types":["type-bar"],
             "query":{"match_all_misspelled":{}}
           }
 
@@ -187,7 +179,6 @@ setup:
           {
             "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
-            "types":["type-bar"],
             "scroll_size": 2000,
             "frequency": "1m",
             "query_delay": "30s"
@@ -206,7 +197,6 @@ setup:
   - match: { datafeed_id: "test-datafeed-1" }
   - match: { job_id: "datafeeds-crud-1" }
   - match: { indices: ["index-*"] }
-  - match: { types: ["type-bar"] }
   - match: { scroll_size: 10000 }
   - match: { frequency: "2m" }
   - match: { query_delay: "0s" }
@@ -220,7 +210,6 @@ setup:
           {
             "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
-            "types":["type-bar"],
             "scroll_size": 2000
           }
 
@@ -234,7 +223,6 @@ setup:
   - match: { datafeed_id: "test-datafeed-1" }
   - match: { job_id: "datafeeds-crud-2" }
   - match: { indices: ["index-foo"] }
-  - match: { types: ["type-bar"] }
 
 ---
 "Test update datafeed with missing id":
@@ -255,7 +243,6 @@ setup:
           {
             "job_id":"datafeeds-crud-1",
             "indexes":["index-foo"],
-            "types":["type-bar"],
             "scroll_size": 2000
           }
 
@@ -276,8 +263,7 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-1",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
 
   - do:
@@ -286,8 +272,7 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-2",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
 
   - do:
@@ -315,7 +300,6 @@ setup:
           {
             "job_id":"datafeeds-crud-1",
             "indices":["index-foo"],
-            "types":["type-bar"],
             "chunking_config": {"mode":"manual","time_span": "1h"}
           }
   - match: { datafeed_id: "test-datafeed-1" }
@@ -331,12 +315,11 @@ setup:
           {
             "job_id":"datafeeds-crud-1",
             "indices":["index-foo"],
-            "types":["type-bar"],
             "aggs": {
               "histogram_buckets":{
                 "date_histogram": {
                   "field": "@timestamp",
-                  "interval": "5m",
+                  "fixed_interval": "5m",
                   "time_zone": "UTC",
                   "min_doc_count": 0
                 },
@@ -373,9 +356,9 @@ setup:
         datafeed_id: test-datafeed-aggs-1
   - match: { datafeeds.0.datafeed_id: "test-datafeed-aggs-1" }
   - match: { datafeeds.0.aggregations.histogram_buckets.date_histogram.field: "@timestamp" }
-  - match: { datafeeds.0.aggregations.histogram_buckets.aggregations.@timestamp.max.field: "@timestamp" }
-  - match: { datafeeds.0.aggregations.histogram_buckets.aggregations.bytes_in_avg.avg.field: "system.network.in.bytes" }
-  - match: { datafeeds.0.aggregations.histogram_buckets.aggregations.non_negative_bytes.bucket_script.buckets_path.bytes: "bytes_in_derivative" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggs.@timestamp.max.field: "@timestamp" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggs.bytes_in_avg.avg.field: "system.network.in.bytes" }
+  - match: { datafeeds.0.aggregations.histogram_buckets.aggs.non_negative_bytes.bucket_script.buckets_path.bytes: "bytes_in_derivative" }
 
 ---
 "Test delete datafeed":
@@ -385,8 +368,7 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-1",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
   - match: { datafeed_id: "test-datafeed-1" }
 
@@ -403,8 +385,7 @@ setup:
         body:  >
           {
             "job_id":"datafeeds-crud-1",
-            "indexes":["index-foo"],
-            "types":["type-bar"]
+            "indexes":["index-foo"]
           }
   - match: { datafeed_id: "test-datafeed-1" }
 

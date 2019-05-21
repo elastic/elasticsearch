@@ -30,6 +30,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+env_file() {
+    if is_dpkg; then
+        echo "/etc/default/elasticsearch"
+    fi
+    if is_rpm; then
+        echo "/etc/sysconfig/elasticsearch"
+    fi
+}
 
 # Export some useful paths.
 export_elasticsearch_paths() {
@@ -39,15 +47,10 @@ export_elasticsearch_paths() {
     export ESCONFIG="/etc/elasticsearch"
     export ESDATA="/var/lib/elasticsearch"
     export ESLOG="/var/log/elasticsearch"
-    export ESPIDDIR="/var/run/elasticsearch"
-    if is_dpkg; then
-        export ESENVFILE="/etc/default/elasticsearch"
-    fi
-    if is_rpm; then
-        export ESENVFILE="/etc/sysconfig/elasticsearch"
-    fi
+    export ESENVFILE=$(env_file)
     export PACKAGE_NAME=${PACKAGE_NAME:-"elasticsearch-oss"}
 }
+
 
 # Install the rpm or deb package.
 # -u upgrade rather than install. This only matters for rpm.
@@ -73,10 +76,16 @@ install_package() {
                 ;;
         esac
     done
+    local rpm_classifier="-x86_64"
+    local deb_classifier="-amd64"
+    if [[ $version == 6* ]]; then
+      rpm_classifier=""
+      deb_classifier=""
+    fi
     if is_rpm; then
-        rpm $rpmCommand $PACKAGE_NAME-$version.rpm
+        rpm $rpmCommand $PACKAGE_NAME-$version$rpm_classifier.rpm
     elif is_dpkg; then
-        run dpkg $dpkgCommand -i $PACKAGE_NAME-$version.deb
+        run dpkg $dpkgCommand -i $PACKAGE_NAME-$version$deb_classifier.deb
         [[ "$status" -eq 0 ]] || {
             echo "dpkg failed:"
             echo "$output"
@@ -88,6 +97,9 @@ install_package() {
     else
         skip "Only rpm or deb supported"
     fi
+
+    # pass through java home to package
+    echo "JAVA_HOME=\"$SYSTEM_JAVA_HOME\"" >> $(env_file)
 }
 
 # Checks that all directories & files are correctly installed after a deb or
@@ -104,6 +116,7 @@ verify_package_installation() {
     assert_file "$ESHOME/bin/elasticsearch" f root root 755
     assert_file "$ESHOME/bin/elasticsearch-plugin" f root root 755
     assert_file "$ESHOME/bin/elasticsearch-shard" f root root 755
+    assert_file "$ESHOME/bin/elasticsearch-node" f root root 755
     assert_file "$ESHOME/lib" d root root 755
     assert_file "$ESCONFIG" d root elasticsearch 2750
     assert_file "$ESCONFIG/elasticsearch.keystore" f root elasticsearch 660
@@ -114,11 +127,10 @@ verify_package_installation() {
     assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 660
     assert_file "$ESCONFIG/jvm.options" f root elasticsearch 660
     assert_file "$ESCONFIG/log4j2.properties" f root elasticsearch 660
-    assert_file "$ESDATA" d elasticsearch elasticsearch 750
-    assert_file "$ESLOG" d elasticsearch elasticsearch 750
+    assert_file "$ESDATA" d elasticsearch elasticsearch 2750
+    assert_file "$ESLOG" d elasticsearch elasticsearch 2750
     assert_file "$ESPLUGINS" d root root 755
     assert_file "$ESMODULES" d root root 755
-    assert_file "$ESPIDDIR" d elasticsearch elasticsearch 755
     assert_file "$ESHOME/NOTICE.txt" f root root 644
     assert_file "$ESHOME/README.textile" f root root 644
 

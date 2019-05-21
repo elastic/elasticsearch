@@ -80,6 +80,10 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
         return aggregation.get(0);
     }
 
+    List<Object> getAggregation() {
+        return aggregation;
+    }
+
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Object> aggregationObjects = new ArrayList<>();

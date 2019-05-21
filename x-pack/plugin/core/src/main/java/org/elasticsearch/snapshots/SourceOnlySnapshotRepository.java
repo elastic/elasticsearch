@@ -45,7 +45,7 @@ import java.util.function.Supplier;
  * <p>
  * This is a filter snapshot repository that only snapshots the minimal required information
  * that is needed to recreate the index. In other words instead of snapshotting the entire shard
- * with all it's lucene indexed fields, doc values, points etc. it only snapshots the the stored
+ * with all it's lucene indexed fields, doc values, points etc. it only snapshots the stored
  * fields including _source and _routing as well as the live docs in oder to distinguish between
  * live and deleted docs.
  * </p>
@@ -128,7 +128,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             snapshot.syncSnapshot(snapshotIndexCommit);
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
-            tempStore.bootstrapNewHistory(segmentInfos.totalMaxDoc());
+            final long maxDoc = segmentInfos.totalMaxDoc();
+            tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
             try (DirectoryReader reader = DirectoryReader.open(tempStore.directory())) {
                 IndexCommit indexCommit = reader.getIndexCommit();

@@ -29,6 +29,11 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class AllFieldMapperTests extends ESSingleNodeTestCase {
 
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     public void testUpdateDefaultSearchAnalyzer() throws Exception {
         IndexService indexService = createIndex("test", Settings.builder()
                 .put("index.analysis.analyzer.default_search.type", "custom")

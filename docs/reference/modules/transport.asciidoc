@@ -106,7 +106,7 @@ keepalives cannot be configured.
 ==== Transport Compression
 
 [float]
-===== Request Compresssion
+===== Request Compression
 
 By default, the `transport.compress` setting is `false` and network-level
 request compression is disabled between nodes in the cluster. This default
@@ -156,7 +156,7 @@ PUT _cluster/settings
 {
    "transient" : {
       "transport.tracer.include" : "*",
-      "transport.tracer.exclude" : "internal:discovery/zen/fd*"
+      "transport.tracer.exclude" : "internal:coordination/fault_detection/*"
    }
 }
 --------------------------------------------------

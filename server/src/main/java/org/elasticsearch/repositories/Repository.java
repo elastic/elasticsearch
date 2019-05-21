@@ -20,6 +20,7 @@ package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -140,8 +141,9 @@ public interface Repository extends LifecycleComponent {
      *
      * @param snapshotId snapshot id
      * @param repositoryStateId the unique id identifying the state of the repository when the snapshot deletion began
+     * @param listener completion listener
      */
-    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId);
+    void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener);
 
     /**
      * Returns snapshot throttle time in nanoseconds
@@ -216,7 +218,8 @@ public interface Repository extends LifecycleComponent {
      * @param snapshotShardId shard id (in the snapshot)
      * @param recoveryState   recovery state
      */
-    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState);
+    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId,
+                      ShardId snapshotShardId, RecoveryState recoveryState);
 
     /**
      * Retrieve shard snapshot status for the stored snapshot

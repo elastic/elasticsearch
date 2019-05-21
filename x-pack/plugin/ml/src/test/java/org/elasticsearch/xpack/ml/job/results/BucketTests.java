@@ -33,7 +33,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     public Bucket createTestInstance(String jobId) {
-        Bucket bucket = new Bucket(jobId, new Date(randomNonNegativeLong()), randomNonNegativeLong());
+        Bucket bucket = new Bucket(jobId, randomDate(), randomNonNegativeLong());
         if (randomBoolean()) {
             bucket.setAnomalyScore(randomDouble());
         }
@@ -92,7 +92,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     public void testEquals_GivenDifferentClass() {
-        Bucket bucket = new Bucket("foo", new Date(randomLong()), randomNonNegativeLong());
+        Bucket bucket = new Bucket("foo", randomDate(), randomNonNegativeLong());
         assertFalse(bucket.equals("a string"));
     }
 

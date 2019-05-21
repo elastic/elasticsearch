@@ -25,7 +25,6 @@ teardown:
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "1"
         body: {
@@ -35,6 +34,5 @@ teardown:
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.foo.bar: "baz" }

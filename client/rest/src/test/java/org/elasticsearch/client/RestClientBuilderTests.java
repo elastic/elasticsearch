@@ -83,14 +83,6 @@ public class RestClientBuilderTests extends RestClientTestCase {
         }
 
         try {
-            RestClient.builder(new HttpHost("localhost", 9200))
-                    .setMaxRetryTimeoutMillis(randomIntBetween(Integer.MIN_VALUE, 0));
-            fail("should have failed");
-        } catch(IllegalArgumentException e) {
-            assertEquals("maxRetryTimeoutMillis must be greater than 0", e.getMessage());
-        }
-
-        try {
             RestClient.builder(new HttpHost("localhost", 9200)).setDefaultHeaders(null);
             fail("should have failed");
         } catch(NullPointerException e) {
@@ -156,12 +148,9 @@ public class RestClientBuilderTests extends RestClientTestCase {
             builder.setDefaultHeaders(headers);
         }
         if (randomBoolean()) {
-            builder.setMaxRetryTimeoutMillis(randomIntBetween(1, Integer.MAX_VALUE));
-        }
-        if (randomBoolean()) {
-            String pathPrefix = (randomBoolean() ? "/" : "") + randomAsciiOfLengthBetween(2, 5);
+            String pathPrefix = (randomBoolean() ? "/" : "") + randomAsciiLettersOfLengthBetween(2, 5);
             while (pathPrefix.length() < 20 && randomBoolean()) {
-                pathPrefix += "/" + randomAsciiOfLengthBetween(3, 6);
+                pathPrefix += "/" + randomAsciiLettersOfLengthBetween(3, 6);
             }
             builder.setPathPrefix(pathPrefix + (randomBoolean() ? "/" : ""));
         }

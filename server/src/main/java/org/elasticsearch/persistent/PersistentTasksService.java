@@ -68,8 +68,7 @@ public class PersistentTasksService {
                                                                        final Params taskParams,
                                                                        final ActionListener<PersistentTask<Params>> listener) {
         @SuppressWarnings("unchecked")
-        final ActionListener<PersistentTask<?>> wrappedListener =
-            ActionListener.wrap(t -> listener.onResponse((PersistentTask<Params>) t), listener::onFailure);
+        final ActionListener<PersistentTask<?>> wrappedListener = ActionListener.map(listener, t -> (PersistentTask<Params>) t);
         StartPersistentTaskAction.Request request = new StartPersistentTaskAction.Request(taskId, taskName, taskParams);
         execute(request, StartPersistentTaskAction.INSTANCE, wrappedListener);
     }
@@ -132,8 +131,7 @@ public class PersistentTasksService {
     private <Req extends ActionRequest, Resp extends PersistentTaskResponse>
         void execute(final Req request, final Action<Resp> action, final ActionListener<PersistentTask<?>> listener) {
             try {
-                client.execute(action, request,
-                        ActionListener.wrap(r -> listener.onResponse(r.getTask()), listener::onFailure));
+                client.execute(action, request, ActionListener.map(listener, PersistentTaskResponse::getTask));
             } catch (Exception e) {
                 listener.onFailure(e);
             }

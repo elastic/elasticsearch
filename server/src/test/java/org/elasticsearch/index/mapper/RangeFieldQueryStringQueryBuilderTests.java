@@ -104,11 +104,12 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         DateMathParser parser = type.dateMathParser;
         Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
         Query range = LongRange.newIntersectsQuery(DATE_RANGE_FIELD_NAME,
-            new long[]{ parser.parse("2010-01-01", () -> 0)}, new long[]{ parser.parse("2018-01-01", () -> 0)});
+            new long[]{ parser.parse("2010-01-01", () -> 0).toEpochMilli()},
+            new long[]{ parser.parse("2018-01-01", () -> 0).toEpochMilli()});
         Query dv = RangeFieldMapper.RangeType.DATE.dvRangeQuery(DATE_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
-            parser.parse("2010-01-01", () -> 0),
-            parser.parse("2018-01-01", () -> 0), true, true);
+            parser.parse("2010-01-01", () -> 0).toEpochMilli(),
+            parser.parse("2018-01-01", () -> 0).toEpochMilli(), true, true);
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
     }
 

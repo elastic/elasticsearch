@@ -46,8 +46,8 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
             int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
             int successfulShards = randomIntBetween(0, totalShards);
             int skippedShards = totalShards - successfulShards;
+            SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
             InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-            SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
             SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
                     successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
             items[i] = new MultiSearchResponse.Item(searchResponse, null);
@@ -60,14 +60,13 @@ public class MultiSearchResponseTests extends AbstractXContentTestCase<MultiSear
         MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[numItems];
         for (int i = 0; i < numItems; i++) {
             if (randomBoolean()) {
-                // Creating a minimal response is OK, because SearchResponse self
-                // is tested elsewhere.
+                // Creating a minimal response is OK, because SearchResponse is tested elsewhere.
                 long tookInMillis = randomNonNegativeLong();
                 int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
                 int successfulShards = randomIntBetween(0, totalShards);
                 int skippedShards = totalShards - successfulShards;
+                SearchResponse.Clusters clusters = SearchResponseTests.randomClusters();
                 InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
-                SearchResponse.Clusters clusters = new SearchResponse.Clusters(totalShards, successfulShards, skippedShards);
                 SearchResponse searchResponse = new SearchResponse(internalSearchResponse, null, totalShards,
                         successfulShards, skippedShards, tookInMillis, ShardSearchFailure.EMPTY_ARRAY, clusters);
                 items[i] = new MultiSearchResponse.Item(searchResponse, null);

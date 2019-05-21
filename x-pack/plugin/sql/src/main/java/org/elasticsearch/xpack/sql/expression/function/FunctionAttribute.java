@@ -6,8 +6,9 @@
 package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.expression.ExpressionId;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.TypedAttribute;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.Objects;
@@ -16,9 +17,9 @@ public abstract class FunctionAttribute extends TypedAttribute {
 
     private final String functionId;
 
-    protected FunctionAttribute(Location location, String name, DataType dataType, String qualifier, boolean nullable, ExpressionId id,
-            boolean synthetic, String functionId) {
-        super(location, name, dataType, qualifier, nullable, id, synthetic);
+    protected FunctionAttribute(Source source, String name, DataType dataType, String qualifier, Nullability nullability,
+                                ExpressionId id, boolean synthetic, String functionId) {
+        super(source, name, dataType, qualifier, nullability, id, synthetic);
         this.functionId = functionId;
     }
 

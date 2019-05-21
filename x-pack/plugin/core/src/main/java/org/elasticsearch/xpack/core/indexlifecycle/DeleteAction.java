@@ -12,10 +12,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.indexlifecycle.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -59,13 +58,12 @@ public class DeleteAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
+        Step.StepKey waitForNoFollowerStepKey = new Step.StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, DeleteStep.NAME);
-        return Collections.singletonList(new DeleteStep(deleteStepKey, nextStepKey, client));
-    }
 
-    @Override
-    public List<StepKey> toStepKeys(String phase) {
-        return Collections.singletonList(new Step.StepKey(phase, NAME, DeleteStep.NAME));
+        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, deleteStepKey, client);
+        DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
+        return Arrays.asList(waitForNoFollowersStep, deleteStep);
     }
 
     @Override

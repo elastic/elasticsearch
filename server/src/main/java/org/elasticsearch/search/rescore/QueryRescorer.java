@@ -19,19 +19,19 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Set;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
+
 import static java.util.stream.Collectors.toSet;
 
 public final class QueryRescorer implements Rescorer {
@@ -170,6 +170,11 @@ public final class QueryRescorer implements Rescorer {
             this.query = query;
         }
 
+        @Override
+        public List<Query> getQueries() {
+            return Collections.singletonList(query);
+        }
+
         public Query query() {
             return query;
         }
@@ -201,12 +206,6 @@ public final class QueryRescorer implements Rescorer {
         public void setScoreMode(String scoreMode) {
             setScoreMode(QueryRescoreMode.fromString(scoreMode));
         }
-    }
-
-    @Override
-    public void extractTerms(IndexSearcher searcher, RescoreContext rescoreContext, Set<Term> termsSet) throws IOException {
-        Query query = ((QueryRescoreContext) rescoreContext).query();
-        searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1f).extractTerms(termsSet);
     }
 
 }

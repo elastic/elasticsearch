@@ -12,12 +12,10 @@ Imagine that you are selling shirts that have the following properties:
 PUT /shirts
 {
     "mappings": {
-        "_doc": {
-            "properties": {
-                "brand": { "type": "keyword"},
-                "color": { "type": "keyword"},
-                "model": { "type": "keyword"}
-            }
+        "properties": {
+            "brand": { "type": "keyword"},
+            "color": { "type": "keyword"},
+            "model": { "type": "keyword"}
         }
     }
 }

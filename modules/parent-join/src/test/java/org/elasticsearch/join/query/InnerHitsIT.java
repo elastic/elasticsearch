@@ -56,6 +56,8 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -66,6 +68,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -133,9 +136,10 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(innerHits.getAt(1).getId(), equalTo("c2"));
         assertThat(innerHits.getAt(1).getType(), equalTo("doc"));
 
+        final boolean seqNoAndTerm = randomBoolean();
         response = client().prepareSearch("articles")
             .setQuery(hasChildQuery("comment", matchQuery("message", "elephant"), ScoreMode.None)
-                .innerHit(new InnerHitBuilder()))
+                .innerHit(new InnerHitBuilder().setSeqNoAndPrimaryTerm(seqNoAndTerm)))
             .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
@@ -151,6 +155,22 @@ public class InnerHitsIT extends ParentChildTestCase {
         assertThat(innerHits.getAt(1).getType(), equalTo("doc"));
         assertThat(innerHits.getAt(2).getId(), equalTo("c6"));
         assertThat(innerHits.getAt(2).getType(), equalTo("doc"));
+
+        if (seqNoAndTerm) {
+            assertThat(innerHits.getAt(0).getPrimaryTerm(), equalTo(1L));
+            assertThat(innerHits.getAt(1).getPrimaryTerm(), equalTo(1L));
+            assertThat(innerHits.getAt(2).getPrimaryTerm(), equalTo(1L));
+            assertThat(innerHits.getAt(0).getSeqNo(), greaterThanOrEqualTo(0L));
+            assertThat(innerHits.getAt(1).getSeqNo(), greaterThanOrEqualTo(0L));
+            assertThat(innerHits.getAt(2).getSeqNo(), greaterThanOrEqualTo(0L));
+        } else {
+            assertThat(innerHits.getAt(0).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+            assertThat(innerHits.getAt(1).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+            assertThat(innerHits.getAt(2).getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+            assertThat(innerHits.getAt(0).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(innerHits.getAt(1).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+            assertThat(innerHits.getAt(2).getSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        }
 
         response = client().prepareSearch("articles")
             .setQuery(

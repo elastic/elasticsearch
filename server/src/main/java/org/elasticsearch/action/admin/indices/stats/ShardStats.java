@@ -19,29 +19,42 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
 public class ShardStats implements Streamable, Writeable, ToXContentFragment {
+
     private ShardRouting shardRouting;
     private CommonStats commonStats;
     @Nullable
     private CommitStats commitStats;
     @Nullable
     private SeqNoStats seqNoStats;
+
+    @Nullable
+    private RetentionLeaseStats retentionLeaseStats;
+
+    /**
+     * Gets the current retention lease stats.
+     *
+     * @return the current retention lease stats
+     */
+    public RetentionLeaseStats getRetentionLeaseStats() {
+        return retentionLeaseStats;
+    }
+
     private String dataPath;
     private String statePath;
     private boolean isCustomDataPath;
@@ -49,7 +62,13 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
     ShardStats() {
     }
 
-    public ShardStats(ShardRouting routing, ShardPath shardPath, CommonStats commonStats, CommitStats commitStats, SeqNoStats seqNoStats) {
+    public ShardStats(
+            final ShardRouting routing,
+            final ShardPath shardPath,
+            final CommonStats commonStats,
+            final CommitStats commitStats,
+            final SeqNoStats seqNoStats,
+            final RetentionLeaseStats retentionLeaseStats) {
         this.shardRouting = routing;
         this.dataPath = shardPath.getRootDataPath().toString();
         this.statePath = shardPath.getRootStatePath().toString();
@@ -57,6 +76,7 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
         this.commitStats = commitStats;
         this.commonStats = commonStats;
         this.seqNoStats = seqNoStats;
+        this.retentionLeaseStats = retentionLeaseStats;
     }
 
     /**
@@ -106,9 +126,8 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
         statePath = in.readString();
         dataPath = in.readString();
         isCustomDataPath = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
-        }
+        seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
+        retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
     }
 
     @Override
@@ -119,9 +138,8 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
         out.writeString(statePath);
         out.writeString(dataPath);
         out.writeBoolean(isCustomDataPath);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            out.writeOptionalWriteable(seqNoStats);
-        }
+        out.writeOptionalWriteable(seqNoStats);
+        out.writeOptionalWriteable(retentionLeaseStats);
     }
 
     @Override
@@ -139,6 +157,9 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
         }
         if (seqNoStats != null) {
             seqNoStats.toXContent(builder, params);
+        }
+        if (retentionLeaseStats != null) {
+            retentionLeaseStats.toXContent(builder, params);
         }
         builder.startObject(Fields.SHARD_PATH);
         builder.field(Fields.STATE_PATH, statePath);
@@ -159,4 +180,5 @@ public class ShardStats implements Streamable, Writeable, ToXContentFragment {
         static final String NODE = "node";
         static final String RELOCATING_NODE = "relocating_node";
     }
+
 }

@@ -38,7 +38,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) throws Exception {
+    protected void channelRead0(ChannelHandlerContext ctx, HttpPipelinedRequest<FullHttpRequest> msg) {
         Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         FullHttpRequest request = msg.getRequest();
 
@@ -72,7 +72,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<HttpPipelined
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         ExceptionsHelper.maybeDieOnAnotherThread(cause);
         Netty4HttpChannel channel = ctx.channel().attr(Netty4HttpServerTransport.HTTP_CHANNEL_KEY).get();
         if (cause instanceof Error) {

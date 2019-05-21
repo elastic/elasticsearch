@@ -1,0 +1,84 @@
+plugins {
+    id 'elasticsearch.build' apply false
+}
+
+allprojects {
+    apply plugin: 'java'
+    apply plugin: 'elasticsearch.build'
+
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        testCompile "junit:junit:4.12"
+    }
+
+    ext.licenseFile = file("$buildDir/dummy/license")
+    ext.noticeFile = file("$buildDir/dummy/notice")
+
+    testingConventions.naming {
+        // Reset default to no baseClass checks
+        Tests {
+            baseClasses = []
+        }
+        IT {
+            baseClasses = []
+        }
+    }
+}
+
+project(':empty_test_task') {
+    task emptyTest(type: Test) {
+
+    }
+}
+
+project(':all_classes_in_tasks') {
+   test {
+        include "**/Convention*"
+    }
+}
+
+project(':not_implementing_base') {
+    testingConventions.naming {
+        Tests {
+            baseClass 'org.elasticsearch.gradle.testkit.Unit'
+        }
+        IT {
+            baseClass 'org.elasticsearch.gradle.testkit.Integration'
+        }
+    }
+    test {
+        include "**/*IT.class"
+        include "**/*Tests.class"
+    }
+}
+
+project(':valid_setup_no_base') {
+    test {
+        include "**/*IT.class"
+        include "**/*Tests.class"
+    }
+}
+
+project(':tests_in_main') {
+
+}
+
+project (':valid_setup_with_base') {
+    test {
+        include "**/*IT.class"
+        include "**/*Tests.class"
+    }
+    testingConventions.naming {
+        Tests {
+            baseClass 'org.elasticsearch.gradle.testkit.Unit'
+        }
+        IT {
+            baseClass 'org.elasticsearch.gradle.testkit.Integration'
+        }
+    }
+}
+
+
+

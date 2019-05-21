@@ -21,10 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 public class ParsedDateRange extends ParsedRange {
 
@@ -59,11 +60,11 @@ public class ParsedDateRange extends ParsedRange {
             return doubleAsDateTime(to);
         }
 
-        private static DateTime doubleAsDateTime(Double d) {
+        private static ZonedDateTime doubleAsDateTime(Double d) {
             if (d == null || Double.isInfinite(d)) {
                 return null;
             }
-            return new DateTime(d.longValue(), DateTimeZone.UTC);
+            return Instant.ofEpochMilli(d.longValue()).atZone(ZoneOffset.UTC);
         }
 
         static ParsedBucket fromXContent(final XContentParser parser, final boolean keyed) throws IOException {

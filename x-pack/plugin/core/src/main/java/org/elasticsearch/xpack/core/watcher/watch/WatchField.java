@@ -17,7 +17,6 @@ public final class WatchField {
     public static final ParseField THROTTLE_PERIOD_HUMAN = new ParseField("throttle_period");
     public static final ParseField METADATA = new ParseField("metadata");
     public static final ParseField STATUS = new ParseField("status");
-    public static final ParseField VERSION = new ParseField("_version");
     public static final String ALL_ACTIONS_ID = "_all";
 
     private WatchField() {}

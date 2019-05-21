@@ -84,7 +84,28 @@ public class TermsLookupTests extends ESTestCase {
         }
     }
 
+    public void testSerializationWithTypes() throws IOException {
+        TermsLookup termsLookup = randomTermsLookupWithTypes();
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            termsLookup.writeTo(output);
+            try (StreamInput in = output.bytes().streamInput()) {
+                TermsLookup deserializedLookup = new TermsLookup(in);
+                assertEquals(deserializedLookup, termsLookup);
+                assertEquals(deserializedLookup.hashCode(), termsLookup.hashCode());
+                assertNotSame(deserializedLookup, termsLookup);
+            }
+        }
+    }
+
     public static TermsLookup randomTermsLookup() {
+        return new TermsLookup(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10).replace('.', '_')
+        ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+    }
+
+    public static TermsLookup randomTermsLookupWithTypes() {
         return new TermsLookup(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),

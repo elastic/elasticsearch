@@ -2,11 +2,11 @@
 [testenv="basic"]
 [[ilm-start]]
 === Start {ilm} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Start {ilm}</titleabbrev>
 ++++
-
-beta[]
 
 Start the {ilm} ({ilm-init}) plugin.
 

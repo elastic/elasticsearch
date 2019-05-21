@@ -37,16 +37,19 @@ public class DeprecationInfoResponse {
     private static final ParseField CLUSTER_SETTINGS = new ParseField("cluster_settings");
     private static final ParseField NODE_SETTINGS = new ParseField("node_settings");
     private static final ParseField INDEX_SETTINGS = new ParseField("index_settings");
+    private static final ParseField ML_SETTINGS = new ParseField("ml_settings");
 
     private final List<DeprecationIssue> clusterSettingsIssues;
     private final List<DeprecationIssue> nodeSettingsIssues;
     private final Map<String, List<DeprecationIssue>> indexSettingsIssues;
+    private final List<DeprecationIssue> mlSettingsIssues;
 
     public DeprecationInfoResponse(List<DeprecationIssue> clusterSettingsIssues, List<DeprecationIssue> nodeSettingsIssues,
-                                   Map<String, List<DeprecationIssue>> indexSettingsIssues) {
+                                   Map<String, List<DeprecationIssue>> indexSettingsIssues, List<DeprecationIssue> mlSettingsIssues) {
         this.clusterSettingsIssues = Objects.requireNonNull(clusterSettingsIssues, "cluster settings issues cannot be null");
         this.nodeSettingsIssues = Objects.requireNonNull(nodeSettingsIssues, "node settings issues cannot be null");
         this.indexSettingsIssues = Objects.requireNonNull(indexSettingsIssues, "index settings issues cannot be null");
+        this.mlSettingsIssues = Objects.requireNonNull(mlSettingsIssues, "ml settings issues cannot be null");
     }
 
     public List<DeprecationIssue> getClusterSettingsIssues() {
@@ -59,6 +62,10 @@ public class DeprecationInfoResponse {
 
     public Map<String, List<DeprecationIssue>> getIndexSettingsIssues() {
         return indexSettingsIssues;
+    }
+
+    public List<DeprecationIssue> getMlSettingsIssues() {
+        return mlSettingsIssues;
     }
 
     private static List<DeprecationIssue> parseDeprecationIssues(XContentParser parser) throws IOException {
@@ -76,6 +83,7 @@ public class DeprecationInfoResponse {
         Map<String, List<DeprecationIssue>> indexSettings = new HashMap<>();
         List<DeprecationIssue> clusterSettings = new ArrayList<>();
         List<DeprecationIssue> nodeSettings = new ArrayList<>();
+        List<DeprecationIssue> mlSettings = new ArrayList<>();
         String fieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -85,6 +93,8 @@ public class DeprecationInfoResponse {
                 clusterSettings.addAll(parseDeprecationIssues(parser));
             } else if (NODE_SETTINGS.getPreferredName().equals(fieldName)) {
                 nodeSettings.addAll(parseDeprecationIssues(parser));
+            } else if (ML_SETTINGS.getPreferredName().equals(fieldName)) {
+                mlSettings.addAll(parseDeprecationIssues(parser));
             } else if (INDEX_SETTINGS.getPreferredName().equals(fieldName)) {
                 // parse out the key/value pairs
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -96,7 +106,7 @@ public class DeprecationInfoResponse {
                 }
             }
         }
-        return new DeprecationInfoResponse(clusterSettings, nodeSettings, indexSettings);
+        return new DeprecationInfoResponse(clusterSettings, nodeSettings, indexSettings, mlSettings);
     }
 
     @Override
@@ -106,17 +116,19 @@ public class DeprecationInfoResponse {
         DeprecationInfoResponse that = (DeprecationInfoResponse) o;
         return Objects.equals(clusterSettingsIssues, that.clusterSettingsIssues) &&
             Objects.equals(nodeSettingsIssues, that.nodeSettingsIssues) &&
+            Objects.equals(mlSettingsIssues, that.mlSettingsIssues) &&
             Objects.equals(indexSettingsIssues, that.indexSettingsIssues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues);
+        return Objects.hash(clusterSettingsIssues, nodeSettingsIssues, indexSettingsIssues, mlSettingsIssues);
     }
 
     @Override
     public String toString() {
-        return clusterSettingsIssues.toString() + ":" + nodeSettingsIssues.toString() + ":" + indexSettingsIssues.toString();
+        return clusterSettingsIssues.toString() + ":" + nodeSettingsIssues.toString() + ":" + indexSettingsIssues.toString() +
+            ":" + mlSettingsIssues.toString();
     }
 
     /**

@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class GetRollupIndexCapsResponseTests extends RollupCapsResponseTestCase<GetRollupIndexCapsResponse> {
 
@@ -38,6 +39,15 @@ public class GetRollupIndexCapsResponseTests extends RollupCapsResponseTestCase<
             entry.getValue().toXContent(builder, null);
         }
         builder.endObject();
+    }
+
+    @Override
+    protected Predicate<String> randomFieldsExcludeFilter() {
+        return (field) ->
+            // base cannot have extra things in it
+            "".equals(field)
+                // the field list expects to be a nested object of a certain type
+                || field.contains("fields");
     }
 
     @Override

@@ -59,11 +59,6 @@ A {dfeed} resource has the following properties:
   (unsigned integer) The `size` parameter that is used in {es} searches.
   The default value is `1000`.
 
-`types`::
-  (array) A list of types to search for within the specified indices. For
-  example: `[]`. This property is provided for backwards compatibility with
-  releases earlier than 6.0.0. For more information, see <<removal-of-types>>.  
-
 `delayed_data_check_config`::
   (object) Specifies whether the data feed checks for missing data and 
   and the size of the window. For example:
@@ -139,7 +134,7 @@ update their values:
   `ephemeral_id`::: The node ephemeral ID.
   `transport_address`::: The host and port where transport HTTP connections are
   accepted. For example, `127.0.0.1:9300`.
-  `attributes`::: For example, `{"ml.max_open_jobs": "10"}`.
+  `attributes`::: For example, `{"ml.machine_memory": "17179869184"}`.
 
 `state`::
   (string) The status of the {dfeed}, which can be one of the following values: +

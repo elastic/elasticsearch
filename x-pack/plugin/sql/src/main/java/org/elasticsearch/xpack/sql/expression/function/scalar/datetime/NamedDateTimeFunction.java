@@ -10,12 +10,11 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -28,14 +27,9 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
 
     private final NameExtractor nameExtractor;
 
-    NamedDateTimeFunction(Location location, Expression field, ZoneId zoneId, NameExtractor nameExtractor) {
-        super(location, field, zoneId);
+    NamedDateTimeFunction(Source source, Expression field, ZoneId zoneId, NameExtractor nameExtractor) {
+        super(source, field, zoneId);
         this.nameExtractor = nameExtractor;
-    }
-
-    @Override
-    protected Object doFold(ZonedDateTime dateTime) {
-        return nameExtractor.extract(dateTime);
     }
 
     @Override

@@ -76,7 +76,9 @@ public final class StubbableTransport implements Transport {
     }
 
     void clearBehaviors() {
+        this.defaultSendRequest = null;
         sendBehaviors.clear();
+        this.defaultConnectBehavior = null;
         connectBehaviors.clear();
     }
 
@@ -85,7 +87,10 @@ public final class StubbableTransport implements Transport {
         if (behavior != null) {
             behavior.clearCallback();
         }
-        connectBehaviors.remove(transportAddress);
+        OpenConnectionBehavior openConnectionBehavior = connectBehaviors.remove(transportAddress);
+        if (openConnectionBehavior != null) {
+            openConnectionBehavior.clearCallback();
+        }
     }
 
     Transport getDelegate() {
@@ -93,13 +98,8 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public void addMessageListener(TransportMessageListener listener) {
-        delegate.addMessageListener(listener);
-    }
-
-    @Override
-    public boolean removeMessageListener(TransportMessageListener listener) {
-        return delegate.removeMessageListener(listener);
+    public void setMessageListener(TransportMessageListener listener) {
+        delegate.setMessageListener(listener);
     }
 
     @Override
@@ -118,13 +118,13 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
-        return delegate.addressesFromString(address, perAddressLimit);
+    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
+        return delegate.addressesFromString(address);
     }
 
     @Override
-    public List<String> getLocalAddresses() {
-        return delegate.getLocalAddresses();
+    public List<String> getDefaultSeedAddresses() {
+        return delegate.getDefaultSeedAddresses();
     }
 
     @Override
@@ -132,18 +132,9 @@ public final class StubbableTransport implements Transport {
         TransportAddress address = node.getAddress();
         OpenConnectionBehavior behavior = connectBehaviors.getOrDefault(address, defaultConnectBehavior);
 
-        ActionListener<Connection> wrappedListener = new ActionListener<Connection>() {
-
-            @Override
-            public void onResponse(Connection connection) {
-                listener.onResponse(new WrappedConnection(connection));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        };
+        ActionListener<Connection> wrappedListener =
+            ActionListener.delegateFailure(listener,
+                (delegatedListener, connection) -> delegatedListener.onResponse(new WrappedConnection(connection)));
 
         if (behavior == null) {
             return delegate.openConnection(node, profile, wrappedListener);
@@ -258,6 +249,8 @@ public final class StubbableTransport implements Transport {
 
         Releasable openConnection(Transport transport, DiscoveryNode discoveryNode, ConnectionProfile profile,
                                   ActionListener<Connection> listener);
+
+        default void clearCallback() {}
     }
 
     @FunctionalInterface

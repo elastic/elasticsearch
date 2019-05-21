@@ -1,9 +1,3 @@
-setup:
-  - skip:
-      version: " - 6.99.99"
-      reason: types are required in requests before 7.0.0
-
----
 "Realtime Term Vectors":
 
  - do:
@@ -22,7 +16,6 @@ setup:
  - do:
       index:
           index:   test_1
-          type:   _doc
           id:      1
           body:    { foo: bar }
 

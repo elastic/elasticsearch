@@ -2,7 +2,7 @@
 [[ml-functions]]
 == Function reference
 
-The {xpackml} features include analysis functions that provide a wide variety of
+The {ml-features} include analysis functions that provide a wide variety of
 flexible ways to analyze data for anomalies.
 
 When you create jobs, you specify one or more detectors, which define the type of

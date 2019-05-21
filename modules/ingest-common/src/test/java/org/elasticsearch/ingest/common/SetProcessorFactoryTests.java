@@ -103,7 +103,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
     public void testInvalidMustacheTemplate() throws Exception {
         SetProcessor.Factory factory = new SetProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
-        config.put("field", "field1");
+        config.put("field", "{{field1}}");
         config.put("value", "value1");
         String processorTag = randomAlphaOfLength(10);
         ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));

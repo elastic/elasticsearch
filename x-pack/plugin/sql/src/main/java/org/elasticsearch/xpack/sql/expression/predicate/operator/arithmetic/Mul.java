@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
@@ -21,8 +21,8 @@ public class Mul extends ArithmeticOperation {
 
     private DataType dataType;
 
-    public Mul(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryArithmeticOperation.MUL);
+    public Mul(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryArithmeticOperation.MUL);
     }
 
     @Override
@@ -47,7 +47,7 @@ public class Mul extends ArithmeticOperation {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        return new TypeResolution(format("[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
+        return new TypeResolution(format(null, "[{}] has arguments with incompatible types [{}] and [{}]", symbol(), l, r));
     }
 
     @Override
@@ -65,6 +65,6 @@ public class Mul extends ArithmeticOperation {
 
     @Override
     protected Mul replaceChildren(Expression newLeft, Expression newRight) {
-        return new Mul(location(), newLeft, newRight);
+        return new Mul(source(), newLeft, newRight);
     }
 }

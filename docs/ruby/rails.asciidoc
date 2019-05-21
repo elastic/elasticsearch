@@ -1,3 +1,4 @@
+[[ruby_on_rails]]
 == Ruby On Rails
 
 The `elasticsearch-rails` http://rubygems.org/gems/elasticsearch-rails[Rubygem]

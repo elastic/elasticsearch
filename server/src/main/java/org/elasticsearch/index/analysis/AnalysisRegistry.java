@@ -20,10 +20,10 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -51,6 +51,11 @@ public final class AnalysisRegistry implements Closeable {
     public static final String INDEX_ANALYSIS_CHAR_FILTER = "index.analysis.char_filter";
     public static final String INDEX_ANALYSIS_FILTER = "index.analysis.filter";
     public static final String INDEX_ANALYSIS_TOKENIZER = "index.analysis.tokenizer";
+
+    public static final String DEFAULT_ANALYZER_NAME = "default";
+    public static final String DEFAULT_SEARCH_ANALYZER_NAME = "default_search";
+    public static final String DEFAULT_SEARCH_QUOTED_ANALYZER_NAME = "default_search_quoted";
+
     private final PrebuiltAnalysis prebuiltAnalysis;
     private final Map<String, Analyzer> cachedAnalyzer = new ConcurrentHashMap<>();
 
@@ -130,7 +135,11 @@ public final class AnalysisRegistry implements Closeable {
                             throw new ElasticsearchException("failed to load analyzer for name " + key, ex);
                         }}
             );
+        } else if ("standard_html_strip".equals(analyzer)) {
+            throw new IllegalArgumentException("[standard_html_strip] analyzer is not supported for new indices, " +
+                "use a custom analyzer using [standard] tokenizer and [html_strip] char_filter, plus [lowercase] filter");
         }
+
         return analyzerProvider.get(environment, analyzer).get();
     }
 
@@ -286,13 +295,13 @@ public final class AnalysisRegistry implements Closeable {
                 T factory = null;
                 if (typeName == null) {
                     if (currentSettings.get("tokenizer") != null) {
-                        factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
+                        factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
                     } else {
                         throw new IllegalArgumentException(component + " [" + name + "] " +
                             "must specify either an analyzer type, or a tokenizer");
                     }
                 } else if (typeName.equals("custom")) {
-                    factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
+                    factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
                 }
                 if (factory != null) {
                     factories.put(name, factory);
@@ -423,8 +432,10 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, NamedAnalyzer> normalizers = new HashMap<>();
         Map<String, NamedAnalyzer> whitespaceNormalizers = new HashMap<>();
         for (Map.Entry<String, AnalyzerProvider<?>> entry : analyzerProviders.entrySet()) {
-            processAnalyzerFactory(indexSettings, entry.getKey(), entry.getValue(), analyzers,
-                tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
+            analyzers.merge(entry.getKey(), produceAnalyzer(entry.getKey(), entry.getValue(), tokenFilterFactoryFactories,
+                    charFilterFactoryFactories, tokenizerFactoryFactories), (k, v) -> {
+                        throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
+                    });
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
             processNormalizerFactory(entry.getKey(), entry.getValue(), normalizers, "keyword",
@@ -433,43 +444,34 @@ public final class AnalysisRegistry implements Closeable {
                     "whitespace", () -> new WhitespaceTokenizer(), tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
 
-        if (!analyzers.containsKey("default")) {
-            processAnalyzerFactory(indexSettings, "default", new StandardAnalyzerProvider(indexSettings, null,
-                    "default", Settings.Builder.EMPTY_SETTINGS),
-                analyzers, tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories);
+        if (!analyzers.containsKey(DEFAULT_ANALYZER_NAME)) {
+            analyzers.put(DEFAULT_ANALYZER_NAME,
+                    produceAnalyzer(DEFAULT_ANALYZER_NAME,
+                            new StandardAnalyzerProvider(indexSettings, null, DEFAULT_ANALYZER_NAME, Settings.Builder.EMPTY_SETTINGS),
+                            tokenFilterFactoryFactories, charFilterFactoryFactories, tokenizerFactoryFactories));
         }
-        if (!analyzers.containsKey("default_search")) {
-            analyzers.put("default_search", analyzers.get("default"));
-        }
-        if (!analyzers.containsKey("default_search_quoted")) {
-            analyzers.put("default_search_quoted", analyzers.get("default_search"));
-        }
-
-        NamedAnalyzer defaultAnalyzer = analyzers.get("default");
+        NamedAnalyzer defaultAnalyzer = analyzers.get(DEFAULT_ANALYZER_NAME);
         if (defaultAnalyzer == null) {
             throw new IllegalArgumentException("no default analyzer configured");
         }
+        defaultAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
+
         if (analyzers.containsKey("default_index")) {
             throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use " +
                 "[index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
         }
-        NamedAnalyzer defaultSearchAnalyzer = analyzers.getOrDefault("default_search", defaultAnalyzer);
-        NamedAnalyzer defaultSearchQuoteAnalyzer = analyzers.getOrDefault("default_search_quote", defaultSearchAnalyzer);
 
         for (Map.Entry<String, NamedAnalyzer> analyzer : analyzers.entrySet()) {
             if (analyzer.getKey().startsWith("_")) {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        return new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultSearchAnalyzer, defaultSearchQuoteAnalyzer,
-            unmodifiableMap(analyzers), unmodifiableMap(normalizers), unmodifiableMap(whitespaceNormalizers));
+        return new IndexAnalyzers(indexSettings, analyzers, normalizers, whitespaceNormalizers);
     }
 
-    private void processAnalyzerFactory(IndexSettings indexSettings,
-                                        String name,
-                                        AnalyzerProvider<?> analyzerFactory,
-                                        Map<String, NamedAnalyzer> analyzers, Map<String, TokenFilterFactory> tokenFilters,
-                                        Map<String, CharFilterFactory> charFilters, Map<String, TokenizerFactory> tokenizers) {
+    private static NamedAnalyzer produceAnalyzer(String name, AnalyzerProvider<?> analyzerFactory,
+            Map<String, TokenFilterFactory> tokenFilters, Map<String, CharFilterFactory> charFilters,
+            Map<String, TokenizerFactory> tokenizers) {
         /*
          * Lucene defaults positionIncrementGap to 0 in all analyzers but
          * Elasticsearch defaults them to 0 only before version 2.0
@@ -503,15 +505,7 @@ public final class AnalysisRegistry implements Closeable {
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }
-        if (analyzers.containsKey(name)) {
-            throw new IllegalStateException("already registered analyzer with name: " + name);
-        }
-        analyzers.put(name, analyzer);
-        // TODO: remove alias support completely when we no longer support pre 5.0 indices
-        final String analyzerAliasKey = "index.analysis.analyzer." + analyzerFactory.name() + ".alias";
-        if (indexSettings.getSettings().get(analyzerAliasKey) != null) {
-            throw new IllegalArgumentException("setting [" + analyzerAliasKey + "] is not supported");
-        }
+        return analyzer;
     }
 
     private void processNormalizerFactory(

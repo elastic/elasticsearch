@@ -19,36 +19,26 @@
 
 package org.elasticsearch.index.refresh;
 
-import org.elasticsearch.test.AbstractStreamableTestCase;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
 
-public class RefreshStatsTests extends AbstractStreamableTestCase<RefreshStats> {
-    @Override
-    protected RefreshStats createTestInstance() {
-        return new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
-    }
+import java.io.IOException;
 
-    @Override
-    protected RefreshStats createBlankInstance() {
-        return new RefreshStats();
-    }
+public class RefreshStatsTests extends ESTestCase {
 
-    @Override
-    protected RefreshStats mutateInstance(RefreshStats instance) {
-        long total = instance.getTotal();
-        long totalInMillis = instance.getTotalTimeInMillis();
-        int listeners = instance.getListeners();
-        switch (randomInt(2)) {
-        case 0:
-            total += between(1, 2000);
-            break;
-        case 1:
-            totalInMillis += between(1, 2000);
-            break;
-        case 2:
-        default:
-            listeners += between(1, 2000);
-            break;
-        }
-        return new RefreshStats(total, totalInMillis, listeners);
+    public void testSerialize() throws IOException {
+        RefreshStats stats = new RefreshStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        StreamInput input = out.bytes().streamInput();
+        RefreshStats read = new RefreshStats(input);
+        assertEquals(-1, input.read());
+        assertEquals(stats.getTotal(), read.getTotal());
+        assertEquals(stats.getExternalTotal(), read.getExternalTotal());
+        assertEquals(stats.getListeners(), read.getListeners());
+        assertEquals(stats.getTotalTimeInMillis(), read.getTotalTimeInMillis());
+        assertEquals(stats.getExternalTotalTimeInMillis(), read.getExternalTotalTimeInMillis());
     }
 }

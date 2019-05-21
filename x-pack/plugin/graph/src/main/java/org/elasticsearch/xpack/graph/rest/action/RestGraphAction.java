@@ -41,6 +41,8 @@ import static org.elasticsearch.xpack.core.graph.action.GraphExploreAction.INSTA
 public class RestGraphAction extends XPackRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestGraphAction.class));
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+            " Specifying types in graph requests is deprecated.";
 
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
@@ -111,7 +113,10 @@ public class RestGraphAction extends XPackRestHandler {
             parseHop(parser, currentHop, graphRequest);
         }
 
-        graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        if (request.hasParam("type")) {
+            deprecationLogger.deprecatedAndMaybeLog("graph_with_types", TYPES_DEPRECATION_MESSAGE);
+            graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
+        }
         return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 

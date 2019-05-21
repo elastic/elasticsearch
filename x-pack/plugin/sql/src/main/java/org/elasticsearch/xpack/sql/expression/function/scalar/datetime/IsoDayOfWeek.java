@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Extract the day of the week (following the ISO standard) from a datetime. 1 is Monday, 2 is Tuesday, etc.
  */
 public class IsoDayOfWeek extends DateTimeFunction {
-    public IsoDayOfWeek(Location location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.ISO_DAY_OF_WEEK);
+    public IsoDayOfWeek(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.ISO_DAY_OF_WEEK);
     }
 
     @Override
@@ -27,7 +27,7 @@ public class IsoDayOfWeek extends DateTimeFunction {
 
     @Override
     protected IsoDayOfWeek replaceChild(Expression newChild) {
-        return new IsoDayOfWeek(location(), newChild, zoneId());
+        return new IsoDayOfWeek(source(), newChild, zoneId());
     }
 
     @Override

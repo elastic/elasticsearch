@@ -21,13 +21,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import javax.security.auth.Subject;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -54,35 +54,33 @@ public abstract class KerberosTestCase extends ESTestCase {
     protected SimpleKdcLdapServer simpleKdcLdapServer;
 
     private static Locale restoreLocale;
-    private static Set<String> unsupportedLocaleLanguages;
 
-    static {
-        unsupportedLocaleLanguages = new HashSet<>();
-        /*
-         * arabic and other languages have problem due to handling of GeneralizedTime in
-         * SimpleKdcServer For more look at :
-         * org.apache.kerby.asn1.type.Asn1GeneralizedTime#toBytes()
-         */
-        unsupportedLocaleLanguages.add("ar");
-        unsupportedLocaleLanguages.add("ja");
-        unsupportedLocaleLanguages.add("th");
-        unsupportedLocaleLanguages.add("hi");
-        unsupportedLocaleLanguages.add("uz");
-        unsupportedLocaleLanguages.add("fa");
-        unsupportedLocaleLanguages.add("ks");
-        unsupportedLocaleLanguages.add("ckb");
-        unsupportedLocaleLanguages.add("ne");
-        unsupportedLocaleLanguages.add("dz");
-        unsupportedLocaleLanguages.add("mzn");
-        unsupportedLocaleLanguages.add("mr");
-        unsupportedLocaleLanguages.add("as");
-        unsupportedLocaleLanguages.add("bn");
-        unsupportedLocaleLanguages.add("lrc");
-        unsupportedLocaleLanguages.add("my");
-        unsupportedLocaleLanguages.add("ps");
-        unsupportedLocaleLanguages.add("ur");
-        unsupportedLocaleLanguages.add("pa");
-    }
+    /*
+     * Arabic and other language have problems due to handling of generalized time in SimpleKdcServer. For more, look at
+     * org.apache.kerby.asn1.type.Asn1GeneralizedTime#toBytes
+     */
+    private static Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
+        "ar",
+        "ja",
+        "th",
+        "hi",
+        "uz",
+        "fa",
+        "ks",
+        "ckb",
+        "ne",
+        "dz",
+        "mzn",
+        "mr",
+        "as",
+        "bn",
+        "lrc",
+        "my",
+        "ps",
+        "ur",
+        "pa",
+        "ig",
+        "sd");
 
     @BeforeClass
     public static void setupKerberos() throws Exception {
@@ -96,7 +94,7 @@ public abstract class KerberosTestCase extends ESTestCase {
     }
 
     @AfterClass
-    public static void restoreLocale() throws Exception {
+    public static void restoreLocale() {
         if (restoreLocale != null) {
             Locale.setDefault(restoreLocale);
             restoreLocale = null;
@@ -104,7 +102,7 @@ public abstract class KerberosTestCase extends ESTestCase {
     }
 
     private static boolean isLocaleUnsupported() {
-        return unsupportedLocaleLanguages.contains(Locale.getDefault().getLanguage());
+        return UNSUPPORTED_LOCALE_LANGUAGES.contains(Locale.getDefault().getLanguage());
     }
 
     @Before

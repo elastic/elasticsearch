@@ -51,7 +51,6 @@ public class AggregationDataExtractorTests extends ESTestCase {
     private String jobId;
     private String timeField;
     private Set<String> fields;
-    private List<String> types;
     private List<String> indices;
     private QueryBuilder query;
     private AggregatorFactories.Builder aggs;
@@ -84,7 +83,6 @@ public class AggregationDataExtractorTests extends ESTestCase {
         fields = new HashSet<>();
         fields.addAll(Arrays.asList("time", "airline", "responsetime"));
         indices = Arrays.asList("index-1", "index-2");
-        types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
         aggs = new AggregatorFactories.Builder()
                 .addAggregator(AggregationBuilders.histogram("time").field("time").interval(1000).subAggregation(
@@ -267,7 +265,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     private AggregationDataExtractorContext createContext(long start, long end) {
-        return new AggregationDataExtractorContext(jobId, timeField, fields, indices, types, query, aggs, start, end, true,
+        return new AggregationDataExtractorContext(jobId, timeField, fields, indices, query, aggs, start, end, true,
                 Collections.emptyMap());
     }
 

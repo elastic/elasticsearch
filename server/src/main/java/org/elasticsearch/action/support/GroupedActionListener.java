@@ -29,8 +29,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * An action listener that delegates it's results to another listener once
- * it has received one or more failures or N results. This allows synchronous
+ * An action listener that delegates its results to another listener once
+ * it has received N results (either successes or failures). This allows synchronous
  * tasks to be forked off in a loop with the same listener and respond to a
  * higher level listener once all tasks responded.
  */
@@ -39,7 +39,6 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
     private final AtomicInteger pos = new AtomicInteger();
     private final AtomicArray<T> results;
     private final ActionListener<Collection<T>> delegate;
-    private final Collection<T> defaults;
     private final AtomicReference<Exception> failure = new AtomicReference<>();
 
     /**
@@ -47,12 +46,13 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
      * @param delegate the delegate listener
      * @param groupSize the group size
      */
-    public GroupedActionListener(ActionListener<Collection<T>> delegate, int groupSize,
-                                 Collection<T> defaults) {
+    public GroupedActionListener(ActionListener<Collection<T>> delegate, int groupSize) {
+        if (groupSize <= 0) {
+            throw new IllegalArgumentException("groupSize must be greater than 0 but was " + groupSize);
+        }
         results = new AtomicArray<>(groupSize);
         countDown = new CountDown(groupSize);
         this.delegate = delegate;
-        this.defaults = defaults;
     }
 
     @Override
@@ -63,7 +63,6 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
                 delegate.onFailure(failure.get());
             } else {
                 List<T> collect = this.results.asList();
-                collect.addAll(defaults);
                 delegate.onResponse(Collections.unmodifiableList(collect));
             }
         }
@@ -72,7 +71,10 @@ public final class GroupedActionListener<T> implements ActionListener<T> {
     @Override
     public void onFailure(Exception e) {
         if (failure.compareAndSet(null, e) == false) {
-            failure.get().addSuppressed(e);
+            failure.accumulateAndGet(e, (previous, current) -> {
+                previous.addSuppressed(current);
+                return previous;
+            });
         }
         if (countDown.countDown()) {
             delegate.onFailure(failure.get());

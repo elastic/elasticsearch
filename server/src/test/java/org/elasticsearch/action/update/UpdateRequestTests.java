@@ -38,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.MockScriptEngine;
@@ -501,12 +500,14 @@ public class UpdateRequestTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
-    public void testToValidateUpsertRequestAndVersion() {
+    public void testToValidateUpsertRequestAndCAS() {
         UpdateRequest updateRequest = new UpdateRequest("index", "type", "id");
-        updateRequest.version(1L);
+        updateRequest.setIfSeqNo(1L);
+        updateRequest.setIfPrimaryTerm(1L);
         updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index","type", "id"));
-        assertThat(updateRequest.validate().validationErrors(), contains("can't provide both upsert request and a version"));
+        assertThat(updateRequest.validate().validationErrors(),
+            contains("upsert requests don't support `if_seq_no` and `if_primary_term`"));
     }
 
     public void testToValidateUpsertRequestWithVersion() {
@@ -524,9 +525,18 @@ public class UpdateRequestTests extends ESTestCase {
 
             assertThat(validate, nullValue());
         }
-
         {
-            UpdateRequest request = new UpdateRequest("index", randomBoolean() ? "" : null, randomBoolean() ? "" : null);
+            // Null types are defaulted to "_doc"
+            UpdateRequest request = new UpdateRequest("index", null, randomBoolean() ? "" : null);
+            request.doc("{}", XContentType.JSON);
+            ActionRequestValidationException validate = request.validate();
+
+            assertThat(validate, not(nullValue()));
+            assertThat(validate.validationErrors(), hasItems("id is missing"));
+        }
+        {
+            // Non-null types are accepted but fail validation
+            UpdateRequest request = new UpdateRequest("index", "", randomBoolean() ? "" : null);
             request.doc("{}", XContentType.JSON);
             ActionRequestValidationException validate = request.validate();
 
@@ -559,24 +569,6 @@ public class UpdateRequestTests extends ESTestCase {
 
         // Use the get result parent and routing
         assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing1"));
-    }
-
-    @SuppressWarnings("deprecated") // VersionType.FORCE is deprecated
-    public void testCalculateUpdateVersion() throws Exception {
-        long randomVersion = randomIntBetween(0, 100);
-        GetResult getResult = new GetResult("test", "type", "1", 0, 1, randomVersion, true, new BytesArray("{}"), null);
-
-        UpdateRequest request = new UpdateRequest("test", "type1", "1");
-        long version = UpdateHelper.calculateUpdateVersion(request, getResult);
-
-        // Use the get result's version
-        assertThat(version, equalTo(randomVersion));
-
-        request = new UpdateRequest("test", "type1", "1").versionType(VersionType.FORCE).version(1337);
-        version = UpdateHelper.calculateUpdateVersion(request, getResult);
-
-        // Use the forced update request version
-        assertThat(version, equalTo(1337L));
     }
 
     public void testNoopDetection() throws Exception {

@@ -10,17 +10,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 public class QueuedWatch implements Streamable, ToXContentObject {
 
     private String watchId;
     private String watchRecordId;
-    private DateTime triggeredTime;
-    private DateTime executionTime;
+    private ZonedDateTime triggeredTime;
+    private ZonedDateTime executionTime;
 
     public QueuedWatch() {
     }
@@ -36,19 +37,19 @@ public class QueuedWatch implements Streamable, ToXContentObject {
         return watchId;
     }
 
-    public DateTime triggeredTime() {
+    public ZonedDateTime triggeredTime() {
         return triggeredTime;
     }
 
-    public void triggeredTime(DateTime triggeredTime) {
+    public void triggeredTime(ZonedDateTime triggeredTime) {
         this.triggeredTime = triggeredTime;
     }
 
-    public DateTime executionTime() {
+    public ZonedDateTime executionTime() {
         return executionTime;
     }
 
-    public void executionTime(DateTime executionTime) {
+    public void executionTime(ZonedDateTime executionTime) {
         this.executionTime = executionTime;
     }
 
@@ -56,16 +57,16 @@ public class QueuedWatch implements Streamable, ToXContentObject {
     public void readFrom(StreamInput in) throws IOException {
         watchId = in.readString();
         watchRecordId = in.readString();
-        triggeredTime = new DateTime(in.readVLong(), DateTimeZone.UTC);
-        executionTime = new DateTime(in.readVLong(), DateTimeZone.UTC);
+        triggeredTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
+        executionTime = Instant.ofEpochMilli(in.readVLong()).atZone(ZoneOffset.UTC);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(watchId);
         out.writeString(watchRecordId);
-        out.writeVLong(triggeredTime.getMillis());
-        out.writeVLong(executionTime.getMillis());
+        out.writeVLong(triggeredTime.toInstant().toEpochMilli());
+        out.writeVLong(executionTime.toInstant().toEpochMilli());
     }
 
     @Override

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -20,8 +20,8 @@ public class Filter extends UnaryPlan {
 
     private final Expression condition;
 
-    public Filter(Location location, LogicalPlan child, Expression condition) {
-        super(location, child);
+    public Filter(Source source, LogicalPlan child, Expression condition) {
+        super(source, child);
         this.condition = condition;
     }
 
@@ -32,7 +32,7 @@ public class Filter extends UnaryPlan {
 
     @Override
     protected Filter replaceChild(LogicalPlan newChild) {
-        return new Filter(location(), newChild, condition);
+        return new Filter(source(), newChild, condition);
     }
 
     public Expression condition() {

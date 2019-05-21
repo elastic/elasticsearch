@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.ParseField;
@@ -31,9 +30,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 public class GetMappingsResponse extends ActionResponse implements ToXContentFragment {
 
@@ -41,7 +43,7 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.of();
 
-    GetMappingsResponse(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings) {
+    public GetMappingsResponse(ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings) {
         this.mappings = mappings;
     }
 
@@ -98,15 +100,13 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
         for (Map.Entry<String, Object> entry : parts.entrySet()) {
             final String indexName = entry.getKey();
             assert entry.getValue() instanceof Map : "expected a map as type mapping, but got: " + entry.getValue().getClass();
-            @SuppressWarnings("unchecked")
-            final Map<String, Object> mapping = (Map<String, Object>) ((Map<String, ?>) entry.getValue()).get(MAPPINGS.getPreferredName());
+            final Map<String, Object> mapping = (Map<String, Object>) ((Map) entry.getValue()).get(MAPPINGS.getPreferredName());
 
             ImmutableOpenMap.Builder<String, MappingMetaData> typeBuilder = new ImmutableOpenMap.Builder<>();
             for (Map.Entry<String, Object> typeEntry : mapping.entrySet()) {
                 final String typeName = typeEntry.getKey();
                 assert typeEntry.getValue() instanceof Map : "expected a map as inner type mapping, but got: " +
                     typeEntry.getValue().getClass();
-                @SuppressWarnings("unchecked")
                 final Map<String, Object> fieldMappings = (Map<String, Object>) typeEntry.getValue();
                 MappingMetaData mmd = new MappingMetaData(typeName, fieldMappings);
                 typeBuilder.put(typeName, mmd);
@@ -119,10 +119,9 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, true);
-    }
+        boolean includeTypeName = params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeTypeName) throws IOException {
         for (final ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> indexEntry : getMappings()) {
             builder.startObject(indexEntry.key);
             {

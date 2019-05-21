@@ -1,0 +1,30 @@
+---
+"Internal version":
+
+  - do:
+      index:
+        index:   test_1
+        type:    test
+        id:      1
+        body:    { foo: bar }
+
+  - match:   { _seq_no: 0 }
+
+  - do:
+      catch:       conflict
+      delete:
+        index:   test_1
+        type:    test
+        id:      1
+        if_seq_no: 2
+        if_primary_term: 1
+
+  - do:
+      delete:
+        index:   test_1
+        type:    test
+        id:      1
+        if_seq_no: 0
+        if_primary_term: 1
+
+  - match: { _seq_no: 1 }

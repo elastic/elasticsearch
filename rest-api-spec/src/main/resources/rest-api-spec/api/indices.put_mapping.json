@@ -3,8 +3,45 @@
     "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-put-mapping.html",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/{index}/{type}/_mapping",
-      "paths": ["/{index}/{type}/_mapping", "/{index}/_mapping/{type}", "/_mapping/{type}", "/{index}/{type}/_mappings", "/{index}/_mappings/{type}", "/_mappings/{type}", "{index}/_mappings", "{index}/_mapping"],
+      "path": "{index}/_mapping",
+      "paths": ["{index}/_mapping"],
+      "deprecated_paths" : [
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/_mapping",
+          "description" : "Specifying types in urls has been deprecated"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/_mapping/{type}",
+          "description" : "Specifying types in urls has been deprecated"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/{type}/_mappings",
+          "description" : "Specifying types in urls has been deprecated"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/{index}/_mappings/{type}",
+          "description" : "Specifying types in urls has been deprecated"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/_mappings/{type}",
+          "description" : "Specifying types in urls has been deprecated"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "{index}/_mappings",
+          "description" : "The plural mappings is accepted but only /_mapping is documented"
+        },
+        {
+          "version" : "7.0.0",
+          "path" : "/_mapping/{type}",
+          "description" : "Specifying types in urls has been deprecated"
+        }
+      ],
       "parts": {
         "index": {
           "type" : "list",
@@ -17,7 +54,7 @@
       },
       "params": {
         "include_type_name": {
-          "type" : "string",
+          "type" : "boolean",
           "description" : "Whether a type should be expected in the body of the mappings."
         },
         "timeout": {

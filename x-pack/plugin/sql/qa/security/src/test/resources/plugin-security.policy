@@ -1,6 +1,7 @@
 grant {
   // Needed to read the audit log file
   permission java.io.FilePermission "${tests.audit.logfile}", "read";
+  permission java.io.FilePermission "${tests.audit.yesterday.logfile}", "read";
 
   //// Required by ssl subproject:
   // Required for the net client to setup ssl rather than use global ssl.

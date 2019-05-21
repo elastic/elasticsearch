@@ -17,8 +17,6 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.precommit.PrecommitTasks
-
 subprojects {
   // fixtures is just intermediate parent project
   if (name == 'fixtures') return

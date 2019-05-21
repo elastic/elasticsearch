@@ -161,6 +161,13 @@ public interface IndexEventListener {
     }
 
     /**
+     * Called when the given shards store is created. The shard store is created before the shard is created.
+     *
+     * @param shardId the shard ID the store belongs to
+     */
+    default void onStoreCreated(ShardId shardId) {}
+
+    /**
      * Called when the given shards store is closed. The store is closed once all resource have been released on the store.
      * This implies that all index readers are closed and no recoveries are running.
      *

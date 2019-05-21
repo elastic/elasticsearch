@@ -29,7 +29,7 @@ import java.io.IOException;
 public class ReadOnlyAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "readonly";
 
-    private static final ObjectParser<ReadOnlyAction, Void> PARSER = new ObjectParser<>(NAME, false, ReadOnlyAction::new);
+    private static final ObjectParser<ReadOnlyAction, Void> PARSER = new ObjectParser<>(NAME, true, ReadOnlyAction::new);
 
     public static ReadOnlyAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);

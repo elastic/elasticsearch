@@ -10,6 +10,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -23,7 +24,7 @@ import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
 
 import static java.util.Collections.singletonList;
@@ -41,7 +42,7 @@ public class SourceGeneratorTests extends ESTestCase {
     }
 
     public void testQueryNoFilter() {
-        QueryContainer container = new QueryContainer().with(new MatchQuery(Location.EMPTY, "foo", "bar"));
+        QueryContainer container = new QueryContainer().with(new MatchQuery(Source.EMPTY, "foo", "bar"));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(matchQuery("foo", "bar").operator(Operator.OR), sourceBuilder.query());
     }
@@ -54,7 +55,7 @@ public class SourceGeneratorTests extends ESTestCase {
     }
 
     public void testQueryFilter() {
-        QueryContainer container = new QueryContainer().with(new MatchQuery(Location.EMPTY, "foo", "bar"));
+        QueryContainer container = new QueryContainer().with(new MatchQuery(Source.EMPTY, "foo", "bar"));
         QueryBuilder filter = matchQuery("bar", "baz");
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, filter, randomIntBetween(1, 10));
         assertEquals(boolQuery().must(matchQuery("foo", "bar").operator(Operator.OR)).filter(matchQuery("bar", "baz")),
@@ -78,15 +79,14 @@ public class SourceGeneratorTests extends ESTestCase {
     }
 
     public void testSelectScoreForcesTrackingScore() {
-        QueryContainer container = new QueryContainer()
-                .addColumn(new Score(new Location(1, 1)).toAttribute());
+        QueryContainer container = new QueryContainer().addColumn(new Score(Source.EMPTY).toAttribute());
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertTrue(sourceBuilder.trackScores());
     }
 
     public void testSortScoreSpecified() {
         QueryContainer container = new QueryContainer()
-                .sort(new ScoreSort(Direction.DESC, null));
+                .addSort(new ScoreSort(Direction.DESC, null));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(scoreSort()), sourceBuilder.sorts());
     }
@@ -95,13 +95,13 @@ public class SourceGeneratorTests extends ESTestCase {
         FieldSortBuilder sortField = fieldSort("test").unmappedType("keyword");
         
         QueryContainer container = new QueryContainer()
-                .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", new KeywordEsField("test")), Direction.ASC,
+                .addSort(new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")), Direction.ASC,
                         Missing.LAST));
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(sortField.order(SortOrder.ASC).missing("_last")), sourceBuilder.sorts());
 
         container = new QueryContainer()
-                .sort(new AttributeSort(new FieldAttribute(new Location(1, 1), "test", new KeywordEsField("test")), Direction.DESC,
+                .addSort(new AttributeSort(new FieldAttribute(Source.EMPTY, "test", new KeywordEsField("test")), Direction.DESC,
                         Missing.FIRST));
         sourceBuilder = SourceGenerator.sourceBuilder(container, null, randomIntBetween(1, 10));
         assertEquals(singletonList(sortField.order(SortOrder.DESC).missing("_first")), sourceBuilder.sorts());
@@ -110,6 +110,13 @@ public class SourceGeneratorTests extends ESTestCase {
     public void testNoSort() {
         SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(new QueryContainer(), null, randomIntBetween(1, 10));
         assertEquals(singletonList(fieldSort("_doc").order(SortOrder.ASC)), sourceBuilder.sorts());
+    }
+
+    public void testTrackHits() {
+        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(new QueryContainer().withTrackHits(), null,
+                randomIntBetween(1, 10));
+        assertEquals("Should have tracked hits", Integer.valueOf(SearchContext.TRACK_TOTAL_HITS_ACCURATE),
+                sourceBuilder.trackTotalHitsUpTo());
     }
 
     public void testNoSortIfAgg() {

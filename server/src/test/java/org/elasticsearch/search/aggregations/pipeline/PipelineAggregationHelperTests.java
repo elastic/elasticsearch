@@ -20,7 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 
-import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalOrder;

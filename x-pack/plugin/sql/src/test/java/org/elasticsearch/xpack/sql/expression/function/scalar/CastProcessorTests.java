@@ -39,7 +39,7 @@ public class CastProcessorTests extends AbstractWireSerializingTestCase<CastProc
             assertEquals(null, proc.process(null));
             assertEquals(1, proc.process("1"));
             Exception e = expectThrows(SqlIllegalArgumentException.class, () -> proc.process("1.2"));
-            assertEquals("cannot cast [1.2] to [Int]", e.getMessage());
+            assertEquals("cannot cast [1.2] to [integer]", e.getMessage());
         }
         {
             CastProcessor proc = new CastProcessor(Conversion.BOOL_TO_INT);

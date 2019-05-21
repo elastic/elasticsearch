@@ -268,4 +268,12 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
+
+    public void testExtractInnerHitBuildersWithDuplicate() {
+        final HasParentQueryBuilder queryBuilder
+            = new HasParentQueryBuilder(CHILD_DOC, new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), false);
+        queryBuilder.innerHit(new InnerHitBuilder("some_name"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> InnerHitContextBuilder.extractInnerHits(queryBuilder, Collections.singletonMap("some_name", null)));
+    }
 }

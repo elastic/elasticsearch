@@ -39,7 +39,7 @@ public class TransportGetJobsStatsActionTests extends ESTestCase {
 
         result = determineJobIdsWithoutLiveStats(Arrays.asList("id1", "id2", "id3"),
                 Collections.singletonList(new GetJobsStatsAction.Response.JobStats("id1", new DataCounts("id1"), null, null,
-                        JobState.CLOSED, null, null, null))
+                        JobState.OPENED, null, null, null))
         );
         assertEquals(2, result.size());
         assertEquals("id2", result.get(0));

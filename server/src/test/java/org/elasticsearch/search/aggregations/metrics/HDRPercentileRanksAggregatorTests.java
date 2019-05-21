@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -55,6 +56,7 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
+            assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
         }
     }
 
@@ -87,6 +89,7 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
                 assertEquals(12, rank.getValue(), 0d);
                 assertThat(rank.getPercent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
+                assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
             }
         }
     }

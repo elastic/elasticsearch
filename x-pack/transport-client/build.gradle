@@ -12,7 +12,7 @@ dependencies {
     compile "org.elasticsearch.client:transport:${version}"
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 dependencyLicenses.enabled = false
@@ -23,10 +23,13 @@ forbiddenApisTest {
     replaceSignatureFiles 'jdk-signatures', 'es-all-signatures'
 }
 
-namingConventions {
-    testClass = 'com.carrotsearch.randomizedtesting.RandomizedTest'
-    //we don't have integration tests
-    skipIntegTestInDisguise = true
+testingConventions {
+    naming.clear()
+    naming {
+        Tests {
+            baseClass 'com.carrotsearch.randomizedtesting.RandomizedTest'
+        }
+    }
 }
 
 publishing {

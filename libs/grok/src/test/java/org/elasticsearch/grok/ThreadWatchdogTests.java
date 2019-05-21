@@ -51,7 +51,6 @@ public class ThreadWatchdogTests extends ESTestCase {
                 }
             });
             thread.start();
-            return null;
         });
 
         Map<?, ?> registry = ((ThreadWatchdog.Default) watchdog).registry;

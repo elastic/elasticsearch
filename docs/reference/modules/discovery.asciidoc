@@ -13,6 +13,16 @@ module. This module is divided into the following sections:
     unknown, such as when a node has just started up or when the previous
     master has failed.
 
+<<modules-discovery-quorums>>::
+
+    This section describes how {es} uses a quorum-based voting mechanism to
+    make decisions even if some nodes are unavailable.
+
+<<modules-discovery-voting>>::
+
+    This section describes the concept of voting configurations, which {es}
+    automatically updates as nodes leave and join the cluster.
+
 <<modules-discovery-bootstrap-cluster>>::
 
     Bootstrapping a cluster is required when an Elasticsearch cluster starts up
@@ -40,11 +50,10 @@ module. This module is divided into the following sections:
     Cluster state publishing is the process by which the elected master node
     updates the cluster state on all the other nodes in the cluster.
 
-<<modules-discovery-quorums>>::
+<<cluster-fault-detection>>::
 
-    This section describes the detailed design behind the master election and
-    auto-reconfiguration logic.
-    
+    {es} performs health checks to detect and remove faulty nodes.
+
 <<modules-discovery-settings,Settings>>::
 
     There are settings that enable users to influence the discovery, cluster
@@ -52,13 +61,15 @@ module. This module is divided into the following sections:
 
 include::discovery/discovery.asciidoc[]
 
+include::discovery/quorums.asciidoc[]
+
+include::discovery/voting.asciidoc[]
+
 include::discovery/bootstrapping.asciidoc[]
 
 include::discovery/adding-removing-nodes.asciidoc[]
 
 include::discovery/publishing.asciidoc[]
-
-include::discovery/quorums.asciidoc[]
 
 include::discovery/fault-detection.asciidoc[]
 

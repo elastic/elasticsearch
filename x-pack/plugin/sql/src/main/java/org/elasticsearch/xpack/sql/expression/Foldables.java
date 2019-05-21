@@ -32,16 +32,8 @@ public abstract class Foldables {
         throw new SqlIllegalArgumentException("Cannot determine value for {}", e);
     }
 
-    public static String stringValueOf(Expression e) {
-        return valueOf(e, DataType.KEYWORD);
-    }
-
     public static Integer intValueOf(Expression e) {
         return valueOf(e, DataType.INTEGER);
-    }
-
-    public static Long longValueOf(Expression e) {
-        return valueOf(e, DataType.LONG);
     }
 
     public static double doubleValueOf(Expression e) {

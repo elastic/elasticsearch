@@ -91,7 +91,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
             .filterWithHeader(Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER,
                     basicAuthHeaderValue(transportClientUsername(), transportClientPassword())))
             .admin().indices().preparePutTemplate("template1")
-            .setTemplate("test_*")
+            .setPatterns(Collections.singletonList("test_*"))
             .get();
         assertAcked(putResponse);
 
@@ -105,7 +105,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
         Map<String, String> auth = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
                 transportClientPassword()));
         assertThrowsAuthorizationException(client.filterWithHeader(auth).admin().indices().preparePutTemplate("template1")
-                .setTemplate("test_*")::get, PutIndexTemplateAction.NAME, "user");
+                .setPatterns(Collections.singletonList("test_*"))::get, PutIndexTemplateAction.NAME, "user");
 
         Map<String, String> headers = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
                 new SecureString("test123")));

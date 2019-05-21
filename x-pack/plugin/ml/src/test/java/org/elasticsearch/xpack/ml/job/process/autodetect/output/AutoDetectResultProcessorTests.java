@@ -18,6 +18,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
@@ -81,7 +82,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        executor = new ScheduledThreadPoolExecutor(1);
+        executor = new Scheduler.SafeScheduledThreadPoolExecutor(1);
         client = mock(Client.class);
         threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -300,7 +301,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         // Now with hard_limit
         modelSizeStats = new ModelSizeStats.Builder(JOB_ID)
                 .setMemoryStatus(ModelSizeStats.MemoryStatus.HARD_LIMIT)
-                .setModelBytes(new ByteSizeValue(512, ByteSizeUnit.MB).getBytes())
+                .setModelBytesMemoryLimit(new ByteSizeValue(512, ByteSizeUnit.MB).getBytes())
+                .setModelBytesExceeded(new ByteSizeValue(1, ByteSizeUnit.KB).getBytes())
                 .build();
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(context, result);
@@ -310,9 +312,9 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(result.getModelSizeStats()).thenReturn(modelSizeStats);
         processorUnderTest.processResult(context, result);
 
-        // We should have only fired to notifications: one for soft_limit and one for hard_limit
+        // We should have only fired two notifications: one for soft_limit and one for hard_limit
         verify(auditor).warning(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_SOFT_LIMIT));
-        verify(auditor).error(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT, "512mb"));
+        verify(auditor).error(JOB_ID, Messages.getMessage(Messages.JOB_AUDIT_MEMORY_STATUS_HARD_LIMIT, "512mb", "1kb"));
         verifyNoMoreInteractions(auditor);
     }
 
@@ -456,7 +458,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
     }
 
     private void setupScheduleDelayTime(TimeValue delay) {
-        when(threadPool.schedule(any(TimeValue.class), anyString(), any(Runnable.class)))
-            .thenAnswer(i -> executor.schedule((Runnable) i.getArguments()[2], delay.nanos(), TimeUnit.NANOSECONDS));
+        when(threadPool.schedule(any(Runnable.class), any(TimeValue.class), anyString()))
+            .thenAnswer(i -> executor.schedule((Runnable) i.getArguments()[0], delay.nanos(), TimeUnit.NANOSECONDS));
     }
 }

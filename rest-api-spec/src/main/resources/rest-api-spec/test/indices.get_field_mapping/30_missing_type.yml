@@ -3,6 +3,7 @@
 
   - do:
         indices.create:
+          include_type_name: true
           index: test_index
           body:
               mappings:
@@ -15,7 +16,7 @@
   - do:
       catch: missing
       indices.get_field_mapping:
+        include_type_name: true
         index: test_index
         type: not_test_type
         fields: text
-  

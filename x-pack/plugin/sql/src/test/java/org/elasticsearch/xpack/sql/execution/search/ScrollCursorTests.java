@@ -27,7 +27,8 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
         for (int i = 0; i < extractorsSize; i++) {
             extractors.add(randomHitExtractor(0));
         }
-        return new ScrollCursor(randomAlphaOfLength(5), extractors, randomIntBetween(10, 1024));
+        return new ScrollCursor(randomAlphaOfLength(5), extractors, CompositeAggregationCursorTests.randomBitSet(extractorsSize),
+                randomIntBetween(10, 1024));
     }
 
     static HitExtractor randomHitExtractor(int depth) {
@@ -43,6 +44,7 @@ public class ScrollCursorTests extends AbstractWireSerializingTestCase<ScrollCur
     @Override
     protected ScrollCursor mutateInstance(ScrollCursor instance) throws IOException {
         return new ScrollCursor(instance.scrollId(), instance.extractors(),
+                randomValueOtherThan(instance.mask(), () -> CompositeAggregationCursorTests.randomBitSet(instance.extractors().size())),
                 randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 1024)));
     }
 

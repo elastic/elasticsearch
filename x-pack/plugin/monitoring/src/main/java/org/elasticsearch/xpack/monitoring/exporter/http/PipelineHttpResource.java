@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 
+import java.util.Collections;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -72,7 +73,7 @@ public class PipelineHttpResource extends PublishableHttpResource {
     @Override
     protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
         putResource(client, listener, logger,
-                    "/_ingest/pipeline", pipelineName, this::pipelineToHttpEntity, "monitoring pipeline",
+                    "/_ingest/pipeline", pipelineName, Collections.emptyMap(), this::pipelineToHttpEntity, "monitoring pipeline",
                     resourceOwnerName, "monitoring cluster");
     }
 

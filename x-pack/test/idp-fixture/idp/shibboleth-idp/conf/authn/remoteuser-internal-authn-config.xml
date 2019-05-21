@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                           http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+                           
+       default-init-method="initialize"
+       default-destroy-method="destroy">
+
+    <!-- Check getRemoteUser() for identity (the typical case). -->
+    <util:constant id="shibboleth.authn.RemoteUser.checkRemoteUser" static-field="java.lang.Boolean.TRUE"/>
+
+    <!-- Populate one or both of the lists below to define HTTP headers or Servlet Attributes to check. -->
+    
+    <util:list id="shibboleth.authn.RemoteUser.checkHeaders">
+        <!--
+        <value>User-Identity</value>
+        -->
+    </util:list>
+
+    <util:list id="shibboleth.authn.RemoteUser.checkAttributes">
+        <!--
+        <value>User-Identity</value>
+        -->
+    </util:list>
+    
+    <!-- Simple transforms to apply to username before validation. -->
+    <util:constant id="shibboleth.authn.RemoteUser.Lowercase" static-field="java.lang.Boolean.FALSE"/>
+    <util:constant id="shibboleth.authn.RemoteUser.Uppercase" static-field="java.lang.Boolean.FALSE"/>
+    <util:constant id="shibboleth.authn.RemoteUser.Trim" static-field="java.lang.Boolean.TRUE"/>
+
+    <!-- Apply any regular expression replacement pairs before validation. -->
+    <util:list id="shibboleth.authn.RemoteUser.Transforms">
+        <!--
+        <bean parent="shibboleth.Pair" p:first="^(.+)@example\.edu$" p:second="$1" />
+        -->
+    </util:list>
+    
+    <!-- Uncomment/configure to install username whitelist, blacklist, and/or match expressions. -->
+    
+    <util:list id="shibboleth.authn.RemoteUser.whitelistedUsernames">
+        <!--
+        <value>goodguy</value>
+        -->
+    </util:list>
+
+    <util:list id="shibboleth.authn.RemoteUser.blacklistedUsernames">
+        <!--
+        <value>badguy</value>
+        -->
+    </util:list>
+    
+    <!--
+    <bean id="shibboleth.authn.RemoteUser.matchExpression" class="java.util.regex.Pattern" factory-method="compile"
+        c:_0="^(.+)@example\.edu]$" />
+    -->
+    
+</beans>

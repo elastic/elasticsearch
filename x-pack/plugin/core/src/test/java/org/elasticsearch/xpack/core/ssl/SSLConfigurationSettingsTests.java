@@ -21,7 +21,7 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix();
         assertThat(ssl.ciphers.match("cipher_suites"), is(true));
         assertThat(ssl.ciphers.match("ssl.cipher_suites"), is(false));
-        assertThat(ssl.ciphers.match("xpack.ssl.cipher_suites"), is(false));
+        assertThat(ssl.ciphers.match("xpack.transport.security.ssl.cipher_suites"), is(false));
 
         final Settings settings = Settings.builder()
                 .put("cipher_suites.0", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256")

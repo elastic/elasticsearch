@@ -29,12 +29,12 @@ import org.hamcrest.CoreMatchers;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class BytesProcessorTests extends AbstractStringProcessorTestCase {
+public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
 
     private String modifiedInput;
 
     @Override
-    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField) {
+    protected AbstractStringProcessor<Long> newProcessor(String field, boolean ignoreMissing, String targetField) {
         return new BytesProcessor(randomAlphaOfLength(10), field, ignoreMissing, targetField);
     }
 

@@ -258,7 +258,7 @@ public enum GeoShapeType {
     },
     GEOMETRYCOLLECTION("geometrycollection") {
         @Override
-        public ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+        public ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                        Orientation orientation, boolean coerce) {
             // noop, handled in parser
             return null;
@@ -298,7 +298,7 @@ public enum GeoShapeType {
         throw new IllegalArgumentException("unknown geo_shape ["+geoshapename+"]");
     }
 
-    public abstract ShapeBuilder<?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
+    public abstract ShapeBuilder<?, ?, ?> getBuilder(CoordinateNode coordinates, DistanceUnit.Distance radius,
                                             ShapeBuilder.Orientation orientation, boolean coerce);
     abstract CoordinateNode validate(CoordinateNode coordinates, boolean coerce);
 

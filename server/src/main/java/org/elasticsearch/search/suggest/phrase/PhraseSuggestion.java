@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.Suggest;
@@ -44,8 +43,6 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
     @Deprecated
     public static final int TYPE = 3;
 
-    public PhraseSuggestion() {}
-
     public PhraseSuggestion(String name, int size) {
         super(name, size);
     }
@@ -62,11 +59,6 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
     @Override
     public int getWriteableType() {
         return TYPE;
-    }
-
-    @Override
-    protected Entry newEntry() {
-        return new Entry();
     }
 
     @Override
@@ -132,17 +124,11 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
 
         static {
             declareCommonFields(PARSER);
-            PARSER.declareObjectArray(Entry::addOptions, (ContextParser<Void, Option>) (p, c) -> Option.fromXContent(p),
-                    new ParseField(OPTIONS));
+            PARSER.declareObjectArray(Entry::addOptions, (p, c) -> Option.fromXContent(p), new ParseField(OPTIONS));
         }
 
         public static Entry fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
-        }
-
-        @Override
-        protected Option newOption() {
-            return new Option();
         }
 
         @Override
@@ -168,10 +154,6 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         }
 
         public static class Option extends Suggestion.Entry.Option {
-
-            public Option() {
-                super();
-            }
 
             public Option(Text text, Text highlighted, float score, Boolean collateMatch) {
                 super(text, highlighted, score, collateMatch);

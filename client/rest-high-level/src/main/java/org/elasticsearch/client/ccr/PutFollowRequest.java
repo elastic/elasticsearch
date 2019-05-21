@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.ccr;
 
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -31,16 +32,21 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
 
     static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
     static final ParseField LEADER_INDEX_FIELD = new ParseField("leader_index");
-    static final ParseField FOLLOWER_INDEX_FIELD = new ParseField("follower_index");
 
     private final String remoteCluster;
     private final String leaderIndex;
     private final String followerIndex;
+    private final ActiveShardCount waitForActiveShards;
 
     public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex) {
+        this(remoteCluster, leaderIndex, followerIndex, ActiveShardCount.NONE);
+    }
+
+    public PutFollowRequest(String remoteCluster, String leaderIndex, String followerIndex, ActiveShardCount waitForActiveShards) {
         this.remoteCluster = Objects.requireNonNull(remoteCluster, "remoteCluster");
         this.leaderIndex = Objects.requireNonNull(leaderIndex, "leaderIndex");
         this.followerIndex = Objects.requireNonNull(followerIndex, "followerIndex");
+        this.waitForActiveShards = waitForActiveShards;
     }
 
     @Override
@@ -48,7 +54,6 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         builder.startObject();
         builder.field(REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
         builder.field(LEADER_INDEX_FIELD.getPreferredName(), leaderIndex);
-        builder.field(FOLLOWER_INDEX_FIELD.getPreferredName(), followerIndex);
         toXContentFragment(builder, params);
         builder.endObject();
         return builder;
@@ -66,13 +71,18 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         return followerIndex;
     }
 
+    public ActiveShardCount waitForActiveShards() {
+        return waitForActiveShards;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         PutFollowRequest that = (PutFollowRequest) o;
-        return Objects.equals(remoteCluster, that.remoteCluster) &&
+        return Objects.equals(waitForActiveShards, that.waitForActiveShards) &&
+            Objects.equals(remoteCluster, that.remoteCluster) &&
             Objects.equals(leaderIndex, that.leaderIndex) &&
             Objects.equals(followerIndex, that.followerIndex);
     }
@@ -83,7 +93,7 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
             super.hashCode(),
             remoteCluster,
             leaderIndex,
-            followerIndex
-        );
+            followerIndex,
+            waitForActiveShards);
     }
 }

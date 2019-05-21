@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This class represents a trust configuration that corresponds to the default trusted certificates of the JDK
@@ -71,12 +72,15 @@ class DefaultJDKTrustConfig extends TrustConfig {
 
     @Override
     public boolean equals(Object o) {
-        return o == this;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DefaultJDKTrustConfig that = (DefaultJDKTrustConfig) o;
+        return Objects.equals(trustStorePassword, that.trustStorePassword);
     }
 
     @Override
     public int hashCode() {
-        return System.identityHashCode(this);
+        return Objects.hash(trustStorePassword);
     }
 
     /**

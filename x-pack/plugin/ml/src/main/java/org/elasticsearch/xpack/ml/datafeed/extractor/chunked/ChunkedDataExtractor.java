@@ -114,7 +114,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             currentEnd = currentStart;
             chunkSpan = context.chunkSpan == null ? dataSummary.estimateChunk() : context.chunkSpan.getMillis();
             chunkSpan = context.timeAligner.alignToCeil(chunkSpan);
-            LOGGER.debug("[{}]Chunked search configured: kind = {}, dataTimeSpread = {} ms, chunk span = {} ms",
+            LOGGER.debug("[{}] Chunked search configured: kind = {}, dataTimeSpread = {} ms, chunk span = {} ms",
                     context.jobId, dataSummary.getClass().getSimpleName(), dataSummary.getDataTimeSpread(), chunkSpan);
         } else {
             // search is over
@@ -170,6 +170,11 @@ public class ChunkedDataExtractor implements DataExtractor {
         isCancelled = true;
     }
 
+    @Override
+    public long getEndTime() {
+        return context.end;
+    }
+
     ChunkedDataExtractorContext getContext() {
         return context;
     }
@@ -191,7 +196,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         private DataSummary newScrolledDataSummary() throws IOException {
-            SearchRequestBuilder searchRequestBuilder = rangeSearchRequest().setTypes(context.types);
+            SearchRequestBuilder searchRequestBuilder = rangeSearchRequest();
 
             SearchResponse response = executeSearchRequest(searchRequestBuilder);
             LOGGER.debug("[{}] Scrolling Data summary response was obtained", context.jobId);

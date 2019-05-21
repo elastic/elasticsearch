@@ -3,8 +3,6 @@
 [[sql-concepts]]
 == Conventions and Terminology
 
-beta[]
-
 For clarity, it is important to establish the meaning behind certain words as, the same wording might convey different meanings to different readers depending on one's familiarity with SQL versus {es}.
 
 NOTE: This documentation while trying to be complete, does assume the reader has _basic_ understanding of {es} and/or SQL. If that is not the case, please continue reading the documentation however take notes and pursue the topics that are unclear either through the main {es} documentation or through the plethora of SQL material available in the open (there are simply too many excellent resources here to enumerate).
@@ -14,8 +12,6 @@ in {es-sql}.
 Last but not least, {es-sql} tries to obey the https://en.wikipedia.org/wiki/Principle_of_least_astonishment[principle of least surprise], though as all things in the world, everything is relative.
 
 === Mapping concepts across SQL and {es}
-
-beta[]
 
 While SQL and {es} have different terms for the way the data is organized (and different semantics), essentially their purpose is the same.
 
@@ -62,7 +58,7 @@ Further more, an {es} `cluster` can be connected to other ++cluster++s in a _fed
 single cluster::
 Multiple {es} instances typically distributed across machines, running within the same namespace.
 multiple clusters::
-Multiple clusters, each with its own namespace, connected to each other in a federated setup (see <<modules-cross-cluster-search, Cross cluster Search>>).
+Multiple clusters, each with its own namespace, connected to each other in a federated setup (see <<modules-cross-cluster-search, {ccs-cap}>>).
 
 |===
 

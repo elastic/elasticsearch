@@ -44,7 +44,7 @@ public class ManyDocumentsIT extends ESRestTestCase {
             bulk.append("{\"index\":{}}\n");
             bulk.append("{\"test\":\"test\"}\n");
         }
-        Request request = new Request("POST", "/test/test/_bulk");
+        Request request = new Request("POST", "/test/_bulk");
         request.addParameter("refresh", "true");
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);

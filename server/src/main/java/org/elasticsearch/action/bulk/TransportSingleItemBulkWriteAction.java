@@ -23,89 +23,34 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.TransportWriteAction;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.function.Supplier;
 
 /** use transport bulk action directly */
 @Deprecated
 public abstract class TransportSingleItemBulkWriteAction<
     Request extends ReplicatedWriteRequest<Request>,
     Response extends ReplicationResponse & WriteResponse
-    > extends TransportWriteAction<Request, Request, Response> {
+    > extends HandledTransportAction<Request, Response> {
 
     private final TransportBulkAction bulkAction;
-    private final TransportShardBulkAction shardBulkAction;
 
-
-    protected TransportSingleItemBulkWriteAction(Settings settings, String actionName, TransportService transportService,
-                                                 ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
-                                                 ShardStateAction shardStateAction, ActionFilters actionFilters,
-                                                 IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
-                                                 Supplier<Request> replicaRequest, String executor,
-                                                 TransportBulkAction bulkAction, TransportShardBulkAction shardBulkAction) {
-        super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            indexNameExpressionResolver, request, replicaRequest, executor);
+    protected TransportSingleItemBulkWriteAction(String actionName, TransportService transportService, ActionFilters actionFilters,
+                                                 Writeable.Reader<Request> requestReader, TransportBulkAction bulkAction) {
+        super(actionName, transportService, actionFilters, requestReader);
         this.bulkAction = bulkAction;
-        this.shardBulkAction = shardBulkAction;
     }
-
 
     @Override
     protected void doExecute(Task task, final Request request, final ActionListener<Response> listener) {
         bulkAction.execute(task, toSingleItemBulkRequest(request), wrapBulkResponse(listener));
     }
-
-    @Override
-    protected WritePrimaryResult<Request, Response> shardOperationOnPrimary(
-        Request request, final IndexShard primary) throws Exception {
-        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
-        WriteRequest.RefreshPolicy refreshPolicy = request.getRefreshPolicy();
-        request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest<?>) request));
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), refreshPolicy, itemRequests);
-        WritePrimaryResult<BulkShardRequest, BulkShardResponse> bulkResult =
-            shardBulkAction.shardOperationOnPrimary(bulkShardRequest, primary);
-        assert bulkResult.finalResponseIfSuccessful.getResponses().length == 1 : "expected only one bulk shard response";
-        BulkItemResponse itemResponse = bulkResult.finalResponseIfSuccessful.getResponses()[0];
-        final Response response;
-        final Exception failure;
-        if (itemResponse.isFailed()) {
-            failure = itemResponse.getFailure().getCause();
-            response = null;
-        } else {
-            response = (Response) itemResponse.getResponse();
-            failure = null;
-        }
-        return new WritePrimaryResult<>(request, response, bulkResult.location, failure, primary, logger);
-    }
-
-    @Override
-    protected WriteReplicaResult<Request> shardOperationOnReplica(
-        Request replicaRequest, IndexShard replica) throws Exception {
-        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
-        WriteRequest.RefreshPolicy refreshPolicy = replicaRequest.getRefreshPolicy();
-        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest<?>) replicaRequest));
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(replicaRequest.shardId(), refreshPolicy, itemRequests);
-        WriteReplicaResult<BulkShardRequest> result = shardBulkAction.shardOperationOnReplica(bulkShardRequest, replica);
-        // a replica operation can never throw a document-level failure,
-        // as the same document has been already indexed successfully in the primary
-        return new WriteReplicaResult<>(replicaRequest, result.location, null, replica, logger);
-    }
-
 
     public static <Response extends ReplicationResponse & WriteResponse>
     ActionListener<BulkResponse> wrapBulkResponse(ActionListener<Response> listener) {

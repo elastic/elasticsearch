@@ -11,9 +11,9 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 
@@ -28,11 +28,12 @@ public class XPackUserTests extends ESTestCase {
         assertThat(predicate.test(index), Matchers.is(true));
     }
 
-    public void testXPackUserCannotAccessSecurityIndex() {
+    public void testXPackUserCannotAccessRestrictedIndices() {
         final String action = randomFrom(GetAction.NAME, SearchAction.NAME, IndexAction.NAME);
         final Predicate<String> predicate = XPackUser.ROLE.indices().allowedIndicesMatcher(action);
-        assertThat(predicate.test(SecurityIndexManager.SECURITY_INDEX_NAME), Matchers.is(false));
-        assertThat(predicate.test(SecurityIndexManager.INTERNAL_SECURITY_INDEX), Matchers.is(false));
+        for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
+            assertThat(predicate.test(index), Matchers.is(false));
+        }
     }
 
     public void testXPackUserCanReadAuditTrail() {

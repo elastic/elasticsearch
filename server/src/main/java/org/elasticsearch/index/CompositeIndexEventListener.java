@@ -31,9 +31,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -50,7 +48,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 throw new IllegalArgumentException("listeners must be non-null");
             }
         }
-        this.listeners = Collections.unmodifiableList(new ArrayList<>(listeners));
+        this.listeners = List.copyOf(listeners);
         this.logger = Loggers.getLogger(getClass(), indexSettings.getIndex());
     }
 
@@ -243,6 +241,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 listener.beforeIndexAddedToCluster(index, indexSettings);
             } catch (Exception e) {
                 logger.warn("failed to invoke before index added to cluster callback", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public void onStoreCreated(ShardId shardId) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.onStoreCreated(shardId);
+            } catch (Exception e) {
+                logger.warn("failed to invoke on store created", e);
                 throw e;
             }
         }

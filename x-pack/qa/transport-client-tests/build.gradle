@@ -10,3 +10,13 @@ integTestCluster {
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
 }
+
+
+testingConventions {
+  naming.clear()
+  naming {
+    IT {
+      baseClass 'org.elasticsearch.xpack.ml.client.ESXPackSmokeClientTestCase'
+    }
+  }
+}

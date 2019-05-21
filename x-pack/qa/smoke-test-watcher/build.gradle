@@ -1,16 +1,8 @@
-import groovy.json.JsonSlurper
-
-import javax.net.ssl.HttpsURLConnection
-import java.nio.charset.StandardCharsets
-
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
-  testCompile project(path: ':modules:lang-mustache', configuration: 'runtime')
-  testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
+  testCompile project(':x-pack:qa')
 }
 
 integTestCluster {
@@ -20,4 +12,8 @@ integTestCluster {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+}
+
+integTestRunner {
+  include "**/*Tests.class"
 }

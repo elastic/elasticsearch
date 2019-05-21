@@ -5,7 +5,7 @@
           wait_for_status: yellow
 
   - do:
-      xpack.watcher.put_watch:
+      watcher.put_watch:
         id: "slack_watch"
         body:  >
           {
@@ -76,7 +76,7 @@
           }
   
   - do:
-      xpack.watcher.execute_watch:
+      watcher.execute_watch:
         id: "slack_watch"
         body: >
           {

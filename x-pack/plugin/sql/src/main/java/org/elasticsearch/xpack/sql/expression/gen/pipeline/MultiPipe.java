@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public abstract class MultiPipe extends Pipe {
 
-    protected MultiPipe(Location location, Expression expression, List<Pipe> children) {
-        super(location, expression, children);
+    protected MultiPipe(Source source, Expression expression, List<Pipe> children) {
+        super(source, expression, children);
     }
 
     @Override

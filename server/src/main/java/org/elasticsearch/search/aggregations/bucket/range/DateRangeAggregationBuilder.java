@@ -30,9 +30,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
+import java.time.ZonedDateTime;
 import java.util.Map;
 
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
@@ -224,24 +224,24 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregationBuilder addRange(String key, DateTime from, DateTime to) {
+    public DateRangeAggregationBuilder addRange(String key, ZonedDateTime from, ZonedDateTime to) {
         addRange(new RangeAggregator.Range(key, convertDateTime(from), convertDateTime(to)));
         return this;
     }
 
-    private static Double convertDateTime(DateTime dateTime) {
+    private static Double convertDateTime(ZonedDateTime dateTime) {
         if (dateTime == null) {
             return null;
         } else {
-            return (double) dateTime.getMillis();
+            return (double) dateTime.toInstant().toEpochMilli();
         }
     }
 
     /**
-     * Same as {@link #addRange(String, DateTime, DateTime)} but the key will be
+     * Same as {@link #addRange(String, ZonedDateTime, ZonedDateTime)} but the key will be
      * automatically generated based on <code>from</code> and <code>to</code>.
      */
-    public DateRangeAggregationBuilder addRange(DateTime from, DateTime to) {
+    public DateRangeAggregationBuilder addRange(ZonedDateTime from, ZonedDateTime to) {
         return addRange(null, from, to);
     }
 
@@ -253,16 +253,16 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      * @param to
      *            the upper bound on the dates, exclusive
      */
-    public DateRangeAggregationBuilder addUnboundedTo(String key, DateTime to) {
+    public DateRangeAggregationBuilder addUnboundedTo(String key, ZonedDateTime to) {
         addRange(new RangeAggregator.Range(key, null, convertDateTime(to)));
         return this;
     }
 
     /**
-     * Same as {@link #addUnboundedTo(String, DateTime)} but the key will be
+     * Same as {@link #addUnboundedTo(String, ZonedDateTime)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregationBuilder addUnboundedTo(DateTime to) {
+    public DateRangeAggregationBuilder addUnboundedTo(ZonedDateTime to) {
         return addUnboundedTo(null, to);
     }
 
@@ -274,16 +274,16 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      * @param from
      *            the lower bound on the distances, inclusive
      */
-    public DateRangeAggregationBuilder addUnboundedFrom(String key, DateTime from) {
+    public DateRangeAggregationBuilder addUnboundedFrom(String key, ZonedDateTime from) {
         addRange(new RangeAggregator.Range(key, convertDateTime(from), null));
         return this;
     }
 
     /**
-     * Same as {@link #addUnboundedFrom(String, DateTime)} but the key will be
+     * Same as {@link #addUnboundedFrom(String, ZonedDateTime)} but the key will be
      * computed automatically.
      */
-    public DateRangeAggregationBuilder addUnboundedFrom(DateTime from) {
+    public DateRangeAggregationBuilder addUnboundedFrom(ZonedDateTime from) {
         return addUnboundedFrom(null, from);
     }
 

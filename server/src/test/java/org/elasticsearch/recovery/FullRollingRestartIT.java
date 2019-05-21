@@ -30,7 +30,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -55,8 +54,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
     }
 
     public void testFullRollingRestart() throws Exception {
-        Settings settings = Settings.builder().put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "30s").build();
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
         createIndex("test");
 
         final String healthTimeout = "1m";
@@ -72,16 +70,16 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         }
 
         logger.info("--> now start adding nodes");
-        internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
+        internalCluster().startNode();
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout)
                 .setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("3"));
 
         logger.info("--> add two more nodes");
-        internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        internalCluster().startNode();
+        internalCluster().startNode();
 
         // make sure the cluster state is green, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout)

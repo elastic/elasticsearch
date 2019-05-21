@@ -30,7 +30,7 @@ import java.io.IOException;
 public class DeleteAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "delete";
 
-    private static final ObjectParser<DeleteAction, Void> PARSER = new ObjectParser<>(NAME, DeleteAction::new);
+    private static final ObjectParser<DeleteAction, Void> PARSER = new ObjectParser<>(NAME, true, DeleteAction::new);
 
     public static DeleteAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);

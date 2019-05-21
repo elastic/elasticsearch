@@ -1358,7 +1358,7 @@ PUT /persian_example
       "char_filter": {
         "zero_width_spaces": {
             "type":       "mapping",
-            "mappings": [ "\\u200C=> "] <1>
+            "mappings": [ "\\u200C=>\\u0020"] <1>
         }
       },
       "filter": {

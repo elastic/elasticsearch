@@ -33,7 +33,7 @@ public class ShrinkAction implements LifecycleAction, ToXContentObject {
     private static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, a -> new ShrinkAction((Integer) a[0]));
+        new ConstructingObjectParser<>(NAME, true, a -> new ShrinkAction((Integer) a[0]));
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), NUMBER_OF_SHARDS_FIELD);

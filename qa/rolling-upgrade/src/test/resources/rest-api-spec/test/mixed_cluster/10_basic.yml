@@ -61,9 +61,9 @@
           query:
             percolate:
               field: query
-              type: doc
               document:
                 field2: value
                 field3: value
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: q3 }
+

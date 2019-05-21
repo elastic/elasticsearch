@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.gen.pipeline;
 
 import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.Arrays;
 import java.util.List;
@@ -17,8 +17,8 @@ public abstract class BinaryPipe extends Pipe {
 
     private final Pipe left, right;
 
-    public BinaryPipe(Location location, Expression expression, Pipe left, Pipe right) {
-        super(location, expression, Arrays.asList(left, right));
+    public BinaryPipe(Source source, Expression expression, Pipe left, Pipe right) {
+        super(source, expression, Arrays.asList(left, right));
         this.left = left;
         this.right = right;
     }

@@ -17,6 +17,7 @@ it is advisable to avoid going beyond a couple tens of megabytes per request
 even if larger requests seem to perform better.
 
 [float]
+[[multiple-workers-threads]]
 === Use multiple workers/threads to send data to Elasticsearch
 
 A single thread sending bulk requests is unlikely to be able to max out the
@@ -36,12 +37,24 @@ number of workers is. This can be tested by progressively increasing the
 number of workers until either I/O or CPU is saturated on the cluster.
 
 [float]
-=== Increase the refresh interval
+=== Unset or increase the refresh interval
 
-The default <<dynamic-index-settings,`index.refresh_interval`>> is `1s`, which
-forces Elasticsearch to create a new segment every second.
-Increasing this value (to say, `30s`) will allow larger segments to flush and
-decreases future merge pressure.
+The operation that consists of making changes visible to search - called a
+<<indices-refresh,refresh>> - is costly, and calling it often while there is
+ongoing indexing activity can hurt indexing speed.
+
+By default, Elasticsearch runs this operation every second, but only on
+indices that have received one search request or more in the last 30 seconds.
+This is the optimal configuration if you have no or very little search traffic
+(e.g. less than one search request every 5 minutes) and want to optimize for
+indexing speed.
+
+On the other hand, if your index experiences regular search requests, this
+default behavior means that Elasticsearch will refresh your index every 1
+second. If you can afford to increase the amount of time between when a document
+gets indexed and when it becomes visible, increasing the
+<<dynamic-index-settings,`index.refresh_interval`>> to a larger value, e.g.
+`30s`, might help improve indexing speed.
 
 [float]
 === Disable refresh and replicas for initial loads
@@ -113,13 +126,6 @@ indexing.
 The default is `10%` which is often plenty: for example, if you give the JVM
 10GB of memory, it will give 1GB to the index buffer, which is enough to host
 two shards that are heavily indexing.
-
-[float]
-=== Disable `_field_names`
-
-The <<mapping-field-names-field,`_field_names` field>> introduces some
-index-time overhead, so you might want to disable it if you never need to
-run `exists` queries.
 
 [float]
 === Additional optimizations

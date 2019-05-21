@@ -19,8 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractStreamableXContentTestCase;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,7 +36,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<AnalyzeResponse> {
+import static org.hamcrest.Matchers.equalTo;
+
+public class AnalyzeResponseTests extends AbstractSerializingTestCase<AnalyzeResponse> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
@@ -43,8 +51,8 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
     }
 
     @Override
-    protected AnalyzeResponse createBlankInstance() {
-        return new AnalyzeResponse();
+    protected Writeable.Reader<AnalyzeResponse> instanceReader() {
+        return AnalyzeResponse::new;
     }
 
     @Override
@@ -54,21 +62,24 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
         for (int i = 0; i < tokenCount; i++) {
             tokens[i] = randomToken();
         }
-        DetailAnalyzeResponse dar = null;
         if (randomBoolean()) {
-            dar = new DetailAnalyzeResponse();
+            DetailAnalyzeResponse.CharFilteredText[] charfilters = null;
+            DetailAnalyzeResponse.AnalyzeTokenList[] tokenfilters = null;
             if (randomBoolean()) {
-                dar.charfilters(new DetailAnalyzeResponse.CharFilteredText[]{
+                charfilters = new DetailAnalyzeResponse.CharFilteredText[]{
                     new DetailAnalyzeResponse.CharFilteredText("my_charfilter", new String[]{"one two"})
-                });
+                };
             }
-            dar.tokenizer(new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenizer", tokens));
             if (randomBoolean()) {
-                dar.tokenfilters(new DetailAnalyzeResponse.AnalyzeTokenList[]{
+                tokenfilters = new DetailAnalyzeResponse.AnalyzeTokenList[]{
                     new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_1", tokens),
                     new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenfilter_2", tokens)
-                });
+                };
             }
+            DetailAnalyzeResponse dar = new DetailAnalyzeResponse(
+                charfilters,
+                new DetailAnalyzeResponse.AnalyzeTokenList("my_tokenizer", tokens),
+                tokenfilters);
             return new AnalyzeResponse(null, dar);
         }
         return new AnalyzeResponse(Arrays.asList(tokens), null);
@@ -111,5 +122,32 @@ public class AnalyzeResponseTests extends AbstractStreamableXContentTestCase<Ana
             }
         }
         return new AnalyzeResponse.AnalyzeToken(token, position, startOffset, endOffset, posLength, type, extras);
+    }
+
+    public void testNullResponseToXContent() throws IOException {
+        DetailAnalyzeResponse.CharFilteredText[] charfilters = null;
+
+        String name = "test_tokens_null";
+        AnalyzeResponse.AnalyzeToken[] tokens = null;
+        DetailAnalyzeResponse.AnalyzeTokenList tokenizer = null;
+
+
+        DetailAnalyzeResponse.AnalyzeTokenList tokenfiltersItem = new DetailAnalyzeResponse.AnalyzeTokenList(name, tokens);
+        DetailAnalyzeResponse.AnalyzeTokenList[] tokenfilters = {tokenfiltersItem};
+
+        DetailAnalyzeResponse detail = new DetailAnalyzeResponse(charfilters, tokenizer, tokenfilters);
+
+        AnalyzeResponse response = new AnalyzeResponse(null, detail);
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            Map<String, Object> converted = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            List<Map<String, Object>> tokenfiltersValue = (List<Map<String, Object>>) ((Map<String, Object>)
+                converted.get("detail")).get("tokenfilters");
+            List<Map<String, Object>> nullTokens = (List<Map<String, Object>>) tokenfiltersValue.get(0).get("tokens");
+            String nameValue = (String) tokenfiltersValue.get(0).get("name");
+            assertThat(nullTokens.size(), equalTo(0));
+            assertThat(name, equalTo(nameValue));
+        }
+
     }
 }

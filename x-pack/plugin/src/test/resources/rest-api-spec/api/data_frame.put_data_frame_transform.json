@@ -1,0 +1,21 @@
+{
+  "data_frame.put_data_frame_transform": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/put-data-frame-transform.html",
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_data_frame/transforms/{transform_id}",
+      "paths": [ "/_data_frame/transforms/{transform_id}" ],
+      "parts": {
+        "transform_id": {
+          "type": "string",
+          "required": true,
+          "description": "The id of the new transform."
+        }
+      }
+    },
+    "body": {
+      "description" : "The data frame transform definition",
+      "required": true
+    }
+  }
+}

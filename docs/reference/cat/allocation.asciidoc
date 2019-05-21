@@ -21,5 +21,6 @@ shards disk.indices disk.used disk.avail disk.total disk.percent host      ip   
 // TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/ s/46/\\d+/]
 // TESTRESPONSE[s/CSUXak2/.+/ _cat]
 
-Here we can see that each node has been allocated a single shard and
-that they're all using about the same amount of space.
+Here we can see that the single shard created has been allocated to the single
+node available.
+

@@ -10,21 +10,23 @@ import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.BinaryArithmeticProcessor.BinaryArithmeticOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypeConversion;
+
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isNumeric;
 
 public abstract class ArithmeticOperation extends BinaryOperator<Object, Object, Object, BinaryArithmeticOperation> {
 
     private DataType dataType;
 
-    protected ArithmeticOperation(Location location, Expression left, Expression right, BinaryArithmeticOperation operation) {
-        super(location, left, right, operation);
+    protected ArithmeticOperation(Source source, Expression left, Expression right, BinaryArithmeticOperation operation) {
+        super(source, left, right, operation);
     }
     
     @Override
     protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
-        return Expressions.typeMustBeNumeric(e, symbol(), paramOrdinal);
+        return isNumeric(e, sourceText(), paramOrdinal);
     }
 
     @Override
@@ -42,6 +44,6 @@ public abstract class ArithmeticOperation extends BinaryOperator<Object, Object,
 
     @Override
     protected Pipe makePipe() {
-        return new BinaryArithmeticPipe(location(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
+        return new BinaryArithmeticPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 }

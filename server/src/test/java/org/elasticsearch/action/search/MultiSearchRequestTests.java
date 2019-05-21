@@ -48,6 +48,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -180,7 +181,16 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(2).routing(), equalTo("123"));
     }
 
-    public void testResponseErrorToXContent() throws IOException {
+    public void testNoMetadata() throws Exception {
+        MultiSearchRequest request = parseMultiSearchRequest("/org/elasticsearch/action/search/msearch-no-metadata.json");
+        assertThat(request.requests().size(), equalTo(4));
+        for (SearchRequest searchRequest : request.requests()) {
+            assertThat(searchRequest.indices().length, equalTo(0));
+            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
+        }
+    }
+
+    public void testResponseErrorToXContent() {
         long tookInMillis = randomIntBetween(1, 1000);
         MultiSearchResponse response = new MultiSearchResponse(
                 new MultiSearchResponse.Item[] {
@@ -262,12 +272,12 @@ public class MultiSearchRequestTests extends ESTestCase {
                 parsedRequest.add(r);
             };
             MultiSearchRequest.readMultiLineFormat(new BytesArray(originalBytes), xContentType.xContent(),
-                    consumer, null, null, null, null, null, xContentRegistry(), true);
+                    consumer, null, null, null, null, null, null, xContentRegistry(), true);
             assertEquals(originalRequest, parsedRequest);
         }
     }
 
-    public void testEqualsAndHashcode() throws IOException {
+    public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(createMultiSearchRequest(), MultiSearchRequestTests::copyRequest, MultiSearchRequestTests::mutate);
     }
 
@@ -282,7 +292,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return mutation;
     }
 
-    private static MultiSearchRequest copyRequest(MultiSearchRequest request) throws IOException {
+    private static MultiSearchRequest copyRequest(MultiSearchRequest request) {
         MultiSearchRequest copy = new MultiSearchRequest();
         if (request.maxConcurrentSearchRequests() > 0) {
             copy.maxConcurrentSearchRequests(request.maxConcurrentSearchRequests());
@@ -294,7 +304,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return copy;
     }
 
-    private static MultiSearchRequest createMultiSearchRequest() throws IOException {
+    private static MultiSearchRequest createMultiSearchRequest() {
         int numSearchRequest = randomIntBetween(1, 128);
         MultiSearchRequest request = new MultiSearchRequest();
         for (int j = 0; j < numSearchRequest; j++) {
@@ -321,7 +331,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         return request;
     }
 
-    private static SearchRequest createSimpleSearchRequest() throws IOException {
+    private static SearchRequest createSimpleSearchRequest() {
         return randomSearchRequest(() -> {
             // No need to return a very complex SearchSourceBuilder here, that is tested elsewhere
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();

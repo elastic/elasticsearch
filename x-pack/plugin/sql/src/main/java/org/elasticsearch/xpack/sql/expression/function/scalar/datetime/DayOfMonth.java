@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeProcessor.DateTimeExtractor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
 
 import java.time.ZoneId;
@@ -16,8 +16,8 @@ import java.time.ZoneId;
  * Extract the day of the month from a datetime.
  */
 public class DayOfMonth extends DateTimeFunction {
-    public DayOfMonth(Location location, Expression field, ZoneId zoneId) {
-        super(location, field, zoneId, DateTimeExtractor.DAY_OF_MONTH);
+    public DayOfMonth(Source source, Expression field, ZoneId zoneId) {
+        super(source, field, zoneId, DateTimeExtractor.DAY_OF_MONTH);
     }
 
     @Override
@@ -27,7 +27,7 @@ public class DayOfMonth extends DateTimeFunction {
 
     @Override
     protected DayOfMonth replaceChild(Expression newChild) {
-        return new DayOfMonth(location(), newChild, zoneId());
+        return new DayOfMonth(source(), newChild, zoneId());
     }
 
     @Override

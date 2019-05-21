@@ -111,7 +111,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
                 .remove(clusterState.routingTable().index("test2").shard(0).primaryShard().currentNodeId())
         )
                 .build();
-        clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
         routingNodes = clusterState.getRoutingNodes();
 
         for (RoutingNode routingNode : routingNodes) {
@@ -230,7 +230,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         }
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
-            VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, null));
+            VersionUtils.randomIndexCompatibleVersion(random()));
     }
 
 }

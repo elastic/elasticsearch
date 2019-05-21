@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Foldables;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.ArrayList;
@@ -19,8 +19,8 @@ import static org.elasticsearch.xpack.sql.expression.predicate.conditional.Condi
 
 public class Greatest extends ArbitraryConditionalFunction {
 
-    public Greatest(Location location, List<Expression> fields) {
-        super(location, new ArrayList<>(new LinkedHashSet<>(fields)), GREATEST);
+    public Greatest(Source source, List<Expression> fields) {
+        super(source, new ArrayList<>(new LinkedHashSet<>(fields)), GREATEST);
     }
 
     @Override
@@ -30,7 +30,7 @@ public class Greatest extends ArbitraryConditionalFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Greatest(location(), newChildren);
+        return new Greatest(source(), newChildren);
     }
 
     @Override

@@ -128,7 +128,7 @@ include-tagged::{doc-tests-file}[{api}-conflict]
 --------------------------------------------------
 <1> `getResponse` is null.
 <2> `getFailure` isn't and contains an `Exception`.
-<3> That `Exception` is actuall and `ElasticsearchException`
+<3> That `Exception` is actually an `ElasticsearchException`
 <4> and it has a status of `CONFLICT`. It'd have been an HTTP 409 if this
 wasn't a multi get.
 <5> `getMessage` explains the actual cause, `

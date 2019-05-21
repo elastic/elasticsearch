@@ -15,19 +15,6 @@ err_exit() {
     exit 1
 }
 
-# Check for these at preinst time due to failures in postinst if they do not exist
-if [ -x "$JAVA_HOME/bin/java" ]; then
-    JAVA="$JAVA_HOME/bin/java"
-elif command -v java; then
-    JAVA=`command -v java`
-else
-    JAVA=""
-fi
-
-if [ -z "$JAVA" ]; then
-    err_exit "could not find java; set JAVA_HOME or ensure java is in PATH"
-fi
-
 case "$1" in
 
     # Debian ####################################################

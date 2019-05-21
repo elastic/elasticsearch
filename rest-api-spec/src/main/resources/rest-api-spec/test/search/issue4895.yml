@@ -7,7 +7,6 @@ setup:
   - do:
       index:
           index:  test
-          type:   test
           id:     1
           body:
               user : foo
@@ -26,12 +25,9 @@ setup:
       search:
           rest_total_hits_as_int: true
           index: test
-          type:  test
           body:
               query:
                   term:
                       data: some
                   preference: _local
               stored_fields: [user,amount]
-
-

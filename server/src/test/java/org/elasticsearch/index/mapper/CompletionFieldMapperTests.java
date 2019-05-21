@@ -908,6 +908,28 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
+    public void testLimitOfContextMappings() throws Throwable {
+        final String index = "test";
+        XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().startObject().startObject("properties")
+            .startObject("suggest").field("type", "completion").startArray("contexts");
+        for (int i = 0; i < CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + 1; i++) {
+            mappingBuilder.startObject();
+            mappingBuilder.field("name", Integer.toString(i));
+            mappingBuilder.field("type", "category");
+            mappingBuilder.endObject();
+        }
+
+        mappingBuilder.endArray().endObject().endObject().endObject();
+        String mappings = Strings.toString(mappingBuilder);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            createIndex(index).mapperService().documentMapperParser().parse("type1", new CompressedXContent(mappings));
+        });
+        assertTrue(e.getMessage(),
+            e.getMessage().contains("Limit of completion field contexts [" +
+                CompletionFieldMapper.COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"));
+    }
+
     private Matcher<IndexableField> suggestField(String value) {
         return Matchers.allOf(hasProperty(IndexableField::stringValue, equalTo(value)),
             Matchers.instanceOf(SuggestField.class));

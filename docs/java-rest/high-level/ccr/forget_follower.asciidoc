@@ -1,0 +1,45 @@
+--
+:api: ccr-forget-follower
+:request: ForgetFollowerRequest
+:response: BroadcastResponse
+--
+
+[id="{upid}-{api}"]
+=== Forget Follower API
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Forget Follower API allows you to manually remove the follower retention
+leases from the leader. Note that these retention leases are automatically
+managed by the following index. This API exists only for cases when invoking
+the unfollow API on the follower index is unable to remove the follower
+retention leases.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The name of the cluster containing the follower index.
+<2> The name of the follower index.
+<3> The UUID of the follower index (can be obtained from index stats).
+<4> The alias of the remote cluster containing the leader index.
+<5> The name of the leader index.
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ indicates if the response was successful.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The high-level shards summary.
+<2> The total number of shards the request was executed on.
+<3> The total number of shards the request was successful on.
+<4> The total number of shards the request was skipped on (should always be zero).
+<5> The total number of shards the request failed on.
+<6> The shard-level failures.
+
+include::../execution.asciidoc[]

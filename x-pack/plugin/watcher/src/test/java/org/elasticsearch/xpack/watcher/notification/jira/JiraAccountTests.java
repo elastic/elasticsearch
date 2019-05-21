@@ -9,6 +9,7 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
@@ -53,29 +54,38 @@ public class JiraAccountTests extends ESTestCase {
 
     public void testJiraAccountSettings() {
         final String url = "https://internal-jira.elastic.co:443";
+        final MockSecureSettings secureSettings = new MockSecureSettings();
 
         SettingsException e = expectThrows(SettingsException.class, () -> new JiraAccount(null, Settings.EMPTY, null));
-        assertThat(e.getMessage(), containsString("invalid jira [null] account settings. missing required [url] setting"));
+        assertThat(e.getMessage(), containsString("invalid jira [null] account settings. missing required [secure_url] setting"));
 
-        Settings settings1 = Settings.builder().put("url", url).build();
+        secureSettings.setString("secure_url", url);
+        Settings settings1 = Settings.builder().setSecureSettings(secureSettings).build();
         e = expectThrows(SettingsException.class, () -> new JiraAccount("test", settings1, null));
-        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [user] setting"));
+        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [secure_user] setting"));
 
-        Settings settings2 = Settings.builder().put("url", url).put("user", "").build();
+        secureSettings.setString("secure_user", "");
+        Settings settings2 = Settings.builder().setSecureSettings(secureSettings).build();
         e = expectThrows(SettingsException.class, () -> new JiraAccount("test", settings2, null));
-        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [user] setting"));
+        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [secure_user] setting"));
 
-        Settings settings3 = Settings.builder().put("url", url).put("user", "foo").build();
+        secureSettings.setString("secure_user", "foo");
+        Settings settings3 = Settings.builder().setSecureSettings(secureSettings).build();
         e = expectThrows(SettingsException.class, () -> new JiraAccount("test", settings3, null));
-        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [password] setting"));
+        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [secure_password] setting"));
 
-        Settings settings4 = Settings.builder().put("url", url).put("user", "foo").put("password", "").build();
+        secureSettings.setString("secure_password", "");
+        Settings settings4 = Settings.builder().setSecureSettings(secureSettings).build();
         e = expectThrows(SettingsException.class, () -> new JiraAccount("test", settings4, null));
-        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [password] setting"));
+        assertThat(e.getMessage(), containsString("invalid jira [test] account settings. missing required [secure_password] setting"));
     }
 
     public void testUnsecureAccountUrl() throws Exception {
-        Settings settings = Settings.builder().put("url", "http://localhost").put("user", "foo").put("password", "bar").build();
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(JiraAccount.SECURE_USER_SETTING.getKey(), "foo");
+        secureSettings.setString(JiraAccount.SECURE_PASSWORD_SETTING.getKey(), "password");
+        secureSettings.setString(JiraAccount.SECURE_URL_SETTING.getKey(), "http://localhost");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         SettingsException e = expectThrows(SettingsException.class, () -> new JiraAccount("test", settings, null));
         assertThat(e.getMessage(), containsString("invalid jira [test] account settings. unsecure scheme [HTTP]"));
 
@@ -128,15 +138,19 @@ public class JiraAccountTests extends ESTestCase {
     }
 
     public void testCustomUrls() throws Exception {
-        assertCustomUrl(Settings.builder().put("url", "https://localhost/foo").build(), "/foo");
-        assertCustomUrl(Settings.builder().put("url", "https://localhost/foo/").build(), "/foo/");
+        assertCustomUrl("https://localhost/foo", "/foo");
+        assertCustomUrl("https://localhost/foo/", "/foo/");
         // this ensures we retain backwards compatibility
-        assertCustomUrl(Settings.builder().put("url", "https://localhost/").build(), JiraAccount.DEFAULT_PATH);
-        assertCustomUrl(Settings.builder().put("url", "https://localhost").build(), JiraAccount.DEFAULT_PATH);
+        assertCustomUrl("https://localhost/", JiraAccount.DEFAULT_PATH);
+        assertCustomUrl("https://localhost", JiraAccount.DEFAULT_PATH);
     }
 
-    private void assertCustomUrl(Settings urlSettings, String expectedPath) throws IOException {
-        Settings settings = Settings.builder().put(urlSettings).put("user", "foo").put("password", "bar").build();
+    private void assertCustomUrl(String urlSettings, String expectedPath) throws IOException {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("secure_url", urlSettings);
+        secureSettings.setString("secure_user", "foo");
+        secureSettings.setString("secure_password", "bar");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         HttpClient client = mock(HttpClient.class);
 
         HttpResponse response = new HttpResponse(200);
@@ -153,9 +167,14 @@ public class JiraAccountTests extends ESTestCase {
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {
-        builder.put("xpack.notification.jira.account." + name + "." + JiraAccount.URL_SETTING, "https://internal-jira.elastic.co:443");
-        builder.put("xpack.notification.jira.account." + name + "." + JiraAccount.USER_SETTING, randomAlphaOfLength(10));
-        builder.put("xpack.notification.jira.account." + name + "." + JiraAccount.PASSWORD_SETTING, randomAlphaOfLength(10));
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_URL_SETTING.getKey(),
+                "https://internal-jira.elastic.co:443");
+        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_USER_SETTING.getKey(),
+                randomAlphaOfLength(10));
+        secureSettings.setString("xpack.notification.jira.account." + name + "." + JiraAccount.SECURE_PASSWORD_SETTING.getKey(),
+                randomAlphaOfLength(10));
+        builder.setSecureSettings(secureSettings);
 
         Map<String, Object> defaults = randomIssueDefaults();
         for (Map.Entry<String, Object> setting : defaults.entrySet()) {

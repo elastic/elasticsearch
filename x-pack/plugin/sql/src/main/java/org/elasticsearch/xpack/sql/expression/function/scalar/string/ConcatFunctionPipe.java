@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Objects;
 
 public class ConcatFunctionPipe extends BinaryPipe {
 
-    public ConcatFunctionPipe(Location location, Expression expression, Pipe left, Pipe right) {
-        super(location, expression, left, right);
+    public ConcatFunctionPipe(Source source, Expression expression, Pipe left, Pipe right) {
+        super(source, expression, left, right);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class ConcatFunctionPipe extends BinaryPipe {
 
     @Override
     protected BinaryPipe replaceChildren(Pipe left, Pipe right) {
-        return new ConcatFunctionPipe(location(), expression(), left, right);
+        return new ConcatFunctionPipe(source(), expression(), left, right);
     }
 
     @Override

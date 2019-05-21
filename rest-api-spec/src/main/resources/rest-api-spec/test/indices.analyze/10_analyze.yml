@@ -14,11 +14,10 @@
           index: test
           body:
             mappings:
-              test:
-                properties:
-                  text:
-                    type:     text
-                    analyzer: standard
+              properties:
+                text:
+                  type:     text
+                  analyzer: standard
 
     - do:
         indices.analyze:

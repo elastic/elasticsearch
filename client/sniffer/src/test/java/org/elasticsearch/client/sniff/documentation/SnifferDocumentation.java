@@ -52,7 +52,7 @@ import java.util.concurrent.TimeUnit;
 public class SnifferDocumentation {
 
     @SuppressWarnings("unused")
-    public void testUsage() throws IOException {
+    public void usage() throws IOException {
         {
             //tag::sniffer-init
             RestClient restClient = RestClient.builder(

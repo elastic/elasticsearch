@@ -15,7 +15,8 @@ public class CardinalityAgg extends LeafAgg {
         super(id, fieldName);
     }
 
-    @Override AggregationBuilder toBuilder() {
+    @Override
+    AggregationBuilder toBuilder() {
         return cardinality(id()).field(fieldName());
     }
 }

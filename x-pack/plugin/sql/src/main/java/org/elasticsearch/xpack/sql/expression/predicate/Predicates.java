@@ -42,11 +42,11 @@ public abstract class Predicates {
     }
 
     public static Expression combineOr(List<Expression> exps) {
-        return combine(exps, (l, r) -> new Or(l.location(), l, r));
+        return combine(exps, (l, r) -> new Or(l.source(), l, r));
     }
 
     public static Expression combineAnd(List<Expression> exps) {
-        return combine(exps, (l, r) -> new And(l.location(), l, r));
+        return combine(exps, (l, r) -> new And(l.source(), l, r));
     }
 
     /**
@@ -97,13 +97,18 @@ public abstract class Predicates {
         return common.isEmpty() ? emptyList() : common;
     }
 
-    public static List<Expression> subtract(List<Expression> from, List<Expression> r) {
-        List<Expression> diff = new ArrayList<>(Math.min(from.size(), r.size()));
-        for (Expression lExp : from) {
-            for (Expression rExp : r) {
-                if (!lExp.semanticEquals(rExp)) {
-                    diff.add(lExp);
+    public static List<Expression> subtract(List<Expression> from, List<Expression> list) {
+        List<Expression> diff = new ArrayList<>(Math.min(from.size(), list.size()));
+        for (Expression f : from) {
+            boolean found = false;
+            for (Expression l : list) {
+                if (f.semanticEquals(l)) {
+                    found = true;
+                    break;
                 }
+            }
+            if (found == false) {
+                diff.add(f);
             }
         }
         return diff.isEmpty() ? emptyList() : diff;

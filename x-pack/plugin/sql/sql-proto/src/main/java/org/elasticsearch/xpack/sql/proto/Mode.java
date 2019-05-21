@@ -12,6 +12,7 @@ import java.util.Locale;
  * SQL protocol mode
  */
 public enum Mode {
+    CLI,
     PLAIN,
     JDBC, 
     ODBC;

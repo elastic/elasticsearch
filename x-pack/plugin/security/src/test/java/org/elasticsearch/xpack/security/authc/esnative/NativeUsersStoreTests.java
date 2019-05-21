@@ -22,10 +22,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -110,8 +112,8 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
         final GetResult result = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
-                NativeUsersStore.INDEX_TYPE,
+                RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+                MapperService.SINGLE_MAPPING_NAME,
                 NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
             0, 1, 1L,
                 true,
@@ -179,8 +181,8 @@ public class NativeUsersStoreTests extends ESTestCase {
         nativeUsersStore.verifyPassword(username, password, future);
 
         final GetResult getResult = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
-                NativeUsersStore.INDEX_TYPE,
+                RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+                MapperService.SINGLE_MAPPING_NAME,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 UNASSIGNED_SEQ_NO, 0, 1L,
                 false,
@@ -221,14 +223,13 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);
         final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
-                SecurityIndexManager.SECURITY_INDEX_NAME,
-                NativeUsersStore.INDEX_TYPE,
+                RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+                MapperService.SINGLE_MAPPING_NAME,
                 NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
                 0, 1, 1L,
                 true,
                 source,
                 Collections.emptyMap());
-
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
     }

@@ -26,14 +26,21 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     private BulkItemRequest[] items;
 
-    public BulkShardRequest() {
+    public BulkShardRequest(StreamInput in) throws IOException {
+        super(in);
+        items = new BulkItemRequest[in.readVInt()];
+        for (int i = 0; i < items.length; i++) {
+            if (in.readBoolean()) {
+                items[i] = BulkItemRequest.readBulkItem(in);
+            }
+        }
     }
 
     public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
@@ -48,13 +55,19 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     @Override
     public String[] indices() {
-        List<String> indices = new ArrayList<>();
+        // A bulk shard request encapsulates items targeted at a specific shard of an index.
+        // However, items could be targeting aliases of the index, so the bulk request although
+        // targeting a single concrete index shard might do so using several alias names.
+        // These alias names have to be exposed by this method because authorization works with
+        // aliases too, specifically, the item's target alias can be authorized but the concrete
+        // index might not be.
+        Set<String> indices = new HashSet<>(1);
         for (BulkItemRequest item : items) {
             if (item != null) {
                 indices.add(item.index());
             }
         }
-        return indices.toArray(new String[indices.size()]);
+        return indices.toArray(new String[0]);
     }
 
     @Override
@@ -72,14 +85,8 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        items = new BulkItemRequest[in.readVInt()];
-        for (int i = 0; i < items.length; i++) {
-            if (in.readBoolean()) {
-                items[i] = BulkItemRequest.readBulkItem(in);
-            }
-        }
+    public void readFrom(StreamInput in) {
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override
@@ -108,7 +115,12 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
 
     @Override
     public String getDescription() {
-        return "requests[" + items.length + "], index[" + index + "]";
+        final StringBuilder stringBuilder = new StringBuilder().append("requests[").append(items.length).append("], index").append(shardId);
+        final RefreshPolicy refreshPolicy = getRefreshPolicy();
+        if (refreshPolicy == RefreshPolicy.IMMEDIATE || refreshPolicy == RefreshPolicy.WAIT_UNTIL) {
+            stringBuilder.append(", refresh[").append(refreshPolicy).append(']');
+        }
+        return stringBuilder.toString();
     }
 
     @Override

@@ -68,7 +68,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
                         .input(simpleInput())
-                        .addAction("my-logging-action", indexAction("my_watcher_index", "action")))
+                        .addAction("my-logging-action", indexAction("my_watcher_index")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));
 

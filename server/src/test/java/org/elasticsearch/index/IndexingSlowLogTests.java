@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -125,6 +126,22 @@ public class IndexingSlowLogTests extends ESTestCase {
                 hasToString(containsString("Failed to parse value [NOT A BOOLEAN] as only [true] or [false] are allowed.")));
         }
         assertTrue(log.isReformat());
+    }
+
+    public void testReformatIsFalseAndSourceIsTrim() {
+        String json = "\n\n{ \"fieldName\": 123 }  \n ";
+        BytesReference source = new BytesArray(json);
+        ParsedDocument pd = new ParsedDocument(new NumericDocValuesField("version", 1),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(), "id",
+            "test", null, null, source, XContentType.JSON, null);
+        Index index = new Index("foo", "123");
+        // Turning off reformatting so the document is in logs as provided
+        SlowLogParsedDocumentPrinter p = new SlowLogParsedDocumentPrinter(index, pd, 10, false, 1000);
+        String logLine = p.toString();
+
+        //expect the new lines and white characters to be trimmed
+        assertThat(logLine, containsString("source[{"));
+        assertThat(logLine.split("\n").length, equalTo(1));
     }
 
     public void testLevelSetting() {

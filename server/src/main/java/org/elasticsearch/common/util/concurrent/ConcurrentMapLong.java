@@ -28,6 +28,4 @@ public interface ConcurrentMapLong<T> extends ConcurrentMap<Long, T> {
     T remove(long key);
 
     T put(long key, T value);
-
-    T putIfAbsent(long key, T value);
 }

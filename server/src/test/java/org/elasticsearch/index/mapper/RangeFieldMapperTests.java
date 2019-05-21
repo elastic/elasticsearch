@@ -458,7 +458,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> parser.parse("type", new CompressedXContent(mapping)));
-        assertEquals("Invalid format: [[test_format]]: expected string value", e.getMessage());
+        assertEquals("Invalid format: [[test_format]]: Unknown pattern letter: t", e.getMessage());
     }
 
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
 
 import java.util.Collections;
@@ -34,7 +35,8 @@ public class SimpleSecurityNioTransportTests extends AbstractSimpleSecurityTrans
                 .put(settings)
                 .put("xpack.security.transport.ssl.enabled", true).build();
         Transport transport = new SecurityNioTransport(settings1, version, threadPool, networkService, new MockPageCacheRecycler(settings),
-            namedWriteableRegistry, new NoneCircuitBreakerService(), null, createSSLService(settings1)) {
+            namedWriteableRegistry, new NoneCircuitBreakerService(), null, createSSLService(settings1),
+            new NioGroupFactory(settings, logger)) {
 
             @Override
             public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,

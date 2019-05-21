@@ -24,6 +24,7 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
@@ -31,10 +32,12 @@ import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
@@ -44,12 +47,14 @@ import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpress
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.ApplicationPrivilege;
+import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
+import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -61,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.client.RequestConvertersTests.assertToXContentBody;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SecurityRequestConvertersTests extends ESTestCase {
 
@@ -134,8 +140,8 @@ public class SecurityRequestConvertersTests extends ESTestCase {
                 .addExpression(FieldRoleMapperExpression.ofUsername(username))
                 .addExpression(FieldRoleMapperExpression.ofGroups(groupname))
                 .build();
-        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(roleMappingName, true, Collections.singletonList(
-                rolename), rules, null, refreshPolicy);
+        final PutRoleMappingRequest putRoleMappingRequest = new PutRoleMappingRequest(roleMappingName, true,
+            Collections.singletonList(rolename), Collections.emptyList(), rules, null, refreshPolicy);
 
         final Request request = SecurityRequestConverters.putRoleMapping(putRoleMappingRequest);
 
@@ -346,11 +352,12 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         int noOfApplicationPrivileges = randomIntBetween(2, 4);
         final List<ApplicationPrivilege> privileges = new ArrayList<>();
         for (int count = 0; count < noOfApplicationPrivileges; count++) {
+            final String[] actions = generateRandomStringArray(3, 5, false, false);
             privileges.add(ApplicationPrivilege.builder()
                     .application(randomAlphaOfLength(4))
                     .privilege(randomAlphaOfLengthBetween(3, 5))
-                    .actions(Sets.newHashSet(generateRandomStringArray(3, 5, false, false)))
                     .metadata(Collections.singletonMap("k1", "v1"))
+                    .actions(actions == null ? Collections.emptyList() : List.of(actions))
                     .build());
         }
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
@@ -393,7 +400,8 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final List<String> indicesPrivilegeDeniedName = Arrays.asList(randomArray(3, String[]::new, () -> randomAlphaOfLength(5)));
         final String indicesPrivilegeQuery = randomAlphaOfLengthBetween(0, 7);
         final IndicesPrivileges indicesPrivilege = IndicesPrivileges.builder().indices(indicesName).privileges(indicesPrivilegeName)
-                .grantedFields(indicesPrivilegeGrantedName).deniedFields(indicesPrivilegeDeniedName).query(indicesPrivilegeQuery).build();
+                .allowRestrictedIndices(randomBoolean()).grantedFields(indicesPrivilegeGrantedName).deniedFields(indicesPrivilegeDeniedName)
+                .query(indicesPrivilegeQuery).build();
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final Map<String, String> expectedParams;
         if (refreshPolicy != RefreshPolicy.NONE) {
@@ -410,4 +418,47 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(putRoleRequest, request.getEntity());
     }
-}
+
+    public void testCreateApiKey() throws IOException {
+        final String name = randomAlphaOfLengthBetween(4, 7);
+        final List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        final TimeValue expiration = randomBoolean() ? null : TimeValue.timeValueHours(24);
+        final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, String> expectedParams;
+        if (refreshPolicy != RefreshPolicy.NONE) {
+            expectedParams = Collections.singletonMap("refresh", refreshPolicy.getValue());
+        } else {
+            expectedParams = Collections.emptyMap();
+        }
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+        final Request request = SecurityRequestConverters.createApiKey(createApiKeyRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/api_key", request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(createApiKeyRequest, request.getEntity());
+    }
+
+    public void testGetApiKey() throws IOException {
+        String realmName = randomAlphaOfLength(5);
+        String userName = randomAlphaOfLength(7);
+        final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName(realmName, userName);
+        final Request request = SecurityRequestConverters.getApiKey(getApiKeyRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/api_key", request.getEndpoint());
+        Map<String, String> mapOfParameters = new HashMap<>();
+        mapOfParameters.put("realm_name", realmName);
+        mapOfParameters.put("username", userName);
+        assertThat(request.getParameters(), equalTo(mapOfParameters));
+    }
+
+    public void testInvalidateApiKey() throws IOException {
+        String realmName = randomAlphaOfLength(5);
+        String userName = randomAlphaOfLength(7);
+        final InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName(realmName, userName);
+        final Request request = SecurityRequestConverters.invalidateApiKey(invalidateApiKeyRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/api_key", request.getEndpoint());
+        assertToXContentBody(invalidateApiKeyRequest, request.getEntity());
+    }
+ }

@@ -215,7 +215,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                         logger.trace(
                                             (Supplier<?>) () -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
                                         countSearchRetry.run();
-                                        threadPool.schedule(delay, ThreadPool.Names.SAME, RetryHelper.this);
+                                        threadPool.schedule(RetryHelper.this, delay, ThreadPool.Names.SAME);
                                         return;
                                     }
                                 }

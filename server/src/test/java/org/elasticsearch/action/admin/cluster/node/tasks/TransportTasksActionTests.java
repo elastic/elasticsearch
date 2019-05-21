@@ -205,7 +205,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,
                 List<? extends FailedNodeException> nodeFailures) {
             super(taskFailures, nodeFailures);
-            this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+            this.tasks = tasks == null ? Collections.emptyList() : List.copyOf(tasks);
         }
 
         TestTasksResponse(StreamInput in) throws IOException {
@@ -470,17 +470,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
         CountDownLatch responseLatch = new CountDownLatch(1);
-        Task task = startBlockingTestNodesAction(checkLatch, new ActionListener<NodesResponse>() {
-            @Override
-            public void onResponse(NodesResponse nodeResponses) {
-                responseLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                responseLatch.countDown();
-            }
-        });
+        Task task = startBlockingTestNodesAction(checkLatch, ActionListener.wrap(responseLatch::countDown));
         String actionName = "internal:testAction"; // only pick the main action
 
         // Try to cancel main task using action name
@@ -615,7 +605,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
         TestTasksResponse response = ActionTestUtils.executeBlocking(tasksActions[0], testTasksRequest);
         assertThat(response.getTaskFailures(), hasSize(1)); // one task failed
-        assertThat(response.getTaskFailures().get(0).getReason(), containsString("Task level failure"));
+        assertThat(response.getTaskFailures().get(0).getCause().getMessage(), containsString("Task level failure"));
         // Get successful responses from all nodes except one
         assertEquals(testNodes.length - 1, response.tasks.size());
         assertEquals(0, response.getNodeFailures().size()); // no nodes failed

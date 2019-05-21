@@ -19,6 +19,10 @@
 
 package org.elasticsearch.search.rescore;
 
+import org.apache.lucene.search.Query;
+
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -29,7 +33,7 @@ import java.util.Set;
 public class RescoreContext {
     private final int windowSize;
     private final Rescorer rescorer;
-    private Set<Integer> resroredDocs; //doc Ids for which rescoring was applied
+    private Set<Integer> rescoredDocs; //doc Ids for which rescoring was applied
 
     /**
      * Build the context.
@@ -55,10 +59,17 @@ public class RescoreContext {
     }
 
     public void setRescoredDocs(Set<Integer> docIds) {
-        resroredDocs = docIds;
+        rescoredDocs = docIds;
     }
 
     public boolean isRescored(int docId) {
-        return resroredDocs.contains(docId);
+        return rescoredDocs.contains(docId);
+    }
+
+    /**
+     * Returns queries associated with the rescorer
+     */
+    public List<Query> getQueries() {
+        return Collections.emptyList();
     }
 }

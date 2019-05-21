@@ -81,10 +81,15 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
                                 listener.onResponse(response);
                             } else {
                                 listener.onFailure(new ElasticsearchTimeoutException("Timed out after [" + request.timeout().getStringRep()
-                                    + "] while waiting for rollup job [" + request.getId() + "] to stop"));
+                                    + "] while waiting for rollup job [" + request.getId() + "] to stop. State was ["
+                                    + ((RollupJobStatus) jobTask.getStatus()).getIndexerState() + "]"));
                             }
                         } catch (InterruptedException e) {
                             listener.onFailure(e);
+                        } catch (Exception e) {
+                            listener.onFailure(new ElasticsearchTimeoutException("Encountered unexpected error while waiting for " +
+                                "rollup job [" + request.getId() + "] to stop.  State was ["
+                                + ((RollupJobStatus) jobTask.getStatus()).getIndexerState() + "].", e));
                         }
                     });
 

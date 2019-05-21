@@ -81,6 +81,8 @@ public class WatcherPluginTests extends ESTestCase {
 
         // also no component creation if not enabled
         assertThat(watcher.createComponents(null, null, null, null, null, null, null, null, null), hasSize(0));
+
+        watcher.close();
     }
 
     public void testThreadPoolSize() {

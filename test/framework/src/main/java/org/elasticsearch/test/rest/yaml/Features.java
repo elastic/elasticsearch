@@ -19,13 +19,9 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import static java.util.Collections.unmodifiableList;
+import java.util.List;
 
 /**
  * Allows to register additional features supported by the tests runner.
@@ -36,7 +32,8 @@ import static java.util.Collections.unmodifiableList;
  * and the related skip sections can be removed from the tests as well.
  */
 public final class Features {
-    private static final List<String> SUPPORTED = unmodifiableList(Arrays.asList(
+
+    private static final List<String> SUPPORTED = List.of(
             "catch_unauthorized",
             "default_shards",
             "embedded_stash_key",
@@ -47,8 +44,9 @@ public final class Features {
             "stash_path_replace",
             "warnings",
             "yaml",
-            "contains"
-    ));
+            "contains",
+            "transform_and_set",
+            "arbitrary_key");
 
     private Features() {
 
@@ -58,23 +56,19 @@ public final class Features {
      * Tells whether all the features provided as argument are supported
      */
     public static boolean areAllSupported(List<String> features) {
-        try {
-            for (String feature : features) {
-                if (feature.equals("xpack")) {
-                    if (false == ESRestTestCase.hasXPack()) {
-                        return false;
-                    }
-                } else if (feature.equals("no_xpack")) {
-                    if (ESRestTestCase.hasXPack()) {
-                        return false;
-                    }
-                } else if (false == SUPPORTED.contains(feature)) {
+        for (String feature : features) {
+            if (feature.equals("xpack")) {
+                if (false == ESRestTestCase.hasXPack()) {
                     return false;
                 }
+            } else if (feature.equals("no_xpack")) {
+                if (ESRestTestCase.hasXPack()) {
+                    return false;
+                }
+            } else if (false == SUPPORTED.contains(feature)) {
+                return false;
             }
-            return true;
-        } catch (IOException e) {
-            throw new RuntimeException("error checking if xpack is available", e);
         }
+        return true;
     }
 }

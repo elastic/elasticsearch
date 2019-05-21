@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -62,6 +62,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             .build();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37117")
     public void testFailOver() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);
@@ -105,6 +106,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37117")
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);
@@ -157,22 +159,15 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                 client().execute(GetDatafeedsStatsAction.INSTANCE, datafeedStatsRequest).actionGet();
         assertEquals(DatafeedState.STARTED, datafeedStatsResponse.getResponse().results().get(0).getDatafeedState());
 
-        // Can't normal stop an unassigned datafeed
+        // An unassigned datafeed can be stopped either normally or by force
         StopDatafeedAction.Request stopDatafeedRequest = new StopDatafeedAction.Request(datafeedId);
-        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
-                () -> client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).actionGet());
-        assertEquals("Cannot stop datafeed [" + datafeedId +
-                        "] because the datafeed does not have an assigned node. Use force stop to stop the datafeed",
-                statusException.getMessage());
-
-        // Can only force stop an unassigned datafeed
-        stopDatafeedRequest.setForce(true);
+        stopDatafeedRequest.setForce(randomBoolean());
         StopDatafeedAction.Response stopDatafeedResponse = client().execute(StopDatafeedAction.INSTANCE, stopDatafeedRequest).actionGet();
         assertTrue(stopDatafeedResponse.isStopped());
 
         // Can't normal stop an unassigned job
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(jobId);
-        statusException = expectThrows(ElasticsearchStatusException.class,
+        ElasticsearchStatusException statusException = expectThrows(ElasticsearchStatusException.class,
                 () -> client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet());
         assertEquals("Cannot close job [" + jobId +
                         "] because the job does not have an assigned node. Use force close to close the job",

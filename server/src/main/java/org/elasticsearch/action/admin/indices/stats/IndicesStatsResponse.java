@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.action.admin.indices.stats.IndexStats.IndexStatsBuilder;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -29,12 +30,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -83,26 +82,17 @@ public class IndicesStatsResponse extends BroadcastResponse {
         if (indicesStats != null) {
             return indicesStats;
         }
-        Map<String, IndexStats> indicesStats = new HashMap<>();
 
-        Set<Index> indices = new HashSet<>();
+        final Map<String, IndexStatsBuilder> indexToIndexStatsBuilder = new HashMap<>();
         for (ShardStats shard : shards) {
-            indices.add(shard.getShardRouting().index());
+            Index index = shard.getShardRouting().index();
+            IndexStatsBuilder indexStatsBuilder = indexToIndexStatsBuilder.computeIfAbsent(index.getName(),
+                    k -> new IndexStatsBuilder(k, index.getUUID()));
+            indexStatsBuilder.add(shard);
         }
 
-        for (Index index : indices) {
-            List<ShardStats> shards = new ArrayList<>();
-            String indexName = index.getName();
-            for (ShardStats shard : this.shards) {
-                if (shard.getShardRouting().getIndexName().equals(indexName)) {
-                    shards.add(shard);
-                }
-            }
-            indicesStats.put(
-                indexName, new IndexStats(indexName, index.getUUID(), shards.toArray(new ShardStats[shards.size()]))
-            );
-        }
-        this.indicesStats = indicesStats;
+        indicesStats = indexToIndexStatsBuilder.entrySet().stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().build()));
         return indicesStats;
     }
 

@@ -4,6 +4,9 @@ apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackModule('ccr'), configuration: 'runtime')
 }
 
@@ -12,7 +15,11 @@ task restTest(type: RestIntegTestTask) {
 }
 
 restTestCluster {
-    distribution 'zip'
+    distribution 'default'
+    // Disable assertions in FollowingEngineAssertions, otherwise an AssertionError is thrown before
+    // indexing a document directly in a follower index. In a rest test we like to test the exception
+    // that is thrown in production when indexing a document directly in a follower index.
+    environment 'ES_JAVA_OPTS', '-da:org.elasticsearch.xpack.ccr.index.engine.FollowingEngineAssertions'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setting 'xpack.security.enabled', 'true'
@@ -33,4 +40,4 @@ restTestCluster {
 }
 
 check.dependsOn restTest
-unitTest.enabled = false
+test.enabled = false

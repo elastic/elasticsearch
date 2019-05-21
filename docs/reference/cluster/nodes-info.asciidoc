@@ -143,7 +143,7 @@ The result will look similar to:
       "ip": "192.168.17",
       "version": "{version}",
       "build_flavor": "{build_flavor}",
-      "build_type": "zip",
+      "build_type": "{build_type}",
       "build_hash": "587409e",
       "roles": [
         "master",
@@ -224,7 +224,7 @@ The result will look similar to:
       "ip": "192.168.17",
       "version": "{version}",
       "build_flavor": "{build_flavor}",
-      "build_type": "zip",
+      "build_type": "{build_type}",
       "build_hash": "587409e",
       "roles": [],
       "attributes": {},

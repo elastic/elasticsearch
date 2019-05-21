@@ -1,49 +1,38 @@
 ---
 "Response format":
-
-  - skip:
-      version: " - 6.1.99"
-      reason: the ranking evaluation feature is available since 6.2
-
   - do:
       index:
         index:   foo
-        type:    bar
         id:      doc1
         body:    { "bar": 1 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc2
         body:   { "bar": 2 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc3
         body:   { "bar": 3 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc4
         body:   { "bar": 4 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc5
         body:   { "bar": 5 }
 
   - do:
       index:
         index:  foo
-        type:   bar
         id:     doc6
         body:   { "bar": 6 }
 
@@ -91,7 +80,7 @@
                     {"_index" : "foo", "_id" : "doc4", "rating": 0},
                     {"_index" : "foo", "_id" : "doc5", "rating": 1},
                     {"_index" : "foo", "_id" : "doc6", "rating": 2}]
-            }, 
+            },
           ],
           "metric" : { "dcg": { }}
         }
@@ -103,7 +92,7 @@
   - match: {details.dcg_query_reverse.unrated_docs: [ ]}
 
 # if we mix both, we should get the average
-  
+
   - do:
       rank_eval:
         body: {
@@ -129,7 +118,7 @@
                   {"_index" : "foo", "_id" : "doc4", "rating": 0},
                   {"_index" : "foo", "_id" : "doc5", "rating": 1},
                   {"_index" : "foo", "_id" : "doc6", "rating": 2}]
-            }, 
+            },
           ],
           "metric" : { "dcg": { }}
         }

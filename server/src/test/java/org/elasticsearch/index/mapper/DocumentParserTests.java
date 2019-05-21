@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
@@ -51,6 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 // TODO: make this a real unit test
 public class DocumentParserTests extends ESSingleNodeTestCase {
@@ -77,6 +77,56 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertNull(doc.rootDoc().getField("foo"));
         assertNotNull(doc.rootDoc().getField("bar"));
         assertNotNull(doc.rootDoc().getField(IdFieldMapper.NAME));
+    }
+
+    public void testDotsWithFieldDisabled() throws IOException {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo").field("enabled", false).endObject()
+            .endObject().endObject().endObject());
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        {
+            BytesReference bytes = BytesReference.bytes(jsonBuilder()
+                .startObject()
+                .field("foo.bar", 111)
+                .endObject());
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON));
+            assertNull(doc.rootDoc().getField("foo"));
+            assertNull(doc.rootDoc().getField("bar"));
+            assertNull(doc.rootDoc().getField("foo.bar"));
+        }
+        {
+            BytesReference bytes = BytesReference.bytes(jsonBuilder()
+                .startObject()
+                .field("foo.bar", new int[]{1, 2, 3})
+                .endObject());
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON));
+            assertNull(doc.rootDoc().getField("foo"));
+            assertNull(doc.rootDoc().getField("bar"));
+            assertNull(doc.rootDoc().getField("foo.bar"));
+        }
+        {
+            BytesReference bytes = BytesReference.bytes(jsonBuilder()
+                .startObject()
+                .field("foo.bar", Collections.singletonMap("key", "value"))
+                .endObject());
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON));
+            assertNull(doc.rootDoc().getField("foo"));
+            assertNull(doc.rootDoc().getField("bar"));
+            assertNull(doc.rootDoc().getField("foo.bar"));
+        }
+        {
+            BytesReference bytes = BytesReference.bytes(jsonBuilder()
+                .startObject()
+                .field("foo.bar", "string value")
+                .field("blub", 222)
+                .endObject());
+            ParsedDocument doc = mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON));
+            assertNull(doc.rootDoc().getField("foo"));
+            assertNull(doc.rootDoc().getField("bar"));
+            assertNull(doc.rootDoc().getField("foo.bar"));
+            assertNotNull(doc.rootDoc().getField("blub"));
+        }
     }
 
     public void testDotsWithExistingMapper() throws Exception {
@@ -139,21 +189,21 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 .endObject());
             MapperException exception = expectThrows(MapperException.class,
                     () -> mapper.parse(new SourceToParse("test", "type", "1", bytes, XContentType.JSON)));
-            assertThat(exception.getMessage(), containsString("failed to parse field [foo] of type [long]"));
+            assertThat(exception.getMessage(), containsString("failed to parse field [foo] of type [long] in document with id '1'"));
         }
         {
             BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("bar", "bar")
                 .endObject());
             MapperException exception = expectThrows(MapperException.class,
                     () -> mapper.parse(new SourceToParse("test", "type", "2", bytes, XContentType.JSON)));
-            assertThat(exception.getMessage(), containsString("failed to parse field [bar] of type [boolean]"));
+            assertThat(exception.getMessage(), containsString("failed to parse field [bar] of type [boolean] in document with id '2'"));
         }
         {
             BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("geo", 123)
                 .endObject());
             MapperException exception = expectThrows(MapperException.class,
                     () -> mapper.parse(new SourceToParse("test", "type", "2", bytes, XContentType.JSON)));
-            assertThat(exception.getMessage(), containsString("failed to parse field [geo] of type [geo_shape]"));
+            assertThat(exception.getMessage(), containsString("failed to parse field [geo]"));
         }
 
     }
@@ -1443,7 +1493,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         MapperParsingException err = expectThrows(MapperParsingException.class, () ->
                 client().prepareIndex("idx", "type").setSource(bytes, XContentType.JSON).get());
-        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
+        assertThat(err.getCause(), notNullValue());
+        assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
 
         final BytesReference bytes2 = BytesReference.bytes(XContentFactory.jsonBuilder()
                 .startObject()
@@ -1454,7 +1505,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         err = expectThrows(MapperParsingException.class, () ->
                 client().prepareIndex("idx", "type").setSource(bytes2, XContentType.JSON).get());
-        assertThat(ExceptionsHelper.detailedMessage(err), containsString("field name cannot be an empty string"));
+        assertThat(err.getCause(), notNullValue());
+        assertThat(err.getCause().getMessage(), containsString("field name cannot be an empty string"));
     }
 
     public void testWriteToFieldAlias() throws Exception {

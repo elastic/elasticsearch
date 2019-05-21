@@ -32,6 +32,6 @@ public class SmbMmapFsIndexStore extends IndexStore {
 
     @Override
     public DirectoryService newDirectoryService(ShardPath path) {
-        return new SmbMmapFsDirectoryService(indexSettings, this, path);
+        return new SmbMmapFsDirectoryService(indexSettings, path);
     }
 }

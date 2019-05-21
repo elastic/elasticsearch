@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.document.XLatLonShape.QueryRelation;
+import org.apache.lucene.document.LatLonShape.QueryRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

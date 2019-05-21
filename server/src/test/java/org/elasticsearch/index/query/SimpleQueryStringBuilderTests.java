@@ -39,12 +39,10 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -57,6 +55,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,7 +63,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
+public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQueryStringBuilder> {
+    @Override
+    protected boolean isCacheable(SimpleQueryStringBuilder queryBuilder) {
+        return isCacheable(queryBuilder.fields().keySet(), queryBuilder.value());
+    }
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
@@ -105,11 +108,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             } else {
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
-        }
-        // special handling if query start with "now" and no field specified. This hits the "mapped_date" field which leads to the query not
-        // being cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
-        if (fieldCount == 0 && queryText.length() >= 3 && queryText.substring(0,3).equalsIgnoreCase("now")) {
-            fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
         }
 
         result.fields(fields);
@@ -240,9 +238,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        assumeTrue("5.x behaves differently, so skip on non-6.x indices",
-                indexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1));
-
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +
@@ -716,6 +711,26 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "second")), BooleanClause.Occur.MUST)
                 .build();
         assertEquals(expected, query);
+        query = new SimpleQueryStringBuilder("first & second")
+            .field("unmapped")
+            .field("another_unmapped")
+            .defaultOperator(Operator.AND)
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .build();
+        assertEquals(expected, query);
+    }
+
+    public void testNegativeFieldBoost() {
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
+            () -> new SimpleQueryStringBuilder("the quick fox")
+                .field(STRING_FIELD_NAME, -1.0f)
+                .field(STRING_FIELD_NAME_2)
+                .toQuery(createShardContext()));
+        assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

@@ -62,7 +62,9 @@ The following settings are supported:
 
 `compress`::
 
-    Whether to compress the metadata or not. (Disabled by default)
+    Whether to compress the metadata or not. (Enabled by default)
+
+include::repository-shared-settings.asciidoc[]
 
 `chunk_size`::
 
@@ -78,7 +80,7 @@ The following settings are supported:
 
 [[repository-hdfs-availability]]
 [float]
-===== A Note on HDFS Availablility
+===== A Note on HDFS Availability
 When you initialize a repository, its settings are persisted in the cluster state. When a node comes online, it will
 attempt to initialize all repositories for which it has settings. If your cluster has an HDFS repository configured, then
 all nodes in the cluster must be able to reach HDFS when starting. If not, then the node will fail to initialize the

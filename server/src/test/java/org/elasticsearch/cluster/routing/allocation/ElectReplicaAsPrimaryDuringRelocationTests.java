@@ -96,7 +96,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
                 indexShardRoutingTable.primaryShard().currentNodeId());
             clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
-            clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+            clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
 
             logger.info("make sure all the primary shards are active");
             assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().active(), equalTo(true));

@@ -11,7 +11,9 @@ set ES_MAIN_CLASS=org.elasticsearch.xpack.security.authc.esnative.tool.SetupPass
 set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
-  || exit /b 1
+  || goto exit
 
 endlocal
 endlocal
+:exit
+exit /b %ERRORLEVEL%

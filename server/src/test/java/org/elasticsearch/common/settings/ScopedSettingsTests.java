@@ -37,7 +37,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,9 +50,7 @@ import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -319,6 +316,91 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(0, results.size());
     }
 
+    public void testAffixGroupUpdateConsumer() {
+        String prefix = randomAlphaOfLength(3) + "foo.";
+        String intSuffix = randomAlphaOfLength(3);
+        String listSuffix = randomAlphaOfLength(4);
+        Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting(prefix, intSuffix,
+            (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<List<Integer>> listSetting = Setting.affixKeySetting(prefix, listSuffix,
+            (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        Map<String, Settings> results = new HashMap<>();
+        Function<String, String> listBuilder = g -> (prefix + g + "." + listSuffix);
+        Function<String, String> intBuilder = g -> (prefix + g + "." + intSuffix);
+        String group1 = randomAlphaOfLength(3);
+        String group2 = randomAlphaOfLength(4);
+        String group3 = randomAlphaOfLength(5);
+        BiConsumer<String, Settings> listConsumer = results::put;
+
+        service.addAffixGroupUpdateConsumer(Arrays.asList(intSetting, listSetting), listConsumer);
+        assertEquals(0, results.size());
+        service.applySettings(Settings.builder()
+            .put(intBuilder.apply(group1), 2)
+            .put(intBuilder.apply(group2), 7)
+            .putList(listBuilder.apply(group1), "16", "17")
+            .putList(listBuilder.apply(group2), "18", "19", "20")
+            .build());
+        Settings groupOneSettings = results.get(group1);
+        Settings groupTwoSettings = results.get(group2);
+        assertEquals(2, intSetting.getConcreteSettingForNamespace(group1).get(groupOneSettings).intValue());
+        assertEquals(7, intSetting.getConcreteSettingForNamespace(group2).get(groupTwoSettings).intValue());
+        assertEquals(Arrays.asList(16, 17), listSetting.getConcreteSettingForNamespace(group1).get(groupOneSettings));
+        assertEquals(Arrays.asList(18, 19, 20), listSetting.getConcreteSettingForNamespace(group2).get(groupTwoSettings));
+        assertEquals(2, groupOneSettings.size());
+        assertEquals(2, groupTwoSettings.size());
+        assertEquals(2, results.size());
+
+        results.clear();
+
+        service.applySettings(Settings.builder()
+            .put(intBuilder.apply(group1), 2)
+            .put(intBuilder.apply(group2), 7)
+            .putList(listBuilder.apply(group1), "16", "17")
+            .putNull(listBuilder.apply(group2)) // removed
+            .build());
+
+        assertNull(group1 + " wasn't changed", results.get(group1));
+        groupTwoSettings = results.get(group2);
+        assertEquals(7, intSetting.getConcreteSettingForNamespace(group2).get(groupTwoSettings).intValue());
+        assertEquals(Arrays.asList(1), listSetting.getConcreteSettingForNamespace(group2).get(groupTwoSettings));
+        assertEquals(1, results.size());
+        assertEquals(2, groupTwoSettings.size());
+        results.clear();
+
+        service.applySettings(Settings.builder()
+            .put(intBuilder.apply(group1), 2)
+            .put(intBuilder.apply(group2), 7)
+            .putList(listBuilder.apply(group1), "16", "17")
+            .putList(listBuilder.apply(group3), "5", "6") // added
+            .build());
+        assertNull(group1 + " wasn't changed", results.get(group1));
+        assertNull(group2 + " wasn't changed", results.get(group2));
+
+        Settings groupThreeSettings = results.get(group3);
+        assertEquals(1, intSetting.getConcreteSettingForNamespace(group3).get(groupThreeSettings).intValue());
+        assertEquals(Arrays.asList(5, 6), listSetting.getConcreteSettingForNamespace(group3).get(groupThreeSettings));
+        assertEquals(1, results.size());
+        assertEquals(1, groupThreeSettings.size());
+        results.clear();
+
+        service.applySettings(Settings.builder()
+            .put(intBuilder.apply(group1), 4) // modified
+            .put(intBuilder.apply(group2), 7)
+            .putList(listBuilder.apply(group1), "16", "17")
+            .putList(listBuilder.apply(group3), "5", "6")
+            .build());
+        assertNull(group2 + " wasn't changed", results.get(group2));
+        assertNull(group3 + " wasn't changed", results.get(group3));
+
+        groupOneSettings = results.get(group1);
+        assertEquals(4, intSetting.getConcreteSettingForNamespace(group1).get(groupOneSettings).intValue());
+        assertEquals(Arrays.asList(16, 17), listSetting.getConcreteSettingForNamespace(group1).get(groupOneSettings));
+        assertEquals(1, results.size());
+        assertEquals(2, groupOneSettings.size());
+        results.clear();
+    }
+
     public void testAddConsumerAffix() {
         Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
             (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
@@ -512,94 +594,6 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(15, consumer2.get());
         assertEquals(2, aC.get());
         assertEquals(15, bC.get());
-    }
-
-    private static final Setting<Integer> FOO_BAR_LOW_SETTING = new Setting<>(
-            "foo.bar.low",
-            "1",
-            Integer::parseInt,
-            new FooBarLowValidator(),
-            Property.Dynamic,
-            Property.NodeScope);
-
-    private static final Setting<Integer> FOO_BAR_HIGH_SETTING = new Setting<>(
-            "foo.bar.high",
-            "2",
-            Integer::parseInt,
-            new FooBarHighValidator(),
-            Property.Dynamic,
-            Property.NodeScope);
-
-    static class FooBarLowValidator implements Setting.Validator<Integer> {
-        @Override
-        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-            final int high = settings.get(FOO_BAR_HIGH_SETTING);
-            if (value > high) {
-                throw new IllegalArgumentException("low [" + value + "] more than high [" + high + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<Integer>> settings() {
-            return Collections.singletonList(FOO_BAR_HIGH_SETTING).iterator();
-        }
-    }
-
-    static class FooBarHighValidator implements Setting.Validator<Integer> {
-        @Override
-        public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
-            final int low = settings.get(FOO_BAR_LOW_SETTING);
-            if (value < low) {
-                throw new IllegalArgumentException("high [" + value + "] less than low [" + low + "]");
-            }
-        }
-
-        @Override
-        public Iterator<Setting<Integer>> settings() {
-            return Collections.singletonList(FOO_BAR_LOW_SETTING).iterator();
-        }
-    }
-
-    public void testValidator() {
-        final AbstractScopedSettings service =
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(FOO_BAR_LOW_SETTING, FOO_BAR_HIGH_SETTING)));
-
-        final AtomicInteger consumerLow = new AtomicInteger();
-        final AtomicInteger consumerHigh = new AtomicInteger();
-
-        service.addSettingsUpdateConsumer(FOO_BAR_LOW_SETTING, consumerLow::set);
-
-        service.addSettingsUpdateConsumer(FOO_BAR_HIGH_SETTING, consumerHigh::set);
-
-        final Settings newSettings = Settings.builder().put("foo.bar.low", 17).put("foo.bar.high", 13).build();
-        {
-            final IllegalArgumentException e =
-                    expectThrows(
-                            IllegalArgumentException.class,
-                            () -> service.validateUpdate(newSettings));
-            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-            assertThat(cause, hasToString(containsString("low [17] more than high [13]")));
-            assertThat(e.getSuppressed(), arrayWithSize(1));
-            assertThat(e.getSuppressed()[0], instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException suppressed = (IllegalArgumentException) e.getSuppressed()[0];
-            assertThat(suppressed, hasToString(containsString("illegal value can't update [foo.bar.high] from [2] to [13]")));
-            assertNotNull(suppressed.getCause());
-            assertThat(suppressed.getCause(), instanceOf(IllegalArgumentException.class));
-            final IllegalArgumentException suppressedCause = (IllegalArgumentException) suppressed.getCause();
-            assertThat(suppressedCause, hasToString(containsString("high [13] less than low [17]")));
-            assertThat(consumerLow.get(), equalTo(0));
-            assertThat(consumerHigh.get(), equalTo(0));
-        }
-
-        {
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.applySettings(newSettings));
-            assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
-            assertThat(consumerLow.get(), equalTo(0));
-            assertThat(consumerHigh.get(), equalTo(0));
-        }
     }
 
     public void testGet() {

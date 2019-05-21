@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
+import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.ScriptContext;
@@ -82,6 +83,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
     private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
 
     private final Map<ScriptContext<?>, Compiler> contextsToCompilers;
+    private final Map<ScriptContext<?>, PainlessLookup> contextsToLookups;
 
     /**
      * Constructor.
@@ -91,14 +93,22 @@ public final class PainlessScriptEngine implements ScriptEngine {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
 
         Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
+        Map<ScriptContext<?>, PainlessLookup> contextsToLookups = new HashMap<>();
 
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            contextsToCompilers.put(context, new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz,
-                    PainlessLookupBuilder.buildFromWhitelists(entry.getValue())));
+            PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue());
+            contextsToCompilers.put(context,
+                    new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup));
+            contextsToLookups.put(context, lookup);
         }
 
         this.contextsToCompilers = Collections.unmodifiableMap(contextsToCompilers);
+        this.contextsToLookups = Collections.unmodifiableMap(contextsToLookups);
+    }
+
+    public Map<ScriptContext<?>, PainlessLookup> getContextsToLookups() {
+        return contextsToLookups;
     }
 
     /**

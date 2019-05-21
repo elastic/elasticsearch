@@ -78,10 +78,10 @@ The modules in this section are:
     Remote clusters are used in features that work by connecting across clusters
     on the transport layer.
 
-<<modules-cross-cluster-search, Cross cluster Search>>::
+<<modules-cross-cluster-search, {ccs-cap}>>::
 
-    Cross cluster search enables executing search requests across more than one cluster without joining them and acts
-    as a federated client across them.
+    {ccs-cap} enables executing search requests across more than one cluster
+    without joining them and acts as a federated client across them.
 --
 
 

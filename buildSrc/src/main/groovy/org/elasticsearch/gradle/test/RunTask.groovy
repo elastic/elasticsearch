@@ -16,7 +16,7 @@ public class RunTask extends DefaultTask {
         clusterConfig.httpPort = 9200
         clusterConfig.transportPort = 9300
         clusterConfig.daemonize = false
-        clusterConfig.distribution = 'zip'
+        clusterConfig.distribution = 'default'
         project.afterEvaluate {
             ClusterFormationTasks.setup(project, name, this, clusterConfig)
         }

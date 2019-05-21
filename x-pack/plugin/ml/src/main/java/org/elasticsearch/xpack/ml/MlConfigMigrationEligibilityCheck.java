@@ -79,9 +79,10 @@ public class MlConfigMigrationEligibilityCheck {
      *     False if {@link #canStartMigration(ClusterState)} returns {@code false}
      *     False if the job is not in the cluster state
      *     False if the {@link Job#isDeleting()}
-     *     False if the job has a persistent task
+     *     False if the job has an allocated persistent task
      *     True otherwise i.e. the job is present, not deleting
-     *     and does not have a persistent task.
+     *     and does not have a persistent task or its persistent
+     *     task is un-allocated
      *
      * @param jobId         The job Id
      * @param clusterState  The cluster state
@@ -100,15 +101,17 @@ public class MlConfigMigrationEligibilityCheck {
         }
 
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlTasks.openJobIds(persistentTasks).contains(jobId) == false;
+        return MlTasks.openJobIds(persistentTasks).contains(jobId) == false ||
+                MlTasks.unallocatedJobIds(persistentTasks, clusterState.nodes()).contains(jobId);
     }
 
     /**
      * Is the datafeed a eligible for migration? Returns:
      *     False if {@link #canStartMigration(ClusterState)} returns {@code false}
      *     False if the datafeed is not in the cluster state
-     *     False if the datafeed has a persistent task
-     *     True otherwise i.e. the datafeed is present and does not have a persistent task.
+     *     False if the datafeed has an allocated persistent task
+     *     True otherwise i.e. the datafeed is present and does not have a persistent
+     *     task or its persistent task is un-allocated
      *
      * @param datafeedId   The datafeed Id
      * @param clusterState  The cluster state
@@ -125,6 +128,7 @@ public class MlConfigMigrationEligibilityCheck {
         }
 
         PersistentTasksCustomMetaData persistentTasks = clusterState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-        return MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId) == false;
+        return MlTasks.startedDatafeedIds(persistentTasks).contains(datafeedId) == false
+                || MlTasks.unallocatedDatafeedIds(persistentTasks, clusterState.nodes()).contains(datafeedId);
     }
 }

@@ -454,9 +454,6 @@ public class TestClustersPlugin implements Plugin<Project> {
             if (runningClusters.isEmpty()) {
                 return;
             }
-            // this will only show up in the Gradle Daemon log
-            new RuntimeException("Just to show how we got to shut down all clusters, not really an exception").printStackTrace();
-
             Set<ElasticsearchCluster> running = new HashSet<>(runningClusters);
             running.forEach(each -> {
                 runningClusters.remove(each);

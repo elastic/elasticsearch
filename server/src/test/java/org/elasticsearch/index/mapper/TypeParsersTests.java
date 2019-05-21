@@ -48,6 +48,7 @@ import java.util.Map;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME;
 import static org.elasticsearch.index.analysis.AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME;
+import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -186,12 +187,10 @@ public class TypeParsersTests extends ESTestCase {
         Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext("type",
             null, null, type -> typeParser, Version.CURRENT, null);
 
-        TypeParsers.parseField(builder, "some-field", fieldNode, parserContext);
-        assertWarnings("At least one multi-field, [sub-field], was " +
-            "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
-            "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
-            "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +
-            "switching to [copy_to] if appropriate.");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> TypeParsers.parseField(builder, "some-field", fieldNode, parserContext));
+        assertThat(e.getMessage(), equalTo("Encountered a multi-field [sub-field] which itself contains a " +
+            "multi-field. Defining chained multi-fields is not supported."));
     }
 
     private Analyzer createAnalyzerWithMode(String name, AnalysisMode mode) {

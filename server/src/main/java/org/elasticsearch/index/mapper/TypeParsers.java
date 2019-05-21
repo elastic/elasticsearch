@@ -219,11 +219,8 @@ public class TypeParsers {
                                           String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
-                deprecationLogger.deprecatedAndMaybeLog("multifield_within_multifield", "At least one multi-field, [" + name + "], was " +
-                    "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
-                    "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
-                    "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +
-                    "switching to [copy_to] if appropriate.");
+                throw new IllegalArgumentException("Encountered a multi-field [" + name + "] which itself contains a multi-field. " +
+                    "Defining chained multi-fields is not supported.");
             }
 
             parserContext = parserContext.createMultiFieldContext(parserContext);

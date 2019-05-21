@@ -36,7 +36,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -418,6 +420,31 @@ public class CloseIndexIT extends ESIntegTestCase {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), not(empty()));
             }
+        }
+    }
+
+    public void testResyncPropagatePrimaryTerm() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        final String indexName = "closed_indices_promotion";
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(n -> client().prepareIndex(indexName, "_doc").setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertIndexIsClosed(indexName);
+        ensureGreen(indexName);
+        String nodeWithPrimary = clusterService().state().nodes().get(clusterService().state()
+            .routingTable().index(indexName).shard(0).primaryShard().currentNodeId()).getName();
+        internalCluster().restartNode(nodeWithPrimary, new InternalTestCluster.RestartCallback());
+        ensureGreen(indexName);
+        long primaryTerm = clusterService().state().metaData().index(indexName).primaryTerm(0);
+        for (String nodeName : internalCluster().nodesInclude(indexName)) {
+            IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
+                .indexService(resolveIndex(indexName)).getShard(0);
+            assertThat(shard.routingEntry().toString(), shard.getOperationPrimaryTerm(), equalTo(primaryTerm));
         }
     }
 

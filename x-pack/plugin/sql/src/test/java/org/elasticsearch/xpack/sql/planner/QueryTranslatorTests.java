@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.querydsl.query.RangeQuery;
@@ -65,6 +66,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathPr
 import static org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation.PI;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class QueryTranslatorTests extends ESTestCase {
@@ -496,7 +498,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertNull(translation.query);
         AggFilter aggFilter = translation.aggFilter;
         assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.gt(InternalSqlScriptUtils." +
-            operation.name().toLowerCase(Locale.ROOT) + "(params.a0),params.v0))",
+                operation.name().toLowerCase(Locale.ROOT) + "(params.a0),params.v0))",
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=max(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
@@ -559,6 +561,109 @@ public class QueryTranslatorTests extends ESTestCase {
             aggFilter.scriptTemplate().toString());
         assertThat(aggFilter.scriptTemplate().params().toString(), startsWith("[{a=MAX(int){a->"));
         assertThat(aggFilter.scriptTemplate().params().toString(), endsWith(", {v=10}]"));
+    }
+
+    public void testTranslateStAsWktForPoints() {
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_AsWKT(point) = 'point (10 20)'");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(" +
+                "InternalSqlScriptUtils.stAswkt(InternalSqlScriptUtils.geoDocValue(doc,params.v0))," +
+                "params.v1)" +
+                ")",
+            aggFilter.scriptTemplate().toString());
+        assertEquals("[{v=point}, {v=point (10 20)}]", aggFilter.scriptTemplate().params().toString());
+    }
+
+    public void testTranslateStWktToSql() {
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_WKTToSQL(keyword) = ST_WKTToSQL('point (10 20)')");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, true);
+        assertNull(translation.query);
+        AggFilter aggFilter = translation.aggFilter;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
+                "InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stWktToSql(" +
+                "InternalSqlScriptUtils.docValue(doc,params.v0)),InternalSqlScriptUtils.stWktToSql(params.v1)))",
+            aggFilter.scriptTemplate().toString());
+        assertEquals("[{v=keyword}, {v=point (10.0 20.0)}]", aggFilter.scriptTemplate().params().toString());
+    }
+
+    public void testTranslateStDistanceToScript() {
+        String operator = randomFrom(">", ">=");
+        String operatorFunction = operator.equalsIgnoreCase(">") ? "gt" : "gte";
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) " + operator + " 20");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(" +
+                "InternalSqlScriptUtils." + operatorFunction + "(" +
+                "InternalSqlScriptUtils.stDistance(" +
+                "InternalSqlScriptUtils.geoDocValue(doc,params.v0),InternalSqlScriptUtils.stWktToSql(params.v1)),params.v2))",
+            sc.script().toString());
+        assertEquals("[{v=point}, {v=point (10.0 20.0)}, {v=20}]", sc.script().params().toString());
+    }
+
+    public void testTranslateStDistanceToQuery() {
+        String operator = randomFrom("<", "<=");
+        LogicalPlan p = plan("SELECT shape FROM test WHERE ST_Distance(point, ST_WKTToSQL('point (10 20)')) " + operator + " 25");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof GeoDistanceQuery);
+        GeoDistanceQuery gq = (GeoDistanceQuery) translation.query;
+        assertEquals("point", gq.field());
+        assertEquals(20.0, gq.lat(), 0.00001);
+        assertEquals(10.0, gq.lon(), 0.00001);
+        assertEquals(25.0, gq.distance(), 0.00001);
+    }
+
+    public void testTranslateStXY() {
+        String dim = randomFrom("X", "Y");
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_" + dim + "(point) = 10");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertThat(translation.query, instanceOf(ScriptQuery.class));
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(InternalSqlScriptUtils.st" + dim + "(" +
+                "InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=point}, {v=10}]", sc.script().params().toString());
+    }
+
+    public void testTranslateStGeometryType() {
+        LogicalPlan p = plan("SELECT ST_AsWKT(point) FROM test WHERE ST_GEOMETRYTYPE(point) = 'POINT'");
+        assertThat(p, instanceOf(Project.class));
+        assertThat(p.children().get(0), instanceOf(Filter.class));
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = QueryTranslator.toQuery(condition, false);
+        assertNull(translation.aggFilter);
+        assertThat(translation.query, instanceOf(ScriptQuery.class));
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalSqlScriptUtils.nullSafeFilter(InternalSqlScriptUtils.eq(InternalSqlScriptUtils.stGeometryType(" +
+                "InternalSqlScriptUtils.geoDocValue(doc,params.v0)),params.v1))",
+            sc.script().toString());
+        assertEquals("[{v=point}, {v=POINT}]", sc.script().params().toString());
     }
 
     public void testTranslateCoalesce_GroupBy_Painless() {

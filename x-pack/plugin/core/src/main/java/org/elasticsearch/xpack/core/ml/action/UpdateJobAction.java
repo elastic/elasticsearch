@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -92,11 +91,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             super.readFrom(in);
             jobId = in.readString();
             update = new JobUpdate(in);
-            if (in.getVersion().onOrAfter(Version.V_6_2_2)) {
-                isInternal = in.readBoolean();
-            } else {
-                isInternal = false;
-            }
+            isInternal = in.readBoolean();
         }
 
         @Override
@@ -104,9 +99,7 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             super.writeTo(out);
             out.writeString(jobId);
             update.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_2_2)) {
-                out.writeBoolean(isInternal);
-            }
+            out.writeBoolean(isInternal);
         }
 
         @Override

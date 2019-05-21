@@ -53,7 +53,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -441,21 +440,6 @@ public class SliceBuilderTests extends ESTestCase {
         }
     }
 
-    public void testSerializationBackcompat() throws IOException {
-        SliceBuilder sliceBuilder = new SliceBuilder(1, 5);
-        assertEquals(IdFieldMapper.NAME, sliceBuilder.getField());
-
-        SliceBuilder copyPrev = copyWriteable(sliceBuilder,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                SliceBuilder::new, VersionUtils.getPreviousVersion(Version.CURRENT));
-        assertEquals(sliceBuilder, copyPrev);
-
-        SliceBuilder copyCurr = copyWriteable(copyPrev,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                SliceBuilder::new, Version.CURRENT);
-        assertEquals(sliceBuilder, copyCurr);
-    }
-
     public void testToFilterWithRouting() throws IOException {
         Directory dir = new RAMDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
@@ -475,15 +459,14 @@ public class SliceBuilderTests extends ESTestCase {
         when(clusterService.operationRouting()).thenReturn(routing);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED, 5, 0);
+            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            QueryShardContext context = createShardContext(version, reader, "field", DocValuesType.SORTED, 5, 0);
             SliceBuilder builder = new SliceBuilder("field", 6, 10);
             String[] routings = new String[] { "foo" };
-            Query query = builder.toFilter(clusterService, createRequest(1, routings, null), context, Version.CURRENT);
+            Query query = builder.toFilter(clusterService, createRequest(1, routings, null), context, version);
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
-            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.CURRENT);
+            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, version);
             assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
-            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context, Version.V_6_2_0);
-            assertEquals(new DocValuesSliceQuery("field", 1, 2), query);
         }
     }
 }

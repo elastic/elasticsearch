@@ -63,7 +63,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        final Version serializedVersion = VersionUtils.randomVersion(random());
+        final Version serializedVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         final boolean collectionEnabled = randomBoolean();
         int localCount = randomIntBetween(0, 5);
         List<Exporter> exporterList = new ArrayList<>();

@@ -93,7 +93,7 @@ public class FileRealmTests extends ESTestCase {
     public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
             .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "cache.hash_algo",
-                Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
+                randomFrom(Hasher.getAvailableAlgoCacheHash()))
             .put(globalSettings)
             .build();
         RealmConfig config = getRealmConfig(settings);

@@ -571,6 +571,17 @@ public enum Hasher {
             .collect(Collectors.toList());
     }
 
+    /**
+     * Returns a list of lower case String identifiers for the Hashing algorithm and parameter
+     * combinations that can be used for password hashing in the cache. The identifiers can be used to get
+     * an instance of the appropriate {@link Hasher} by using {@link #resolve(String) resolve()}
+     */
+    public static List<String> getAvailableAlgoCacheHash() {
+        return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
+            .filter(name -> (name.equals("sha256") == false))
+            .collect(Collectors.toList());
+    }
+
     public abstract char[] hash(SecureString data);
 
     public abstract boolean verify(SecureString data, char[] hash);

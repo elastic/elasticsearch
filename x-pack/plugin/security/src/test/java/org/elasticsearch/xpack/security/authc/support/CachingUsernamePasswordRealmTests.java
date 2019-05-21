@@ -65,7 +65,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testCacheSettings() {
-        String cachingHashAlgo = Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT);
+        String cachingHashAlgo = randomFrom(Hasher.getAvailableAlgoCacheHash());
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_realm");

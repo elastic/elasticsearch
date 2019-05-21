@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class RealmSettingsTests extends ESTestCase {
-    private static final List<String> CACHE_HASHING_ALGOS = Arrays.stream(Hasher.values()).map(Hasher::name).collect(Collectors.toList());
+    private static final List<String> CACHE_HASHING_ALGOS = Hasher.getAvailableAlgoCacheHash();
 
     public void testRealmWithBlankTypeDoesNotValidate() throws Exception {
         final Settings.Builder builder = baseSettings(false);

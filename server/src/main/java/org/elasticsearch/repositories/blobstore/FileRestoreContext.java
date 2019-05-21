@@ -24,7 +24,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
@@ -117,7 +116,7 @@ public abstract class FileRestoreContext {
                 // store can still have existing files but they will be deleted just before being
                 // restored.
                 recoveryTargetMetadata = indexShard.snapshotStoreMetadata();
-            } catch (IndexNotFoundException e) {
+            } catch (org.apache.lucene.index.IndexNotFoundException e) {
                 // happens when restore to an empty shard, not a big deal
                 logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
                 recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;

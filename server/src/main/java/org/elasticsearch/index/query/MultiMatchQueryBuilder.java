@@ -783,18 +783,20 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         multiMatchQuery.setTranspositions(fuzzyTranspositions);
 
         Map<String, Float> newFieldsBoosts;
+        boolean isAllField;
         if (fieldsBoosts.isEmpty()) {
             // no fields provided, defaults to index.query.default_field
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField && lenient == null) {
-                // Sets leniency to true if not explicitly
-                // set in the request
-                multiMatchQuery.setLenient(true);
-            }
             newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, QueryParserHelper.parseFieldsAndWeights(defaultFields));
+            isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
         } else {
             newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, fieldsBoosts);
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsBoosts.keySet());
+        }
+        if (isAllField && lenient == null) {
+            // Sets leniency to true if not explicitly
+            // set in the request
+            multiMatchQuery.setLenient(true);
         }
         return multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
     }

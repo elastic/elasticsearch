@@ -55,6 +55,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisj
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 
@@ -419,42 +420,65 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
                     .build())
         );
 
-        MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("hello");
-        query = qb.toQuery(context);
-        DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
-            Arrays.asList(
-                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
-            ), 0.0f
-        );
-        assertEquals(expected, query);
+        try {
+            MultiMatchQueryBuilder qb = new MultiMatchQueryBuilder("hello");
+            query = qb.toQuery(context);
+            DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+                ), 0.0f
+            );
+            assertEquals(expected, query);
 
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(),
-                Settings.builder().putList("index.query.default_field",
-                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5", INT_FIELD_NAME).build())
-        );
-        // should fail because lenient defaults to false
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> qb.toQuery(context));
-        assertThat(exc, instanceOf(NumberFormatException.class));
-        assertThat(exc.getMessage(), equalTo("For input string: \"hello\""));
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index", context.getIndexSettings().getSettings(),
+                    Settings.builder().putList("index.query.default_field",
+                        STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5", INT_FIELD_NAME).build())
+            );
+            // should fail because lenient defaults to false
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> qb.toQuery(context));
+            assertThat(exc, instanceOf(NumberFormatException.class));
+            assertThat(exc.getMessage(), equalTo("For input string: \"hello\""));
 
-        // explicitly sets lenient
-        qb.lenient(true);
-        query = qb.toQuery(context);
-        expected = new DisjunctionMaxQuery(
-            Arrays.asList(
-                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f),
-                new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]")
-            ), 0.0f
-        );
-        assertEquals(expected, query);
+            // explicitly sets lenient
+            qb.lenient(true);
+            query = qb.toQuery(context);
+            expected = new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f),
+                    new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]")
+                ), 0.0f
+            );
+            assertEquals(expected, query);
 
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(),
-                Settings.builder().putNull("index.query.default_field").build())
-        );
+        } finally {
+            // Reset to the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index", context.getIndexSettings().getSettings(),
+                    Settings.builder().putNull("index.query.default_field").build())
+            );
+        }
+    }
+
+    public void testAllFieldsWildcard() throws Exception {
+        Query query = new MultiMatchQueryBuilder("hello")
+            .field(STRING_FIELD_NAME)
+            .field("*")
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(createShardContext());
+        assertEquals(DisjunctionMaxQuery.class, query.getClass());
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        int noMatchNoDocsQueries = 0;
+        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
+            if (q.getClass() == MatchNoDocsQuery.class) {
+                noMatchNoDocsQueries++;
+            }
+        }
+        assertEquals(11, noMatchNoDocsQueries);
+        assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+            new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }
 
     public void testWithStopWords() throws Exception {

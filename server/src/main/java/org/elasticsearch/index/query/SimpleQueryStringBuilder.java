@@ -399,16 +399,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Settings newSettings = new Settings(settings);
         final Map<String, Float> resolvedFieldsAndWeights;
+        boolean isAllField;
         if (fieldsAndWeights.isEmpty() == false) {
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet());
         } else {
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField) {
-                newSettings.lenient(lenientSet ? settings.lenient() : true);
-            }
+            isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context,
                 QueryParserHelper.parseFieldsAndWeights(defaultFields));
+        }
+
+        if (isAllField) {
+            newSettings.lenient(lenientSet ? settings.lenient() : true);
         }
 
         final SimpleQueryStringQueryParser sqp;

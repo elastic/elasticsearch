@@ -79,6 +79,7 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -1276,6 +1277,25 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
                     context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
             );
         }
+    }
+
+    public void testAllFieldsWildcard() throws Exception {
+        Query query = new QueryStringQueryBuilder("hello")
+            .field(STRING_FIELD_NAME)
+            .field("*")
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(createShardContext());
+        assertEquals(DisjunctionMaxQuery.class, query.getClass());
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        int noMatchNoDocsQueries = 0;
+        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
+            if (q.getClass() == MatchNoDocsQuery.class) {
+                noMatchNoDocsQueries++;
+            }
+        }
+        assertEquals(11, noMatchNoDocsQueries);
+        assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+            new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }
 
     /**

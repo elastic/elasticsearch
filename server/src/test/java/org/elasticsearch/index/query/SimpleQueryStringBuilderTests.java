@@ -56,6 +56,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -580,20 +581,42 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
             newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
                 STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
         );
+        try {
+            Query query = new SimpleQueryStringBuilder("hello")
+                .toQuery(context);
+            Query expected = new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+                ), 1.0f
+            );
+            assertEquals(expected, query);
+        } finally {
+            // Reset to the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
+    }
+
+    public void testAllFieldsWildcard() throws Exception {
         Query query = new SimpleQueryStringBuilder("hello")
-            .toQuery(context);
-        Query expected = new DisjunctionMaxQuery(
-            Arrays.asList(
-                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
-            ), 1.0f
-        );
-        assertEquals(expected, query);
-        // Reset the default value
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
-        );
+            .field(STRING_FIELD_NAME)
+            .field("*")
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(createShardContext());
+        assertEquals(DisjunctionMaxQuery.class, query.getClass());
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        int noMatchNoDocsQueries = 0;
+        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
+            if (q.getClass() == MatchNoDocsQuery.class) {
+                noMatchNoDocsQueries++;
+            }
+        }
+        assertEquals(11, noMatchNoDocsQueries);
+        assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+            new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }
 
     public void testToFuzzyQuery() throws Exception {

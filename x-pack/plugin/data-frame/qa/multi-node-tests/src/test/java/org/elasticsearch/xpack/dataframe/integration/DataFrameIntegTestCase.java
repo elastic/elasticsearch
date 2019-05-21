@@ -93,11 +93,11 @@ abstract class DataFrameIntegTestCase extends ESIntegTestCase {
             new StartDataFrameTransformAction.Request(id, false)).actionGet();
     }
 
-    protected DeleteDataFrameTransformAction.Response deleteDataFrameTransform(String id) {
-        DeleteDataFrameTransformAction.Response response = client().execute(DeleteDataFrameTransformAction.INSTANCE,
+    protected AcknowledgedResponse deleteDataFrameTransform(String id) {
+        AcknowledgedResponse response = client().execute(DeleteDataFrameTransformAction.INSTANCE,
             new DeleteDataFrameTransformAction.Request(id))
             .actionGet();
-        if (response.isDeleted()) {
+        if (response.isAcknowledged()) {
             transformConfigs.remove(id);
         }
         return response;
@@ -172,7 +172,13 @@ abstract class DataFrameIntegTestCase extends ESIntegTestCase {
 
     protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups,
                                             AggregatorFactories.Builder aggregations) throws Exception {
-        return new PivotConfig(createGroupConfig(groups), createAggConfig(aggregations));
+        return createPivotConfig(groups, aggregations, null);
+    }
+
+    protected PivotConfig createPivotConfig(Map<String, SingleGroupSource> groups,
+                                            AggregatorFactories.Builder aggregations,
+                                            Integer size) throws Exception {
+        return new PivotConfig(createGroupConfig(groups), createAggConfig(aggregations), size);
     }
 
     protected DataFrameTransformConfig createTransformConfig(String id,

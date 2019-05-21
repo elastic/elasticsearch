@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -167,7 +166,6 @@ public class ReservedRealmTests extends ESTestCase {
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
         verify(securityIndex, times(2)).checkMappingVersion(predicateCaptor.capture());
-        verifyVersionPredicate(principal, predicateCaptor.getValue());
         verifyNoMoreInteractions(usersStore);
     }
 
@@ -186,7 +184,6 @@ public class ReservedRealmTests extends ESTestCase {
 
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
         verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
-        verifyVersionPredicate(principal, predicateCaptor.getValue());
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
         reservedRealm.doLookupUser("foobar", future);
@@ -234,7 +231,6 @@ public class ReservedRealmTests extends ESTestCase {
 
         final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
         verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
-        verifyVersionPredicate(principal, predicateCaptor.getValue());
 
         verifyNoMoreInteractions(usersStore);
     }
@@ -447,29 +443,5 @@ public class ReservedRealmTests extends ESTestCase {
                 return null;
             }).when(usersStore).getReservedUserInfo(eq(entry.getKey()), any(ActionListener.class));
         }
-    }
-
-    private void verifyVersionPredicate(String principal, Predicate<Version> versionPredicate) {
-        switch (principal) {
-            case LogstashSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
-                break;
-            case BeatsSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_6_2_3), is(false));
-                assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
-                break;
-            case APMSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_6_4_0), is(false));
-                assertThat(versionPredicate.test(Version.V_6_5_0), is(true));
-                break;
-            case RemoteMonitoringUser.NAME:
-                assertThat(versionPredicate.test(Version.V_6_4_0), is(false));
-                assertThat(versionPredicate.test(Version.V_6_5_0), is(true));
-                break;
-            default:
-                assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
-                break;
-        }
-        assertThat(versionPredicate.test(Version.V_7_0_0), is(true));
     }
 }

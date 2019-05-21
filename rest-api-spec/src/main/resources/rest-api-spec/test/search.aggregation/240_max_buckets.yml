@@ -75,9 +75,7 @@ setup:
 
 ---
 "Max bucket":
-  - skip:
-      version: "all"
-      reason:  "AwaitsFix: https://github.com/elastic/elasticsearch/issues/41947"
+
   - do:
       cluster.put_settings:
         body:
@@ -88,6 +86,7 @@ setup:
       catch: /.*Trying to create too many buckets.*/
       search:
         rest_total_hits_as_int: true
+        allow_partial_search_results: false
         index: test
         body:
           aggregations:
@@ -105,6 +104,7 @@ setup:
       catch: /.*Trying to create too many buckets.*/
       search:
         rest_total_hits_as_int: true
+        allow_partial_search_results: false
         index: test
         body:
           aggregations:

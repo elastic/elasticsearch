@@ -199,12 +199,11 @@ public class MetaStateService {
      *
      * @throws WriteStateException if exception when writing state occurs. See also {@link WriteStateException#isDirty()}
      */
-    public long writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
+    public void writeManifestAndCleanup(String reason, Manifest manifest) throws WriteStateException {
         logger.trace("[_meta] writing state, reason [{}]", reason);
         try {
             long generation = MANIFEST_FORMAT.writeAndCleanup(manifest, nodeEnv.nodeDataPaths());
             logger.trace("[_meta] state written (generation: {})", generation);
-            return generation;
         } catch (WriteStateException ex) {
             throw new WriteStateException(ex.isDirty(), "[_meta]: failed to write meta state", ex);
         }

@@ -76,7 +76,11 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
      * @return true if this retention leases collection supercedes the specified retention lease collection, otherwise false
      */
     public boolean supersedes(final RetentionLeases that) {
-        return primaryTerm > that.primaryTerm || primaryTerm == that.primaryTerm && version > that.version;
+        return supersedes(that.primaryTerm, that.version);
+    }
+
+    public boolean supersedes(final long primaryTerm, final long version) {
+        return this.primaryTerm > primaryTerm || this.primaryTerm == primaryTerm && this.version > version;
     }
 
     private final Map<String, RetentionLease> leases;
@@ -203,7 +207,7 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
         return PARSER.apply(parser, null);
     }
 
-    static final MetaDataStateFormat<RetentionLeases> FORMAT = new MetaDataStateFormat<RetentionLeases>("retention-leases-") {
+    static final MetaDataStateFormat<RetentionLeases> FORMAT = new MetaDataStateFormat<>("retention-leases-") {
 
         @Override
         public void toXContent(final XContentBuilder builder, final RetentionLeases retentionLeases) throws IOException {

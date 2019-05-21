@@ -21,7 +21,6 @@ package org.elasticsearch.index.seqno;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -180,6 +179,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * The current retention leases.
      */
     private RetentionLeases retentionLeases = RetentionLeases.EMPTY;
+
+    private long persistedRetentionLeasesPrimaryTerm;
+    private long persistedRetentionLeasesVersion;
 
     /**
      * Get all retention leases tracked on this shard.
@@ -352,10 +354,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         synchronized (retentionLeasePersistenceLock) {
             final RetentionLeases currentRetentionLeases;
             synchronized (this) {
+                if (retentionLeases.supersedes(persistedRetentionLeasesPrimaryTerm, persistedRetentionLeasesVersion) == false) {
+                    logger.trace("skipping persisting retention leases [{}], already persisted", retentionLeases);
+                    return;
+                }
                 currentRetentionLeases = retentionLeases;
             }
             logger.trace("persisting retention leases [{}]", currentRetentionLeases);
             RetentionLeases.FORMAT.writeAndCleanup(currentRetentionLeases, path);
+            persistedRetentionLeasesPrimaryTerm = currentRetentionLeases.primaryTerm();
+            persistedRetentionLeasesVersion = currentRetentionLeases.version();
         }
     }
 

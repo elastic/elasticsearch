@@ -94,9 +94,9 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
     public void testInvalidGroupByNames() throws IOException {
 
-        String invalidName = randomAlphaOfLengthBetween(0, 5) +
-                ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(0,ILLEGAL_FIELD_NAME_CHARACTERS.length - 1)] +
-                randomAlphaOfLengthBetween(0, 5);
+        String invalidName = randomAlphaOfLengthBetween(0, 5)
+                + ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(0, ILLEGAL_FIELD_NAME_CHARACTERS.length - 1)]
+                + randomAlphaOfLengthBetween(0, 5);
 
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()

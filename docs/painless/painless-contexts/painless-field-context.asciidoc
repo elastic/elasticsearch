@@ -25,7 +25,8 @@ a customized value for each document in the results of a query.
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+Both the standard <<painless-api-reference-shared, Painless API>> and
+<<painless-api-reference-field, Specialized Field API>> are available.
 
 
 *Example*

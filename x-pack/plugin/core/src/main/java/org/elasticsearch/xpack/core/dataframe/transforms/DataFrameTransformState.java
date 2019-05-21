@@ -42,12 +42,12 @@ public class DataFrameTransformState implements Task.Status, PersistentTaskState
     @Nullable
     private final String reason;
 
-    private static final ParseField TASK_STATE = new ParseField("task_state");
-    private static final ParseField INDEXER_STATE = new ParseField("indexer_state");
-    private static final ParseField CURRENT_POSITION = new ParseField("current_position");
-    private static final ParseField CHECKPOINT = new ParseField("checkpoint");
-    private static final ParseField REASON = new ParseField("reason");
-    private static final ParseField PROGRESS = new ParseField("progress");
+    public static final ParseField TASK_STATE = new ParseField("task_state");
+    public static final ParseField INDEXER_STATE = new ParseField("indexer_state");
+    public static final ParseField CURRENT_POSITION = new ParseField("current_position");
+    public static final ParseField CHECKPOINT = new ParseField("checkpoint");
+    public static final ParseField REASON = new ParseField("reason");
+    public static final ParseField PROGRESS = new ParseField("progress");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<DataFrameTransformState, Void> PARSER = new ConstructingObjectParser<>(NAME,

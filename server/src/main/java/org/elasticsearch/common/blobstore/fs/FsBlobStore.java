@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -70,16 +69,6 @@ public class FsBlobStore implements BlobStore {
         } catch (IOException ex) {
             throw new ElasticsearchException("failed to create blob container", ex);
         }
-    }
-
-    @Override
-    public void delete(BlobPath path) throws IOException {
-        assert readOnly == false : "should not delete anything from a readonly repository: " + path;
-        //noinspection ConstantConditions in case assertions are disabled
-        if (readOnly) {
-            throw new ElasticsearchException("unexpectedly deleting [" + path + "] from a readonly repository");
-        }
-        IOUtils.rm(buildPath(path));
     }
 
     @Override

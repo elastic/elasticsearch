@@ -121,8 +121,9 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
     }
 
     Closure createRunBwcGradleTask = { name, extraConfig ->
-        return tasks.create(name: "$name", type: Exec) {
+        return tasks.create(name: "$name", type: LoggedExec) {
             dependsOn checkoutBwcBranch, writeBuildMetadata
+            spoolOutput = true
             workingDir = checkoutDir
             doFirst {
                 // Execution time so that the checkouts are available

@@ -369,17 +369,7 @@ public class TransportWriteActionTests extends ESTestCase {
         CountDownLatch completionLatch = new CountDownLatch(1);
         threadPool.generic().execute(() -> {
             waitForBarrier.run();
-            replicaResult.respond(new ActionListener<TransportResponse.Empty>() {
-                @Override
-                public void onResponse(TransportResponse.Empty empty) {
-                    completionLatch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    completionLatch.countDown();
-                }
-            });
+            replicaResult.respond(ActionListener.wrap(completionLatch::countDown));
         });
         if (randomBoolean()) {
             threadPool.generic().execute(() -> {

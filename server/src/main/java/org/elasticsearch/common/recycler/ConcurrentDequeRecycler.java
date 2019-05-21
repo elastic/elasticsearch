@@ -38,13 +38,6 @@ public class ConcurrentDequeRecycler<T> extends DequeRecycler<T> {
     }
 
     @Override
-    public void close() {
-        assert deque.size() == size.get();
-        super.close();
-        size.set(0);
-    }
-
-    @Override
     public V<T> obtain() {
         final V<T> v = super.obtain();
         if (v.isRecycled()) {

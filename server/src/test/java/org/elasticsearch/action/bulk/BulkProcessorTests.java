@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,6 +49,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 public class BulkProcessorTests extends ESTestCase {
@@ -107,11 +109,12 @@ public class BulkProcessorTests extends ESTestCase {
 
     public void testConcurrentExecutions() throws Exception {
         final AtomicBoolean called = new AtomicBoolean(false);
+        final AtomicReference<Throwable> exceptionRef = new AtomicReference<>();
         int estimatedTimeForTest = Integer.MAX_VALUE;
         final int simulateWorkTimeInMillis = 5;
-        int concurrentClients= 0;
+        int concurrentClients = 0;
         int concurrentBulkRequests = 0;
-        int expectedExecutions= 0;
+        int expectedExecutions = 0;
         int maxBatchSize = 0;
         int maxDocuments = 0;
         int iterations = 0;
@@ -120,6 +123,7 @@ public class BulkProcessorTests extends ESTestCase {
         while (estimatedTimeForTest > 10_000) {
             if (iterations++ > 1_000) { //extremely unlikely
                 runTest = false;
+                break;
             }
             maxBatchSize = randomIntBetween(1, 100);
             maxDocuments = randomIntBetween(maxBatchSize, 1_000_000);
@@ -130,7 +134,7 @@ public class BulkProcessorTests extends ESTestCase {
                 Math.min(concurrentBulkRequests + 1, concurrentClients);
         }
         assumeTrue("failed to find random values that allows test to run quickly", runTest);
-        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{new BulkItemResponse()}, 0);
+        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse() }, 0);
         AtomicInteger failureCount = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger requestCount = new AtomicInteger(0);
@@ -140,76 +144,84 @@ public class BulkProcessorTests extends ESTestCase {
             try {
                 Thread.sleep(simulateWorkTimeInMillis); //simulate work
             } catch (InterruptedException e) {
+                //should never happen
+                Thread.currentThread().interrupt();
                 failureCount.getAndIncrement();
-                logger.error("interrupted while sleeping. There is likely something wrong with this test!", e);
+                exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
             }
             listener.onResponse(bulkResponse);
         };
-        BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(),
-            countingListener(requestCount, successCount, failureCount, docCount),
+        try (BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(),
+            countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
             concurrentBulkRequests, maxBatchSize, new ByteSizeValue(Integer.MAX_VALUE), null,
-            (command, delay, executor) -> null, () -> called.set(true), BulkRequest::new);
+            (command, delay, executor) -> null, () -> called.set(true), BulkRequest::new)) {
 
-        ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
-        CountDownLatch startGate = new CountDownLatch(1);
+            ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
+            CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
 
-        IndexRequest indexRequest = new IndexRequest();
-        String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" +  "{ \"field1\" : \"value1\" }\n";
-        BytesReference bytesReference =
-            BytesReference.fromByteBuffers(new ByteBuffer[]{ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8))});
-        List<Future> futures = new ArrayList<>();
-        for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments; ) {
-            futures.add(executorService.submit(() -> {
-                try {
-                    //don't start any work until all tasks are submitted
-                    startGate.await();
-                    //alternate between ways to add to the bulk processor
-                    if (i.get() % 2 == 0) {
-                        bulkProcessor.add(indexRequest);
-                    } else {
-                        bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
+            IndexRequest indexRequest = new IndexRequest();
+            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            BytesReference bytesReference =
+                BytesReference.fromByteBuffers(new ByteBuffer[]{ ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) });
+            List<Future> futures = new ArrayList<>();
+            for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments; ) {
+                futures.add(executorService.submit(() -> {
+                    try {
+                        //don't start any work until all tasks are submitted
+                        startGate.countDown();
+                        startGate.await();
+                        //alternate between ways to add to the bulk processor
+                        if (randomBoolean()) {
+                            bulkProcessor.add(indexRequest);
+                        } else {
+                            bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
+                        }
+                    } catch (Exception e) {
+                        throw ExceptionsHelper.convertToRuntime(e);
                     }
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }));
-        }
-        startGate.countDown();
+                }));
+            }
+            startGate.countDown();
+            startGate.await();
 
-        for (Future f : futures) {
-            try {
-                f.get();
-            } catch (Exception e){
-                failureCount.incrementAndGet();
-                logger.error("failure while getting future", e);
+            for (Future f : futures) {
+                try {
+                    f.get();
+                } catch (Exception e) {
+                    failureCount.incrementAndGet();
+                    exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
+                }
+            }
+            executorService.shutdown();
+            executorService.awaitTermination(10, TimeUnit.SECONDS);
+
+            if (failureCount.get() > 0 || successCount.get() != expectedExecutions || requestCount.get() != successCount.get()) {
+                if (exceptionRef.get() != null) {
+                    logger.error("exception(s) caught during test", exceptionRef.get());
+                }
+                fail("\nExpected Bulks: " + expectedExecutions + "\n" +
+                    "Requested Bulks: " + requestCount.get() + "\n" +
+                    "Successful Bulks: " + successCount.get() + "\n" +
+                    "Failed Bulks: " + failureCount.get() + "\n" +
+                    "Max Documents: " + maxDocuments + "\n" +
+                    "Max Batch Size: " + maxBatchSize + "\n" +
+                    "Concurrent Clients: " + concurrentClients + "\n" +
+                    "Concurrent Bulk Requests: " + concurrentBulkRequests + "\n"
+                );
             }
         }
-        executorService.shutdown();
-        executorService.awaitTermination(10, TimeUnit.SECONDS);
-
-        if (failureCount.get() > 0 || successCount.get() != expectedExecutions || requestCount.get() != successCount.get()) {
-            fail("\nExpected Bulks: " + expectedExecutions + "\n" +
-                "Requested Bulks: " + requestCount.get() + "\n" +
-                "Successful Bulks: " + successCount.get() + "\n" +
-                "Failed Bulks: " + failureCount.get() + "\n" +
-                "Max Documents: " + maxDocuments + "\n" +
-                "Max Batch Size: " + maxBatchSize + "\n" +
-                "Concurrent Clients: " + concurrentClients + "\n" +
-                "Concurrent Bulk Requests: " + concurrentBulkRequests + "\n"
-            );
-        }
-        bulkProcessor.close();
         //count total docs after processor is closed since there may have been partial batches that are flushed on close.
         assertEquals(docCount.get(), maxDocuments);
     }
 
     public void testConcurrentExecutionsWithFlush() throws Exception {
+        final AtomicReference<Throwable> exceptionRef = new AtomicReference<>();
         final int maxDocuments = 100_000;
         final int concurrentClients = 2;
         final int maxBatchSize = Integer.MAX_VALUE; //don't flush based on size
         final int concurrentBulkRequests = randomIntBetween(0, 20);
         final int simulateWorkTimeInMillis = 5;
-        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{new BulkItemResponse()}, 0);
+        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{ new BulkItemResponse() }, 0);
         AtomicInteger failureCount = new AtomicInteger(0);
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger requestCount = new AtomicInteger(0);
@@ -220,59 +232,81 @@ public class BulkProcessorTests extends ESTestCase {
                 Thread.sleep(simulateWorkTimeInMillis); //simulate work
                 listener.onResponse(bulkResponse);
             } catch (InterruptedException e) {
+                //should never happen
+                Thread.currentThread().interrupt();
                 failureCount.getAndIncrement();
-                logger.error("interrupted while sleeping. There is likely something wrong with this test!", e);
+                exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
             }
         };
         ScheduledExecutorService flushExecutor = Executors.newScheduledThreadPool(1);
-        BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(),
-            countingListener(requestCount, successCount, failureCount, docCount),
+        try (BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(),
+            countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),
             concurrentBulkRequests, maxBatchSize, new ByteSizeValue(Integer.MAX_VALUE),
             TimeValue.timeValueMillis(simulateWorkTimeInMillis * 2),
             (command, delay, executor) ->
-                Scheduler.wrapAsScheduledCancellable(flushExecutor
-                    .schedule(command, delay.millis(), TimeUnit.MILLISECONDS)), flushExecutor::shutdownNow, BulkRequest::new);
-
-        ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
-
-        IndexRequest indexRequest = new IndexRequest();
-        String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" +  "{ \"field1\" : \"value1\" }\n";
-        BytesReference bytesReference =
-            BytesReference.fromByteBuffers(new ByteBuffer[]{ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8))});
-        List<Future> futures = new ArrayList<>();
-        for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments;) {
-            //alternate between ways to add to the bulk processor
-            futures.add(executorService.submit(() -> {
-                if(i.get() % 2 == 0) {
-                    bulkProcessor.add(indexRequest);
-                }else{
-                    try {
-                        bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
+                Scheduler.wrapAsScheduledCancellable(flushExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS)),
+            () ->
+            {
+                flushExecutor.shutdown();
+                try {
+                    flushExecutor.awaitTermination(10L, TimeUnit.SECONDS);
+                    if (flushExecutor.isTerminated() == false) {
+                        flushExecutor.shutdownNow();
                     }
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
                 }
-            }));
-        }
+            },
+            BulkRequest::new)) {
 
-        for (Future f : futures) {
-            try {
-                f.get(10, TimeUnit.SECONDS);
-            } catch (Exception e){
-                failureCount.incrementAndGet();
-                logger.error("failure while getting future", e);
+            ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
+            IndexRequest indexRequest = new IndexRequest();
+            String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
+            BytesReference bytesReference =
+                BytesReference.fromByteBuffers(new ByteBuffer[]{ ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) });
+            List<Future> futures = new ArrayList<>();
+            CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
+            for (final AtomicInteger i = new AtomicInteger(0); i.getAndIncrement() < maxDocuments; ) {
+                futures.add(executorService.submit(() -> {
+                    try {
+                        //don't start any work until all tasks are submitted
+                        startGate.countDown();
+                        startGate.await();
+                        //alternate between ways to add to the bulk processor
+                        if (randomBoolean()) {
+                            bulkProcessor.add(indexRequest);
+                        } else {
+                            bulkProcessor.add(bytesReference, null, null, XContentType.JSON);
+                        }
+                    } catch (Exception e) {
+                        throw ExceptionsHelper.convertToRuntime(e);
+                    }
+                }));
             }
+            startGate.countDown();
+            startGate.await();
+
+            for (Future f : futures) {
+                try {
+                    f.get();
+                } catch (Exception e) {
+                    failureCount.incrementAndGet();
+                    exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
+                }
+            }
+            executorService.shutdown();
+            executorService.awaitTermination(10, TimeUnit.SECONDS);
         }
-        executorService.shutdown();
-        executorService.awaitTermination(10, TimeUnit.SECONDS);
-        bulkProcessor.close();
 
         if (failureCount.get() > 0 || requestCount.get() != successCount.get() || maxDocuments != docCount.get()) {
+            if (exceptionRef.get() != null) {
+                logger.error("exception(s) caught during test", exceptionRef.get());
+            }
             fail("\nRequested Bulks: " + requestCount.get() + "\n" +
                 "Successful Bulks: " + successCount.get() + "\n" +
                 "Failed Bulks: " + failureCount.get() + "\n" +
                 "Total Documents: " + docCount.get() + "\n" +
-                "Max Documents: " + maxDocuments + "\n" +
+                "Max Documents: " + maxDocuments + "\n" +   
                 "Max Batch Size: " + maxBatchSize + "\n" +
                 "Concurrent Clients: " + concurrentClients + "\n" +
                 "Concurrent Bulk Requests: " + concurrentBulkRequests + "\n"
@@ -282,7 +316,7 @@ public class BulkProcessorTests extends ESTestCase {
 
     public void testAwaitOnCloseCallsOnClose() throws Exception {
         final AtomicBoolean called = new AtomicBoolean(false);
-        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {};
+        BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> { };
         BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(), emptyListener(),
             0, 10, new ByteSizeValue(1000), null,
             (command, delay, executor) -> null, () -> called.set(true), BulkRequest::new);
@@ -309,7 +343,7 @@ public class BulkProcessorTests extends ESTestCase {
     }
 
     private BulkProcessor.Listener countingListener(AtomicInteger requestCount, AtomicInteger successCount, AtomicInteger failureCount,
-                                                    AtomicInteger docCount) {
+                                                    AtomicInteger docCount, AtomicReference<Throwable> exceptionRef) {
 
         return new BulkProcessor.Listener() {
             @Override
@@ -327,6 +361,8 @@ public class BulkProcessorTests extends ESTestCase {
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 if (failure != null) {
                     failureCount.incrementAndGet();
+                    exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), failure));
+
                 }
             }
         };

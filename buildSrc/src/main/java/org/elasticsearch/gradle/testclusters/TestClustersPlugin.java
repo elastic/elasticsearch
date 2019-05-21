@@ -62,13 +62,13 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final TimeUnit EXECUTOR_SHUTDOWN_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
     private static final Logger logger =  Logging.getLogger(TestClustersPlugin.class);
-    private static final String TESTCLUSTERS_DISABLE_CLUSTER_STOP = "testclusters.disable.cluster.stop";
+    private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
 
     private final Map<Task, List<ElasticsearchCluster>> usedClusters = new HashMap<>();
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
     private final Set<ElasticsearchCluster> runningClusters =new HashSet<>();
     private final Thread shutdownHook = new Thread(this::shutDownAllClusters);
-    private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_DISABLE_CLUSTER_STOP, "false"));
+    private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     public static String getHelperConfigurationName(String version) {
@@ -247,12 +247,12 @@ public class TestClustersPlugin implements Plugin<Project> {
     private void stopCluster(ElasticsearchCluster each, boolean taskFailed) {
         if (allowClusterToSurvive) {
             logger.info("Not stopping clusters, disabled by property");
-            if (taskFailed || runningClusters.size() == 1) {
+            if (taskFailed) {
                 // task failed or this is the last one to stop
                 for (int i=1 ; ; i += i) {
                     logger.lifecycle(
                         "No more test clusters left to run, going to sleep because {} was set," +
-                            " interrupt to stop clusters.", TESTCLUSTERS_DISABLE_CLUSTER_STOP
+                            " interrupt to stop clusters.", TESTCLUSTERS_INSPECT_FAILURE
                     );
                     try {
                         Thread.sleep(1000 * i);
@@ -262,7 +262,6 @@ public class TestClustersPlugin implements Plugin<Project> {
                     }
                 }
             }
-            return;
         }
         each.stop(taskFailed);
     }

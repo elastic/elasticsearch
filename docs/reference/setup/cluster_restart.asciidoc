@@ -53,7 +53,7 @@ multiple times if necessary.
 --
 
 Stop all Elasticsearch services on all nodes in the cluster. Each node can be
-upgraded following the same procedure described in <<upgrade-node>>.
+upgraded following the same procedure described in <<upgrade-node, Stop and upgrade a single node>>.
 --
 
 . *Upgrade any plugins*

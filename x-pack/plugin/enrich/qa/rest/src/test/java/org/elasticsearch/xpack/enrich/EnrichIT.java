@@ -23,7 +23,7 @@ public class EnrichIT extends ESRestTestCase {
 
     @After
     private void deletePolicies() throws Exception {
-        Map<String, Object> responseMap = toMap(client().performRequest(new Request("GET", "/_enrich/policy")));
+        Map<String, Object> responseMap = toMap(adminClient().performRequest(new Request("GET", "/_enrich/policy")));
         @SuppressWarnings("unchecked")
         List<Map<?,?>> policies = (List<Map<?,?>>) responseMap.get("policies");
 

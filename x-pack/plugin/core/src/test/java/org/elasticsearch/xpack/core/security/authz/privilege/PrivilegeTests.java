@@ -151,6 +151,14 @@ public class PrivilegeTests extends ESTestCase {
         assertThat(predicate.test("cluster:admin/xpack/whatever"), is(false));
     }
 
+    public void testManageEnrichPrivilege() {
+        Predicate<String> predicate = ClusterPrivilege.MANAGE_ENRICH.predicate();
+        assertThat(predicate.test("cluster:admin/xpack/enrich/put"), is(true));
+        assertThat(predicate.test("cluster:admin/xpack/enrich/list"), is(true));
+        assertThat(predicate.test("cluster:admin/xpack/enrich/brand_new_api"), is(true));
+        assertThat(predicate.test("cluster:admin/xpack/whatever"), is(false));
+    }
+
     public void testIlmPrivileges() {
         {
             Predicate<String> predicate = ClusterPrivilege.MANAGE_ILM.predicate();

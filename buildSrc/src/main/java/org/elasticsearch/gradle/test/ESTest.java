@@ -29,18 +29,19 @@ public class ESTest extends Test {
 
     @Override
     public Test systemProperties(Map<String, ?> properties) {
-        properties.forEach((key, value) -> systemProperty(key, value));
+        properties.forEach(this::systemProperty);
         return this;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Test systemProperty(String name, Object value) {
         if (value instanceof Supplier) {
             systemProperties.put(name, (Supplier<String>) value);
         } else if (value instanceof Closure) {
             systemProperties.put(name, () -> ((Closure) value).call().toString());
         } else {
-            systemProperties.put(name, () -> value.toString());
+            systemProperties.put(name, value::toString);
         }
         return this;
     }

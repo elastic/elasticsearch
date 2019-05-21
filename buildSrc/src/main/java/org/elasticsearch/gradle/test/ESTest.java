@@ -3,7 +3,6 @@ package org.elasticsearch.gradle.test;
 import groovy.lang.Closure;
 import org.gradle.api.tasks.testing.Test;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;

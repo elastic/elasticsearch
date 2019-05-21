@@ -438,10 +438,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), () -> 0);
             fail("exception index");
         } catch (RuntimeException ex) {
-            assertNull(ExceptionsHelper.unwrapCorruption(ex));
+            final IOException unwrappedCorruption = ExceptionsHelper.unwrapCorruption(ex);
             if (throwCorruptedIndexException) {
+                assertNotNull(unwrappedCorruption);
                 assertEquals(ex.getMessage(), "[File corruption occurred on recovery but checksums are ok]");
             } else {
+                assertNull(unwrappedCorruption);
                 assertEquals(ex.getMessage(), "boom");
             }
         } catch (CorruptIndexException ex) {

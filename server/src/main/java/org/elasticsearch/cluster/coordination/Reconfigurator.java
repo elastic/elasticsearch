@@ -101,37 +101,30 @@ public class Reconfigurator {
             .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet());
         final Set<String> currentConfigNodeIds = currentConfig.getNodeIds();
 
-        final Set<VotingConfigNode> orderedMasterNodes = new TreeSet<>();
+        final Set<VotingConfigNode> nonRetiredOrderedMasterNodes = new TreeSet<>();
         liveNodes.stream()
             .filter(DiscoveryNode::isMasterNode)
-            .forEach(n -> orderedMasterNodes.add(new VotingConfigNode(n.getId(), true, retiredNodeIds.contains(n.getId()),
+            .filter(n -> retiredNodeIds.contains(n.getId()) == false)
+            .forEach(n -> nonRetiredOrderedMasterNodes.add(new VotingConfigNode(n.getId(), true,
                 n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))));
-        currentConfigNodeIds.stream().filter(nid -> liveNodeIds.contains(nid) == false)
-            .forEach(nid -> orderedMasterNodes.add(new VotingConfigNode(nid, false, retiredNodeIds.contains(nid), false, true)));
+        currentConfigNodeIds.stream()
+            .filter(nid -> liveNodeIds.contains(nid) == false)
+            .filter(nid -> retiredNodeIds.contains(nid) == false)
+            .forEach(nid -> nonRetiredOrderedMasterNodes.add(new VotingConfigNode(nid, false, false, true)));
 
         /*
          * Now we work out how many nodes should be in the configuration:
          */
-        final int targetSize;
-
-        final int nonRetiredLiveNodeCount = Math.toIntExact(orderedMasterNodes.stream().filter(n -> n.retired == false)
-            .filter(n -> n.live).count());
-        final int nonRetiredConfigSize = Math.toIntExact(orderedMasterNodes.stream().filter(n -> n.retired == false)
-            .filter(n -> n.inCurrentConfig).count());
-        if (autoShrinkVotingConfiguration) {
-            if (nonRetiredLiveNodeCount >= 3) {
-                targetSize = roundDownToOdd(nonRetiredLiveNodeCount);
-            } else {
-                // only have one or two available nodes; may not shrink below 3 nodes automatically, but if
-                // the config (excluding retired nodes) is already smaller than 3 then it's ok.
-                targetSize = nonRetiredConfigSize < 3 ? 1 : 3;
-            }
-        } else {
-            targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), nonRetiredConfigSize);
-        }
+        final int nonRetiredConfigSize = Math.toIntExact(nonRetiredOrderedMasterNodes.stream().filter(n -> n.inCurrentConfig).count());
+        final int minimumConfigEnforcedSize = autoShrinkVotingConfiguration ? (nonRetiredConfigSize < 3 ? 1 : 3) : nonRetiredConfigSize;
+        final int nonRetiredLiveNodeCount = Math.toIntExact(nonRetiredOrderedMasterNodes.stream().filter(n -> n.live).count());
+        final int targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), minimumConfigEnforcedSize);
 
         final VotingConfiguration newConfig = new VotingConfiguration(
-            orderedMasterNodes.stream().map(n -> n.id).limit(targetSize).collect(Collectors.toSet()));
+            nonRetiredOrderedMasterNodes.stream()
+                .limit(targetSize)
+                .map(n -> n.id)
+                .collect(Collectors.toSet()));
 
         // new configuration should have a quorum
         if (newConfig.hasQuorum(liveNodeIds)) {
@@ -145,25 +138,18 @@ public class Reconfigurator {
     static class VotingConfigNode implements Comparable<VotingConfigNode> {
         final String id;
         final boolean live;
-        final boolean retired;
         final boolean currentMaster;
         final boolean inCurrentConfig;
 
-        VotingConfigNode(String id, boolean live, boolean retired, boolean currentMaster, boolean inCurrentConfig) {
+        VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig) {
             this.id = id;
             this.live = live;
-            this.retired = retired;
             this.currentMaster = currentMaster;
             this.inCurrentConfig = inCurrentConfig;
         }
 
         @Override
         public int compareTo(VotingConfigNode other) {
-            // prefer non-retired nodes (o.w. we might readd a retired node)
-            final int retiredComp = Boolean.compare(retired, other.retired);
-            if (retiredComp != 0) {
-                return retiredComp;
-            }
             // prefer nodes that are live
             final int liveComp = Boolean.compare(other.live, live);
             if (liveComp != 0) {
@@ -188,7 +174,6 @@ public class Reconfigurator {
             return "VotingConfigNode{" +
                 "id='" + id + '\'' +
                 ", live=" + live +
-                ", retired=" + retired +
                 ", currentMaster=" + currentMaster +
                 ", inCurrentConfig=" + inCurrentConfig +
                 '}';

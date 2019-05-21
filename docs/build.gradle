@@ -1,3 +1,5 @@
+import static org.elasticsearch.gradle.Distribution.DEFAULT
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -36,7 +38,7 @@ buildRestTests.expectedUnconvertedCandidates = [
 ]
 
 testClusters.integTest {
-  if ("DEFAULT".equals(singleNode().distribution.name())) {
+  if (singleNode().distribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
@@ -52,8 +54,8 @@ testClusters.integTest {
   configFile 'userdict_ja.txt'
   configFile 'userdict_ko.txt'
   configFile 'KeywordTokenizer.rbbi'
-  extraConfigFile 'hunspell/en_US/en_US.aff', file('../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
-  extraConfigFile 'hunspell/en_US/en_US.dic', file('../server/src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
+  extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
+  extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 }

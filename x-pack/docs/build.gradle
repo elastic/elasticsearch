@@ -54,7 +54,7 @@ testClusters.integTest {
     keystore 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
     setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
     setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
-    user username: 'test_admin', role: 'superuser'
+    user username: 'test_admin'
 }
 
 

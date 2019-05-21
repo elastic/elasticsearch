@@ -1481,6 +1481,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/42211")
     public void testRefreshMetric() throws IOException {
         IndexShard shard = newStartedShard();
         assertThat(shard.refreshStats().getTotal(), equalTo(2L)); // refresh on: finalize and end of recovery

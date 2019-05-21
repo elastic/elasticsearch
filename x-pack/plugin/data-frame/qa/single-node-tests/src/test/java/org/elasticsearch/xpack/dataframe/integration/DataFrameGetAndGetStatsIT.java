@@ -57,6 +57,7 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         wipeDataFrameTransforms();
     }
 
+    @SuppressWarnings("unchecked")
     public void testGetAndGetStats() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
@@ -101,6 +102,14 @@ public class DataFrameGetAndGetStatsIT extends DataFrameRestTestCase {
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT + "pivot_1/_stats", authHeader);
         stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(1, XContentMapValues.extractValue("count", stats));
+
+        transformsStats = (List<Map<String, Object>>)XContentMapValues.extractValue("transforms", stats);
+        assertEquals(1, transformsStats.size());
+        Map<String, Object> state = (Map<String, Object>) XContentMapValues.extractValue("state", transformsStats.get(0));
+        assertEquals(1, transformsStats.size());
+        assertEquals("started", XContentMapValues.extractValue("task_state", state));
+        assertEquals(null, XContentMapValues.extractValue("current_position", state));
+        assertEquals(1, XContentMapValues.extractValue("checkpoint", state));
 
         // check all the different ways to retrieve all transforms
         getRequest = createRequestWithAuth("GET", DATAFRAME_ENDPOINT, authHeader);

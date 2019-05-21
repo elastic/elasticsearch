@@ -286,10 +286,17 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * ensure that the same value, determined by the coordinating node, is used on all nodes involved in the execution of the search
      * request. When created through {@link #crossClusterSearch(SearchRequest, String[], String, long, boolean)}, this method returns
      * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
-     *
      */
     long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
+    }
+
+    /**
+     * Returns the provided <code>absoluteStartMillis</code> when created through {@link #crossClusterSearch} and
+     * -1 otherwise.
+     */
+    long getAbsoluteStartMillis() {
+        return absoluteStartMillis;
     }
 
     /**

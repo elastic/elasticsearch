@@ -89,6 +89,7 @@ class PluginBuildPlugin extends BuildPlugin {
                 project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
                     // Auto add dependent modules to the test cluster
                     if (project.findProject(":modules:${pluginName}") != null) {
+                        project.integTest.dependsOn(project.project(":modules:${pluginName}").tasks.bundlePlugin)
                         project.testClusters.integTest.module(
                                 project.file(project.project(":modules:${pluginName}").tasks.bundlePlugin.archiveFile)
                         )
@@ -98,9 +99,8 @@ class PluginBuildPlugin extends BuildPlugin {
 
             project.tasks.run.dependsOn(project.tasks.bundlePlugin)
             if (isModule) {
-                project.tasks.run.clusterConfig.module(project)
                 project.tasks.run.clusterConfig.distribution = System.getProperty(
-                        'run.distribution', 'integ-test-zip'
+                        'run.distribution', isXPackModule ? 'default' : 'oss'
                 )
             } else {
                 project.tasks.run.clusterConfig.plugin(project.path)

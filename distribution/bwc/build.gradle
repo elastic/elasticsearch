@@ -239,6 +239,14 @@ bwcVersions.forPreviousUnreleased { BwcVersions.UnreleasedVersionInfo unreleased
         createBuildBwcTask(projectName, "${baseDir}/${projectName}", projectArtifact)
     }
 
+    createRunBwcGradleTask("resolveAllBwcDependencies") {
+        args 'resolveAllDependencies'
+    }
+    if (Version.fromString(version).isNextMajor()) {
+        // We only want to resolve dependencies for live versions of master, without cascading this to older versions
+        resolveAllDependencies.dependsOn resolveAllBwcDependencies
+    }
+
     for (e in artifactFiles) {
         String projectName = e.key
         String buildBwcTask = buildBwcTaskName(projectName)

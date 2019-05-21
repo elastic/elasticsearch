@@ -124,4 +124,7 @@ public final class Version implements Comparable<Version> {
         return Integer.compare(getId(), other.getId());
     }
 
+    public boolean isNextMajor() {
+        return getRevision() == 0 && getMinor() == 0;
+    }
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 

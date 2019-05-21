@@ -20,23 +20,25 @@ import static java.util.Collections.singletonList;
 public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     private final TableIdentifier table;
+    private final boolean frozen;
     private final String alias;
     private final String unresolvedMsg;
 
-    public UnresolvedRelation(Source source, TableIdentifier table, String alias) {
-        this(source, table, alias, null);
+    public UnresolvedRelation(Source source, TableIdentifier table, String alias, boolean frozen) {
+        this(source, table, alias, frozen, null);
     }
 
-    public UnresolvedRelation(Source source, TableIdentifier table, String alias, String unresolvedMessage) {
+    public UnresolvedRelation(Source source, TableIdentifier table, String alias, boolean frozen, String unresolvedMessage) {
         super(source);
         this.table = table;
         this.alias = alias;
+        this.frozen = frozen;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + table.index() + "]" : unresolvedMessage;
     }
 
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, UnresolvedRelation::new, table, alias, unresolvedMsg);
+        return NodeInfo.create(this, UnresolvedRelation::new, table, alias, frozen, unresolvedMsg);
     }
 
     public TableIdentifier table() {
@@ -45,6 +47,10 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
 
     public String alias() {
         return alias;
+    }
+
+    public boolean frozen() {
+        return frozen;
     }
 
     @Override
@@ -86,6 +92,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable {
         return source().equals(other.source())
             && table.equals(other.table)
             && Objects.equals(alias, other.alias)
+            && Objects.equals(frozen, other.frozen)
             && unresolvedMsg.equals(other.unresolvedMsg);
     }
 

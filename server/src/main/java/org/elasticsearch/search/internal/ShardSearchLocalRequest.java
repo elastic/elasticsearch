@@ -107,7 +107,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     ShardSearchLocalRequest(StreamInput in) throws IOException {
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);

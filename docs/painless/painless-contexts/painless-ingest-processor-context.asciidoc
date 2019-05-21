@@ -38,7 +38,8 @@ void::
 
 *API*
 
-The standard <<painless-api-reference, Painless API>> is available.
+Both the standard <<painless-api-reference-shared, Painless API>> and
+<<painless-api-reference-ingest, Specialized Ingest API>> are available.
 
 *Example*
 

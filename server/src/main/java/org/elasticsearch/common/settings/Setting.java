@@ -466,6 +466,11 @@ public class Setting<T> implements ToXContentObject {
      * @return the raw string representation of the setting value
      */
     String innerGetRaw(final Settings settings) {
+        SecureSettings secureSettings = settings.getSecureSettings();
+        if (secureSettings != null && secureSettings.getSettingNames().contains(getKey())) {
+            throw new IllegalArgumentException("Setting [" + getKey() + "] is a non-secure setting" +
+                " and must be stored inside elasticsearch.yml, but was found inside the Elasticsearch keystore");
+        }
         return settings.get(getKey(), defaultValue.apply(settings));
     }
 

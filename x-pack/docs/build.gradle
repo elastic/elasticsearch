@@ -73,6 +73,7 @@ File xpackResources = new File(xpackProject('plugin').projectDir, 'src/test/reso
 project.copyRestSpec.from(xpackResources) {
   include 'rest-api-spec/api/**'
 }
+File jwks = new File(xpackProject('test:idp-fixture').projectDir, 'oidc/op-jwks.json')
 integTestCluster {
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.authc.api_key.enabled', 'true'
@@ -81,9 +82,22 @@ integTestCluster {
     setting 'xpack.monitoring.exporters._local.type', 'local'
     setting 'xpack.monitoring.exporters._local.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.authc.realms.file.file.order', '0'
+    setting 'xpack.security.authc.realms.native.native.order', '1'
+    setting 'xpack.security.authc.realms.oidc.oidc1.order', '2'
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.issuer', 'http://127.0.0.1:8080'
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.authorization_endpoint', "http://127.0.0.1:8080/c2id-login"
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.token_endpoint', "http://127.0.0.1:8080/c2id/token"
+    setting 'xpack.security.authc.realms.oidc.oidc1.op.jwkset_path', 'op-jwks.json'
+    setting 'xpack.security.authc.realms.oidc.oidc1.rp.redirect_uri', 'https://my.fantastic.rp/cb'
+    setting 'xpack.security.authc.realms.oidc.oidc1.rp.client_id', 'elasticsearch-rp'
+    keystoreSetting 'xpack.security.authc.realms.oidc.oidc1.rp.client_secret', 'b07efb7a1cf6ec9462afe7b6d3ab55c6c7880262aa61ac28dded292aca47c9a2'
+    setting 'xpack.security.authc.realms.oidc.oidc1.rp.response_type', 'id_token'
+    setting 'xpack.security.authc.realms.oidc.oidc1.claims.principal', 'sub'
     setupCommand 'setupTestAdmin',
             'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
     waitCondition = waitWithAuth
+    extraConfigFile 'op-jwks.json', jwks
 }
 
 

@@ -250,7 +250,7 @@ it. It would not be the case on more skewed distributions.
 ==== Compression
 
 ifdef::asciidoctor[]
-experimental["The `compression` parameter is specific to the current internal implementation of percentiles, and may change in the future"]
+experimental::["The `compression` parameter is specific to the current internal implementation of percentiles, and may change in the future"]
 endif::[]
 ifndef::asciidoctor[]
 experimental[The `compression` parameter is specific to the current internal implementation of percentiles, and may change in the future]

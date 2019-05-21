@@ -49,6 +49,17 @@ import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.common.time.FormatNames.BASICDATE;
+import static org.elasticsearch.common.time.FormatNames.BASICDATETIME;
+import static org.elasticsearch.common.time.FormatNames.BASICDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.BASICORDINALDATE;
+import static org.elasticsearch.common.time.FormatNames.BASICORDINALDATETIME;
+import static org.elasticsearch.common.time.FormatNames.BASICORDINALDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.BASICTIME;
+import static org.elasticsearch.common.time.FormatNames.BASICTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.BASICTTIME;
+import static org.elasticsearch.common.time.FormatNames.BASICTTIMENOMILLIS;
+
 public class Joda {
 
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Joda.class));
@@ -65,25 +76,25 @@ public class Joda {
         }
 
         DateTimeFormatter formatter;
-        if ("basicDate".equals(input) || "basic_date".equals(input)) {
+        if (BASICDATE.matches(input)) {
             formatter = ISODateTimeFormat.basicDate();
-        } else if ("basicDateTime".equals(input) || "basic_date_time".equals(input)) {
+        } else if (BASICDATETIME.matches(input) ) {
             formatter = ISODateTimeFormat.basicDateTime();
-        } else if ("basicDateTimeNoMillis".equals(input) || "basic_date_time_no_millis".equals(input)) {
+        } else if (BASICDATETIMENOMILLIS.matches(input) ) {
             formatter = ISODateTimeFormat.basicDateTimeNoMillis();
-        } else if ("basicOrdinalDate".equals(input) || "basic_ordinal_date".equals(input)) {
+        } else if (BASICORDINALDATE.matches(input) ) {
             formatter = ISODateTimeFormat.basicOrdinalDate();
-        } else if ("basicOrdinalDateTime".equals(input) || "basic_ordinal_date_time".equals(input)) {
+        } else if (BASICORDINALDATETIME.matches(input) ) {
             formatter = ISODateTimeFormat.basicOrdinalDateTime();
-        } else if ("basicOrdinalDateTimeNoMillis".equals(input) || "basic_ordinal_date_time_no_millis".equals(input)) {
+        } else if (BASICORDINALDATETIMENOMILLIS.matches(input) ) {
             formatter = ISODateTimeFormat.basicOrdinalDateTimeNoMillis();
-        } else if ("basicTime".equals(input) || "basic_time".equals(input)) {
+        } else if (BASICTIME.matches(input) ) {
             formatter = ISODateTimeFormat.basicTime();
-        } else if ("basicTimeNoMillis".equals(input) || "basic_time_no_millis".equals(input)) {
+        } else if (BASICTIMENOMILLIS.matches(input) ) {
             formatter = ISODateTimeFormat.basicTimeNoMillis();
-        } else if ("basicTTime".equals(input) || "basic_t_time".equals(input)) {
+        } else if (BASICTTIME.matches(input) ) {
             formatter = ISODateTimeFormat.basicTTime();
-        } else if ("basicTTimeNoMillis".equals(input) || "basic_t_time_no_millis".equals(input)) {
+        } else if (BASICTTIMENOMILLIS.matches(input) ) {
             formatter = ISODateTimeFormat.basicTTimeNoMillis();
         } else if ("basicWeekDate".equals(input) || "basic_week_date".equals(input)) {
             formatter = ISODateTimeFormat.basicWeekDate();

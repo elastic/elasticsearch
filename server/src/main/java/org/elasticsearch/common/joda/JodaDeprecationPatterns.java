@@ -19,8 +19,13 @@
 
 package org.elasticsearch.common.joda;
 
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
+
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 public class JodaDeprecationPatterns {
@@ -39,19 +44,42 @@ public class JodaDeprecationPatterns {
 
     public static final String USE_PREFIX_8_WARNING = "Prefix your date format with '8' to use the new specifier.";
 
+    /**
+     * Returns true if pattern is deprecated. That is when it was not already prefixed with 8 (meaning already upgraded)
+     * and it is not a predefined pattern from <code>FormatNames</code>  like basic_date_time_no_millis
+     * and it uses pattern characters which changed meaning from joda to java like Y->y
+     * @param format
+     * @return
+     */
     public static boolean isDeprecatedFormat(String format) {
-        return format.startsWith("8") == false &&
-            JODA_PATTERNS_DEPRECATIONS.keySet().stream()
-                                      .filter(s -> format.contains(s))
-                                      .findAny()
-                                      .isPresent();
+        List<String> patterns = DateFormatter.splitCombinedPatterns(format);
+
+        for (String pattern : patterns) {
+            boolean isDeprecated = pattern.startsWith("8") == false && FormatNames.exist(pattern) == false &&
+                JODA_PATTERNS_DEPRECATIONS.keySet().stream()
+                                          .filter(s -> pattern.contains(s))
+                                          .findAny()
+                                          .isPresent();
+            if (isDeprecated)
+                return true;
+        }
+        return false;
     }
 
     public static String formatSuggestion(String format) {
-        String suggestion = JODA_PATTERNS_DEPRECATIONS.entrySet().stream()
-                                                      .filter(s -> format.contains(s.getKey()))
-                                                      .map(s -> s.getValue())
-                                                      .collect(Collectors.joining("; "));
-        return suggestion;
+        List<String> patterns = DateFormatter.splitCombinedPatterns(format);
+
+        StringJoiner joiner = new StringJoiner("; ");
+        for (String pattern : patterns) {
+            if (isDeprecatedFormat(pattern)) {
+
+                String suggestion = JODA_PATTERNS_DEPRECATIONS.entrySet().stream()
+                                                              .filter(s -> pattern.contains(s.getKey()))
+                                                              .map(s -> s.getValue())
+                                                              .collect(Collectors.joining("; "));
+                joiner.add(suggestion);
+            }
+        }
+        return joiner.toString();
     }
 }

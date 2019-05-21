@@ -41,7 +41,9 @@ PUT _template/template_1
 }
 --------------------------------------------------
 // CONSOLE
-// TESTSETUP
+// TEST[setup:name]
+// TEST[warning:'y' year becomes 'u'. Use 'y' for year-of-era.; 'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. Prefix your date format with '8' to use the new specifier.]
+
 
 NOTE: Index templates provide C-style /* */ block comments. Comments are allowed
 everywhere in the JSON document except before the initial opening curly bracket. 

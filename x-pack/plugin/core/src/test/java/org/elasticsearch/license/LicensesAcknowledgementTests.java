@@ -20,6 +20,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase {
+    @Override
+    protected boolean enableWarningsCheck() {
+        // disable warning checks as deprecated patterns are used to compare Joda vs Java results (y - year and Z zone offset)
+        return false;
+    }
 
     public void testAcknowledgment() throws Exception {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);

@@ -52,82 +52,82 @@ import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.MONTH_OF_YEAR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
-import static org.elasticsearch.common.time.FormatterNames.BASICDATE;
-import static org.elasticsearch.common.time.FormatterNames.BASICDATETIME;
-import static org.elasticsearch.common.time.FormatterNames.BASICDATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.BASICORDINALDATE;
-import static org.elasticsearch.common.time.FormatterNames.BASICORDINALDATETIME;
-import static org.elasticsearch.common.time.FormatterNames.BASICORDINALDATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.BASICTIME;
-import static org.elasticsearch.common.time.FormatterNames.BASICTIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.BASICTTIME;
-import static org.elasticsearch.common.time.FormatterNames.BASICTTIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.BASICWEEKDATE;
-import static org.elasticsearch.common.time.FormatterNames.BASICWEEKDATETIME;
-import static org.elasticsearch.common.time.FormatterNames.BASICWEEKDATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.DATEHOUR;
-import static org.elasticsearch.common.time.FormatterNames.DATEHOURMINUTE;
-import static org.elasticsearch.common.time.FormatterNames.DATEHOURMINUTESECOND;
-import static org.elasticsearch.common.time.FormatterNames.DATEHOURMINUTESECONDFRACTION;
-import static org.elasticsearch.common.time.FormatterNames.DATEHOURMINUTESECONDMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.DATEOPTIONALTIME;
-import static org.elasticsearch.common.time.FormatterNames.DATETIME;
-import static org.elasticsearch.common.time.FormatterNames.DATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.EPOCH_MILLIS;
-import static org.elasticsearch.common.time.FormatterNames.EPOCH_SECOND;
-import static org.elasticsearch.common.time.FormatterNames.HOURMINUTE;
-import static org.elasticsearch.common.time.FormatterNames.HOURMINUTESECOND;
-import static org.elasticsearch.common.time.FormatterNames.HOURMINUTESECONDFRACTION;
-import static org.elasticsearch.common.time.FormatterNames.HOURMINUTESECONDMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.ISO8601;
-import static org.elasticsearch.common.time.FormatterNames.ORDINALDATE;
-import static org.elasticsearch.common.time.FormatterNames.ORDINALDATETIME;
-import static org.elasticsearch.common.time.FormatterNames.ORDINALDATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTBASICWEEKDATE;
-import static org.elasticsearch.common.time.FormatterNames.STRICTBASICWEEKDATETIME;
-import static org.elasticsearch.common.time.FormatterNames.STRICTBASICWEEKDATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATE;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOUR;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOURMINUTE;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOURMINUTESECOND;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOURMINUTESECONDFRACTION;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATEHOURMINUTESECONDMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATEOPTIONALTIME;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATEOPTIONALTIMENANOS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATETIME;
-import static org.elasticsearch.common.time.FormatterNames.STRICTDATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTHOUR;
-import static org.elasticsearch.common.time.FormatterNames.STRICTHOURMINUTE;
-import static org.elasticsearch.common.time.FormatterNames.STRICTHOURMINUTESECOND;
-import static org.elasticsearch.common.time.FormatterNames.STRICTHOURMINUTESECONDFRACTION;
-import static org.elasticsearch.common.time.FormatterNames.STRICTHOURMINUTESECONDMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTORDINALDATE;
-import static org.elasticsearch.common.time.FormatterNames.STRICTORDINALDATETIME;
-import static org.elasticsearch.common.time.FormatterNames.STRICTORDINALDATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTTIME;
-import static org.elasticsearch.common.time.FormatterNames.STRICTTIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTTTIME;
-import static org.elasticsearch.common.time.FormatterNames.STRICTTTIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKDATE;
-import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKDATETIME;
-import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKDATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKYEAR;
-import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKYEARWEEK;
-import static org.elasticsearch.common.time.FormatterNames.STRICTWEEKYEARWEEKDAY;
-import static org.elasticsearch.common.time.FormatterNames.STRICTYEAR;
-import static org.elasticsearch.common.time.FormatterNames.STRICTYEARMONTH;
-import static org.elasticsearch.common.time.FormatterNames.STRICTYEARMONTHDAY;
-import static org.elasticsearch.common.time.FormatterNames.TIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.TTIME;
-import static org.elasticsearch.common.time.FormatterNames.TTIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.WEEKDATE;
-import static org.elasticsearch.common.time.FormatterNames.WEEKDATETIME;
-import static org.elasticsearch.common.time.FormatterNames.WEEKDATETIMENOMILLIS;
-import static org.elasticsearch.common.time.FormatterNames.WEEKYEAR;
-import static org.elasticsearch.common.time.FormatterNames.WEEKYEARWEEK;
-import static org.elasticsearch.common.time.FormatterNames.WEEKYEARWEEKDAY;
-import static org.elasticsearch.common.time.FormatterNames.YEARMONTH;
-import static org.elasticsearch.common.time.FormatterNames.YEARMONTHDAY;
+import static org.elasticsearch.common.time.FormatNames.BASICDATE;
+import static org.elasticsearch.common.time.FormatNames.BASICDATETIME;
+import static org.elasticsearch.common.time.FormatNames.BASICDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.BASICORDINALDATE;
+import static org.elasticsearch.common.time.FormatNames.BASICORDINALDATETIME;
+import static org.elasticsearch.common.time.FormatNames.BASICORDINALDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.BASICTIME;
+import static org.elasticsearch.common.time.FormatNames.BASICTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.BASICTTIME;
+import static org.elasticsearch.common.time.FormatNames.BASICTTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.BASICWEEKDATE;
+import static org.elasticsearch.common.time.FormatNames.BASICWEEKDATETIME;
+import static org.elasticsearch.common.time.FormatNames.BASICWEEKDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.DATEHOUR;
+import static org.elasticsearch.common.time.FormatNames.DATEHOURMINUTE;
+import static org.elasticsearch.common.time.FormatNames.DATEHOURMINUTESECOND;
+import static org.elasticsearch.common.time.FormatNames.DATEHOURMINUTESECONDFRACTION;
+import static org.elasticsearch.common.time.FormatNames.DATEHOURMINUTESECONDMILLIS;
+import static org.elasticsearch.common.time.FormatNames.DATEOPTIONALTIME;
+import static org.elasticsearch.common.time.FormatNames.DATETIME;
+import static org.elasticsearch.common.time.FormatNames.DATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.EPOCH_MILLIS;
+import static org.elasticsearch.common.time.FormatNames.EPOCH_SECOND;
+import static org.elasticsearch.common.time.FormatNames.HOURMINUTE;
+import static org.elasticsearch.common.time.FormatNames.HOURMINUTESECOND;
+import static org.elasticsearch.common.time.FormatNames.HOURMINUTESECONDFRACTION;
+import static org.elasticsearch.common.time.FormatNames.HOURMINUTESECONDMILLIS;
+import static org.elasticsearch.common.time.FormatNames.ISO8601;
+import static org.elasticsearch.common.time.FormatNames.ORDINALDATE;
+import static org.elasticsearch.common.time.FormatNames.ORDINALDATETIME;
+import static org.elasticsearch.common.time.FormatNames.ORDINALDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.STRICTBASICWEEKDATE;
+import static org.elasticsearch.common.time.FormatNames.STRICTBASICWEEKDATETIME;
+import static org.elasticsearch.common.time.FormatNames.STRICTBASICWEEKDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATE;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATEHOUR;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATEHOURMINUTE;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATEHOURMINUTESECOND;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATEHOURMINUTESECONDFRACTION;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATEHOURMINUTESECONDMILLIS;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATEOPTIONALTIME;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATEOPTIONALTIMENANOS;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATETIME;
+import static org.elasticsearch.common.time.FormatNames.STRICTDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.STRICTHOUR;
+import static org.elasticsearch.common.time.FormatNames.STRICTHOURMINUTE;
+import static org.elasticsearch.common.time.FormatNames.STRICTHOURMINUTESECOND;
+import static org.elasticsearch.common.time.FormatNames.STRICTHOURMINUTESECONDFRACTION;
+import static org.elasticsearch.common.time.FormatNames.STRICTHOURMINUTESECONDMILLIS;
+import static org.elasticsearch.common.time.FormatNames.STRICTORDINALDATE;
+import static org.elasticsearch.common.time.FormatNames.STRICTORDINALDATETIME;
+import static org.elasticsearch.common.time.FormatNames.STRICTORDINALDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.STRICTTIME;
+import static org.elasticsearch.common.time.FormatNames.STRICTTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.STRICTTTIME;
+import static org.elasticsearch.common.time.FormatNames.STRICTTTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.STRICTWEEKDATE;
+import static org.elasticsearch.common.time.FormatNames.STRICTWEEKDATETIME;
+import static org.elasticsearch.common.time.FormatNames.STRICTWEEKDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.STRICTWEEKYEAR;
+import static org.elasticsearch.common.time.FormatNames.STRICTWEEKYEARWEEK;
+import static org.elasticsearch.common.time.FormatNames.STRICTWEEKYEARWEEKDAY;
+import static org.elasticsearch.common.time.FormatNames.STRICTYEAR;
+import static org.elasticsearch.common.time.FormatNames.STRICTYEARMONTH;
+import static org.elasticsearch.common.time.FormatNames.STRICTYEARMONTHDAY;
+import static org.elasticsearch.common.time.FormatNames.TIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.TTIME;
+import static org.elasticsearch.common.time.FormatNames.TTIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.WEEKDATE;
+import static org.elasticsearch.common.time.FormatNames.WEEKDATETIME;
+import static org.elasticsearch.common.time.FormatNames.WEEKDATETIMENOMILLIS;
+import static org.elasticsearch.common.time.FormatNames.WEEKYEAR;
+import static org.elasticsearch.common.time.FormatNames.WEEKYEARWEEK;
+import static org.elasticsearch.common.time.FormatNames.WEEKYEARWEEKDAY;
+import static org.elasticsearch.common.time.FormatNames.YEARMONTH;
+import static org.elasticsearch.common.time.FormatNames.YEARMONTHDAY;
 
 public class DateFormatters {
 
@@ -1527,7 +1527,7 @@ public class DateFormatters {
             return BASIC_WEEK_DATE_TIME;
         } else if (BASICWEEKDATETIMENOMILLIS.matches(input) ) {
             return BASIC_WEEK_DATE_TIME_NO_MILLIS;
-        } else if (FormatterNames.DATE.matches(input)) {
+        } else if (FormatNames.DATE.matches(input)) {
             return DATE;
         } else if (DATEHOUR.matches(input) ) {
             return DATE_HOUR;
@@ -1545,7 +1545,7 @@ public class DateFormatters {
             return DATE_TIME;
         } else if (DATETIMENOMILLIS.matches(input) ) {
             return DATE_TIME_NO_MILLIS;
-        } else if (FormatterNames.HOUR.matches(input)) {
+        } else if (FormatNames.HOUR.matches(input)) {
             return HOUR;
         } else if (HOURMINUTE.matches(input) ) {
             return HOUR_MINUTE;
@@ -1561,7 +1561,7 @@ public class DateFormatters {
             return ORDINAL_DATE_TIME;
         } else if (ORDINALDATETIMENOMILLIS.matches(input) ) {
             return ORDINAL_DATE_TIME_NO_MILLIS;
-        } else if (FormatterNames.TIME.matches(input)) {
+        } else if (FormatNames.TIME.matches(input)) {
             return TIME;
         } else if (TIMENOMILLIS.matches(input) ) {
             return TIME_NO_MILLIS;
@@ -1581,7 +1581,7 @@ public class DateFormatters {
             return WEEKYEAR_WEEK;
         } else if (WEEKYEARWEEKDAY.matches(input) ) {
             return WEEKYEAR_WEEK_DAY;
-        } else if (FormatterNames.YEAR.matches(input)) {
+        } else if (FormatNames.YEAR.matches(input)) {
             return YEAR;
         } else if (YEARMONTH.matches(input) ) {
             return YEAR_MONTH;

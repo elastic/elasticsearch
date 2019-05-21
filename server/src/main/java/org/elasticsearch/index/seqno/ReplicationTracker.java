@@ -180,7 +180,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     private RetentionLeases retentionLeases = RetentionLeases.EMPTY;
 
+    /**
+     * The primary term of the most-recently persisted retention leases. This is used to check if we need to persist the current retention
+     * leases.
+     */
     private long persistedRetentionLeasesPrimaryTerm;
+
+    /**
+     * The version of the most-recently persisted retention leases. This is used to check if we need to persist the current retention
+     * leases.
+     */
     private long persistedRetentionLeasesVersion;
 
     /**

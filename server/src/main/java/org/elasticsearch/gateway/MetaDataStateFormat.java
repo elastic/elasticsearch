@@ -321,7 +321,12 @@ public abstract class MetaDataStateFormat<T> {
      * @return the latest state or <code>null</code> if no state was found.
      */
     public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
-        return loadLatestStateWithGeneration(logger, namedXContentRegistry, dataLocations).v1();
+        final Tuple<T, Long> maybeLatestStateWithGeneration = loadLatestStateWithGeneration(logger, namedXContentRegistry, dataLocations);
+        if (maybeLatestStateWithGeneration == null) {
+            return null;
+        } else {
+            return maybeLatestStateWithGeneration.v1();
+        }
     }
 
     /**

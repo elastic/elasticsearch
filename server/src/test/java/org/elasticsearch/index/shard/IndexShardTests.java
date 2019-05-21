@@ -688,7 +688,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
                         @Override
                         public void onFailure(final Exception e) {
-                            assertThat(e, instanceOf(IllegalStateException.class));
+                            assertThat(e, instanceOf(ShardNotInPrimaryModeException.class));
                             assertThat(e, hasToString(containsString("shard is not in primary mode")));
                         }
                     },
@@ -705,7 +705,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
                         @Override
                         public void onFailure(final Exception e) {
-                            assertThat(e, instanceOf(IllegalStateException.class));
+                            assertThat(e, instanceOf(ShardNotInPrimaryModeException.class));
                             assertThat(e, hasToString(containsString("shard is not in primary mode")));
                             latch.countDown();
                         }
@@ -1730,7 +1730,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryThread.join();
         assertTrue(shard.isRelocatedPrimary());
         final ExecutionException e = expectThrows(ExecutionException.class, () -> acquirePrimaryOperationPermitBlockingly(shard));
-        assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
         assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
 
         closeShards(shard);
@@ -1783,14 +1783,14 @@ public class IndexShardTests extends IndexShardTestCase {
                 onLockAcquired = new PlainActionFuture<>();
                 assertion = () -> {
                     final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
-                    assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+                    assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
                     assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
                 };
             } else {
                 onLockAcquired = new PlainActionFuture<>();
                 assertion = () -> {
                     final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
-                    assertThat(e.getCause(), instanceOf(IllegalStateException.class));
+                    assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
                     assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
                 };
             }

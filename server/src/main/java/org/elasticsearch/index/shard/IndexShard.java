@@ -2522,7 +2522,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 (l, r) -> {
                     if (replicationTracker.isPrimaryMode() == false) {
                         r.close();
-                        l.onFailure(new IllegalStateException("shard is not in primary mode"));
+                        l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
                     } else {
                         l.onResponse(r);
                     }

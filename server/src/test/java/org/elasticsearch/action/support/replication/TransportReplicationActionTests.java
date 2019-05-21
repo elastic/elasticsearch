@@ -64,9 +64,11 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -423,7 +425,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
         assertThat(e.getCause(), instanceOf(ReplicationOperation.RetryOnPrimaryException.class));
         assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
-        assertThat(e.getCause().getCause(), instanceOf(IllegalStateException.class));
+        assertThat(e.getCause().getCause(), instanceOf(ShardNotInPrimaryModeException.class));
         assertThat(e.getCause().getCause(), hasToString(containsString("shard is not in primary mode")));
     }
 
@@ -1310,6 +1312,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService) {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.state()).thenReturn(IndexShardState.STARTED);
         doAnswer(invocation -> {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
             if (isPrimaryMode.get()) {
@@ -1317,7 +1320,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                 callback.onResponse(count::decrementAndGet);
 
             } else {
-                callback.onFailure(new IllegalStateException("shard is not in primary mode"));
+                callback.onFailure(new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED));
             }
             return null;
         }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());

@@ -1,0 +1,36 @@
+--
+:api: slm-execute-snapshot-lifecycle-policy
+:request: ExecuteSnapshotLifecyclePolicyRequest
+:response: ExecuteSnapshotLifecyclePolicyResponse
+--
+
+[id="{upid}-{api}"]
+=== Execute Snapshot Lifecycle Policy API
+
+
+[id="{upid}-{api}-request"]
+==== Request
+
+The Execute Snapshot Lifecycle Policy API allows you to execute a Snapshot Lifecycle Management
+Policy, taking a snapshot immediately.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The policy id to execute
+
+[id="{upid}-{api}-response"]
+==== Response
+
+The returned +{response}+ contains the name of the snapshot that was created.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The created snapshot name
+
+include::../execution.asciidoc[]
+
+

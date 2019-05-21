@@ -783,7 +783,11 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         AcknowledgedResponse resp = client.indexLifecycle()
             .putSnapshotLifecyclePolicy(request, RequestOptions.DEFAULT);
         // end::slm-put-snapshot-lifecycle-policy-execute
-        assertTrue(resp.isAcknowledged());
+
+        // tag::slm-put-snapshot-lifecycle-policy-response
+        boolean putAcknowledged = resp.isAcknowledged(); // <1>
+        // end::slm-put-snapshot-lifecycle-policy-response
+        assertTrue(putAcknowledged);
 
         // tag::slm-put-snapshot-lifecycle-policy-execute-listener
         ActionListener<AcknowledgedResponse> putListener =
@@ -867,7 +871,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         //////// EXECUTE
         // tag::slm-execute-snapshot-lifecycle-policy
         ExecuteSnapshotLifecyclePolicyRequest executeRequest =
-            new ExecuteSnapshotLifecyclePolicyRequest("policy_id");
+            new ExecuteSnapshotLifecyclePolicyRequest("policy_id"); // <1>
         // end::slm-execute-snapshot-lifecycle-policy
 
         // tag::slm-execute-snapshot-lifecycle-policy-execute
@@ -878,7 +882,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::slm-execute-snapshot-lifecycle-policy-execute
 
         // tag::slm-execute-snapshot-lifecycle-policy-response
-        final String snapshotName = executeResponse.getSnapshotName();
+        final String snapshotName = executeResponse.getSnapshotName(); // <1>
         // end::slm-execute-snapshot-lifecycle-policy-response
 
         assertSnapshotExists(client, "my_repository", snapshotName);
@@ -930,7 +934,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         //////// DELETE
         // tag::slm-delete-snapshot-lifecycle-policy
         DeleteSnapshotLifecyclePolicyRequest deleteRequest =
-            new DeleteSnapshotLifecyclePolicyRequest("policy_id");
+            new DeleteSnapshotLifecyclePolicyRequest("policy_id"); // <1>
         // end::slm-delete-snapshot-lifecycle-policy
 
         // tag::slm-delete-snapshot-lifecycle-policy-execute

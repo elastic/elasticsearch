@@ -23,18 +23,20 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
-import org.apache.tools.ant.taskdefs.condition.Os
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
+import org.elasticsearch.gradle.info.GlobalInfoExtension
 import org.elasticsearch.gradle.info.JavaHome
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.elasticsearch.gradle.test.ErrorReportingTestListener
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.gradle.api.Action
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
+import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -137,20 +139,31 @@ class BuildPlugin implements Plugin<Project> {
         configureDependenciesInfo(project)
 
         // Common config when running with a FIPS-140 runtime JVM
-        // Need to do it here to support external plugins 
-        if (project.ext.inFipsJvm) {
-            project.tasks.withType(Test) {
-                systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-            }
-            project.pluginManager.withPlugin("elasticsearch.testclusters") {
-                project.testClusters.all {
-                    systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-                    systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+        // Need to do it here to support external plugins
+        if (project == project.rootProject) {
+            GlobalInfoExtension globalInfo = project.extensions.getByType(GlobalInfoExtension)
+
+            // wait until global info is populated because we don't know if we are running in a fips jvm until execution time
+            globalInfo.ready {
+                project.subprojects { Project subproject ->
+                    ExtraPropertiesExtension ext = subproject.extensions.getByType(ExtraPropertiesExtension)
+                    // Common config when running with a FIPS-140 runtime JVM
+                    if (ext.has('inFipsJvm') && ext.get('inFipsJvm')) {
+                        subproject.tasks.withType(Test) { Test task ->
+                            task.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                            task.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                        }
+                        project.pluginManager.withPlugin("elasticsearch.testclusters") {
+                            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = subproject.extensions.getByName('testClusters') as NamedDomainObjectContainer<ElasticsearchCluster>
+                            testClusters.all { ElasticsearchCluster cluster ->
+                                cluster.systemProperty 'javax.net.ssl.trustStorePassword', 'password'
+                                cluster.systemProperty 'javax.net.ssl.keyStorePassword', 'password'
+                            }
+                        }
+                    }
                 }
             }
         }
-
     }
 
     static void requireDocker(final Task task) {

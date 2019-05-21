@@ -169,6 +169,12 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(raw, notNullValue());
         assertThat(raw.binaryValue(), is(new BytesRef("foo")));
+
+        assertWarnings("At least one multi-field, [field], was " +
+            "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
+            "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
+            "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +
+            "switching to [copy_to] if appropriate.");
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
@@ -234,5 +240,11 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("field.raw"), notNullValue());
         assertThat(doc.rootDoc().getField("field.raw").stringValue(), is("foo"));
+
+        assertWarnings("At least one multi-field, [field], was " +
+            "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
+            "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
+            "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +
+            "switching to [copy_to] if appropriate.");
     }
 }

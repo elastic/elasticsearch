@@ -59,7 +59,7 @@ class RestIntegTestTask extends DefaultTask {
     Boolean includePackaged = false
 
     RestIntegTestTask() {
-        runner = project.tasks.create("${name}Runner", Test.class)
+        runner = project.tasks.create("${name}Runner", ESTest.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
@@ -77,10 +77,6 @@ class RestIntegTestTask extends DefaultTask {
             runner.useCluster project.testClusters."$name"
         }
 
-        // disable the build cache for rest test tasks
-        // there are a number of inputs we aren't properly tracking here so we'll just not cache these for now
-        runner.outputs.doNotCacheIf('Caching is disabled for REST integration tests') { true }
-
         // override/add more for rest tests
         runner.maxParallelForks = 1
         runner.include('**/*IT.class')
@@ -95,6 +91,8 @@ class RestIntegTestTask extends DefaultTask {
          * We bypass this by instead passing this system properties vi a CommandLineArgumentProvider. This has the added
          * side-effect that these properties are NOT treated as inputs, therefore they don't influence things like the
          * build cache key or up to date checking.
+         *
+         * TODO: replace with ESTest.systemProperty
          */
         def nonInputProperties = new CommandLineArgumentProvider() {
             private final Map<String, Object> systemProperties = [:]

@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.test.ESTest
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -35,8 +36,7 @@ testClusters.'follow-cluster' {
             { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\"" }
 }
 
-// TODO create a test with cluster task
-task followClusterRestartTest(type: Test) {
+task followClusterRestartTest(type: ESTest) {
     dependsOn 'leader-cluster', 'follow-cluster'
     useCluster testClusters.'leader-cluster'
     useCluster testClusters.'follow-cluster'
@@ -44,29 +44,11 @@ task followClusterRestartTest(type: Test) {
     maxParallelForks = 1
     systemProperty 'tests.rest.load_packaged', 'false'
     systemProperty 'tests.target_cluster', 'follow-restart'
-    def nonInputProperties = new CommandLineArgumentProvider() {
-        private final Map<String, Object> systemProperties = [:]
-
-        void systemProperty(String key, Object value) {
-            systemProperties.put(key, value)
-        }
-
-        @Override
-        Iterable<String> asArguments() {
-            return systemProperties.collect { key, value ->
-                "-D${key}=${value.toString()}".toString()
-            }
-        }
-    }
     doFirst {
         testClusters.'follow-cluster'.restart()
-
-        nonInputProperties.systemProperty 'tests.leader_host',
-                "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
-        nonInputProperties.systemProperty 'tests.rest.cluster',
-                "${-> testClusters.'follow-cluster'.getAllHttpSocketURI().join(",")}"
+        systemProperty 'tests.leader_host', { testClusters.'leader-cluster'.getAllHttpSocketURI().get(0) }
+        systemProperty 'tests.rest.cluster', { testClusters.'follow-cluster'.getAllHttpSocketURI().join(",") }
     }
-    jvmArgumentProviders.add(nonInputProperties)
 }
 
 check.dependsOn followClusterRestartTest

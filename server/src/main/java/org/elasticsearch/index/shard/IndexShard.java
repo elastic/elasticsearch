@@ -2520,11 +2520,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return ActionListener.delegateFailure(
                 listener,
                 (l, r) -> {
-                    if (replicationTracker.isPrimaryMode() == false) {
+                    if (replicationTracker.isPrimaryMode()) {
+                        l.onResponse(r);
+                    } else {
                         r.close();
                         l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
-                    } else {
-                        l.onResponse(r);
                     }
                 });
     }

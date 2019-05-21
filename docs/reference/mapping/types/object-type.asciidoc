@@ -180,7 +180,7 @@ that do not explicitly set it.
 [float]
 ==== path
 ifdef::asciidoctor[]
-deprecated[1.0.0,"Use <<copy-to,`copy_to`>> instead"]
+deprecated::[1.0.0,"Use <<copy-to,`copy_to`>> instead"]
 endif::[]
 ifndef::asciidoctor[]
 deprecated[1.0.0,Use <<copy-to,`copy_to`>> instead]

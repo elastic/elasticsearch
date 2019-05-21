@@ -187,8 +187,11 @@ public class TypeParsersTests extends ESTestCase {
             null, null, type -> typeParser, Version.CURRENT, null);
 
         TypeParsers.parseField(builder, "some-field", fieldNode, parserContext);
-        assertWarnings("The multi-field named [sub-field] contains its own [fields] entry. Defining " +
-            "multi-fields within a multi-field is deprecated and will no longer be supported in 8.0.");
+        assertWarnings("At least one multi-field, [sub-field], was " +
+            "encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated and will " +
+            "no longer be supported in 8.0. To resolve the issue, all instances of [fields] that occur within a [fields] block " +
+            "should be removed from the mappings, either by flattening the chained [fields] blocks into a single level, or " +
+            "switching to [copy_to] if appropriate.");
     }
 
     private Analyzer createAnalyzerWithMode(String name, AnalysisMode mode) {

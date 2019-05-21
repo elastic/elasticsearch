@@ -681,7 +681,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertEquals(0, indexShard.getActiveOperationsCount());
         } else {
             indexShard.acquirePrimaryOperationPermit(
-                    new ActionListener<>() {
+                    new ActionListener<Releasable>() {
                         @Override
                         public void onResponse(final Releasable releasable) {
                             throw new AssertionError();
@@ -698,7 +698,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
             final CountDownLatch latch = new CountDownLatch(1);
             indexShard.acquireAllPrimaryOperationsPermits(
-                    new ActionListener<>() {
+                    new ActionListener<Releasable>() {
                         @Override
                         public void onResponse(final Releasable releasable) {
                             throw new AssertionError();
@@ -1769,7 +1769,7 @@ public class IndexShardTests extends IndexShardTestCase {
             final Runnable assertion;
             if (i < recoveryIndex) {
                 final AtomicBoolean invoked = new AtomicBoolean();
-                onLockAcquired = new PlainActionFuture<>() {
+                onLockAcquired = new PlainActionFuture<Releasable>() {
 
                     @Override
                     public void onResponse(Releasable releasable) {

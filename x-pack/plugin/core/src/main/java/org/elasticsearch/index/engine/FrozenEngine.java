@@ -169,7 +169,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
                     listeners.beforeRefresh();
                 }
                 reader = DirectoryReader.open(engineConfig.getStore().directory());
-                processReaders(reader, null);
+                processReader(reader);
                 reader = lastOpenedReader = wrapReader(reader, Function.identity());
                 reader.getReaderCacheHelper().addClosedListener(this::onReaderClosed);
                 for (ReferenceManager.RefreshListener listeners : config ().getInternalRefreshListener()) {

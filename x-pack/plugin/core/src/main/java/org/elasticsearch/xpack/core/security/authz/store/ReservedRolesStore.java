@@ -118,8 +118,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".management-beats").privileges("create_index", "read", "write").build(),
+                                // .code_internal-* is for Code's internal worker queue index creation.
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".code-*").privileges("all").build(),
+                                        .indices(".code-*", ".code_internal-*").privileges("all").build(),
                         },
                         null,
                         new ConditionalClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

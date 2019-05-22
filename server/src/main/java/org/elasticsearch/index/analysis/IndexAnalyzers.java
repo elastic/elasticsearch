@@ -81,13 +81,6 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     }
 
     /**
-     * Returns an (unmodifiable) map of containing the index normalizers
-     */
-    Map<String, NamedAnalyzer> getNormalizers() {
-        return normalizers;
-    }
-
-    /**
      * Returns a normalizer that splits on whitespace mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer getWhitespaceNormalizer(String name) {

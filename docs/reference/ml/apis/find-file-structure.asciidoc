@@ -254,10 +254,10 @@ If the request does not encounter errors, you receive the following result:
   "format" : "ndjson", <6>
   "timestamp_field" : "release_date",
   "joda_timestamp_formats" : [
-    "YYYY-MM-dd"
+    "ISO8601"
   ],
   "java_timestamp_formats" : [
-    "yyyy-MM-dd"
+    "ISO8601"
   ],
   "need_client_timezone" : true, <7>
   "mappings" : { <8>
@@ -275,7 +275,7 @@ If the request does not encounter errors, you receive the following result:
     },
     "release_date" : {
       "type" : "date",
-      "format" : "yyyy-MM-dd"
+      "format" : "iso8601"
     }
   },
   "ingest_pipeline" : {
@@ -286,7 +286,7 @@ If the request does not encounter errors, you receive the following result:
           "field" : "release_date",
           "timezone" : "{{ beat.timezone }}",
           "formats" : [
-            "yyyy-MM-dd"
+            "ISO8601"
           ]
         }
       }

@@ -233,29 +233,17 @@ public class Build {
         boolean snapshot = in.readBoolean();
 
         final String version;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            version = in.readString();
-        } else {
-            version = in.getVersion().toString();
-        }
+        version = in.readString();
         return new Build(flavor, type, hash, date, snapshot, version);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         out.writeString(build.flavor().displayName());
-        final Type buildType;
-        if (out.getVersion().before(Version.V_6_7_0) && build.type() == Type.DOCKER) {
-            buildType = Type.TAR;
-        } else {
-            buildType = build.type();
-        }
-        out.writeString(buildType.displayName());
+        out.writeString(build.type().displayName());
         out.writeString(build.shortHash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeString(build.getQualifiedVersion());
-        }
+        out.writeString(build.getQualifiedVersion());
     }
 
     /**

@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -192,28 +191,6 @@ public class BuildTests extends ESTestCase {
                 }
                 throw new AssertionError();
             });
-    }
-
-    public void testSerializationBWC() throws IOException {
-        final WriteableBuild dockerBuild = new WriteableBuild(new Build(randomFrom(Build.Flavor.values()), Build.Type.DOCKER,
-            randomAlphaOfLength(6), randomAlphaOfLength(6), randomBoolean(), randomAlphaOfLength(6)));
-
-        final List<Version> versions = Version.getDeclaredVersions(Version.class);
-        final Version post67Pre70Version = randomFrom(versions.stream()
-            .filter(v -> v.onOrAfter(Version.V_6_7_0) && v.before(Version.V_7_0_0)).collect(Collectors.toList()));
-        final Version post70Version = randomFrom(versions.stream().filter(v -> v.onOrAfter(Version.V_7_0_0)).collect(Collectors.toList()));
-
-        final WriteableBuild post67pre70 = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new, post67Pre70Version);
-        final WriteableBuild post70 = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new, post70Version);
-
-        assertThat(post67pre70.build.flavor(), equalTo(dockerBuild.build.flavor()));
-        assertThat(post70.build.flavor(), equalTo(dockerBuild.build.flavor()));
-
-        assertThat(post67pre70.build.type(), equalTo(dockerBuild.build.type()));
-        assertThat(post70.build.type(), equalTo(dockerBuild.build.type()));
-
-        assertThat(post67pre70.build.getQualifiedVersion(), equalTo(post67Pre70Version.toString()));
-        assertThat(post70.build.getQualifiedVersion(), equalTo(dockerBuild.build.getQualifiedVersion()));
     }
 
     public void testFlavorParsing() {

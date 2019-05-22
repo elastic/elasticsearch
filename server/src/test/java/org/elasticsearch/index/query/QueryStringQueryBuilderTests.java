@@ -50,7 +50,6 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
@@ -1033,8 +1032,7 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(STRING_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
-        if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                && (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false)) {
+        if (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false) {
             assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));
@@ -1044,8 +1042,7 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
             String value = (quoted ? "\"" : "") + STRING_FIELD_NAME + (quoted ? "\"" : "");
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                && (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false)) {
+            if (context.fieldMapper(STRING_FIELD_NAME).omitNorms() == false) {
                 assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(STRING_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", STRING_FIELD_NAME)))));

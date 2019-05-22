@@ -100,12 +100,13 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
   - match: { transforms.0.state.task_state: "started" }
 
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
+        wait_for_completion: true
   - match: { stopped: true }
 
   - do:
@@ -126,7 +127,7 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
   - match: { transforms.0.state.task_state: "started" }
 
 ---
@@ -167,7 +168,7 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
   - match: { transforms.0.state.task_state: "started" }
 
   - do:
@@ -193,12 +194,13 @@ teardown:
         transform_id: "airline-transform-start-later"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-later" }
-  - match: { transforms.0.state.indexer_state: "started" }
+  - match: { transforms.0.state.indexer_state: "/started|indexing/" }
   - match: { transforms.0.state.task_state: "started" }
 
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-later"
+        wait_for_completion: true
   - match: { stopped: true }
 
   - do:
@@ -232,6 +234,8 @@ teardown:
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "_all"
+        wait_for_completion: true
+
   - match: { stopped: true }
 
   - do:

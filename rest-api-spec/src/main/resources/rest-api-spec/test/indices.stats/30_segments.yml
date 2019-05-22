@@ -1,9 +1,5 @@
 ---
 setup:
-  - skip:
-      version: "all"
-      reason: "AwaitsFix: https://github.com/elastic/elasticsearch/issues/40331"
-
   - do:
       indices.create:
           index: test
@@ -47,6 +43,7 @@ setup:
   - do:
       indices.close:
         index: test
+        wait_for_active_shards: all
 
   - do:
       indices.stats:

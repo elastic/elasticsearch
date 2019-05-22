@@ -29,7 +29,9 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
@@ -180,9 +182,9 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
 
         static final String NAME = "test_processor";
 
-        private final Function<String, Engine.Searcher> localShardSearcher;
+        private final Function<String, Tuple<IndexMetaData, Engine.Searcher>> localShardSearcher;
 
-        TestProcessor(String tag, Function<String, Engine.Searcher> localShardSearcher) {
+        TestProcessor(String tag, Function<String, Tuple<IndexMetaData, Engine.Searcher>> localShardSearcher) {
             super(tag);
             this.localShardSearcher = localShardSearcher;
         }
@@ -190,7 +192,7 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
         @Override
         public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
             String indexExpression = "reference-index";
-            try (Engine.Searcher engineSearcher = localShardSearcher.apply(indexExpression)) {
+            try (Engine.Searcher engineSearcher = localShardSearcher.apply(indexExpression).v2()) {
                 // Ensure that search wrapper has been invoked by checking the directory instance type:
                 if ((engineSearcher.getDirectoryReader() instanceof TestDirectyReader) == false) {
                     // asserting or throwing a AssertionError makes this test hang:
@@ -210,9 +212,9 @@ public class IngestLocalShardSearcherTests extends ESSingleNodeTestCase {
 
         static class Factory implements Processor.Factory {
 
-            private final Function<String, Engine.Searcher> localShardSearcher;
+            private final Function<String, Tuple<IndexMetaData, Engine.Searcher>> localShardSearcher;
 
-            Factory(Function<String, Engine.Searcher> localShardSearcher) {
+            Factory(Function<String, Tuple<IndexMetaData, Engine.Searcher>> localShardSearcher) {
                 this.localShardSearcher = localShardSearcher;
             }
 

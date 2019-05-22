@@ -9,7 +9,11 @@
           indices: ["bar*"]
           enrich_key: baz
           enrich_values: ["a", "b"]
-          schedule: "*/120"
+  - is_true: acknowledged
+
+  - do:
+      enrich.execute_policy:
+        name: policy-crud
   - is_true: acknowledged
 
   - do:
@@ -20,7 +24,6 @@
   - match: { policies.0.indices: ["bar*"] }
   - match: { policies.0.enrich_key: baz }
   - match: { policies.0.enrich_values: ["a", "b"] }
-  - match: { policies.0.schedule: "*/120" }
 
   - do:
       enrich.delete_policy:

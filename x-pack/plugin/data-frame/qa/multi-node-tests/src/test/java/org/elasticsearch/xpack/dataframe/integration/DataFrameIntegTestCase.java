@@ -83,17 +83,17 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
     }
 
     protected StopDataFrameTransformResponse stopDataFrameTransform(String id) throws IOException {
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(id), RequestOptions.DEFAULT);
     }
 
     protected StartDataFrameTransformResponse startDataFrameTransform(String id, RequestOptions options) throws IOException {
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().startDataFrameTransform(new StartDataFrameTransformRequest(id), options);
     }
 
     protected org.elasticsearch.client.core.AcknowledgedResponse deleteDataFrameTransform(String id) throws IOException {
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().deleteDataFrameTransform(new DeleteDataFrameTransformRequest(id), RequestOptions.DEFAULT);
     }
 
@@ -101,12 +101,12 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         if (transformConfigs.keySet().contains(config.getId())) {
             throw new IllegalArgumentException("data frame transform [" + config.getId() + "] is already registered");
         }
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(config), options);
     }
 
     protected GetDataFrameTransformStatsResponse getDataFrameTransformStats(String id) throws IOException {
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         return restClient.dataFrame().getDataFrameTransformStats(new GetDataFrameTransformStatsRequest(id), RequestOptions.DEFAULT);
     }
 
@@ -202,7 +202,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
     protected void createReviewsIndex() throws Exception {
         final int numDocs = 1000;
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
 
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
@@ -288,7 +288,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         listTasksRequest.setWaitForCompletion(true);
         listTasksRequest.setDetailed(true);
         listTasksRequest.setTimeout(TimeValue.timeValueSeconds(10));
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         try {
             restClient.tasks().list(listTasksRequest, RequestOptions.DEFAULT);
         } catch (Exception e) {
@@ -309,5 +309,11 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();
+    }
+
+    private class TestRestHighLevelClient extends RestHighLevelClient {
+        TestRestHighLevelClient() {
+            super(client(), restClient -> {}, Collections.emptyList());
+        }
     }
 }

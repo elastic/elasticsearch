@@ -49,7 +49,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
 
     protected void createReviewsIndex() throws Exception {
         final int numDocs = 1000;
-        final RestHighLevelClient restClient = new RestHighLevelClient(client());
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
 
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
@@ -136,7 +136,7 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
             pivotConfig,
             null);
 
-        final RestHighLevelClient restClient = new RestHighLevelClient(client());
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
         SearchResponse response = restClient.search(TransformProgressGatherer.getSearchRequest(config), RequestOptions.DEFAULT);
 
         DataFrameTransformProgress progress =
@@ -174,5 +174,11 @@ public class DataFrameTransformProgressIT extends ESRestTestCase {
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();
+    }
+
+    private class TestRestHighLevelClient extends RestHighLevelClient {
+        TestRestHighLevelClient() {
+            super(client(), restClient -> {}, Collections.emptyList());
+        }
     }
 }

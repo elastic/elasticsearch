@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -60,7 +61,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
     }
 
     public void testClusterAction() throws IOException {
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         restClient.security().putUser(PutUserRequest.withPassword(new User("custom_user", List.of("custom_superuser")),
             "x-pack-test-password".toCharArray(), true, RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
 
@@ -88,7 +89,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
     }
 
     public void testIndexAction() throws IOException {
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         restClient.security().putUser(PutUserRequest.withPassword(new User("custom_user", List.of("custom_superuser")),
             "x-pack-test-password".toCharArray(), true, RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
 
@@ -116,7 +117,7 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
     }
 
     public void testRunAs() throws IOException {
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         restClient.security().putUser(PutUserRequest.withPassword(new User("custom_user", List.of("custom_superuser")),
             "x-pack-test-password".toCharArray(), true, RefreshPolicy.IMMEDIATE), RequestOptions.DEFAULT);
         restClient.security().putUser(PutUserRequest.withPassword(new User("custom_user2", List.of("custom_superuser")),
@@ -157,6 +158,12 @@ public class CustomAuthorizationEngineIT extends ESRestTestCase {
             request.setOptions(options);
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
+        }
+    }
+
+    private class TestRestHighLevelClient extends RestHighLevelClient {
+        TestRestHighLevelClient() {
+            super(client(), restClient -> {}, Collections.emptyList());
         }
     }
 }

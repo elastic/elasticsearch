@@ -21,6 +21,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.INDEX;
@@ -53,7 +54,7 @@ public class CustomRolesProviderIT extends ESRestTestCase {
     }
 
     public void setupTestUser(String role) throws IOException {
-        new RestHighLevelClient(client()).security().putUser(
+        new TestRestHighLevelClient().security().putUser(
             PutUserRequest.withPassword(new User(TEST_USER, List.of(role)), TEST_PWD.toCharArray(), true, RefreshPolicy.IMMEDIATE),
             RequestOptions.DEFAULT);
     }
@@ -85,5 +86,11 @@ public class CustomRolesProviderIT extends ESRestTestCase {
         request.setOptions(AUTH_OPTIONS);
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
+    }
+
+    private class TestRestHighLevelClient extends RestHighLevelClient {
+        TestRestHighLevelClient() {
+            super(client(), restClient -> {}, Collections.emptyList());
+        }
     }
 }

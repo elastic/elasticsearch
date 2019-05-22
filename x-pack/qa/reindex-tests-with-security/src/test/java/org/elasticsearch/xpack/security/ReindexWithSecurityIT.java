@@ -30,6 +30,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -78,7 +79,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
     public void testDeleteByQuery() throws IOException {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         BulkByScrollResponse response = restClient.deleteByQuery((DeleteByQueryRequest) new DeleteByQueryRequest()
             .setQuery(QueryBuilders.matchAllQuery())
             .indices("test1", "test2"), RequestOptions.DEFAULT);
@@ -99,7 +100,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
     public void testUpdateByQuery() throws IOException {
         createIndicesWithRandomAliases("test1", "test2", "test3");
 
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         BulkByScrollResponse response =
             restClient.updateByQuery((UpdateByQueryRequest) new UpdateByQueryRequest().indices("test1", "test2"), RequestOptions.DEFAULT);
         assertNotNull(response);
@@ -116,7 +117,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
     public void testReindex() throws IOException {
         createIndicesWithRandomAliases("test1", "test2", "test3", "dest");
 
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         BulkByScrollResponse response = restClient.reindex(new ReindexRequest().setSourceIndices("test1", "test2").setDestIndex("dest"),
             RequestOptions.DEFAULT);
         assertNotNull(response);
@@ -140,7 +141,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             createIndex(index, Settings.EMPTY);
         }
 
-        RestHighLevelClient restClient = new RestHighLevelClient(client());
+        RestHighLevelClient restClient = new TestRestHighLevelClient();
         if (frequently()) {
             boolean aliasAdded = false;
 
@@ -170,4 +171,9 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
         restClient.indices().refresh(new RefreshRequest(indices), RequestOptions.DEFAULT);
     }
 
+    private class TestRestHighLevelClient extends RestHighLevelClient {
+        TestRestHighLevelClient() {
+            super(client(), restClient -> {}, Collections.emptyList());
+        }
+    }
 }

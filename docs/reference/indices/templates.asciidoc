@@ -41,8 +41,7 @@ PUT _template/template_1
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[setup:name]
-// TEST[warning:'y' year becomes 'u'. Use 'y' for year-of-era.; 'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. Prefix your date format with '8' to use the new specifier.]
+// TESTSETUP
 
 
 NOTE: Index templates provide C-style /* */ block comments. Comments are allowed

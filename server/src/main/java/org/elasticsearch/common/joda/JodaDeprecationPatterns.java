@@ -45,11 +45,12 @@ public class JodaDeprecationPatterns {
     public static final String USE_PREFIX_8_WARNING = "Prefix your date format with '8' to use the new specifier.";
 
     /**
-     * Returns true if pattern is deprecated. That is when it was not already prefixed with 8 (meaning already upgraded)
+     * Checks if date parsing pattern is deprecated.
+     * Deprecated here means: when it was not already prefixed with 8 (meaning already upgraded)
      * and it is not a predefined pattern from <code>FormatNames</code>  like basic_date_time_no_millis
-     * and it uses pattern characters which changed meaning from joda to java like Y->y
-     * @param format
-     * @return
+     * and it uses pattern characters which changed meaning from joda to java like Y becomes y.
+     * @param format - a format to be checked
+     * @return true if format is deprecated, otherwise false
      */
     public static boolean isDeprecatedFormat(String format) {
         List<String> patterns = DateFormatter.splitCombinedPatterns(format);

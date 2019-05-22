@@ -151,7 +151,7 @@ public interface DateFormatter {
         return DateFormatters.merge(input, formatters);
     }
 
-    public static List<String> splitCombinedPatterns(String input) {
+    static List<String> splitCombinedPatterns(String input) {
         List<String> formatters = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
             if (Strings.hasLength(pattern) == false) {

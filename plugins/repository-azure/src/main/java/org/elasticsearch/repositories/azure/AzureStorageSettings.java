@@ -129,14 +129,6 @@ final class AzureStorageSettings {
         this.locationMode = LocationMode.PRIMARY_ONLY;
     }
 
-    public String getKey() {
-        return key;
-    }
-
-    public String getAccount() {
-        return account;
-    }
-
     public String getEndpointSuffix() {
         return endpointSuffix;
     }
@@ -207,7 +199,7 @@ final class AzureStorageSettings {
 
     // pkg private for tests
     /** Parse settings for a single client. */
-    static AzureStorageSettings getClientSettings(Settings settings, String clientName) {
+    private static AzureStorageSettings getClientSettings(Settings settings, String clientName) {
         try (SecureString account = getConfigValue(settings, clientName, ACCOUNT_SETTING);
              SecureString key = getConfigValue(settings, clientName, KEY_SETTING)) {
             return new AzureStorageSettings(account.toString(), key.toString(),
@@ -226,7 +218,7 @@ final class AzureStorageSettings {
         return concreteSetting.get(settings);
     }
 
-    public static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
+    private static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
         final Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
         final String fullKey = k.toConcreteKey(groupName).toString();
         return setting.getConcreteSetting(fullKey).get(settings);

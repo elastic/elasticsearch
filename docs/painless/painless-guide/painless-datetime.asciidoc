@@ -1,0 +1,124 @@
+[[painless-datetime]]
+=== Using Datetime in Painless
+
+==== Datetime API
+
+Datetimes in Painless use the standard Java libraries and are available through
+the Painless <<painless-api-reference-shared, Shared API>>. Most of the classes
+from the following Java packages are available to use in Painless scripts:
+
+* <<painless-api-reference-shared-java-time, java.time>>
+* <<painless-api-reference-shared-java-time-chrono, java.time.chrono>>
+* <<painless-api-reference-shared-java-time-format, java.time.format>>
+* <<painless-api-reference-shared-java-time-temporal, java.time.temporal>>
+* <<painless-api-reference-shared-java-time-zone, java.time.zone>>
+
+==== ZonedDateTime
+
+The typical pattern in a script is to convert some representation of a datetime
+into a <<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>>,
+manipulate the <<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>>
+in some way, and then either store it, compare it, or format it depending on
+the <<painless-contexts, Painless context>>.
+
+==== DateTimeFormatter
+
+Conversions of datetimes between a <<string-type, String>> and a
+<<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>> and vice versa
+often require a
+<<painless-api-reference-shared-DateTimeFormatter, DateTimeFormatter>>.
+
+Use a <<painless-api-reference-shared-DateTimeFormatter, DateTimeFormatter>> to
+represent nearly any <<string-type, String>> as a datetime format. For more
+information about existing already made DateTimeFormatter constants or
+information on how to build a custom DateTimeFormatter see the
+{java11-javadoc}/java.base/java/time/format/DateTimeFormatter.html[Java documentation].
+
+==== Conversions To ZonedDateTime
+
+Datetimes are often input as either a <<primitive-types, long>> that represents
+milliseconds since epoch (1970-01-01T00:00:00Z) or a <<string-type, String>>
+that represents an exact datetime in one of many possible formats. Neither of
+these provide much utility for datetime manipulation, (though, the long format
+is useful for comparisons), so a conversion to a ZonedDateTime is often
+necessary.
+
+*Examples*
+
+* Convert a long in milliseconds since epoch to a ZonedDateTime
++
+[source,Painless]
+----
+long milliSinceEpoch = 434931330000L;
+Instant instant = Instant.ofEpochMilli(milliSinceEpoch);
+ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneOffset.UTC);
+----
++
+* Convert a String to a ZonedDateTime using the default parse method with the
+format ISO_INSTANT.
++
+[source,Painless]
+----
+String datetime = '1983-10-13T22:15:30Z';
+ZonedDateTime zdt = ZonedDateTime.parse(datetime);
+----
++
+* Convert a String to a ZonedDateTime using the parse method with the already
+made format RFC_1123_DATE_TIME.
++
+[source,Painless]
+----
+String datetime = 'Thu, 13 Oct 1983 22:15:30 GMT';
+ZonedDateTime zdt = ZonedDateTime.parse(datetime,
+        DateTimeFormatter.RFC_1123_DATE_TIME);
+----
++
+* Convert a String to a ZonedDateTime using the parse method with a custom
+DateTimeFormatter.
++
+[source,Painless]
+----
+String datetime = 'custom y 1983 m 10 d 13 22:15:30 Z';
+DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
+        "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
+ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
+----
+
+==== Conversions From ZonedDateTime
+
+Datetimes are often output as either a <<primitive-types, long>> that
+represents milliseconds since epoch (1970-01-01T00:00:00Z) or a
+<<string-type, String>> that represents an exact datetime in one of many
+possible formats. Output formats are useful for storage, comparison, and
+human-readable display.
+
+*Examples*
+
+* Convert a ZonedDateTime to a long in milliseconds since epoch.
++
+[source,Painless]
+----
+ZonedDateTime zdt =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+long milliSinceEpoch = zdt.toInstant().toEpochMilli();
+----
++
+* Convert a ZonedDateTime to a String with the ISO_INSTANT format.
++
+[source,Painless]
+----
+ZonedDateTime zdt =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+String datetime = zdt.format(DateTimeFormatter.ISO_INSTANT);
+----
++
+* Convert a ZonedDateTime to a String with a custom DateTimeFormatter.
++
+[source,Painless]
+----
+ZonedDateTime zdt =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
+        "'date:' yyyy/MM/dd 'time:' HH:mm:ss");
+String datetime = zdt.format(dtf);
+----

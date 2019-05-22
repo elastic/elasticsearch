@@ -1,5 +1,7 @@
 include::painless-walkthrough.asciidoc[]
 
+include::painless-datetime.asciidoc[]
+
 include::painless-method-dispatch.asciidoc[]
 
 include::painless-debugging.asciidoc[]

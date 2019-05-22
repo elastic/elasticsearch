@@ -93,7 +93,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         List<String> enrichFields = new ArrayList<>();
         enrichFields.add("field2");
         enrichFields.add("field5");
-        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields, "");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndex), "field1", enrichFields);
         String policyName = "test1";
 
         ActionListener<PolicyExecutionResult> listener = new ActionListener<>() {
@@ -227,7 +227,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         enrichFields.add("field2");
         enrichFields.add("field5");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndexPattern), "field1",
-            enrichFields, "");
+            enrichFields);
         String policyName = "test1";
 
         ActionListener<PolicyExecutionResult> listener = new ActionListener<>() {

@@ -122,7 +122,7 @@ public class IndexDeprecationChecks {
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Multi-fields within multi-fields",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.2/breaking-changes-7.2.html" +
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                     "#_defining_multi_fields_within_multi_fields",
                 "The names of fields that contain chained multi-fields: " + issues.toString());
         }

@@ -78,7 +78,8 @@ public class MachineLearningFeatureSet implements XPackFeatureSet {
         if (enabled) {
             try {
                 if (isRunningOnMlPlatform(true)) {
-                    NativeController nativeController = NativeControllerHolder.getNativeController(environment);
+                    NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(),
+                        environment);
                     if (nativeController != null) {
                         nativeCodeInfo = nativeController.getNativeCodeInfo();
                     }

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -22,6 +23,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.dataframe.DataFrameField.INDEX_DOC_TYPE;
 import static org.elasticsearch.xpack.dataframe.DataFrameFeatureSet.PROVIDED_STATS;
 
+@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameUsageIT extends DataFrameRestTestCase {
     private boolean indicesCreated = false;
 

@@ -1638,7 +1638,7 @@ public class RequestConvertersTests extends ESTestCase {
 
     public void testAnalyzeRequest() throws Exception {
         AnalyzeRequest indexAnalyzeRequest
-            = AnalyzeRequest.withIndexAnalyzer("text_index", "test_analyzer", "Here is some text");
+            = AnalyzeRequest.withIndexAnalyzer("test_index", "test_analyzer", "Here is some text");
 
         Request request = RequestConverters.analyze(indexAnalyzeRequest);
         assertThat(request.getEndpoint(), equalTo("/test_index/_analyze"));

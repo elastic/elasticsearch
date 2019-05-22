@@ -79,26 +79,26 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         return terminal;
     }
 
-    private MockTerminal unsafeBootstrap(Environment environment, int nodeOrdinal, boolean abort) throws Exception {
-        final MockTerminal terminal = executeCommand(new UnsafeBootstrapMasterCommand(), environment, nodeOrdinal, abort);
+    private MockTerminal unsafeBootstrap(Environment environment, boolean abort) throws Exception {
+        final MockTerminal terminal = executeCommand(new UnsafeBootstrapMasterCommand(), environment, 0, abort);
         assertThat(terminal.getOutput(), containsString(UnsafeBootstrapMasterCommand.CONFIRMATION_MSG));
         assertThat(terminal.getOutput(), containsString(UnsafeBootstrapMasterCommand.MASTER_NODE_BOOTSTRAPPED_MSG));
         return terminal;
     }
 
-    private MockTerminal detachCluster(Environment environment, int nodeOrdinal, boolean abort) throws Exception {
-        final MockTerminal terminal = executeCommand(new DetachClusterCommand(), environment, nodeOrdinal, abort);
+    private MockTerminal detachCluster(Environment environment, boolean abort) throws Exception {
+        final MockTerminal terminal = executeCommand(new DetachClusterCommand(), environment, 0, abort);
         assertThat(terminal.getOutput(), containsString(DetachClusterCommand.CONFIRMATION_MSG));
         assertThat(terminal.getOutput(), containsString(DetachClusterCommand.NODE_DETACHED_MSG));
         return terminal;
     }
 
     private MockTerminal unsafeBootstrap(Environment environment) throws Exception {
-        return unsafeBootstrap(environment, 0, false);
+        return unsafeBootstrap(environment, false);
     }
 
     private MockTerminal detachCluster(Environment environment) throws Exception {
-        return detachCluster(environment, 0, false);
+        return detachCluster(environment, false);
     }
 
     private void expectThrows(ThrowingRunnable runnable, String message) {
@@ -151,7 +151,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
     }
 
     public void testBootstrapNotBootstrappedCluster() throws Exception {
-        internalCluster().startNode(
+        String node = internalCluster().startNode(
                 Settings.builder()
                         .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
@@ -161,14 +161,17 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
+
         internalCluster().stopRandomDataNode();
 
-        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.GLOBAL_GENERATION_MISSING_MSG);
     }
 
     public void testDetachNotBootstrappedCluster() throws Exception {
-        internalCluster().startNode(
+        String node = internalCluster().startNode(
                 Settings.builder()
                         .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                         .build());
@@ -178,19 +181,24 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
+
         internalCluster().stopRandomDataNode();
 
-        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.GLOBAL_GENERATION_MISSING_MSG);
     }
 
     public void testBootstrapNoManifestFile() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNode();
+        String node = internalCluster().startNode();
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
-        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         Manifest.FORMAT.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
 
         expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_MANIFEST_FILE_FOUND_MSG);
@@ -198,11 +206,13 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testDetachNoManifestFile() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNode();
+        String node = internalCluster().startNode();
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
-        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         Manifest.FORMAT.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
 
         expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.NO_MANIFEST_FILE_FOUND_MSG);
@@ -210,12 +220,14 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testBootstrapNoMetaData() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNode();
+        String node = internalCluster().startNode();
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
 
-        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         MetaData.FORMAT.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
 
         expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_GLOBAL_METADATA_MSG);
@@ -223,12 +235,14 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testDetachNoMetaData() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNode();
+        String node = internalCluster().startNode();
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
 
-        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         MetaData.FORMAT.cleanupOldFiles(-1, nodeEnvironment.nodeDataPaths());
 
         expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.NO_GLOBAL_METADATA_MSG);
@@ -236,22 +250,26 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testBootstrapAbortedByUser() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNode();
+        String node = internalCluster().startNode();
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
 
-        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        expectThrows(() -> unsafeBootstrap(environment, 0, true), ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
+        Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
+        expectThrows(() -> unsafeBootstrap(environment, true), ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
     }
 
     public void testDetachAbortedByUser() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNode();
+        String node = internalCluster().startNode();
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
         internalCluster().stopRandomDataNode();
 
-        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        expectThrows(() -> detachCluster(environment, 0, true), ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
+        Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
+        expectThrows(() -> detachCluster(environment, true), ElasticsearchNodeCommand.ABORTED_BY_USER_MSG);
     }
 
     public void test3MasterNodes2Failed() throws Exception {
@@ -278,6 +296,11 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen("test");
 
+        Settings master1DataPathSettings = internalCluster().dataPathSettings(masterNodes.get(0));
+        Settings master2DataPathSettings = internalCluster().dataPathSettings(masterNodes.get(1));
+        Settings master3DataPathSettings = internalCluster().dataPathSettings(masterNodes.get(2));
+        Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
+
         logger.info("--> stop 2nd and 3d master eligible node");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(1)));
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(2)));
@@ -290,8 +313,9 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         });
 
         logger.info("--> try to unsafely bootstrap 1st master-eligible node, while node lock is held");
-        final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        expectThrows(() -> unsafeBootstrap(environment), UnsafeBootstrapMasterCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
+        Environment environmentMaster1 = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(master1DataPathSettings).build());
+        expectThrows(() -> unsafeBootstrap(environmentMaster1), UnsafeBootstrapMasterCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
 
         logger.info("--> stop 1st master-eligible node and data-only node");
         NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
@@ -299,20 +323,22 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         logger.info("--> unsafely-bootstrap 1st master-eligible node");
-        MockTerminal terminal = unsafeBootstrap(environment);
+        MockTerminal terminal = unsafeBootstrap(environmentMaster1);
         MetaData metaData = MetaData.FORMAT.loadLatestState(logger, xContentRegistry(), nodeEnvironment.nodeDataPaths());
         assertThat(terminal.getOutput(), containsString(
                 String.format(Locale.ROOT, UnsafeBootstrapMasterCommand.CLUSTER_STATE_TERM_VERSION_MSG_FORMAT,
                         metaData.coordinationMetaData().term(), metaData.version())));
 
         logger.info("--> start 1st master-eligible node");
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode(master1DataPathSettings);
 
         logger.info("--> detach-cluster on data-only node");
-        detachCluster(environment, 1, false);
+        Environment environmentData = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataNodeDataPathSettings).build());
+        detachCluster(environmentData, false);
 
         logger.info("--> start data-only node");
-        String dataNode2 = internalCluster().startDataOnlyNode();
+        String dataNode2 = internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
 
         logger.info("--> ensure there is no NO_MASTER_BLOCK and unsafe-bootstrap is reflected in cluster state");
         assertBusy(() -> {
@@ -326,11 +352,16 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         ensureGreen("test");
 
         logger.info("--> detach-cluster on 2nd and 3rd master-eligible nodes");
-        detachCluster(environment, 2, false);
-        detachCluster(environment, 3, false);
+        Environment environmentMaster2 = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(master2DataPathSettings).build());
+        detachCluster(environmentMaster2, false);
+        Environment environmentMaster3 = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(master3DataPathSettings).build());
+        detachCluster(environmentMaster3, false);
 
         logger.info("--> start 2nd and 3rd master-eligible nodes and ensure 4 nodes stable cluster");
-        internalCluster().startMasterOnlyNodes(2);
+        internalCluster().startMasterOnlyNode(master2DataPathSettings);
+        internalCluster().startMasterOnlyNode(master3DataPathSettings);
         ensureStableCluster(4);
     }
 
@@ -353,9 +384,11 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> stop data-only node and detach it from the old cluster");
+        Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode));
-        final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
-        detachCluster(environment, 1, false);
+        final Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataNodeDataPathSettings).build());
+        detachCluster(environment, false);
 
         logger.info("--> stop master-eligible node, clear its data and start it again - new cluster should form");
         internalCluster().restartNode(masterNode, new InternalTestCluster.RestartCallback(){
@@ -366,7 +399,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         });
 
         logger.info("--> start data-only only node and ensure 2 nodes stable cluster");
-        internalCluster().startDataOnlyNode();
+        internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
         ensureStableCluster(2);
 
         logger.info("--> verify that the dangling index exists and has green status");
@@ -381,15 +414,18 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testNoInitialBootstrapAfterDetach() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startMasterOnlyNode();
+        String masterNode = internalCluster().startMasterOnlyNode();
+        Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         internalCluster().stopCurrentMasterNode();
 
-        final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        final Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(masterNodeDataPathSettings).build());
         detachCluster(environment);
 
         String node = internalCluster().startMasterOnlyNode(Settings.builder()
                 // give the cluster 2 seconds to elect the master (it should not)
                 .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "2s")
+                .put(masterNodeDataPathSettings)
                 .build());
 
         ClusterState state = internalCluster().client().admin().cluster().prepareState().setLocal(true)
@@ -401,7 +437,8 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     public void testCanRunUnsafeBootstrapAfterErroneousDetachWithoutLoosingMetaData() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startMasterOnlyNode();
+        String masterNode = internalCluster().startMasterOnlyNode();
+        Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest().persistentSettings(
                 Settings.builder().put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "1234kb"));
         internalCluster().client().admin().cluster().updateSettings(req).get();
@@ -412,11 +449,12 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
         internalCluster().stopCurrentMasterNode();
 
-        final Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        final Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(masterNodeDataPathSettings).build());
         detachCluster(environment);
         unsafeBootstrap(environment);
 
-        internalCluster().startMasterOnlyNode();
+        internalCluster().startMasterOnlyNode(masterNodeDataPathSettings);
         ensureGreen();
 
         state = internalCluster().client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -430,8 +468,10 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
     public void testCleanupOldMetaDataFails() throws Exception {
         // establish some metadata.
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNode();
-        Environment environment = TestEnvironment.newEnvironment(internalCluster().getDefaultSettings());
+        String node = internalCluster().startNode();
+        Settings dataPathSettings = internalCluster().dataPathSettings(node);
+        final Environment environment = TestEnvironment.newEnvironment(
+            Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
         internalCluster().stopRandomDataNode();
 
         // find data paths

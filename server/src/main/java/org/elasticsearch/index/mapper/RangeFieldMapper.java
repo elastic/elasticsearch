@@ -999,10 +999,10 @@ public class RangeFieldMapper extends FieldMapper {
 
         public Range(RangeType type, Object from, Object to, boolean includeFrom, boolean includeTo) {
             this.type = type;
-            this.from = from;
-            this.to = to;
             this.includeFrom = includeFrom;
             this.includeTo = includeTo;
+            this.from = includeFrom ? from : type.nextUp(from);
+            this.to = includeTo ? to : type.nextDown(to);
         }
 
         @Override

@@ -71,7 +71,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
@@ -121,45 +121,9 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * <p>
  * This repository works with any {@link BlobStore} implementation. The blobStore could be (and preferred) lazy initialized in
  * {@link #createBlobStore()}.
- * <p>
- * BlobStoreRepository maintains the following structure in the blob store
- * <pre>
- * {@code
- *   STORE_ROOT
- *   |- index-N           - JSON serialized {@link RepositoryData} containing a list of all snapshot ids and the indices belonging to
- *   |                      each snapshot, N is the generation of the file
- *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
- *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
- *   |- snap-20131010.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131010"
- *   |- meta-20131010.dat - SMILE serialized {@link MetaData} for snapshot "20131010" (includes only global metadata)
- *   |- snap-20131011.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131011"
- *   |- meta-20131011.dat - SMILE serialized {@link MetaData} for snapshot "20131011"
- *   .....
- *   |- indices/ - data for all indices
- *      |- Ac1342-B_x/ - data for index "foo" which was assigned the unique id of Ac1342-B_x in the repository
- *      |  |- meta-20131010.dat - JSON Serialized {@link IndexMetaData} for index "foo"
- *      |  |- 0/ - data for shard "0" of index "foo"
- *      |  |  |- __1                      \  (files with numeric names were created by older ES versions)
- *      |  |  |- __2                      |
- *      |  |  |- __VPO5oDMVT5y4Akv8T_AO_A |- files from different segments see snap-* for their mappings to real segment files
- *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
- *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
- *      |  |  .....
- *      |  |  |- snap-20131010.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131010"
- *      |  |  |- snap-20131011.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131011"
- *      |  |  |- index-123 - SMILE serialized {@link BlobStoreIndexShardSnapshots} for the shard
- *      |  |
- *      |  |- 1/ - data for shard "1" of index "foo"
- *      |  |  |- __1
- *      |  |  .....
- *      |  |
- *      |  |-2/
- *      |  ......
- *      |
- *      |- 1xB0D8_B3y/ - data for index "bar" which was assigned the unique id of 1xB0D8_B3y in the repository
- *      ......
- * }
- * </pre>
+ * </p>
+ * For in depth documentation on how exactly implementations of this class interact with the snapshot functionality please refer to the
+ * documentation of the package {@link org.elasticsearch.repositories.blobstore}.
  */
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
@@ -829,8 +793,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                              IndexShardSnapshotStatus snapshotStatus) {
+    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
         SnapshotContext snapshotContext = new SnapshotContext(store, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
         try {
             snapshotContext.snapshot(snapshotIndexCommit);
@@ -845,18 +809,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                             RecoveryState recoveryState) {
-        final Context context = new Context(snapshotId, indexId, shard.shardId(), snapshotShardId);
+    public void restoreShard(Store store, SnapshotId snapshotId,
+                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        ShardId shardId = store.shardId();
+        final Context context = new Context(snapshotId, indexId, shardId, snapshotShardId);
         BlobPath path = basePath().add("indices").add(indexId.getId()).add(Integer.toString(snapshotShardId.getId()));
         BlobContainer blobContainer = blobStore().blobContainer(path);
-        final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, recoveryState, blobContainer);
+        final RestoreContext snapshotContext = new RestoreContext(shardId, snapshotId, recoveryState, blobContainer);
         try {
             BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
             SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-            snapshotContext.restore(snapshotFiles);
+            snapshotContext.restore(snapshotFiles, store);
         } catch (Exception e) {
-            throw new IndexShardRestoreFailedException(shard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
+            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
         }
     }
 
@@ -1402,13 +1367,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         /**
          * Constructs new restore context
-         * @param indexShard    shard to restore into
+         * @param shardId    shard id to restore into
          * @param snapshotId    snapshot id
          * @param recoveryState recovery state to report progress
          * @param blobContainer the blob container to read the files from
          */
-        RestoreContext(IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState, BlobContainer blobContainer) {
-            super(metadata.name(), indexShard, snapshotId, recoveryState, BUFFER_SIZE);
+        RestoreContext(ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState, BlobContainer blobContainer) {
+            super(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE);
             this.blobContainer = blobContainer;
         }
 

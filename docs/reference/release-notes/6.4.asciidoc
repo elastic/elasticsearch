@@ -69,7 +69,7 @@ Machine learning::
 than one day ({ml-pull}243[#243])
 * Rules that trigger the `skip_model_update` action should also apply to the 
 anomaly model. This fixes an issue where anomaly scores of results that triggered 
-the rule would decrease if they occurred frequently. {ml-pull}222[#222] (issue:{ml-issue}217[#217])
+the rule would decrease if they occurred frequently. {ml-pull}222[#222] (issue: {ml-issue}217[#217])
 
 Network::
 *  Support PKCS#11 tokens as keystores and truststores  {pull}34063[#34063] (issue: {issue}11[#11])

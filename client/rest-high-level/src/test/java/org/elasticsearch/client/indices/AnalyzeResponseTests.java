@@ -133,13 +133,23 @@ public class AnalyzeResponseTests extends AbstractResponseTestCase<AnalyzeAction
     private static void assertInstances(AnalyzeAction.DetailAnalyzeResponse serverResponse, DetailAnalyzeResponse clientResponse) {
         assertInstances(serverResponse.analyzer(), clientResponse.analyzer());
         assertInstances(serverResponse.tokenizer(), clientResponse.tokenizer());
-        assertEquals(serverResponse.tokenfilters().length, clientResponse.tokenfilters().length);
-        for (int i = 0; i < serverResponse.tokenfilters().length; i++) {
-            assertInstances(serverResponse.tokenfilters()[i], clientResponse.tokenfilters()[i]);
+        if (serverResponse.tokenfilters() == null) {
+            assertNull(clientResponse.tokenfilters());
         }
-        assertEquals(serverResponse.charfilters().length, clientResponse.charfilters().length);
-        for (int i = 0; i < serverResponse.charfilters().length; i++) {
-            assertInstances(serverResponse.charfilters()[i], clientResponse.charfilters()[i]);
+        else {
+            assertEquals(serverResponse.tokenfilters().length, clientResponse.tokenfilters().length);
+            for (int i = 0; i < serverResponse.tokenfilters().length; i++) {
+                assertInstances(serverResponse.tokenfilters()[i], clientResponse.tokenfilters()[i]);
+            }
+        }
+        if (serverResponse.charfilters() == null) {
+            assertNull(clientResponse.charfilters());
+        }
+        else {
+            assertEquals(serverResponse.charfilters().length, clientResponse.charfilters().length);
+            for (int i = 0; i < serverResponse.charfilters().length; i++) {
+                assertInstances(serverResponse.charfilters()[i], clientResponse.charfilters()[i]);
+            }
         }
     }
 

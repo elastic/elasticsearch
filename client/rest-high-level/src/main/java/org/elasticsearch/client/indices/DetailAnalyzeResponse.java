@@ -40,16 +40,16 @@ public class DetailAnalyzeResponse {
     private final AnalyzeTokenList tokenizer;
     private final AnalyzeTokenList[] tokenfilters;
 
-    DetailAnalyzeResponse(boolean customAnalyzer,
+    private DetailAnalyzeResponse(boolean customAnalyzer,
                                  AnalyzeTokenList analyzer,
                                  List<CharFilteredText> charfilters,
                                  AnalyzeTokenList tokenizer,
                                  List<AnalyzeTokenList> tokenfilters) {
         this.customAnalyzer = customAnalyzer;
         this.analyzer = analyzer;
-        this.charfilters = charfilters.toArray(new CharFilteredText[]{});
+        this.charfilters = charfilters == null ? null : charfilters.toArray(new CharFilteredText[]{});
         this.tokenizer = tokenizer;
-        this.tokenfilters = tokenfilters.toArray(new AnalyzeTokenList[]{});
+        this.tokenfilters = tokenfilters == null ? null : tokenfilters.toArray(new AnalyzeTokenList[]{});
     }
 
     public AnalyzeTokenList analyzer() {
@@ -90,7 +90,9 @@ public class DetailAnalyzeResponse {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<DetailAnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("detail",
-        true, args -> new DetailAnalyzeResponse((boolean) args[0], (AnalyzeTokenList) args[1],
+        true, args -> new DetailAnalyzeResponse(
+        (boolean) args[0],
+        (AnalyzeTokenList) args[1],
         (List<CharFilteredText>)args[2],
         (AnalyzeTokenList) args[3],
         (List<AnalyzeTokenList>)args[4]));

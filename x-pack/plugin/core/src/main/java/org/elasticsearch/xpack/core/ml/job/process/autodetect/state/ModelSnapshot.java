@@ -137,7 +137,9 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        Version.writeVersion(minVersion, out);
+        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
+            Version.writeVersion(minVersion, out);
+        }
         if (timestamp != null) {
             out.writeBoolean(true);
             out.writeVLong(timestamp.getTime());

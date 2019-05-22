@@ -282,8 +282,8 @@ your data! The RPM and Debian distributions do this for you already.
 === `node.max_local_storage_nodes`
 
 The <<data-path,data path>> can be shared by multiple nodes, even by nodes from different
-clusters. This is very useful for testing failover and different configurations on your development
-machine. In production, however, it is recommended to run only one node of Elasticsearch per server.
+clusters. It is recommended however to only run one node of Elasticsearch using the same data path.
+This setting is deprecated in 7.x and will be removed in version 8.0.
 
 By default, Elasticsearch is configured to prevent more than one node from sharing the same data
 path. To allow for more than one node (e.g., on your development machine), use the setting

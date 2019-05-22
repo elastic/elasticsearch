@@ -158,16 +158,19 @@ public final class TimestampFormatFinder {
             "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b", "CISCOTIMESTAMP",
             Arrays.asList("    11 1111 11 11 11", "     1 1111 11 11 11"), 0, 0),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
-            "\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
-            "11 11 1111 11 11 11", 0, 10),
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}[- ]\\d{2}:\\d{2}:\\d{2}\\b", "\\b%{DATESTAMP}\\b", "DATESTAMP",
+            // In DATESTAMP the month may be 1 or 2 digits, but the day must be 2
+            Arrays.asList("11 11 1111 11 11 11", "1 11 1111 11 11 11", "11 1 1111 11 11 11"), 0, 10),
         new CandidateTimestampFormat(CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
-            "\\b\\d{2}[/.-]\\d{2}[/.-]\\d{4}\\b", "\\b%{DATE}\\b", "DATE", "11 11 1111", 0, 0),
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{4}\\b", "\\b%{DATE}\\b", "DATE",
+            // In DATE the month may be 1 or 2 digits, but the day must be 2
+            Arrays.asList("11 11 1111", "11 1 1111", "1 11 1111"), 0, 0),
         UNIX_MS_CANDIDATE_FORMAT,
         UNIX_CANDIDATE_FORMAT,
         TAI64N_CANDIDATE_FORMAT,
         // This one is an ISO8601 date with no time, but the TIMESTAMP_ISO8601 Grok pattern doesn't cover it
-        new CandidateTimestampFormat(example -> Collections.singletonList("yyyy-MM-dd"),
-            "\\b\\d{4}-\\d{2}-{2}\\b", "\\b%{YEAR}-%{MONTHNUM2}-%{MONTHDAY}\\b", CUSTOM_TIMESTAMP_GROK_NAME,
+        new CandidateTimestampFormat(example -> Collections.singletonList("ISO8601"),
+            "\\b\\d{4}-\\d{2}-\\d{2}\\b", "\\b%{YEAR}-%{MONTHNUM2}-%{MONTHDAY}\\b", CUSTOM_TIMESTAMP_GROK_NAME,
             "1111 11 11", 0, 0)
     );
 
@@ -604,14 +607,10 @@ public final class TimestampFormatFinder {
      * @return A list of Java timestamp formats to use for parsing documents.
      */
     public List<String> getJavaTimestampFormats() {
-        List<String> rawJavaTimestampFormats = getRawJavaTimestampFormats();
-        if (rawJavaTimestampFormats == null) {
-            return Collections.emptyList();
-        }
         if (cachedJavaTimestampFormats != null) {
             return cachedJavaTimestampFormats;
         }
-        return determiniseJavaTimestampFormats(rawJavaTimestampFormats,
+        return determiniseJavaTimestampFormats(getRawJavaTimestampFormats(),
             // With multiple formats, only consider the matches that correspond to the first
             // in the list (which is what we're returning information about via the getters).
             // With just one format it's most efficient not to bother checking formats.
@@ -628,7 +627,7 @@ public final class TimestampFormatFinder {
         // This method needs rework if the class is ever made thread safe
 
         if (rawJavaTimestampFormats.stream().anyMatch(format -> format.indexOf(INDETERMINATE_FIELD_PLACEHOLDER) >= 0)) {
-            boolean isDayFirst = guessIsDayFirstFromMatches(onlyConsiderFormat, Locale.getDefault());
+            boolean isDayFirst = guessIsDayFirst(rawJavaTimestampFormats, onlyConsiderFormat, Locale.getDefault());
             cachedJavaTimestampFormats = rawJavaTimestampFormats.stream()
                 .map(format -> determiniseJavaTimestampFormat(format, isDayFirst)).collect(Collectors.toList());
         } else {
@@ -637,11 +636,77 @@ public final class TimestampFormatFinder {
         return cachedJavaTimestampFormats;
     }
 
+    private boolean guessIsDayFirst(List<String> rawJavaTimestampFormats, TimestampFormat onlyConsiderFormat, Locale localeForFallback) {
+
+        Boolean isDayFirst = guessIsDayFirstFromFormats(rawJavaTimestampFormats);
+        if (isDayFirst != null) {
+            return isDayFirst;
+        }
+        isDayFirst = guessIsDayFirstFromMatches(onlyConsiderFormat);
+        if (isDayFirst != null) {
+            return isDayFirst;
+        }
+        return guessIsDayFirstFromLocale(localeForFallback);
+    }
+
     /**
      * If timestamp formats where the order of day and month could vary (as in a choice between dd/MM/yyyy
-     * or MM/dd/yyyy for example), make a guess about whether the day comes first.
+     * or MM/dd/yyyy for example), make a guess about whether the day comes first based on quirks of the
+     * built in Grok patterns.
+     * @return <code>true</code> if the day comes first, <code>false</code> if the month comes first, and
+     *         <code>null</code> if there is insufficient evidence to decide.
      */
-    boolean guessIsDayFirstFromMatches(TimestampFormat onlyConsiderFormat, Locale localeForFallback) {
+    Boolean guessIsDayFirstFromFormats(List<String> rawJavaTimestampFormats) {
+
+        Boolean isDayFirst = null;
+
+        for (String rawJavaTimestampFormat : rawJavaTimestampFormats) {
+            Matcher matcher = INDETERMINATE_FORMAT_INTERPRETER.matcher(rawJavaTimestampFormat);
+            if (matcher.matches()) {
+                String firstNumber = matcher.group(2);
+                assert firstNumber != null;
+                String secondNumber = matcher.group(4);
+                if (secondNumber == null) {
+                    return null;
+                }
+                if (firstNumber.length() == 2 && secondNumber.length() == 1) {
+                    if (Boolean.FALSE.equals(isDayFirst)) {
+                        // Inconsistency
+                        return null;
+                    }
+                    isDayFirst = Boolean.TRUE;
+                }
+                if (firstNumber.length() == 1 && secondNumber.length() == 2) {
+                    if (Boolean.TRUE.equals(isDayFirst)) {
+                        // Inconsistency
+                        return null;
+                    }
+                    isDayFirst = Boolean.FALSE;
+                }
+            }
+        }
+
+        if (isDayFirst != null) {
+            if (isDayFirst) {
+                explanation.add("Guessing day precedes month in timestamps as all detected formats have a two digits in the first number "
+                    + "and a single digit in the second number which is what the %{MONTHDAY} and %{MONTHNUM} Grok patterns permit");
+            } else {
+                explanation.add("Guessing month precedes day in timestamps as all detected formats have a single digit in the first number "
+                    + "and two digits in the second number which is what the %{MONTHNUM} and %{MONTHDAY} Grok patterns permit");
+            }
+        }
+
+        return isDayFirst;
+    }
+
+    /**
+     * If timestamp formats where the order of day and month could vary (as in a choice between dd/MM/yyyy
+     * or MM/dd/yyyy for example), make a guess about whether the day comes first based on observed values
+     * of the first and second numbers.
+     * @return <code>true</code> if the day comes first, <code>false</code> if the month comes first, and
+     *         <code>null</code> if there is insufficient evidence to decide.
+     */
+    Boolean guessIsDayFirstFromMatches(TimestampFormat onlyConsiderFormat) {
 
         BitSet firstIndeterminateNumbers = new BitSet();
         BitSet secondIndeterminateNumbers = new BitSet();
@@ -654,7 +719,7 @@ public final class TimestampFormatFinder {
                     if (match.firstIndeterminateDateNumber > 12) {
                         explanation.add("Guessing day precedes month in timestamps as one sample had first number ["
                             + match.firstIndeterminateDateNumber + "]");
-                        return true;
+                        return Boolean.TRUE;
                     }
                     firstIndeterminateNumbers.set(match.firstIndeterminateDateNumber);
                 }
@@ -662,7 +727,7 @@ public final class TimestampFormatFinder {
                     if (match.secondIndeterminateDateNumber > 12) {
                         explanation.add("Guessing month precedes day in timestamps as one sample had second number ["
                             + match.secondIndeterminateDateNumber + "]");
-                        return false;
+                        return Boolean.FALSE;
                     }
                     secondIndeterminateNumbers.set(match.secondIndeterminateDateNumber);
                 }
@@ -677,32 +742,43 @@ public final class TimestampFormatFinder {
             // This happens in the following cases:
             // - No indeterminate numbers (in which case the answer is irrelevant)
             // - Only one indeterminate number (in which case we favour month over day)
-            return false;
+            return Boolean.FALSE;
         }
         // firstCardinality can be 0, but then secondCardinality should have been 0 too
         assert firstCardinality > 0;
         if (firstCardinality >= ratioForResult * secondCardinality) {
             explanation.add("Guessing day precedes month in timestamps as there were ["
                 + firstCardinality + "] distinct values of the first number but only [" + secondCardinality + "] for the second");
-            return true;
+            return Boolean.TRUE;
         }
         if (secondCardinality >= ratioForResult * firstCardinality) {
             explanation.add("Guessing month precedes day in timestamps as there " + (firstCardinality == 1 ? "was" : "were") + " only ["
                 + firstCardinality + "] distinct " + (firstCardinality == 1 ? "value" : "values")
                 + " of the first number but [" + secondCardinality + "] for the second");
-            return false;
+            return Boolean.FALSE;
         }
+
+        return null;
+    }
+
+    /**
+     * If timestamp formats where the order of day and month could vary (as in a choice between dd/MM/yyyy
+     * or MM/dd/yyyy for example), make a guess about whether the day comes first based on the default order
+     * for a given locale.
+     * @return <code>true</code> if the day comes first, <code>false</code> if the month comes first.
+     */
+    boolean guessIsDayFirstFromLocale(Locale locale) {
 
         // Fall back to whether the day comes before the month in the default short date format for the server locale.
         // Can't use 1 as that occurs in 1970, so 3rd Feb is the earliest date that will reveal the server default.
-        String feb3rd1970 = makeShortLocalizedDateTimeFormatterForLocale(localeForFallback).format(LocalDate.ofEpochDay(33));
+        String feb3rd1970 = makeShortLocalizedDateTimeFormatterForLocale(locale).format(LocalDate.ofEpochDay(33));
         if (feb3rd1970.indexOf('3') < feb3rd1970.indexOf('2')) {
             explanation.add("Guessing day precedes month in timestamps based on server locale ["
-                + localeForFallback.getDisplayName(Locale.ROOT) + "]");
+                + locale.getDisplayName(Locale.ROOT) + "]");
             return true;
         } else {
             explanation.add("Guessing month precedes day in timestamps based on server locale ["
-                + localeForFallback.getDisplayName(Locale.ROOT) + "]");
+                + locale.getDisplayName(Locale.ROOT) + "]");
             return false;
         }
     }
@@ -1143,7 +1219,6 @@ public final class TimestampFormatFinder {
                             .withResolverStyle(ResolverStyle.LENIENT);
                         TemporalAccessor accessor = javaTimeFormatter.parse(matchedDate);
                         indeterminateDateNumbers[0] = accessor.get(ChronoField.DAY_OF_MONTH);
-
 
                         // Now parse again leniently under the assumption the first sequence of hashes is month and the
                         // second is day - we have to do it twice and extract day as the lenient parser will wrap months > 12

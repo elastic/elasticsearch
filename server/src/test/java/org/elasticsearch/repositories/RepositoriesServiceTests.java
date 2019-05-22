@@ -33,7 +33,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -200,14 +200,14 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                                  IndexShardSnapshotStatus snapshotStatus) {
+        public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit
+            snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
 
         }
 
         @Override
-        public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                                 RecoveryState recoveryState) {
+        public void restoreShard(Store store, SnapshotId snapshotId,
+                                 Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
 
         }
 

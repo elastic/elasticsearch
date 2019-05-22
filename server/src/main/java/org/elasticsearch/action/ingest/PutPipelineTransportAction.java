@@ -22,7 +22,6 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -74,25 +73,13 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         nodesInfoRequest.clear();
         nodesInfoRequest.ingest(true);
-        client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
-            @Override
-            public void onResponse(NodesInfoResponse nodeInfos) {
-                try {
-                    Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
-                    for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-                        ingestInfos.put(nodeInfo.getNode(), nodeInfo.getIngest());
-                    }
-                    ingestService.putPipeline(ingestInfos, request, listener);
-                } catch (Exception e) {
-                    onFailure(e);
-                }
+        client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodeInfos -> {
+            Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+            for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
+                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getIngest());
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            ingestService.putPipeline(ingestInfos, request, listener);
+        }, listener::onFailure));
     }
 
     @Override

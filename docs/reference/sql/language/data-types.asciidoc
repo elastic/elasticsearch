@@ -81,6 +81,8 @@ s|SQL precision
 | interval_hour_to_minute   | 23
 | interval_hour_to_second   | 23
 | interval_minute_to_second | 23
+| geo_point                 | 52
+| geo_shape                 | 2,147,483,647
 
 |===
 

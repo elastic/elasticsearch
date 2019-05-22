@@ -1108,14 +1108,16 @@ public class AuthenticationServiceTests extends ESTestCase {
         User user = new User("_username", "r1");
         final AtomicBoolean completed = new AtomicBoolean(false);
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
-        PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
+        PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        final String userTokenId = UUIDs.randomBase64UUID();
+        final String refreshToken = UUIDs.randomBase64UUID();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
-            tokenService.createOAuth2Tokens(expected, originatingAuth, Collections.emptyMap(), true, tokenFuture);
+            tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
         }
-        String token = tokenService.getAccessTokenAsString(tokenFuture.get().v1());
+        String token = tokenFuture.get().v1();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        mockGetTokenFromId(tokenFuture.get().v1(), false, client);
+        mockGetTokenFromId(tokenService, userTokenId, expected, false, client);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -1191,13 +1193,15 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
-        PlainActionFuture<Tuple<UserToken, String>> tokenFuture = new PlainActionFuture<>();
+        PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        final String userTokenId = UUIDs.randomBase64UUID();
+        final String refreshToken = UUIDs.randomBase64UUID();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
-            tokenService.createOAuth2Tokens(expected, originatingAuth, Collections.emptyMap(), true, tokenFuture);
+            tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
         }
-        String token = tokenService.getAccessTokenAsString(tokenFuture.get().v1());
-        mockGetTokenFromId(tokenFuture.get().v1(), true, client);
+        String token = tokenFuture.get().v1();
+        mockGetTokenFromId(tokenService, userTokenId, expected, true, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;

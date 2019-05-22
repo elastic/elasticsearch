@@ -853,8 +853,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             flush(indexName);
         }
 
-        internalCluster().stopRandomNode(s -> true);
-        internalCluster().stopRandomNode(s -> true);
+        String firstNodeToStop = randomFrom(internalCluster().getNodeNames());
+        Settings firstNodeToStopDataPathSettings = internalCluster().dataPathSettings(firstNodeToStop);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(firstNodeToStop));
+        String secondNodeToStop = randomFrom(internalCluster().getNodeNames());
+        Settings secondNodeToStopDataPathSettings = internalCluster().dataPathSettings(secondNodeToStop);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(secondNodeToStop));
 
         final long desyncNanoTime = System.nanoTime();
         while (System.nanoTime() <= desyncNanoTime) {
@@ -871,7 +875,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)));
-        internalCluster().startNode();
+        internalCluster().startNode(randomFrom(firstNodeToStopDataPathSettings, secondNodeToStopDataPathSettings));
         ensureGreen(indexName);
 
         final RecoveryResponse recoveryResponse = client().admin().indices().recoveries(new RecoveryRequest(indexName)).get();

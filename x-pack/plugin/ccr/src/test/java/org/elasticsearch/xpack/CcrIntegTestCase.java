@@ -46,7 +46,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -213,7 +212,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     private NodeConfigurationSource createNodeConfigurationSource(final String leaderSeedAddress, final boolean leaderCluster) {
         Settings.Builder builder = Settings.builder();
-        builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
         // Default the watermarks to absurdly low to prevent the tests
         // from failing on nodes without enough disk space
         builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");

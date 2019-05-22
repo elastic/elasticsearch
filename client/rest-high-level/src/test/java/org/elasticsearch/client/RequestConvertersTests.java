@@ -1561,7 +1561,7 @@ public class RequestConvertersTests extends ESTestCase {
         endpoint.add("_field_caps");
 
         assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(4, request.getParameters().size());
+        assertEquals(5, request.getParameters().size());
 
         // Note that we don't check the field param value explicitly, as field names are
         // passed through
@@ -1595,7 +1595,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
         endpoint.add(RestRankEvalAction.ENDPOINT);
         assertEquals(endpoint.toString(), request.getEndpoint());
-        assertEquals(3, request.getParameters().size());
+        assertEquals(4, request.getParameters().size());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(spec, request.getEntity());
     }
@@ -1922,7 +1922,8 @@ public class RequestConvertersTests extends ESTestCase {
                                         Map<String, String> expectedParams) {
 
         if (randomBoolean()) {
-            setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+                true, false, false, randomBoolean()));
         }
         expectedParams.put("ignore_unavailable", Boolean.toString(getter.get().ignoreUnavailable()));
         expectedParams.put("allow_no_indices", Boolean.toString(getter.get().allowNoIndices()));
@@ -1935,11 +1936,13 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("expand_wildcards", "none");
         }
+        expectedParams.put("ignore_throttled", Boolean.toString(getter.get().ignoreThrottled()));
     }
 
     static IndicesOptions setRandomIndicesOptions(IndicesOptions indicesOptions, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+                true, false, false, randomBoolean());
         }
         expectedParams.put("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
         expectedParams.put("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
@@ -1952,6 +1955,7 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("expand_wildcards", "none");
         }
+        expectedParams.put("ignore_throttled", Boolean.toString(indicesOptions.ignoreThrottled()));
         return indicesOptions;
     }
 

@@ -150,10 +150,10 @@ the value of the tag `TAGNAME` attached to each instance will be used as that
 instance's address for discovery. Instances which do not have this tag set will
 be ignored by the discovery process.
 
-For example if you tag some EC2 instances with a tag called
-`my-elasticsearch-host` and set `host_type: tag:my-elasticsearch-host` then the
-`discovery-ec2` plugin will read each instance's host name from the
-`my-elasticsearch-host` tag.
+For example if you tag some EC2 instances with a tag named
+`elasticsearch-host-name` and set `host_type: tag:elasticsearch-host-name` then
+the `discovery-ec2` plugin will read each instance's host name from the value
+of the `elasticsearch-host-name` tag.
 http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html[Read more
 about EC2 Tags].
 

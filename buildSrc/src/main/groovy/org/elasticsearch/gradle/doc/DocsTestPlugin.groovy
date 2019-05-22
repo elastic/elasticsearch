@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.doc
 
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.ClusterFormationTasks
@@ -32,10 +33,13 @@ public class DocsTestPlugin extends RestTestPlugin {
 
     @Override
     public void apply(Project project) {
+        project.pluginManager.apply('elasticsearch.testclusters')
         project.pluginManager.apply('elasticsearch.standalone-rest-test')
         super.apply(project)
+        String distribution = System.getProperty('tests.distribution', 'default')
         // The distribution can be configured with -Dtests.distribution on the command line
-        project.integTestCluster.distribution = System.getProperty('tests.distribution', 'default')
+        project.testClusters.integTest.distribution = distribution.toUpperCase()
+        project.testClusters.integTest.nameCustomization = { it.replace("integTest", "node") }
         // Docs are published separately so no need to assemble
         project.tasks.assemble.enabled = false
         Map<String, String> defaultSubstitutions = [
@@ -46,8 +50,8 @@ public class DocsTestPlugin extends RestTestPlugin {
             '\\{version\\}': Version.fromString(VersionProperties.elasticsearch).toString(),
             '\\{version_qualified\\}': VersionProperties.elasticsearch,
             '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
-            '\\{build_flavor\\}' : project.integTestCluster.distribution,
-            '\\{build_type\\}' : ClusterFormationTasks.getOs().equals("windows") ? "zip" : "tar",
+            '\\{build_flavor\\}' : distribution,
+            '\\{build_type\\}' : OS.conditionalString().onWindows({"zip"}).onUnix({"tar"}).supply(),
         ]
         Task listSnippets = project.tasks.create('listSnippets', SnippetsTask)
         listSnippets.group 'Docs'

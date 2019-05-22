@@ -86,8 +86,8 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertOutputContains(
             result.getOutput(),
             "> Task :user1",
-            "Starting `node{::myTestCluster-1}`",
-            "Stopping `node{::myTestCluster-1}`"
+            "Starting `node{::myTestCluster-0}`",
+            "Stopping `node{::myTestCluster-0}`"
         );
     }
 
@@ -104,22 +104,22 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertStartedAndStoppedOnce(result);
         assertOutputOnlyOnce(
             result.getOutput(),
-            "Starting `node{:alpha:myTestCluster-1}`",
-            "Stopping `node{::myTestCluster-1}`"
+            "Starting `node{:alpha:myTestCluster-0}`",
+            "Stopping `node{::myTestCluster-0}`"
         );
         assertOutputOnlyOnce(
             result.getOutput(),
-            "Starting `node{::myTestCluster-1}`",
-            "Stopping `node{:bravo:myTestCluster-1}`"
+            "Starting `node{::myTestCluster-0}`",
+            "Stopping `node{:bravo:myTestCluster-0}`"
         );
     }
 
     public void testReleased() {
         BuildResult result = getTestClustersRunner("testReleased").build();
         assertTaskSuccessful(result, ":testReleased");
-        assertStartedAndStoppedOnce(result, "releasedVersionDefault-1");
-        assertStartedAndStoppedOnce(result, "releasedVersionOSS-1");
-        assertStartedAndStoppedOnce(result, "releasedVersionIntegTest-1");
+        assertStartedAndStoppedOnce(result, "releasedVersionDefault-0");
+        assertStartedAndStoppedOnce(result, "releasedVersionOSS-0");
+        assertStartedAndStoppedOnce(result, "releasedVersionIntegTest-0");
     }
 
     public void testIncremental() {
@@ -143,7 +143,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertStartedAndStoppedOnce(result);
         assertOutputContains(
             result.getOutput(),
-            "Stopping `node{::myTestCluster-1}`, tailLogs: true",
+            "Stopping `node{::myTestCluster-0}`, tailLogs: true",
             "Execution failed for task ':itAlwaysFails'."
         );
     }
@@ -155,7 +155,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertStartedAndStoppedOnce(result);
         assertOutputContains(
             result.getOutput(),
-            "Stopping `node{::myTestCluster-1}`, tailLogs: true",
+            "Stopping `node{::myTestCluster-0}`, tailLogs: true",
             "Execution failed for task ':itAlwaysFails'."
         );
     }
@@ -165,7 +165,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
         assertTaskFailed(result, ":illegalConfigAlter");
         assertOutputContains(
             result.getOutput(),
-            "Configuration for node{::myTestCluster-1} can not be altered, already locked"
+            "Configuration for node{::myTestCluster-0} can not be altered, already locked"
         );
     }
 
@@ -173,9 +173,9 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     public void testMultiNode() {
         BuildResult result = getTestClustersRunner(":multiNode").build();
         assertTaskSuccessful(result, ":multiNode");
+        assertStartedAndStoppedOnce(result, "multiNode-0");
         assertStartedAndStoppedOnce(result, "multiNode-1");
         assertStartedAndStoppedOnce(result, "multiNode-2");
-        assertStartedAndStoppedOnce(result, "multiNode-3");
     }
 
     public void testPluginInstalled() {
@@ -211,7 +211,7 @@ public class TestClustersPluginIT extends GradleIntegrationTestCase {
     }
 
     private void assertStartedAndStoppedOnce(BuildResult result) {
-        assertStartedAndStoppedOnce(result, "myTestCluster-1");
+        assertStartedAndStoppedOnce(result, "myTestCluster-0");
     }
 
 

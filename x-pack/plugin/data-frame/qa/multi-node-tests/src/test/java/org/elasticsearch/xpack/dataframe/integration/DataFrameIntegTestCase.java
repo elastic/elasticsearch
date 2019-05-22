@@ -84,7 +84,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
 
     protected StopDataFrameTransformResponse stopDataFrameTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(id), RequestOptions.DEFAULT);
+        return restClient.dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(id, true, null), RequestOptions.DEFAULT);
     }
 
     protected StartDataFrameTransformResponse startDataFrameTransform(String id, RequestOptions options) throws IOException {
@@ -92,9 +92,14 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
         return restClient.dataFrame().startDataFrameTransform(new StartDataFrameTransformRequest(id), options);
     }
 
-    protected org.elasticsearch.client.core.AcknowledgedResponse deleteDataFrameTransform(String id) throws IOException {
+    protected AcknowledgedResponse deleteDataFrameTransform(String id) throws IOException {
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().deleteDataFrameTransform(new DeleteDataFrameTransformRequest(id), RequestOptions.DEFAULT);
+        AcknowledgedResponse response =
+            restClient.dataFrame().deleteDataFrameTransform(new DeleteDataFrameTransformRequest(id), RequestOptions.DEFAULT);
+        if (response.isAcknowledged()) {
+            transformConfigs.remove(id);
+        }
+        return response;
     }
 
     protected AcknowledgedResponse putDataFrameTransform(DataFrameTransformConfig config, RequestOptions options) throws IOException {
@@ -102,7 +107,12 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             throw new IllegalArgumentException("data frame transform [" + config.getId() + "] is already registered");
         }
         RestHighLevelClient restClient = new TestRestHighLevelClient();
-        return restClient.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(config), options);
+        AcknowledgedResponse response =
+            restClient.dataFrame().putDataFrameTransform(new PutDataFrameTransformRequest(config), options);
+        if (response.isAcknowledged()) {
+            transformConfigs.put(config.getId(), config);
+        }
+        return response;
     }
 
     protected GetDataFrameTransformStatsResponse getDataFrameTransformStats(String id) throws IOException {

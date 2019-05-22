@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.dataframe.integration;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -15,7 +16,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.is;
 
 @LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameTransformProgressIT extends ESRestTestCase {
-
     protected void createReviewsIndex() throws Exception {
         final int numDocs = 1000;
         final RestHighLevelClient restClient = new TestRestHighLevelClient();

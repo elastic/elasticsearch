@@ -356,7 +356,7 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         assertFalse("retention leases background sync must be a noop if soft deletes is disabled", backgroundSyncRequestSent.get());
     }
 
-    @TestLogging(value = "org.elasticsearch.indices.recovery:trace")
+    @TestLogging(value = "org.elasticsearch.index:debug,org.elasticsearch.indices.recovery:trace")
     public void testRetentionLeasesSyncOnRecovery() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);

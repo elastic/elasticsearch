@@ -1,0 +1,7 @@
+include::painless-walkthrough.asciidoc[]
+
+include::painless-method-dispatch.asciidoc[]
+
+include::painless-debugging.asciidoc[]
+
+include::painless-execute-script.asciidoc[]

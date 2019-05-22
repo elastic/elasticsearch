@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -57,11 +58,16 @@ import java.net.StandardSocketOptions;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -70,6 +76,7 @@ public class MockNioTransport extends TcpTransport {
     private static final Logger logger = LogManager.getLogger(MockNioTransport.class);
 
     private final ConcurrentMap<String, MockTcpChannelFactory> profileToChannelFactory = newConcurrentMap();
+    private final TransportThreadWatchdog transportThreadWatchdog;
     private volatile NioSelectorGroup nioGroup;
     private volatile MockTcpChannelFactory clientChannelFactory;
 
@@ -77,6 +84,7 @@ public class MockNioTransport extends TcpTransport {
                             PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
                             CircuitBreakerService circuitBreakerService) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+        this.transportThreadWatchdog = new TransportThreadWatchdog(threadPool);
     }
 
     @Override
@@ -96,7 +104,7 @@ public class MockNioTransport extends TcpTransport {
         boolean success = false;
         try {
             nioGroup = new NioSelectorGroup(daemonThreadFactory(this.settings, TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX), 2,
-                (s) -> new TestEventHandler(this::onNonChannelException, s, System::nanoTime));
+                (s) -> new TestEventHandler(this::onNonChannelException, s, transportThreadWatchdog));
 
             ProfileSettings clientProfileSettings = new ProfileSettings(settings, "default");
             clientChannelFactory = new MockTcpChannelFactory(true, clientProfileSettings, "client");
@@ -125,6 +133,7 @@ public class MockNioTransport extends TcpTransport {
     @Override
     protected void stopInternal() {
         try {
+            transportThreadWatchdog.stop();
             nioGroup.close();
         } catch (Exception e) {
             logger.warn("unexpected exception while stopping nio group", e);
@@ -309,6 +318,66 @@ public class MockNioTransport extends TcpTransport {
         @Override
         public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
             getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
+        }
+    }
+
+    static final class TransportThreadWatchdog {
+
+        private static final long WARN_THRESHOLD = TimeUnit.MILLISECONDS.toNanos(150);
+
+        // Only check every 2s to not flood the logs on a blocked thread.
+        // We mostly care about long blocks and not random slowness anyway and in tests would randomly catch slow operations that block for
+        // less than 2s eventually.
+        private static final TimeValue CHECK_INTERVAL = TimeValue.timeValueSeconds(2);
+
+        private final ThreadPool threadPool;
+        private final ConcurrentHashMap<Thread, Long> registry = new ConcurrentHashMap<>();
+
+        private volatile boolean stopped;
+
+        TransportThreadWatchdog(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+            threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
+        }
+
+        public boolean register() {
+            Long previousValue = registry.put(Thread.currentThread(), threadPool.relativeTimeInNanos());
+            return previousValue == null;
+        }
+
+        public void unregister() {
+            Long previousValue = registry.remove(Thread.currentThread());
+            assert previousValue != null;
+            maybeLogElapsedTime(previousValue);
+        }
+
+        private void maybeLogElapsedTime(long startTime) {
+            long elapsedTime = threadPool.relativeTimeInNanos() - startTime;
+            if (elapsedTime > WARN_THRESHOLD) {
+                logger.warn(
+                    new ParameterizedMessage("Slow execution on network thread [{} milliseconds]",
+                        TimeUnit.NANOSECONDS.toMillis(elapsedTime)),
+                    new RuntimeException("Slow exception on network thread"));
+            }
+        }
+
+        private void logLongRunningExecutions() {
+            for (Map.Entry<Thread, Long> entry : registry.entrySet()) {
+                final long elapsedTime = threadPool.relativeTimeInMillis() - entry.getValue();
+                if (elapsedTime > WARN_THRESHOLD) {
+                    final Thread thread = entry.getKey();
+                    logger.warn("Slow execution on network thread [{}] [{} milliseconds]: \n{}", thread.getName(),
+                        TimeUnit.NANOSECONDS.toMillis(elapsedTime),
+                        Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n")));
+                }
+            }
+            if (stopped == false) {
+                threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
+            }
+        }
+
+        public void stop() {
+            stopped = true;
         }
     }
 }

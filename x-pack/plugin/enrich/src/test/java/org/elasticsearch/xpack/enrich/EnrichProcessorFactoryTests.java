@@ -16,7 +16,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -153,7 +152,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("unsupported policy type [unsupported]"));
     }
 
-    public void testNonExistingDecorateField() throws Exception {
+    public void testNonExistingDecorateField() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key",
             enrichValues, "schedule");
@@ -168,16 +167,6 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
         assertThat(e.getMessage(), equalTo("source field [rank] does not exist in policy [majestic]"));
-    }
-
-    private static Function<String, EnrichPolicy> policyLookup(String policyName, EnrichPolicy policy) {
-        return name -> {
-            if (name.equals(policyName)) {
-                return policy;
-            } else {
-                return null;
-            }
-        };
     }
 
 }

@@ -12,6 +12,11 @@
   - is_true: acknowledged
 
   - do:
+      enrich.execute_policy:
+        name: policy-crud
+  - is_true: acknowledged
+
+  - do:
       enrich.list_policy: {}
   - length: { policies: 1 }
   - match: { policies.0.name: policy-crud }

@@ -8,19 +8,19 @@ package org.elasticsearch.xpack.core.enrich.action;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteEnrichPolicyAction extends Action<AcknowledgedResponse> {
+public class ExecuteEnrichPolicyAction extends Action<AcknowledgedResponse> {
 
-    public static final DeleteEnrichPolicyAction INSTANCE = new DeleteEnrichPolicyAction();
-    public static final String NAME = "cluster:admin/xpack/enrich/delete";
+    public static final ExecuteEnrichPolicyAction INSTANCE = new ExecuteEnrichPolicyAction();
+    public static final String NAME = "cluster:admin/xpack/enrich/execute";
 
-    private DeleteEnrichPolicyAction() {
+    private ExecuteEnrichPolicyAction() {
         super(NAME);
     }
 
@@ -29,7 +29,7 @@ public class DeleteEnrichPolicyAction extends Action<AcknowledgedResponse> {
         return new AcknowledgedResponse();
     }
 
-    public static class Request extends MasterNodeRequest<DeleteEnrichPolicyAction.Request> {
+    public static class Request extends MasterNodeReadRequest<Request> {
 
         private final String name;
 
@@ -39,17 +39,17 @@ public class DeleteEnrichPolicyAction extends Action<AcknowledgedResponse> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.name = in.readString();
-        }
-
-        public String getName() {
-            return name;
+            name = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(name);
+        }
+
+        public String getName() {
+            return name;
         }
 
         @Override

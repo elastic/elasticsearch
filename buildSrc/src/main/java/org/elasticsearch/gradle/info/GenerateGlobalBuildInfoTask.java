@@ -51,6 +51,73 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
         this.fipsJvmFile = objectFactory.fileProperty();
     }
 
+    @Input
+    public JavaVersion getMinimumCompilerVersion() {
+        return minimumCompilerVersion;
+    }
+
+    public void setMinimumCompilerVersion(JavaVersion minimumCompilerVersion) {
+        this.minimumCompilerVersion = minimumCompilerVersion;
+    }
+
+    @Input
+    public JavaVersion getMinimumRuntimeVersion() {
+        return minimumRuntimeVersion;
+    }
+
+    public void setMinimumRuntimeVersion(JavaVersion minimumRuntimeVersion) {
+        this.minimumRuntimeVersion = minimumRuntimeVersion;
+    }
+
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public File getCompilerJavaHome() {
+        return compilerJavaHome;
+    }
+
+    public void setCompilerJavaHome(File compilerJavaHome) {
+        this.compilerJavaHome = compilerJavaHome;
+    }
+
+    @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public File getRuntimeJavaHome() {
+        return runtimeJavaHome;
+    }
+
+    public void setRuntimeJavaHome(File runtimeJavaHome) {
+        this.runtimeJavaHome = runtimeJavaHome;
+    }
+
+    @Nested
+    public List<JavaHome> getJavaVersions() {
+        return javaVersions;
+    }
+
+    public void setJavaVersions(List<JavaHome> javaVersions) {
+        this.javaVersions = javaVersions;
+    }
+
+    @OutputFile
+    public RegularFileProperty getOutputFile() {
+        return outputFile;
+    }
+
+    @OutputFile
+    public RegularFileProperty getCompilerVersionFile() {
+        return compilerVersionFile;
+    }
+
+    @OutputFile
+    public RegularFileProperty getRuntimeVersionFile() {
+        return runtimeVersionFile;
+    }
+
+    @OutputFile
+    public RegularFileProperty getFipsJvmFile() {
+        return fipsJvmFile;
+    }
+
     @TaskAction
     public void generate() {
         String javaVendor = System.getProperty("java.vendor");
@@ -199,72 +266,5 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
             result.rethrowFailure();
         }
         return stdout.toString(UTF_8).trim();
-    }
-
-    @Input
-    public JavaVersion getMinimumCompilerVersion() {
-        return minimumCompilerVersion;
-    }
-
-    public void setMinimumCompilerVersion(JavaVersion minimumCompilerVersion) {
-        this.minimumCompilerVersion = minimumCompilerVersion;
-    }
-
-    @Input
-    public JavaVersion getMinimumRuntimeVersion() {
-        return minimumRuntimeVersion;
-    }
-
-    public void setMinimumRuntimeVersion(JavaVersion minimumRuntimeVersion) {
-        this.minimumRuntimeVersion = minimumRuntimeVersion;
-    }
-
-    @InputDirectory
-    @PathSensitive(PathSensitivity.RELATIVE)
-    public File getCompilerJavaHome() {
-        return compilerJavaHome;
-    }
-
-    public void setCompilerJavaHome(File compilerJavaHome) {
-        this.compilerJavaHome = compilerJavaHome;
-    }
-
-    @InputDirectory
-    @PathSensitive(PathSensitivity.RELATIVE)
-    public File getRuntimeJavaHome() {
-        return runtimeJavaHome;
-    }
-
-    public void setRuntimeJavaHome(File runtimeJavaHome) {
-        this.runtimeJavaHome = runtimeJavaHome;
-    }
-
-    @Nested
-    public List<JavaHome> getJavaVersions() {
-        return javaVersions;
-    }
-
-    public void setJavaVersions(List<JavaHome> javaVersions) {
-        this.javaVersions = javaVersions;
-    }
-
-    @OutputFile
-    public RegularFileProperty getOutputFile() {
-        return outputFile;
-    }
-
-    @OutputFile
-    public RegularFileProperty getCompilerVersionFile() {
-        return compilerVersionFile;
-    }
-
-    @OutputFile
-    public RegularFileProperty getRuntimeVersionFile() {
-        return runtimeVersionFile;
-    }
-
-    @OutputFile
-    public RegularFileProperty getFipsJvmFile() {
-        return fipsJvmFile;
     }
 }

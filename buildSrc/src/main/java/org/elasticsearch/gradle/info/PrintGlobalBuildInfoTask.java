@@ -28,23 +28,6 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
         this.fipsJvmFile = objectFactory.fileProperty();
     }
 
-    @TaskAction
-    public void print() {
-        getLogger().quiet("=======================================");
-        getLogger().quiet("Elasticsearch Build Hamster says Hello!");
-        getLogger().quiet(getFileText(getBuildInfoFile()).asString());
-        getLogger().quiet("  Random Testing Seed   : " + getProject().property("testSeed"));
-        getLogger().quiet("=======================================");
-
-        setGlobalProperties();
-        globalInfoListeners.forEach(Runnable::run);
-
-        // Since all tasks depend on this task, and it always runs for every build, this makes sure that lifecycle tasks will still
-        // correctly report as UP-TO-DATE, since the convention is a lifecycle task (i.e. assemble, build, etc) will only be marked as
-        // UP-TO-DATE if all upstream tasks were also UP-TO-DATE.
-        setDidWork(false);
-    }
-
     @InputFile
     public RegularFileProperty getBuildInfoFile() {
         return buildInfoFile;
@@ -67,6 +50,23 @@ public class PrintGlobalBuildInfoTask extends DefaultTask {
 
     public void setGlobalInfoListeners(List<Runnable> globalInfoListeners) {
         this.globalInfoListeners = globalInfoListeners;
+    }
+
+    @TaskAction
+    public void print() {
+        getLogger().quiet("=======================================");
+        getLogger().quiet("Elasticsearch Build Hamster says Hello!");
+        getLogger().quiet(getFileText(getBuildInfoFile()).asString());
+        getLogger().quiet("  Random Testing Seed   : " + getProject().property("testSeed"));
+        getLogger().quiet("=======================================");
+
+        setGlobalProperties();
+        globalInfoListeners.forEach(Runnable::run);
+
+        // Since all tasks depend on this task, and it always runs for every build, this makes sure that lifecycle tasks will still
+        // correctly report as UP-TO-DATE, since the convention is a lifecycle task (i.e. assemble, build, etc) will only be marked as
+        // UP-TO-DATE if all upstream tasks were also UP-TO-DATE.
+        setDidWork(false);
     }
 
     private TextResource getFileText(RegularFileProperty regularFileProperty) {

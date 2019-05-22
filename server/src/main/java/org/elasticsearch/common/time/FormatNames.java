@@ -61,7 +61,7 @@ public enum FormatNames {
     WEEK_YEAR("weekyear", "week_year"),
     WEEK_YEAR_WEEK("weekyearWeek", "weekyear_week"),
     WEEK_YEAR_WEEK_DAY("weekyearWeekDay", "weekyear_week_day"),
-    YEAR("year", ""),
+    YEAR("year", "year"),
     YEAR_MONTH("yearMonth", "year_month"),
     YEAR_MONTH_DAY("yearMonthDay", "year_month_day"),
     EPOCH_SECOND("epoch_second", "epoch_second"),

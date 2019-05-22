@@ -143,13 +143,13 @@ public class BulkProcessorTests extends ESTestCase {
         {
             try {
                 Thread.sleep(simulateWorkTimeInMillis); //simulate work
+                listener.onResponse(bulkResponse);
             } catch (InterruptedException e) {
                 //should never happen
                 Thread.currentThread().interrupt();
                 failureCount.getAndIncrement();
                 exceptionRef.set(ExceptionsHelper.useOrSuppress(exceptionRef.get(), e));
             }
-            listener.onResponse(bulkResponse);
         };
         try (BulkProcessor bulkProcessor = new BulkProcessor(consumer, BackoffPolicy.noBackoff(),
             countingListener(requestCount, successCount, failureCount, docCount, exceptionRef),

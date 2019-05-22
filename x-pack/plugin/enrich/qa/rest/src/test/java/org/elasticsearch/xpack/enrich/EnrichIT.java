@@ -43,7 +43,7 @@ public class EnrichIT extends ESRestTestCase {
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
         putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-index*\"], \"enrich_key\": \"host\", " +
-            "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"], \"schedule\": \"0 5 * * *\"}");
+            "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
         assertOK(client().performRequest(putPolicyRequest));
 
         // create index (remove when execute policy api has been added)

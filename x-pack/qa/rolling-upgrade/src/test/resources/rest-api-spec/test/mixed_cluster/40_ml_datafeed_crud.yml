@@ -109,6 +109,7 @@
   - do:
       warnings:
         - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
+        - '[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.'
       ml.put_datafeed:
         datafeed_id: mixed-cluster-datafeed-with-aggs
         body:  >

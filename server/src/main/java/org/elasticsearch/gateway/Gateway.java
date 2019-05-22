@@ -28,9 +28,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesService;
 
 import java.util.Arrays;
 import java.util.function.Function;
@@ -43,12 +41,7 @@ public class Gateway {
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
-    private final IndicesService indicesService;
-
-    public Gateway(final Settings settings, final ClusterService clusterService,
-                   final TransportNodesListGatewayMetaState listGatewayMetaState,
-                   final IndicesService indicesService) {
-        this.indicesService = indicesService;
+    public Gateway(final ClusterService clusterService, final TransportNodesListGatewayMetaState listGatewayMetaState) {
         this.clusterService = clusterService;
         this.listGatewayMetaState = listGatewayMetaState;
     }

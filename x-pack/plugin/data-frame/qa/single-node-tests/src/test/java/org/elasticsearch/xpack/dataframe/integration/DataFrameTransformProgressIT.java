@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -45,6 +46,7 @@ import static org.elasticsearch.xpack.dataframe.integration.DataFrameRestTestCas
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
     protected void createReviewsIndex() throws Exception {
@@ -130,7 +132,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
         aggs.addAggregator(AggregationBuilders.avg("avg_rating").field("stars"));
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
-        PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig);
+        PivotConfig pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         DataFrameTransformConfig config = new DataFrameTransformConfig("get_progress_transform",
             sourceConfig,
             destConfig,
@@ -149,7 +151,7 @@ public class DataFrameTransformProgressIT extends ESIntegTestCase {
 
 
         QueryConfig queryConfig = new QueryConfig(Collections.emptyMap(), QueryBuilders.termQuery("user_id", "user_26"));
-        pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig);
+        pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
         sourceConfig = new SourceConfig(new String[]{REVIEWS_INDEX_NAME}, queryConfig);
         config = new DataFrameTransformConfig("get_progress_transform",
             sourceConfig,

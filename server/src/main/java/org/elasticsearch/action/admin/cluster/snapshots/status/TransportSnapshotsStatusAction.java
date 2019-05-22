@@ -119,23 +119,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             TransportNodesSnapshotsStatus.Request nodesRequest =
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(new String[nodesIds.size()]))
                     .snapshots(snapshots).timeout(request.masterNodeTimeout());
-            transportNodesSnapshotsStatus.execute(nodesRequest, new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
-                        @Override
-                        public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
-                            try {
-                                List<SnapshotsInProgress.Entry> currentSnapshots =
-                                        snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots()));
-                                listener.onResponse(buildResponse(request, currentSnapshots, nodeSnapshotStatuses));
-                            } catch (Exception e) {
-                                listener.onFailure(e);
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+            transportNodesSnapshotsStatus.execute(nodesRequest,
+                ActionListener.map(
+                    listener, nodeSnapshotStatuses ->
+                        buildResponse(request, snapshotsService.currentSnapshots(request.repository(), Arrays.asList(request.snapshots())),
+                            nodeSnapshotStatuses)));
         } else {
             // We don't have any in-progress shards, just return current stats
             listener.onResponse(buildResponse(request, currentSnapshots, null));
@@ -186,7 +174,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             break;
                         case INIT:
                         case WAITING:
-                        case STARTED:
                             stage = SnapshotIndexShardStage.STARTED;
                             break;
                         case SUCCESS:

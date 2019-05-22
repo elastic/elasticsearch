@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
@@ -21,6 +22,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
     private static final String TEST_USER_NAME = "df_admin_plus_data";
@@ -426,6 +428,56 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         assertEquals(3.878048780, actual.doubleValue(), 0.000001);
         actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating_again", searchResult)).get(0);
         assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+    }
+
+    public void testPivotWithGeoCentroidAgg() throws Exception {
+        String transformId = "geoCentroidPivot";
+        String dataFrameIndex = "geo_centroid_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, dataFrameIndex);
+
+        final Request createDataframeTransformRequest = createRequestWithAuth("PUT", DATAFRAME_ENDPOINT + transformId,
+            BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+
+        String config = "{"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"dest\": {\"index\":\"" + dataFrameIndex + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"avg_rating\": {"
+            + "       \"avg\": {"
+            + "         \"field\": \"stars\""
+            + " } },"
+            + "     \"location\": {"
+            + "       \"geo_centroid\": {\"field\": \"location\"}"
+            + " } } }"
+            + "}";
+
+        createDataframeTransformRequest.setJsonEntity(config);
+        Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
+        assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(dataFrameIndex));
+
+        // we expect 27 documents as there shall be 27 user_id's
+        Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
+        assertEquals(27, XContentMapValues.extractValue("_all.total.docs.count", indexStats));
+
+        // get and check some users
+        Map<String, Object> searchResult = getAsMap(dataFrameIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        Number actual = (Number) ((List<?>) XContentMapValues.extractValue("hits.hits._source.avg_rating", searchResult)).get(0);
+        assertEquals(3.878048780, actual.doubleValue(), 0.000001);
+        String actualString = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.location", searchResult)).get(0);
+        String[] latlon = actualString.split(",");
+        assertEquals((4 + 10), Double.valueOf(latlon[0]), 0.000001);
+        assertEquals((4 + 15), Double.valueOf(latlon[1]), 0.000001);
     }
 
     private void assertOnePivotValue(String query, double expected) throws IOException {

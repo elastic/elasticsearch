@@ -854,8 +854,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             }
         } else {
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField) {
+            if (QueryParserHelper.hasAllFieldsWildcard(defaultFields)) {
                 queryParser = new QueryStringQueryParser(context, lenient == null ? true : lenient);
             } else {
                 final Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context,

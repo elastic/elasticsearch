@@ -17,15 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public class SnapshotFailedEngineException extends EngineException {
+public class ShardNotInPrimaryModeException extends IllegalIndexShardStateException {
 
-    public SnapshotFailedEngineException(StreamInput in) throws IOException{
+    public ShardNotInPrimaryModeException(final ShardId shardId, final IndexShardState currentState) {
+        super(shardId, currentState, "shard is not in primary mode");
+    }
+
+    public ShardNotInPrimaryModeException(final StreamInput in) throws IOException {
         super(in);
     }
+
 }

@@ -75,7 +75,7 @@ final class RemoteRequestBuilders {
             request.addParameter("scroll", keepAlive.getStringRep());
         }
         request.addParameter("size", Integer.toString(searchRequest.source().size()));
-        
+
         if (searchRequest.source().version() == null || searchRequest.source().version() == false) {
             request.addParameter("version", Boolean.FALSE.toString());
         } else {

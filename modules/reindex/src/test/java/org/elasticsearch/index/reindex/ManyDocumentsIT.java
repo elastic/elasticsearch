@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
@@ -53,19 +52,13 @@ public class ManyDocumentsIT extends ESRestTestCase {
 
     public void testReindex() throws IOException {
         Request request = new Request("POST", "/_reindex");
-        HttpHost httpHost = getClusterHosts().stream().filter(h -> "127.0.0.1".equals(h.getHostName())).findFirst().get();
         request.setJsonEntity(
                 "{\n" +
                 "  \"source\":{\n" +
-                    "\"remote\": {" +
-                        "\"host\": \"" + httpHost.toString() + "\"\n" +
-                    "},\n" +
                 "    \"index\":\"test\"\n" +
                 "  },\n" +
                 "  \"dest\":{\n" +
-                "    \"index\":\"des\",\n" +
-                "    \"version_type\": \"external\"\n" +
-//                "    \"index\":\"des\"\n" +
+                "    \"index\":\"des\"\n" +
                 "  }\n" +
                 "}");
         Map<String, Object> response = entityAsMap(client().performRequest(request));
@@ -80,18 +73,35 @@ public class ManyDocumentsIT extends ESRestTestCase {
         Map<?, ?> http = (Map<?, ?>) nodeInfo.get("http");
         String remote = "http://"+ http.get("publish_address");
         Request request = new Request("POST", "/_reindex");
-        request.setJsonEntity(
+        if (randomBoolean()) {
+            request.setJsonEntity(
                 "{\n" +
-                "  \"source\":{\n" +
-                "    \"index\":\"test\",\n" +
-                "    \"remote\":{\n" +
-                "      \"host\":\"" + remote + "\"\n" +
-                "    }\n" +
-                "  }\n," +
-                "  \"dest\":{\n" +
-                "    \"index\":\"des\"\n" +
-                "  }\n" +
-                "}");
+                    "  \"source\":{\n" +
+                    "    \"index\":\"test\",\n" +
+                    "    \"remote\":{\n" +
+                    "      \"host\":\"" + remote + "\"\n" +
+                    "    }\n" +
+                    "  }\n," +
+                    "  \"dest\":{\n" +
+                    "    \"index\":\"des\"\n" +
+                    "  }\n" +
+                    "}");
+        } else {
+            // Test with external version_type
+            request.setJsonEntity(
+                "{\n" +
+                    "  \"source\":{\n" +
+                    "    \"index\":\"test\",\n" +
+                    "    \"remote\":{\n" +
+                    "      \"host\":\"" + remote + "\"\n" +
+                    "    }\n" +
+                    "  }\n," +
+                    "  \"dest\":{\n" +
+                    "    \"index\":\"des\",\n" +
+                    "    \"version_type\": \"external\"\n" +
+                    "  }\n" +
+                    "}");
+        }
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response, hasEntry("total", count));
         assertThat(response, hasEntry("created", count));

@@ -18,12 +18,15 @@ import org.elasticsearch.xpack.core.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.core.watcher.execution.Wid;
+import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -73,7 +76,8 @@ public class ActionWrapperTests extends ESTestCase {
     }
 
     public void testThatMultipleResultsCanBeReturned() throws Exception {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction, "my_path");
+        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
+            "ctx.payload.my_path");
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Map.of("my_path",
             List.of(
@@ -111,7 +115,8 @@ public class ActionWrapperTests extends ESTestCase {
     }
 
     public void testThatPathElementIsntInstanceOfMap() throws Exception {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction, "my_path");
+        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction, "" +
+            "ctx.payload.my_path");
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Map.of("my_path", List.of("first", "second", "third")));
         when(ctx.payload()).thenReturn(payload);
@@ -125,11 +130,12 @@ public class ActionWrapperTests extends ESTestCase {
         assertThat(result.action().status(), is(Action.Result.Status.FAILURE));
         assertThat(result.action(), instanceOf(Action.Result.FailureWithException.class));
         Action.Result.FailureWithException failureWithException = (Action.Result.FailureWithException) result.action();
-        assertThat(failureWithException.getException().getMessage(), is("item in foreach [my_path] object was not a map"));
+        assertThat(failureWithException.getException().getMessage(), is("item in foreach [ctx.payload.my_path] object was not a map"));
     }
 
-    public void testThatSpecifiedPathIsACollection() {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction, "my_path");
+    public void testThatSpecifiedPathIsNotCollection() {
+        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
+            "ctx.payload.my_path");
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Map.of("my_path", "not a map"));
         when(ctx.payload()).thenReturn(payload);
@@ -140,11 +146,12 @@ public class ActionWrapperTests extends ESTestCase {
         assertThat(result.action(), instanceOf(Action.Result.FailureWithException.class));
         Action.Result.FailureWithException failureWithException = (Action.Result.FailureWithException) result.action();
         assertThat(failureWithException.getException().getMessage(),
-            is("specified foreach object was not a an array/collection: [my_path]"));
+            is("specified foreach object was not a an array/collection: [ctx.payload.my_path]"));
     }
 
     public void testEmptyCollection() {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction, "my_path");
+        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
+            "ctx.payload.my_path");
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Map.of("my_path", Collections.emptyList()));
         when(ctx.payload()).thenReturn(payload);
@@ -155,11 +162,12 @@ public class ActionWrapperTests extends ESTestCase {
         assertThat(result.action(), instanceOf(Action.Result.FailureWithException.class));
         Action.Result.FailureWithException failureWithException = (Action.Result.FailureWithException) result.action();
         assertThat(failureWithException.getException().getMessage(),
-            is("foreach object [my_path] was an empty list, could not run any action"));
+            is("foreach object [ctx.payload.my_path] was an empty list, could not run any action"));
     }
 
     public void testPartialFailure() throws Exception {
-        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction, "my_path");
+        ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
+            "ctx.payload.my_path");
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Map.of("my_path",
             List.of(
@@ -185,6 +193,12 @@ public class ActionWrapperTests extends ESTestCase {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(watch.id()).thenReturn("watchId");
         when(ctx.watch()).thenReturn(watch);
+        final ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+        final Wid wid = new Wid("watchId", now);
+        when(ctx.id()).thenReturn(wid);
+        when(ctx.executionTime()).thenReturn(now);
+        final TriggerEvent triggerEvent = new ScheduleTriggerEvent("watchId", now, now);
+        when(ctx.triggerEvent()).thenReturn(triggerEvent);
         when(ctx.skipThrottling(eq("_action"))).thenReturn(true);
         return ctx;
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.ThrottlerField;
@@ -35,6 +36,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -165,7 +167,7 @@ public class ActionWrapper implements ToXContentObject {
         } else {
             try {
                 List<Action.Result> results = new ArrayList<>();
-                Object object = ObjectPath.eval(path, ctx.payload().data());
+                Object object = ObjectPath.eval(path, toMap(ctx));
                 if (object instanceof Collection) {
                     Collection collection = Collection.class.cast(object);
                     if (collection.isEmpty()) {
@@ -179,6 +181,8 @@ public class ActionWrapper implements ToXContentObject {
                             }
                         }
                     }
+                } else if (object == null) {
+                    throw new ElasticsearchException("specified foreach object was null: [{}]", path);
                 } else {
                     throw new ElasticsearchException("specified foreach object was not a an array/collection: [{}]", path);
                 }
@@ -212,6 +216,20 @@ public class ActionWrapper implements ToXContentObject {
                 return new ActionWrapperResult(id, new Action.Result.FailureWithException(action.type(), e));
             }
         }
+    }
+
+    private Map<String, Object> toMap(WatchExecutionContext ctx) {
+        Map<String, Object> model = new HashMap<>();
+        model.put("id", ctx.id().value());
+        model.put("watch_id", ctx.id().watchId());
+        model.put("execution_time", new JodaCompatibleZonedDateTime(ctx.executionTime().toInstant(), ZoneOffset.UTC));
+        model.put("trigger", ctx.triggerEvent().data());
+        model.put("metadata", ctx.watch().metadata());
+        model.put("vars", ctx.vars());
+        if (ctx.payload().data() != null) {
+            model.put("payload", ctx.payload().data());
+        }
+        return Map.of("ctx", model);
     }
 
     @Override

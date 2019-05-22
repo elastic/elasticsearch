@@ -31,7 +31,7 @@ teardown:
               },
               "actions": {
                 "indexme" : {
-                  "foreach" : "my_array",
+                  "foreach" : "ctx.payload.my_array",
                   "index" : {}
                 }
               }

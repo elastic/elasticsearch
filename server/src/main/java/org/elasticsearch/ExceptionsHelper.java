@@ -175,12 +175,42 @@ public final class ExceptionsHelper {
         return first;
     }
 
+    private static final List<Class<? extends IOException>> CORRUPTION_EXCEPTIONS =
+        List.of(CorruptIndexException.class, IndexFormatTooOldException.class, IndexFormatTooNewException.class);
+
+    /**
+     * Looks at the given Throwable's and its cause(s) as well as any suppressed exceptions on the Throwable as well as its causes
+     * and returns the first corruption indicating exception (as defined by {@link #CORRUPTION_EXCEPTIONS}) it finds.
+     * @param t Throwable
+     * @return Corruption indicating exception if one is found, otherwise {@code null}
+     */
     public static IOException unwrapCorruption(Throwable t) {
-        return (IOException) unwrap(t, CorruptIndexException.class,
-                                       IndexFormatTooOldException.class,
-                                       IndexFormatTooNewException.class);
+        if (t != null) {
+            do {
+                for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
+                    if (clazz.isInstance(t)) {
+                        return (IOException) t;
+                    }
+                }
+                for (Throwable suppressed : t.getSuppressed()) {
+                    IOException corruptionException = unwrapCorruption(suppressed);
+                    if (corruptionException != null) {
+                        return corruptionException;
+                    }
+                }
+            } while ((t = t.getCause()) != null);
+        }
+        return null;
     }
 
+    /**
+     * Looks at the given Throwable and its cause(s) and returns the first Throwable that is of one of the given classes or {@code null}
+     * if no matching Throwable is found. Unlike {@link #unwrapCorruption} this method does only check the given Throwable and its causes
+     * but does not look at any suppressed exceptions.
+     * @param t Throwable
+     * @param clazzes Classes to look for
+     * @return Matching Throwable if one is found, otherwise {@code null}
+     */
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {
         if (t != null) {
             do {

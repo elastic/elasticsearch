@@ -151,7 +151,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", true, null));
         assertEquals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda("2015-10-13").getMillis() - 1,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12||/d", true, null));
-        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. Prefix your date format with '8' to use the new specifier.");
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+            "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testValueForSearch() {

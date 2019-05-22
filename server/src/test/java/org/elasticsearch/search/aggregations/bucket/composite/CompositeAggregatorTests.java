@@ -1140,7 +1140,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 assertEquals(2L, result.getBuckets().get(1).getDocCount());
             }
         );
-        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. Prefix your date format with '8' to use the new specifier.");
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+            "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testThatDateHistogramFailsFormatAfter() throws IOException {
@@ -1173,7 +1174,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             ));
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exc.getCause().getMessage(), containsString("Parse failure"));
-        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. Prefix your date format with '8' to use the new specifier.");
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+            "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testWithDateHistogramAndTimeZone() throws IOException {

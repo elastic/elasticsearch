@@ -76,6 +76,7 @@ public class GeometryTreeWriter {
     class GeometryTreeBuilder implements GeometryVisitor<Void, RuntimeException> {
 
         private List<EdgeTreeWriter> shapeWriters;
+        // integers are used to represent int-encoded lat/lon values
         int minLat;
         int maxLat;
         int minLon;
@@ -105,8 +106,7 @@ public class GeometryTreeWriter {
 
         @Override
         public Void visit(Line line) {
-            // TODO
-            return null;
+            throw new UnsupportedOperationException("support for Line is a TODO");
         }
 
         @Override
@@ -145,14 +145,12 @@ public class GeometryTreeWriter {
 
         @Override
         public Void visit(Point point) {
-            // TODO
-            return null;
+            throw new UnsupportedOperationException("support for Point is a TODO");
         }
 
         @Override
         public Void visit(MultiPoint multiPoint) {
-            // TODO
-            return null;
+            throw new UnsupportedOperationException("support for MultiPoint is a TODO");
         }
 
         @Override

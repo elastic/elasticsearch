@@ -44,7 +44,6 @@ import org.elasticsearch.nio.NioServerSocketChannel;
 import org.elasticsearch.nio.NioSocketChannel;
 import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.ServerChannelContext;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpChannel;
@@ -335,11 +334,10 @@ public class MockNioTransport extends TcpTransport {
         private final ConcurrentHashMap<Thread, Long> registry = new ConcurrentHashMap<>();
 
         private volatile boolean stopped;
-        private volatile Scheduler.ScheduledCancellable cancellable;
 
         TransportThreadWatchdog(ThreadPool threadPool) {
             this.threadPool = threadPool;
-            cancellable = threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
+            threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
         }
 
         public boolean register() {
@@ -374,16 +372,12 @@ public class MockNioTransport extends TcpTransport {
                 }
             }
             if (stopped == false) {
-                cancellable = threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
-                if (stopped) {
-                    cancellable.cancel();
-                }
+                threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
             }
         }
 
         public void stop() {
             stopped = true;
-            cancellable.cancel();
         }
     }
 }

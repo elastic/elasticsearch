@@ -80,7 +80,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         SearchRequest deserializedRequest = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new, version);
         assertEquals(searchRequest.isCcsMinimizeRoundtrips(), deserializedRequest.isCcsMinimizeRoundtrips());
         assertEquals(searchRequest.getLocalClusterAlias(), deserializedRequest.getLocalClusterAlias());
-        assertEquals(searchRequest.getOrCreateAbsoluteStartMillis(), deserializedRequest.getOrCreateAbsoluteStartMillis());
+        assertEquals(searchRequest.getAbsoluteStartMillis(), deserializedRequest.getAbsoluteStartMillis());
         assertEquals(searchRequest.isFinalReduce(), deserializedRequest.isFinalReduce());
     }
 

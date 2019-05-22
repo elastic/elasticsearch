@@ -229,7 +229,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Request createRollupJobRequest = new Request("PUT", getRollupEndpoint() + "/job/rollup-job-test");
 
             String intervalType;
-            if (getOldClusterVersion().onOrAfter(Version.V_8_0_0)) { // TODO change this after backport
+            if (getOldClusterVersion().onOrAfter(Version.V_7_2_0)) {
                 intervalType = "fixed_interval";
             } else {
                 intervalType = "interval";

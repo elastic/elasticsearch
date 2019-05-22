@@ -119,6 +119,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         assertAcked(prepareCreate("test")
             .setSettings(Settings.builder()
+                .put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
             ));

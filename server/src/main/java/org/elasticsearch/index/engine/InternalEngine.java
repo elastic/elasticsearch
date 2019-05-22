@@ -1162,7 +1162,7 @@ public class InternalEngine extends Engine {
 
         static IndexingStrategy overrideExistingAsIfNotThere() {
             return new IndexingStrategy(true, true, true,
-                false, (long) 1, null);
+                false, 1L, null);
         }
 
         public static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long versionForIndexing) {

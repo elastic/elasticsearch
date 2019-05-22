@@ -58,7 +58,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         });
     }
 
-    // pkg private for testing
     private static CodecReader wrapReader(String recoverySourceField, CodecReader reader, Supplier<Query> retainSourceQuerySupplier)
         throws IOException {
         NumericDocValues recoverySource = reader.getNumericDocValues(recoverySourceField);

@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers.IndexAnalysisProviders;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -453,9 +452,7 @@ public final class AnalysisRegistry implements Closeable {
                 throw new IllegalArgumentException("analyzer name must not start with '_'. got \"" + analyzer.getKey() + "\"");
             }
         }
-        IndexAnalysisProviders analysisProviders = new IndexAnalysisProviders(tokenizerFactoryFactories, charFilterFactoryFactories,
-                tokenFilterFactoryFactories);
-        return new IndexAnalyzers(indexSettings, analyzers, normalizers, whitespaceNormalizers, analysisProviders);
+        return new IndexAnalyzers(indexSettings, analyzers, normalizers, whitespaceNormalizers);
     }
 
     private static NamedAnalyzer produceAnalyzer(String name,

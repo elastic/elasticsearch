@@ -35,7 +35,7 @@ public final class TransformProgressGatherer {
         SearchRequest request = getSearchRequest(config);
 
         ActionListener<SearchResponse> searchResponseActionListener = ActionListener.wrap(
-            searchResponse -> searchResponseToDataFrameTransformProgressFunction().apply(searchResponse),
+            searchResponse -> progressListener.onResponse(searchResponseToDataFrameTransformProgressFunction().apply(searchResponse)),
             progressListener::onFailure
         );
         ClientHelper.executeWithHeadersAsync(config.getHeaders(),

@@ -26,10 +26,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.action.StartDataFrameTransformTaskAction;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -106,44 +106,47 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     protected void nodeOperation(AllocatedPersistentTask task, @Nullable DataFrameTransform params, PersistentTaskState state) {
         final String transformId = params.getId();
         final DataFrameTransformTask buildTask = (DataFrameTransformTask) task;
-        final DataFrameTransformState transformState = (DataFrameTransformState) state;
+        final DataFrameTransformState transformPTaskState = (DataFrameTransformState) state;
 
         final DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder =
-            new DataFrameTransformTask.ClientDataFrameIndexerBuilder()
+            new DataFrameTransformTask.ClientDataFrameIndexerBuilder(transformId)
                 .setAuditor(auditor)
                 .setClient(client)
-                .setIndexerState(currentIndexerState(transformState))
-                .setInitialPosition(transformState == null ? null : transformState.getPosition())
-                // If the state is `null` that means this is a "first run". We can safely assume the
-                // task will attempt to gather the initial progress information
-                // if we have state, this may indicate the previous execution node crashed, so we should attempt to retrieve
-                // the progress from state to keep an accurate measurement of our progress
-                .setProgress(transformState == null ? null : transformState.getProgress())
+                .setIndexerState(currentIndexerState(transformPTaskState))
+                // If the transform persistent task state is `null` that means this is a "first run".
+                // If we have state then the task has relocated from another node in which case this
+                // state is preferred
+                .setInitialPosition(transformPTaskState == null ? null : transformPTaskState.getPosition())
+                .setProgress(transformPTaskState == null ? null : transformPTaskState.getProgress())
                 .setTransformsCheckpointService(dataFrameTransformsCheckpointService)
-                .setTransformsConfigManager(transformsConfigManager)
-                .setTransformId(transformId);
+                .setTransformsConfigManager(transformsConfigManager);
 
         ActionListener<StartDataFrameTransformTaskAction.Response> startTaskListener = ActionListener.wrap(
             response -> logger.info("Successfully completed and scheduled task in node operation"),
             failure -> logger.error("Failed to start task ["+ transformId +"] in node operation", failure)
         );
 
+        Long previousCheckpoint = transformPTaskState != null ? transformPTaskState.getCheckpoint() : null;
+
         // <3> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
-        ActionListener<DataFrameIndexerTransformStats> transformStatsActionListener = ActionListener.wrap(
-            stats -> {
-                indexerBuilder.setInitialStats(stats);
-                buildTask.initializeIndexer(indexerBuilder);
-                startTask(buildTask, startTaskListener);
+        ActionListener<DataFrameTransformStateAndStats> transformStatsActionListener = ActionListener.wrap(
+            stateAndStats -> {
+                indexerBuilder.setInitialStats(stateAndStats.getTransformStats());
+                if (transformPTaskState == null) { // prefer the persistent task state
+                    indexerBuilder.setInitialPosition(stateAndStats.getTransformState().getPosition());
+                    indexerBuilder.setProgress(stateAndStats.getTransformState().getProgress());
+                }
+
+                final Long checkpoint = previousCheckpoint != null ? previousCheckpoint : stateAndStats.getTransformState().getCheckpoint();
+                startTask(buildTask, indexerBuilder, checkpoint, startTaskListener);
             },
             error -> {
                 if (error instanceof ResourceNotFoundException == false) {
                     logger.error("Unable to load previously persisted statistics for transform [" + params.getId() + "]", error);
                 }
-                indexerBuilder.setInitialStats(new DataFrameIndexerTransformStats(transformId));
-                buildTask.initializeIndexer(indexerBuilder);
-                startTask(buildTask, startTaskListener);
+                startTask(buildTask, indexerBuilder, previousCheckpoint, startTaskListener);
             }
         );
 
@@ -217,13 +220,17 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
     }
 
     private void startTask(DataFrameTransformTask buildTask,
+                           DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder,
+                           Long previousCheckpoint,
                            ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
         // If we are stopped, and it is an initial run, this means we have never been started,
         // attempt to start the task
+
+        buildTask.initializeIndexer(indexerBuilder);
+        // TODO isInitialRun is false after relocation??
         if (buildTask.getState().getTaskState().equals(DataFrameTransformTaskState.STOPPED) && buildTask.isInitialRun()) {
             logger.info("Data frame transform [{}] created.", buildTask.getTransformId());
-            buildTask.start(listener);
-
+            buildTask.start(previousCheckpoint, listener);
         } else {
             logger.debug("No need to start task. Its current state is: {}", buildTask.getState().getIndexerState());
             listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));

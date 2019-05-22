@@ -234,15 +234,21 @@ public class LeaderChecker {
                         }
 
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                            logger.debug(new ParameterizedMessage("leader [{}] disconnected, failing immediately", leader), exp);
+                            if (logger.isDebugEnabled()) {
+                                logger.debug(new ParameterizedMessage(
+                                    "leader [{}] disconnected during check, restarting discovery", leader), exp);
+                            } else {
+                                logger.info("leader [{}] disconnected during check, restarting discovery", leader);
+                            }
                             leaderFailed();
                             return;
                         }
 
                         long failureCount = failureCountSinceLastSuccess.incrementAndGet();
                         if (failureCount >= leaderCheckRetryCount) {
-                            logger.debug(new ParameterizedMessage("{} consecutive failures (limit [{}] is {}) so leader [{}] has failed",
-                                failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount, leader), exp);
+                            logger.info(new ParameterizedMessage(
+                                "leader [{}] has failed {} consecutive checks (limit [{}] is {}), restarting discovery; last failure was:",
+                                leader, failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount), exp);
                             leaderFailed();
                             return;
                         }
@@ -269,6 +275,7 @@ public class LeaderChecker {
 
         void handleDisconnectedNode(DiscoveryNode discoveryNode) {
             if (discoveryNode.equals(leader)) {
+                logger.info("leader [{}] disconnected, restarting discovery", leader);
                 leaderFailed();
             }
         }

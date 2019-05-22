@@ -30,6 +30,6 @@ accepted but truncated to 1). You should use one of the allowed values.
 [float]
 ==== Changes to Repository
 
-Repository has no dependency to IndexShard anymore. The contract of restoreShard
+Repository has no dependency on IndexShard anymore. The contract of restoreShard
 and snapshotShard has been reduced to Store and MappingService in order to improve
 testability.

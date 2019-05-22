@@ -26,12 +26,12 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.ciphers.match("xpack.transport.security.ssl.cipher_suites"), is(false));
 
         final Settings settings = Settings.builder()
-            .put("cipher_suites.0", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256")
-            .put("cipher_suites.1", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256")
-            .put("cipher_suites.2", "TLS_RSA_WITH_AES_128_CBC_SHA256")
-            .build();
+                .put("cipher_suites.0", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256")
+                .put("cipher_suites.1", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256")
+                .put("cipher_suites.2", "TLS_RSA_WITH_AES_128_CBC_SHA256")
+                .build();
         assertThat(ssl.ciphers.get(settings), is(Arrays.asList(
-            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA256"
+                "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA256"
         )));
     }
 
@@ -41,8 +41,8 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.clientAuth.match("client_authentication"), is(false));
 
         final Settings settings = Settings.builder()
-            .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())
-            .build();
+                .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())
+                .build();
         assertThat(ssl.clientAuth.get(settings).get(), is(SSLClientAuth.OPTIONAL));
     }
 
@@ -52,8 +52,8 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
 
         final String algo = randomAlphaOfLength(16);
         final Settings settings = Settings.builder()
-            .put("xpack.security.authc.realms.ldap1.ssl.keystore.algorithm", algo)
-            .build();
+                .put("xpack.security.authc.realms.ldap1.ssl.keystore.algorithm", algo)
+                .build();
         assertThat(ssl.x509KeyPair.keystoreAlgorithm.get(settings), is(algo));
     }
 
@@ -62,8 +62,8 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.supportedProtocols.match("ssl.supported_protocols"), is(true));
 
         final Settings settings = Settings.builder()
-            .putList("ssl.supported_protocols", "SSLv3", "SSLv2Hello", "SSLv2")
-            .build();
+                .putList("ssl.supported_protocols", "SSLv3", "SSLv2Hello", "SSLv2")
+                .build();
         assertThat(ssl.supportedProtocols.get(settings), is(Arrays.asList("SSLv3", "SSLv2Hello", "SSLv2")));
     }
 

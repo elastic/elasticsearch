@@ -19,6 +19,11 @@
 
 package org.elasticsearch.common.time;
 
+import java.util.Arrays;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 public enum FormatNames {
     ISO8601("iso8601", "iso8601"),
     BASIC_DATE("basicDate", "basic_date"),
@@ -67,7 +72,7 @@ public enum FormatNames {
     EPOCH_SECOND("epoch_second", "epoch_second"),
     EPOCH_MILLIS("epoch_millis", "epoch_millis"),
     // strict date formats here, must be at least 4 digits for year and two for months and two for day"
-    STRICT_BASIC_WEEK_DATE("strictBasicWeekDate", "strict_basic_week_date"    ),
+    STRICT_BASIC_WEEK_DATE("strictBasicWeekDate", "strict_basic_week_date"),
     STRICT_BASIC_WEEK_DATE_TIME("strictBasicWeekDateTime", "strict_basic_week_date_time"),
     STRICT_BASIC_WEEK_DATE_TIME_NO_MILLIS("strictBasicWeekDateTimeNoMillis", "strict_basic_week_date_time_no_millis"),
     STRICT_DATE("strictDate", "strict_date"),
@@ -102,8 +107,12 @@ public enum FormatNames {
     STRICT_YEAR_MONTH("strictYearMonth", "strict_year_month"),
     STRICT_YEAR_MONTH_DAY("strictYearMonthDay", "strict_year_month_day");
 
-    final String camelCaseName;
-    final String snakeCaseName;
+    private final String camelCaseName;
+    private final String snakeCaseName;
+    private static final Set<String> ALL_NAMES = Arrays.stream(values())
+                                                       .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
+                                                       .collect(Collectors.toSet());
+
 
     FormatNames(String camelCaseName, String snakeCaseName) {
         this.camelCaseName = camelCaseName;
@@ -111,11 +120,7 @@ public enum FormatNames {
     }
 
     public static boolean exist(String format) {
-        for(FormatNames name : values()){
-            if(name.camelCaseName.equals(format) || name.snakeCaseName.equals(format))
-                return true;
-        }
-        return false;
+        return ALL_NAMES.contains(format);
     }
 
     public boolean matches(String format) {

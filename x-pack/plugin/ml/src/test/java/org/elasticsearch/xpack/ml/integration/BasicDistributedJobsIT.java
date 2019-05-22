@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -331,7 +332,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start non ml node that will hold the state and results indices
         logger.info("Start non ml node:");
-        internalCluster().startNode(Settings.builder()
+        String nonMLNode = internalCluster().startNode(Settings.builder()
                 .put("node.data", true)
                 .put("node.attr.ml-indices", "state-and-results")
                 .put(MachineLearning.ML_ENABLED.getKey(), false));
@@ -389,7 +390,8 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertEquals(0, tasks.taskMap().size());
         });
         logger.info("Stop non ml node");
-        internalCluster().stopRandomNode(settings -> settings.getAsBoolean(MachineLearning.ML_ENABLED.getKey(), false) == false);
+        Settings nonMLNodeDataPathSettings = internalCluster().dataPathSettings(nonMLNode);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nonMLNode));
         ensureStableCluster(1);
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
@@ -406,6 +408,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(Settings.builder()
+                .put(nonMLNodeDataPathSettings)
                 .put("node.data", true)
                 .put(MachineLearning.ML_ENABLED.getKey(), false));
         ensureStableCluster(2, mlNode);

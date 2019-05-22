@@ -407,7 +407,7 @@ public class OpenIdConnectAuthenticator {
                         LOGGER.trace("Successfully retrieved user information: [{}]", userInfoClaims.toJSONObject().toJSONString());
                     }
                     final JSONObject combinedClaims = verifiedIdTokenClaims.toJSONObject();
-                    merge(combinedClaims, userInfoClaims.toJSONObject());
+                    mergeObjects(combinedClaims, userInfoClaims.toJSONObject());
                     claimsListener.onResponse(JWTClaimsSet.parse(combinedClaims));
                 } else if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/jwt")) {
                     //TODO Handle validating possibly signed responses
@@ -626,9 +626,9 @@ public class OpenIdConnectAuthenticator {
      * necessary as some OPs return slightly different values for some claims (i.e. Google for the profile picture) and
      * {@link JSONObject#merge(Object)} would throw a runtime exception. The merging is performed based on the following rules:
      * <ul>
-     * <li>If the values for a given claim are strings, the value from the ID Token is retained</li>
+     * <li>If the values for a given claim are primitives (of the the same type), the value from the ID Token is retained</li>
      * <li>If the values for a given claim are Objects, the values are merged</li>
-     * <li>If the values for a given claim are Arrays, the values are merged</li>
+     * <li>If the values for a given claim are Arrays, the values are merged without removing duplicates</li>
      * <li>If the values for a given claim are of different types, an exception is thrown</li>
      * </ul>
      *
@@ -637,7 +637,7 @@ public class OpenIdConnectAuthenticator {
      * @return the merged JsonObject
      */
     // pkg protected for testing
-    static JSONObject merge(JSONObject idToken, JSONObject userInfo) {
+    static JSONObject mergeObjects(JSONObject idToken, JSONObject userInfo) {
         for (Map.Entry<String, Object> entry : idToken.entrySet()) {
             Object value1 = entry.getValue();
             Object value2 = userInfo.get(entry.getKey());
@@ -645,10 +645,9 @@ public class OpenIdConnectAuthenticator {
                 continue;
             }
             if (value1 instanceof JSONArray) {
-                idToken.put(entry.getKey(), merge((JSONArray) value1, value2));
+                idToken.put(entry.getKey(), mergeArrays((JSONArray) value1, value2));
             } else if (value1 instanceof JSONObject) {
-                idToken.put(entry.getKey(), merge((JSONObject) value1, value2));
-
+                idToken.put(entry.getKey(), mergeObjects((JSONObject) value1, value2));
             } else if (value1.getClass().equals(value2.getClass()) == false) {
                 throw new IllegalStateException("Error merging ID token and userinfo claim value for claim [" + entry.getKey() + "]. " +
                     "Cannot merge [" + value1.getClass().getName() + "] with [" + value2.getClass().getName() + "]");
@@ -662,21 +661,23 @@ public class OpenIdConnectAuthenticator {
         return idToken;
     }
 
-    private static JSONObject merge(JSONObject jsonObject1, Object jsonObject2) {
-        if (jsonObject2 == null)
+    private static JSONObject mergeObjects(JSONObject jsonObject1, Object jsonObject2) {
+        if (jsonObject2 == null) {
             return jsonObject1;
-        if (jsonObject2 instanceof JSONObject)
-            return merge(jsonObject1, (JSONObject) jsonObject2);
+        }
+        if (jsonObject2 instanceof JSONObject) {
+            return mergeObjects(jsonObject1, (JSONObject) jsonObject2);
+        }
         throw new IllegalStateException("Error while merging ID token and userinfo claims. " +
             "Cannot merge JSONObject with [" + jsonObject2.getClass().getName() + "]");
     }
 
-    private static JSONArray merge(JSONArray jsonArray1, Object jsonArray2) {
+    private static JSONArray mergeArrays(JSONArray jsonArray1, Object jsonArray2) {
         if (jsonArray2 == null) {
             return jsonArray1;
         }
         if (jsonArray2 instanceof JSONArray) {
-            return merge(jsonArray1, (JSONArray) jsonArray2);
+            return mergeArrays(jsonArray1, (JSONArray) jsonArray2);
         }
         if (jsonArray2 instanceof String) {
             jsonArray1.add(jsonArray2);
@@ -684,7 +685,7 @@ public class OpenIdConnectAuthenticator {
         return jsonArray1;
     }
 
-    private static JSONArray merge(JSONArray jsonArray1, JSONArray jsonArray2) {
+    private static JSONArray mergeArrays(JSONArray jsonArray1, JSONArray jsonArray2) {
         jsonArray1.addAll(jsonArray2);
         return jsonArray1;
     }

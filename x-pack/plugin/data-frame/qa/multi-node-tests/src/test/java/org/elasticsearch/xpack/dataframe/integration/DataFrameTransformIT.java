@@ -34,7 +34,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         createReviewsIndex();
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-day", createDateHistogramGroupSource("timestamp", DateHistogramInterval.DAY, null, null));
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null, null));
         groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
         groups.put("by-business", TermsGroupSource.builder().setField("business_id").build());
 

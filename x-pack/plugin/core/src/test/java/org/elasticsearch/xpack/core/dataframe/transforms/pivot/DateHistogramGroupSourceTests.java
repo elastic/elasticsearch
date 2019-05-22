@@ -8,22 +8,29 @@ package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<DateHistogramGroupSource> {
 
+    private static List<String> TIME_UNITS = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
+
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
         String field = randomAlphaOfLengthBetween(1, 20);
-        DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(field);
+        DateHistogramGroupSource dateHistogramGroupSource; // = new DateHistogramGroupSource(field);
         if (randomBoolean()) {
-            dateHistogramGroupSource.setInterval(randomLongBetween(1, 10_000));
+            dateHistogramGroupSource = new DateHistogramGroupSource(field, new DateHistogramGroupSource.FixedInterval(
+                    new DateHistogramInterval(randomPositiveTimeValue())));
         } else {
-            dateHistogramGroupSource.setDateHistogramInterval(randomFrom(DateHistogramInterval.days(10),
-                DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)));
+            dateHistogramGroupSource = new DateHistogramGroupSource(field, new DateHistogramGroupSource.CalendarInterval(
+                    new DateHistogramInterval(randomTimeValue(1,1, "m", "h", "d", "w"))));
         }
+
         if (randomBoolean()) {
             dateHistogramGroupSource.setTimeZone(randomZone());
         }

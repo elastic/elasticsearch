@@ -50,17 +50,6 @@ import java.math.BigDecimal;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.time.FormatNames.BASIC_DATE;
-import static org.elasticsearch.common.time.FormatNames.BASIC_DATE_TIME;
-import static org.elasticsearch.common.time.FormatNames.BASIC_DATE_TIME_NO_MILLIS;
-import static org.elasticsearch.common.time.FormatNames.BASIC_ORDINAL_DATE;
-import static org.elasticsearch.common.time.FormatNames.BASIC_ORDINAL_DATE_TIME;
-import static org.elasticsearch.common.time.FormatNames.BASIC_ORDINAL_DATE_TIME_NO_MILLIS;
-import static org.elasticsearch.common.time.FormatNames.BASIC_TIME;
-import static org.elasticsearch.common.time.FormatNames.BASIC_TIME_NO_MILLIS;
-import static org.elasticsearch.common.time.FormatNames.BASIC_T_TIME;
-import static org.elasticsearch.common.time.FormatNames.BASIC_T_TIME_NO_MILLIS;
-
 public class Joda {
 
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Joda.class));
@@ -77,25 +66,25 @@ public class Joda {
         }
 
         DateTimeFormatter formatter;
-        if (BASIC_DATE.matches(input)) {
+        if (FormatNames.BASIC_DATE.matches(input)) {
             formatter = ISODateTimeFormat.basicDate();
-        } else if (BASIC_DATE_TIME.matches(input) ) {
+        } else if (FormatNames.BASIC_DATE_TIME.matches(input) ) {
             formatter = ISODateTimeFormat.basicDateTime();
-        } else if (BASIC_DATE_TIME_NO_MILLIS.matches(input) ) {
+        } else if (FormatNames.BASIC_DATE_TIME_NO_MILLIS.matches(input) ) {
             formatter = ISODateTimeFormat.basicDateTimeNoMillis();
-        } else if (BASIC_ORDINAL_DATE.matches(input) ) {
+        } else if (FormatNames.BASIC_ORDINAL_DATE.matches(input) ) {
             formatter = ISODateTimeFormat.basicOrdinalDate();
-        } else if (BASIC_ORDINAL_DATE_TIME.matches(input) ) {
+        } else if (FormatNames.BASIC_ORDINAL_DATE_TIME.matches(input) ) {
             formatter = ISODateTimeFormat.basicOrdinalDateTime();
-        } else if (BASIC_ORDINAL_DATE_TIME_NO_MILLIS.matches(input) ) {
+        } else if (FormatNames.BASIC_ORDINAL_DATE_TIME_NO_MILLIS.matches(input) ) {
             formatter = ISODateTimeFormat.basicOrdinalDateTimeNoMillis();
-        } else if (BASIC_TIME.matches(input) ) {
+        } else if (FormatNames.BASIC_TIME.matches(input) ) {
             formatter = ISODateTimeFormat.basicTime();
-        } else if (BASIC_TIME_NO_MILLIS.matches(input) ) {
+        } else if (FormatNames.BASIC_TIME_NO_MILLIS.matches(input) ) {
             formatter = ISODateTimeFormat.basicTimeNoMillis();
-        } else if (BASIC_T_TIME.matches(input) ) {
+        } else if (FormatNames.BASIC_T_TIME.matches(input) ) {
             formatter = ISODateTimeFormat.basicTTime();
-        } else if (BASIC_T_TIME_NO_MILLIS.matches(input) ) {
+        } else if (FormatNames.BASIC_T_TIME_NO_MILLIS.matches(input) ) {
             formatter = ISODateTimeFormat.basicTTimeNoMillis();
         } else if (FormatNames.BASIC_WEEK_DATE.matches(input)) {
             formatter = ISODateTimeFormat.basicWeekDate();
@@ -223,7 +212,7 @@ public class Joda {
             formatter = StrictISODateTimeFormat.time();
         } else if (FormatNames.STRICT_TIME_NO_MILLIS.matches(input)) {
             formatter = StrictISODateTimeFormat.timeNoMillis();
-        } else if (FormatNames.STRICTT_TIME.matches(input) ) {
+        } else if (FormatNames.STRICT_T_TIME.matches(input) ) {
             formatter = StrictISODateTimeFormat.tTime();
         } else if (FormatNames.STRICT_T_TIME_NO_MILLIS.matches(input)) {
             formatter = StrictISODateTimeFormat.tTimeNoMillis();

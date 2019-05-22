@@ -1536,7 +1536,7 @@ public class DateFormatters {
             return STRICT_DATE_HOUR_MINUTE_SECOND_MILLIS;
         } else if (FormatNames.STRICT_DATE_OPTIONAL_TIME.matches(input) ) {
             return STRICT_DATE_OPTIONAL_TIME;
-        } else if (FormatNames.STRICT_DATE_OPTIONALTIME_NANOS.matches(input) ) {
+        } else if (FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS.matches(input) ) {
             return STRICT_DATE_OPTIONAL_TIME_NANOS;
         } else if (FormatNames.STRICT_DATE_TIME.matches(input) ) {
             return STRICT_DATE_TIME;
@@ -1562,7 +1562,7 @@ public class DateFormatters {
             return STRICT_TIME;
         } else if (FormatNames.STRICT_TIME_NO_MILLIS.matches(input) ) {
             return STRICT_TIME_NO_MILLIS;
-        } else if (FormatNames.STRICTT_TIME.matches(input) ) {
+        } else if (FormatNames.STRICT_T_TIME.matches(input) ) {
             return STRICT_T_TIME;
         } else if (FormatNames.STRICT_T_TIME_NO_MILLIS.matches(input) ) {
             return STRICT_T_TIME_NO_MILLIS;

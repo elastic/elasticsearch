@@ -32,10 +32,10 @@ public class JodaDeprecationPatterns {
     private static Map<String, String> JODA_PATTERNS_DEPRECATIONS = new LinkedHashMap<>();
 
     static {
-        JODA_PATTERNS_DEPRECATIONS.put("Y", "'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year.");
-        JODA_PATTERNS_DEPRECATIONS.put("y", "'y' year becomes 'u'. Use 'y' for year-of-era.");
+        JODA_PATTERNS_DEPRECATIONS.put("Y", "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.");
+        JODA_PATTERNS_DEPRECATIONS.put("y", "'y' year should be replaced with 'u'. Use 'y' for year-of-era.");
         JODA_PATTERNS_DEPRECATIONS.put("C", "'C' century of era is no longer supported.");
-        JODA_PATTERNS_DEPRECATIONS.put("x", "'x' weak-year becomes 'Y'. Use 'x' for zone-offset.");
+        JODA_PATTERNS_DEPRECATIONS.put("x", "'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset.");
         JODA_PATTERNS_DEPRECATIONS.put("Z",
             "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'.");
         JODA_PATTERNS_DEPRECATIONS.put("z",

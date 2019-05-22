@@ -33,13 +33,13 @@ public class JodaWarningTests extends ESTestCase {
         Joda.forPattern("CC");
         assertWarnings("'C' century of era is no longer supported. Prefix your date format with '8' to use the new specifier.");
         Joda.forPattern("YYYY");
-        assertWarnings("'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year." +
+        assertWarnings("'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year." +
             " Prefix your date format with '8' to use the new specifier.");
         Joda.forPattern("xxxx");
-        assertWarnings("'x' weak-year becomes 'Y'. Use 'x' for zone-offset. Prefix your date format with '8' to use the new specifier.");
+        assertWarnings("'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset. Prefix your date format with '8' to use the new specifier.");
         // multiple deprecations - one field combines warnings
         Joda.forPattern("CC-YYYY");
-        assertWarnings("'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year.; " +
+        assertWarnings("'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; " +
             "'C' century of era is no longer supported. " +
             "Prefix your date format with '8' to use the new specifier.");
     }

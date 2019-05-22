@@ -43,7 +43,6 @@ PUT _template/template_1
 // CONSOLE
 // TESTSETUP
 
-
 NOTE: Index templates provide C-style /* */ block comments. Comments are allowed
 everywhere in the JSON document except before the initial opening curly bracket. 
 

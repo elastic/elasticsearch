@@ -444,7 +444,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field_Y, format: strictWeekyearWeek||MM-YYYY, " +
-                "suggestion: 'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year.]"+
+                "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
                 "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertEquals(singletonList(expected), issues);
@@ -538,13 +538,13 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
                  "[type: _doc, field: date_time_field_Y, format: MM-YYYY, " +
-                "suggestion: 'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year.], "+
+                "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.], "+
                  "[type: _doc, field: date_time_field_C, format: CC, " +
                 "suggestion: 'C' century of era is no longer supported.], "+
                  "[type: _doc, field: date_time_field_x, format: xx-MM, " +
-                "suggestion: 'x' weak-year becomes 'Y'. Use 'x' for zone-offset.], "+
+                "suggestion: 'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset.], "+
                  "[type: _doc, field: date_time_field_y, format: yy-MM, " +
-                "suggestion: 'y' year becomes 'u'. Use 'y' for year-of-era.], "+
+                "suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.], "+
                  "[type: _doc, field: date_time_field_Z, format: HH:mmZ, " +
                 "suggestion: 'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'.], "+
                  "[type: _doc, field: date_time_field_z, format: HH:mmz, " +
@@ -579,10 +579,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field, format: Y-C-x-y, " +
-                "suggestion: 'Y' year-of-era becomes 'y'. Use 'Y' for week-based-year.; " +
-                "'y' year becomes 'u'. Use 'y' for year-of-era.; " +
+                "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.; " +
+                "'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
                 "'C' century of era is no longer supported.; " +
-                "'x' weak-year becomes 'Y'. Use 'x' for zone-offset." +
+                "'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset." +
                 "]"+
                 "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));

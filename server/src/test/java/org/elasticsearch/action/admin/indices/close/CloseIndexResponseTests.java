@@ -29,15 +29,17 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -61,7 +63,7 @@ public class CloseIndexResponseTests extends ESTestCase {
         {
             final CloseIndexResponse response = randomResponse();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_1_0));
+                out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, getPreviousVersion(Version.V_7_2_0)));
                 response.writeTo(out);
 
                 final AcknowledgedResponse deserializedResponse = new AcknowledgedResponse();
@@ -73,29 +75,13 @@ public class CloseIndexResponseTests extends ESTestCase {
             }
         }
         {
-            final CloseIndexResponse response = randomResponse();
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(Version.V_7_1_0);
-                response.writeTo(out);
-
-                final CloseIndexResponse deserializedResponse = new CloseIndexResponse();
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(out.getVersion());
-                    deserializedResponse.readFrom(in);
-                }
-                assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-                assertThat(deserializedResponse.isShardsAcknowledged(), equalTo(response.isShardsAcknowledged()));
-                assertThat(deserializedResponse.getIndices().isEmpty(), is(true));
-            }
-        }
-        {
             final AcknowledgedResponse response = new AcknowledgedResponse(randomBoolean());
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 response.writeTo(out);
 
                 final CloseIndexResponse deserializedResponse = new CloseIndexResponse();
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_1_0));
+                    in.setVersion(randomVersionBetween(random(), Version.V_7_0_0, getPreviousVersion(Version.V_7_2_0)));
                     deserializedResponse.readFrom(in);
                 }
                 assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
@@ -104,16 +90,21 @@ public class CloseIndexResponseTests extends ESTestCase {
         {
             final CloseIndexResponse response = randomResponse();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
+                Version version = randomVersionBetween(random(), Version.V_7_2_0, Version.CURRENT);
+                out.setVersion(version);
                 response.writeTo(out);
-
                 final CloseIndexResponse deserializedResponse = new CloseIndexResponse();
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(Version.V_7_1_0);
+                    in.setVersion(version);
                     deserializedResponse.readFrom(in);
                 }
                 assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
                 assertThat(deserializedResponse.isShardsAcknowledged(), equalTo(response.isShardsAcknowledged()));
-                assertThat(deserializedResponse.getIndices().isEmpty(), is(true));
+                if (version.onOrAfter(Version.V_8_0_0)) {
+                    assertThat(deserializedResponse.getIndices(), hasSize(response.getIndices().size()));
+                } else {
+                    assertThat(deserializedResponse.getIndices(), empty());
+                }
             }
         }
     }

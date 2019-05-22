@@ -103,6 +103,8 @@ public final class ExternalTestCluster extends TestCluster {
                 pluginClasses.add(MockNioTransportPlugin.class);
             }
         }
+        pluginClasses = new ArrayList<>(pluginClasses);
+        pluginClasses.add(MockHttpTransport.TestPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
         MockNode node = new MockNode(clientSettings, pluginClasses);
         Client client = clientWrapper.apply(node.client());

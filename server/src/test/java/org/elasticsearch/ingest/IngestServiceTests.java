@@ -214,6 +214,11 @@ public class IngestServiceTests extends ESTestCase {
         assertThat(ingestService.pipelines().get("_id3").pipeline.getId(), equalTo("_id3"));
         assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().size(), equalTo(1));
         assertThat(ingestService.pipelines().get("_id3").pipeline.getProcessors().get(0).getType(), equalTo("set"));
+
+        // Perform an update with no changes:
+        Map<String, IngestService.PipelineHolder> pipelines = ingestService.pipelines();
+        ingestService.innerUpdatePipelines(ingestMetadata);
+        assertThat(ingestService.pipelines(), sameInstance(pipelines));
     }
 
     public void testDelete() {

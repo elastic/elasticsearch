@@ -58,6 +58,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -472,12 +473,14 @@ public class IngestService implements ClusterStateApplier {
         List<ElasticsearchParseException> exceptions = new ArrayList<>();
         // Iterate over pipeline configurations in ingest metadata and constructs a new pipeline if there is no pipeline
         // or the pipeline configuration has been modified
+        boolean updated = false;
         for (PipelineConfiguration newConfiguration : newIngestMetadata.getPipelines().values()) {
             PipelineHolder previous = pipelines.get(newConfiguration.getId());
             if (previous != null && previous.configuration.equals(newConfiguration)) {
                 continue;
             }
 
+            updated = true;
             try {
                 Pipeline newPipeline =
                     Pipeline.create(newConfiguration.getId(), newConfiguration.getConfigAsMap(), processorFactories, scriptService);
@@ -527,11 +530,13 @@ public class IngestService implements ClusterStateApplier {
         }
         // Iterate over the current active pipelines and check whether they are missing in the pipeline configuration and
         // if so delete the pipeline:
-        pipelines.entrySet().removeIf(existing -> newIngestMetadata.getPipelines().get(existing.getKey()) == null);
-        // Update the pipelines:
-        this.pipelines = Map.copyOf(pipelines);
-        // Rethrow errors that may have occurred during creating new pipeline instances:
-        ExceptionsHelper.rethrowAndSuppress(exceptions);
+        boolean removed = pipelines.entrySet().removeIf(existing -> newIngestMetadata.getPipelines().get(existing.getKey()) == null);
+        if (updated || removed) {
+            // Update the pipelines:
+            this.pipelines = Map.copyOf(pipelines);
+            // Rethrow errors that may have occurred during creating new pipeline instances:
+            ExceptionsHelper.rethrowAndSuppress(exceptions);
+        }
     }
 
     private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {
@@ -559,8 +564,8 @@ public class IngestService implements ClusterStateApplier {
         final Pipeline pipeline;
 
         PipelineHolder(PipelineConfiguration configuration, Pipeline pipeline) {
-            this.configuration = configuration;
-            this.pipeline = pipeline;
+            this.configuration = Objects.requireNonNull(configuration);
+            this.pipeline = Objects.requireNonNull(pipeline);
         }
     }
 

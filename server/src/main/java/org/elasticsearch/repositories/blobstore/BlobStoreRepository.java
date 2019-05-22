@@ -71,7 +71,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
@@ -793,8 +793,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                              IndexShardSnapshotStatus snapshotStatus) {
+    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
         SnapshotContext snapshotContext = new SnapshotContext(store, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
         try {
             snapshotContext.snapshot(snapshotIndexCommit);
@@ -809,18 +809,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                             RecoveryState recoveryState) {
-        final Context context = new Context(snapshotId, indexId, shard.shardId(), snapshotShardId);
+    public void restoreShard(Store store, SnapshotId snapshotId,
+                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        ShardId shardId = store.shardId();
+        final Context context = new Context(snapshotId, indexId, shardId, snapshotShardId);
         BlobPath path = basePath().add("indices").add(indexId.getId()).add(Integer.toString(snapshotShardId.getId()));
         BlobContainer blobContainer = blobStore().blobContainer(path);
-        final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, recoveryState, blobContainer);
+        final RestoreContext snapshotContext = new RestoreContext(shardId, snapshotId, recoveryState, blobContainer);
         try {
             BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
             SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-            snapshotContext.restore(snapshotFiles);
+            snapshotContext.restore(snapshotFiles, store);
         } catch (Exception e) {
-            throw new IndexShardRestoreFailedException(shard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
+            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
         }
     }
 
@@ -1366,13 +1367,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         /**
          * Constructs new restore context
-         * @param indexShard    shard to restore into
+         * @param shardId    shard id to restore into
          * @param snapshotId    snapshot id
          * @param recoveryState recovery state to report progress
          * @param blobContainer the blob container to read the files from
          */
-        RestoreContext(IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState, BlobContainer blobContainer) {
-            super(metadata.name(), indexShard, snapshotId, recoveryState, BUFFER_SIZE);
+        RestoreContext(ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState, BlobContainer blobContainer) {
+            super(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE);
             this.blobContainer = blobContainer;
         }
 

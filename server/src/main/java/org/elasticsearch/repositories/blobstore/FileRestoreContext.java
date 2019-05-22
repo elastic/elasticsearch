@@ -31,7 +31,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -64,7 +63,6 @@ public abstract class FileRestoreContext {
     protected static final Logger logger = LogManager.getLogger(FileRestoreContext.class);
 
     protected final String repositoryName;
-    protected final IndexShard indexShard;
     protected final RecoveryState recoveryState;
     protected final SnapshotId snapshotId;
     protected final ShardId shardId;
@@ -73,26 +71,24 @@ public abstract class FileRestoreContext {
     /**
      * Constructs new restore context
      *
-     * @param indexShard    shard to restore into
+     * @param shardId       shard id to restore into
      * @param snapshotId    snapshot id
      * @param recoveryState recovery state to report progress
      * @param bufferSize    buffer size for restore
      */
-    protected FileRestoreContext(String repositoryName, IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState,
+    protected FileRestoreContext(String repositoryName, ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState,
                                  int bufferSize) {
         this.repositoryName = repositoryName;
         this.recoveryState = recoveryState;
-        this.indexShard = indexShard;
         this.snapshotId = snapshotId;
-        this.shardId = indexShard.shardId();
+        this.shardId = shardId;
         this.bufferSize = bufferSize;
     }
 
     /**
      * Performs restore operation
      */
-    public void restore(SnapshotFiles snapshotFiles) throws IOException {
-        final Store store = indexShard.store();
+    public void restore(SnapshotFiles snapshotFiles, Store store) throws IOException {
         store.incRef();
         try {
             logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
@@ -108,7 +104,7 @@ public abstract class FileRestoreContext {
                 // version number and no checksum, even though the index itself is perfectly fine to restore, this
                 // empty shard would cause exceptions to be thrown.  Since there is no data to restore from an empty
                 // shard anyway, we just create the empty shard here and then exit.
-                store.createEmpty(indexShard.indexSettings().getIndexMetaData().getCreationVersion().luceneVersion);
+                store.createEmpty(store.indexSettings().getIndexVersionCreated().luceneVersion);
                 return;
             }
 
@@ -117,7 +113,7 @@ public abstract class FileRestoreContext {
                 // this will throw an IOException if the store has no segments infos file. The
                 // store can still have existing files but they will be deleted just before being
                 // restored.
-                recoveryTargetMetadata = indexShard.snapshotStoreMetadata();
+                recoveryTargetMetadata = store.getMetadata(null, true);
             } catch (org.apache.lucene.index.IndexNotFoundException e) {
                 // happens when restore to an empty shard, not a big deal
                 logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
@@ -127,7 +123,6 @@ public abstract class FileRestoreContext {
                     shardId, snapshotId), e);
                 recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
             }
-
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover = new ArrayList<>();
             final Map<String, StoreFileMetaData> snapshotMetaData = new HashMap<>();
             final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new HashMap<>();
@@ -157,7 +152,7 @@ public abstract class FileRestoreContext {
             final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
             for (StoreFileMetaData md : diff.identical) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
-                recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), true);
+                recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] [{}] not_recovering file [{}] from [{}], exists in local store and is same", shardId, snapshotId,
                         fileInfo.physicalName(), fileInfo.name());
@@ -167,7 +162,7 @@ public abstract class FileRestoreContext {
             for (StoreFileMetaData md : concat(diff)) {
                 BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
                 filesToRecover.add(fileInfo);
-                recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), false);
+                recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), false);
                 if (logger.isTraceEnabled()) {
                     logger.trace("[{}] [{}] recovering [{}] from [{}]", shardId, snapshotId,
                         fileInfo.physicalName(), fileInfo.name());
@@ -260,7 +255,7 @@ public abstract class FileRestoreContext {
                 int length;
                 while ((length = stream.read(buffer)) > 0) {
                     indexOutput.writeBytes(buffer, 0, length);
-                    recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.name(), length);
+                    recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.physicalName(), length);
                 }
                 Store.verify(indexOutput);
                 indexOutput.close();

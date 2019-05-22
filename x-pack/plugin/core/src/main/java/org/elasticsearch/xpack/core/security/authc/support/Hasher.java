@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 
@@ -565,9 +566,22 @@ public enum Hasher {
      * combinations that can be used for password hashing. The identifiers can be used to get
      * an instance of the appropriate {@link Hasher} by using {@link #resolve(String) resolve()}
      */
+    @SuppressForbidden(reason = "This is the only allowed way to get available values")
     public static List<String> getAvailableAlgoStoredHash() {
         return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
             .filter(name -> (name.startsWith("pbkdf2") || name.startsWith("bcrypt")))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns a list of lower case String identifiers for the Hashing algorithm and parameter
+     * combinations that can be used for password hashing in the cache. The identifiers can be used to get
+     * an instance of the appropriate {@link Hasher} by using {@link #resolve(String) resolve()}
+     */
+    @SuppressForbidden(reason = "This is the only allowed way to get available values")
+    public static List<String> getAvailableAlgoCacheHash() {
+        return Arrays.stream(Hasher.values()).map(Hasher::name).map(name -> name.toLowerCase(Locale.ROOT))
+            .filter(name -> (name.equals("sha256") == false))
             .collect(Collectors.toList());
     }
 

@@ -317,15 +317,14 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
             }
         } else {
-            Map<Integer, List<Task>> requiredJavaVersions = (Map<Integer, List<Task>>) ext.get('requiredJavaVersions')
-            requiredJavaVersions.getOrDefault(version, []).add(task)
+            (ext.get('requiredJavaVersions') as Map<Integer, List<Task>>).getOrDefault(version, []).add(task)
         }
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
     static String getJavaHome(final Task task, final int version) {
         requireJavaHome(task, version)
-        def javaVersions = task.project.property('javaVersions') as List<JavaHome>
+        List<JavaHome> javaVersions = task.project.property('javaVersions') as List<JavaHome>
         return javaVersions.find { it.version == version }.javaHome.absolutePath
     }
 
@@ -803,7 +802,7 @@ class BuildPlugin implements Plugin<Project> {
                     project.mkdir(test.workingDir)
 
                     if (project.property('inFipsJvm')) {
-                        nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()} FIPS")
+                        nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}FIPS")
                     } else {
                         nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}")
                     }

@@ -134,19 +134,25 @@ public class GenerateGlobalBuildInfoTask extends DefaultTask {
 
         try {
             if (Files.isSameFile(compilerJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
-                compilerJavaVersionDetails = findJavaVersionDetails(compilerJavaHome);
-                compilerJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(compilerJavaHome));
+                if (compilerJavaHome.exists()) {
+                    compilerJavaVersionDetails = findJavaVersionDetails(compilerJavaHome);
+                    compilerJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(compilerJavaHome));
+                } else {
+                    throw new RuntimeException("Compiler Java home path of '" + compilerJavaHome + "' does not exist");
+                }
             }
 
             if (Files.isSameFile(runtimeJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
-                runtimeJavaVersionDetails = findJavaVersionDetails(runtimeJavaHome);
-                runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(runtimeJavaHome));
-            }
+                if (runtimeJavaHome.exists()) {
+                    runtimeJavaVersionDetails = findJavaVersionDetails(runtimeJavaHome);
+                    runtimeJavaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(runtimeJavaHome));
 
-            if (Files.isSameFile(runtimeJavaHome.toPath(), gradleJavaHome.toPath()) == false) {
-                // We don't expect Gradle to be running in a FIPS JVM
-                String inFipsJvmScript = "print(java.security.Security.getProviders()[0].name.toLowerCase().contains(\"fips\"));";
-                inFipsJvm = Boolean.parseBoolean(runJavaAsScript(runtimeJavaHome, inFipsJvmScript));
+                    // We don't expect Gradle to be running in a FIPS JVM
+                    String inFipsJvmScript = "print(java.security.Security.getProviders()[0].name.toLowerCase().contains(\"fips\"));";
+                    inFipsJvm = Boolean.parseBoolean(runJavaAsScript(runtimeJavaHome, inFipsJvmScript));
+                } else {
+                    throw new RuntimeException("Runtime Java home path of '" + compilerJavaHome + "' does not exist");
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

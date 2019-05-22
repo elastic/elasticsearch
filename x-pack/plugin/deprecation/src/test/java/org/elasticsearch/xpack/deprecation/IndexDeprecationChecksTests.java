@@ -115,7 +115,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     public void testChainedMultiFields() throws IOException {
         XContentBuilder xContent = XContentFactory.jsonBuilder().startObject()
             .startObject("properties")
-                .startObject("field")
+                .startObject("invalid-field")
                     .field("type", "keyword")
                     .startObject("fields")
                         .startObject("sub-field")
@@ -125,6 +125,14 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                                     .field("type", "keyword")
                                 .endObject()
                             .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject("valid-field")
+                    .field("type", "keyword")
+                    .startObject("fields")
+                        .startObject("sub-field")
+                            .field("type", "keyword")
                         .endObject()
                     .endObject()
                 .endObject()
@@ -145,7 +153,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Multi-fields within multi-fields",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.2/breaking-changes-7.2.html" +
                 "#_defining_multi_fields_within_multi_fields",
-            "The names of fields that contain chained multi-fields: [[type: _doc, field: field]]");
+            "The names of fields that contain chained multi-fields: [[type: _doc, field: invalid-field]]");
         assertEquals(singletonList(expected), issues);
     }
 

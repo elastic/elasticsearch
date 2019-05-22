@@ -143,7 +143,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
     public void testCacheClearOnIndexHealthChange() {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
-        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation);
+        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation, true);
 
         int expectedInvalidation = 0;
         // existing to no longer present
@@ -180,7 +180,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
     public void testCacheClearOnIndexOutOfDateChange() {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
-        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation);
+        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation, true);
 
         store.onSecurityIndexStateChange(
             new SecurityIndexManager.State(Instant.now(), false, true, true, null, concreteSecurityIndexName, null),
@@ -193,40 +193,59 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         assertEquals(2, numInvalidation.get());
     }
 
-    private NativeRoleMappingStore buildRoleMappingStoreForInvalidationTesting(AtomicInteger invalidationCounter) {
+    public void testCacheIsNotClearedIfNoRealmsAreAttached() {
+        final AtomicInteger numInvalidation = new AtomicInteger(0);
+        final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation, false);
+
+        final SecurityIndexManager.State noIndexState = dummyState(null);
+        final SecurityIndexManager.State greenIndexState = dummyState(ClusterHealthStatus.GREEN);
+        store.onSecurityIndexStateChange(noIndexState, greenIndexState);
+        assertEquals(0, numInvalidation.get());
+    }
+
+    private NativeRoleMappingStore buildRoleMappingStoreForInvalidationTesting(AtomicInteger invalidationCounter, boolean attachRealm) {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
 
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ThreadContext threadContext = new ThreadContext(settings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
+        final String realmName = randomAlphaOfLengthBetween(4, 8);
+
         final Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
         doAnswer(invocationOnMock -> {
+            assertThat(invocationOnMock.getArguments(), Matchers.arrayWithSize(3));
+            final ClearRealmCacheRequest request = (ClearRealmCacheRequest) invocationOnMock.getArguments()[1];
+            assertThat(request.realms(), Matchers.arrayContaining(realmName));
+
             ActionListener<ClearRealmCacheResponse> listener = (ActionListener<ClearRealmCacheResponse>) invocationOnMock.getArguments()[2];
             invalidationCounter.incrementAndGet();
             listener.onResponse(new ClearRealmCacheResponse(new ClusterName("cluster"), Collections.emptyList(), Collections.emptyList()));
             return null;
         }).when(client).execute(eq(ClearRealmCacheAction.INSTANCE), any(ClearRealmCacheRequest.class), any(ActionListener.class));
 
-        final Environment env = TestEnvironment.newEnvironment(settings);
-        final RealmConfig realmConfig = new RealmConfig(new RealmConfig.RealmIdentifier("ldap", getTestName()),
-                settings, env, threadContext);
-        final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
-            @Override
-            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-                listener.onResponse(AuthenticationResult.notHandled());
-            }
-
-            @Override
-            protected void doLookupUser(String username, ActionListener<User> listener) {
-                listener.onResponse(null);
-            }
-        };
         final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, client, mock(SecurityIndexManager.class),
             mock(ScriptService.class));
-        store.refreshRealmOnChange(mockRealm);
+
+        if (attachRealm) {
+            final Environment env = TestEnvironment.newEnvironment(settings);
+            final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("ldap", realmName);
+            final RealmConfig realmConfig = new RealmConfig(identifier, settings, env, threadContext);
+            final CachingUsernamePasswordRealm mockRealm = new CachingUsernamePasswordRealm(realmConfig, threadPool) {
+                @Override
+                protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+                    listener.onResponse(AuthenticationResult.notHandled());
+                }
+
+                @Override
+                protected void doLookupUser(String username, ActionListener<User> listener) {
+                    listener.onResponse(null);
+                }
+            };
+            store.refreshRealmOnChange(mockRealm);
+        }
         return store;
     }
 }

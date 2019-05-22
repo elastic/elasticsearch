@@ -425,7 +425,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
             if (source.length() == 0) {
                 source = null;
             }
-            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
                 documentFields = readFields(in);
                 metaFields = readFields(in);            
             } else {
@@ -448,7 +448,7 @@ public class GetResult implements Streamable, Iterable<DocumentField>, ToXConten
         out.writeBoolean(exists);
         if (exists) {
             out.writeBytesReference(source);
-            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 writeFields(out, documentFields);
                 writeFields(out, metaFields);
             } else {

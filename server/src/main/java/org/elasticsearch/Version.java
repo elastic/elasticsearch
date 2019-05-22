@@ -307,8 +307,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return Version.fromId(5060099);
-        } else if (major >= 7) {
-            // all major versions from 7 onwards are compatible with last minor series of the previous major
+        } else if (major == 7) {
+            // force the minimum compatibility for version 7 to 6.8 since we don't reference version 6 anymore
+            return Version.fromId(6080099);
+        } else if (major >= 8) {
+            // all major versions from 8 onwards are compatible with last minor series of the previous major
             Version bwcVersion = null;
 
             for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {

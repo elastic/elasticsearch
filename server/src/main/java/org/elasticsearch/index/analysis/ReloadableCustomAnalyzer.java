@@ -85,9 +85,9 @@ public final class ReloadableCustomAnalyzer extends CustomAnalyzer {
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
         final AnalyzerComponents components = getStoredComponents();
-        Tokenizer tokenizer = components.tokenizerFactory.create();
+        Tokenizer tokenizer = components.getTokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
-        for (TokenFilterFactory tokenFilter : components.tokenFilters) {
+        for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
             tokenStream = tokenFilter.create(tokenStream);
         }
         return new TokenStreamComponents(tokenizer, tokenStream);
@@ -96,8 +96,8 @@ public final class ReloadableCustomAnalyzer extends CustomAnalyzer {
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
         final AnalyzerComponents components = getStoredComponents();
-        if (components.charFilters != null && components.charFilters.length > 0) {
-            for (CharFilterFactory charFilter : components.charFilters) {
+        if (components.getCharFilters() != null && components.getCharFilters().length > 0) {
+            for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);
             }
         }

@@ -83,7 +83,7 @@ public final class FragmentBuilderHelper {
         }
         if (analyzer instanceof CustomAnalyzer) {
             final CustomAnalyzer a = (CustomAnalyzer) analyzer;
-            TokenFilterFactory[] tokenFilters = a.tokenFilters();
+            TokenFilterFactory[] tokenFilters = a.getComponents().getTokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory.breaksFastVectorHighlighter()) {
                     return true;

@@ -42,45 +42,16 @@ public class CustomAnalyzer extends Analyzer {
         this.analysisMode = calculateAnalysisMode(components);
     }
 
-    /**
-     * TODO: We should not expose functions that return objects from the <code>current</code>,
-     * only the full {@link AnalyzerComponents} should be returned
-     */
-
-    /**
-     * The name of the tokenizer as configured by the user.
-     */
-    public String getTokenizerName() {
-        return components.tokenizerName;
-    }
-
-    public TokenizerFactory tokenizerFactory() {
-        return components.tokenizerFactory;
-    }
-
-    public TokenFilterFactory[] tokenFilters() {
-        return components.tokenFilters;
-    }
-
-    public CharFilterFactory[] charFilters() {
-        return components.charFilters;
-    }
-
-    @Override
-    public int getPositionIncrementGap(String fieldName) {
-        return components.positionIncrementGap;
-    }
-
-    protected AnalyzerComponents getComponents() {
+    public AnalyzerComponents getComponents() {
         return this.components;
     }
 
     @Override
     public int getOffsetGap(String field) {
-        if (this.components.offsetGap < 0) {
+        if (this.components.getOffsetGap() < 0) {
             return super.getOffsetGap(field);
         }
-        return this.components.offsetGap;
+        return this.components.getOffsetGap();
     }
 
     public AnalysisMode getAnalysisMode() {
@@ -90,9 +61,9 @@ public class CustomAnalyzer extends Analyzer {
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
         final AnalyzerComponents components = getComponents();
-        Tokenizer tokenizer = components.tokenizerFactory.create();
+        Tokenizer tokenizer = components.getTokenizerFactory().create();
         TokenStream tokenStream = tokenizer;
-        for (TokenFilterFactory tokenFilter : components.tokenFilters) {
+        for (TokenFilterFactory tokenFilter : components.getTokenFilters()) {
             tokenStream = tokenFilter.create(tokenStream);
         }
         return new TokenStreamComponents(tokenizer, tokenStream);
@@ -101,8 +72,8 @@ public class CustomAnalyzer extends Analyzer {
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
         final AnalyzerComponents components = getComponents();
-        if (components.charFilters != null && components.charFilters.length > 0) {
-            for (CharFilterFactory charFilter : components.charFilters) {
+        if (components.getCharFilters() != null && components.getCharFilters().length > 0) {
+            for (CharFilterFactory charFilter : components.getCharFilters()) {
                 reader = charFilter.create(reader);
             }
         }
@@ -112,7 +83,7 @@ public class CustomAnalyzer extends Analyzer {
     @Override
     protected Reader initReaderForNormalization(String fieldName, Reader reader) {
         final AnalyzerComponents components = getComponents();
-      for (CharFilterFactory charFilter : components.charFilters) {
+      for (CharFilterFactory charFilter : components.getCharFilters()) {
           reader = charFilter.normalize(reader);
       }
       return reader;
@@ -122,7 +93,7 @@ public class CustomAnalyzer extends Analyzer {
     protected TokenStream normalize(String fieldName, TokenStream in) {
         final AnalyzerComponents components = getComponents();
         TokenStream result = in;
-        for (TokenFilterFactory filter : components.tokenFilters) {
+        for (TokenFilterFactory filter : components.getTokenFilters()) {
             result = filter.normalize(result);
         }
         return result;
@@ -131,7 +102,7 @@ public class CustomAnalyzer extends Analyzer {
     private static AnalysisMode calculateAnalysisMode(AnalyzerComponents components) {
         // merge and transfer token filter analysis modes with analyzer
         AnalysisMode mode = AnalysisMode.ALL;
-        for (TokenFilterFactory f : components.tokenFilters) {
+        for (TokenFilterFactory f : components.getTokenFilters()) {
             mode = mode.merge(f.getAnalysisMode());
         }
         return mode;

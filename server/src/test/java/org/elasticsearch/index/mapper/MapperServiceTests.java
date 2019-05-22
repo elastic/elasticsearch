@@ -485,7 +485,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         IndexAnalyzers current = mapperService.getIndexAnalyzers();
 
         ReloadableCustomAnalyzer originalReloadableAnalyzer = (ReloadableCustomAnalyzer) current.get("reloadableAnalyzer").analyzer();
-        TokenFilterFactory[] originalTokenFilters = originalReloadableAnalyzer.tokenFilters();
+        TokenFilterFactory[] originalTokenFilters = originalReloadableAnalyzer.getComponents().getTokenFilters();
         assertEquals(1, originalTokenFilters.length);
         assertEquals("myReloadableFilter", originalTokenFilters[0].name());
 
@@ -504,7 +504,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {
         ReloadableCustomAnalyzer updatedReloadableAnalyzer = (ReloadableCustomAnalyzer) updatedAnalyzer.analyzer();
-        TokenFilterFactory[] newTokenFilters = updatedReloadableAnalyzer.tokenFilters();
+        TokenFilterFactory[] newTokenFilters = updatedReloadableAnalyzer.getComponents().getTokenFilters();
         assertEquals(originalTokenFilter.length, newTokenFilters.length);
         int i = 0;
         for (TokenFilterFactory tf : newTokenFilters ) {

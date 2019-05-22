@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.CustomAnalyzerProvider.AnalyzerComponents;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
@@ -308,9 +309,10 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
 
         if (customAnalyzer != null) {
             // customAnalyzer = divide charfilter, tokenizer tokenfilters
-            CharFilterFactory[] charFilterFactories = customAnalyzer.charFilters();
-            TokenizerFactory tokenizerFactory = customAnalyzer.tokenizerFactory();
-            TokenFilterFactory[] tokenFilterFactories = customAnalyzer.tokenFilters();
+            AnalyzerComponents components = customAnalyzer.getComponents();
+            CharFilterFactory[] charFilterFactories = components.getCharFilters();
+            TokenizerFactory tokenizerFactory = components.getTokenizerFactory();
+            TokenFilterFactory[] tokenFilterFactories = components.getTokenFilters();
 
             String[][] charFiltersTexts = new String[charFilterFactories != null ? charFilterFactories.length : 0][request.text().length];
             TokenListCreator[] tokenFiltersTokenListCreator = new TokenListCreator[tokenFilterFactories != null ?
@@ -370,7 +372,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
             }
             detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(
-                    customAnalyzer.getTokenizerName(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
+                    components.getTokenizerName(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
         } else {
             String name;
             if (analyzer instanceof NamedAnalyzer) {

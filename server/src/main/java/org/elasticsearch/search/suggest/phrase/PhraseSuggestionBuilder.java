@@ -677,7 +677,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
         if (analyzer instanceof CustomAnalyzer) {
             final CustomAnalyzer a = (CustomAnalyzer) analyzer;
-            final TokenFilterFactory[] tokenFilters = a.tokenFilters();
+            final TokenFilterFactory[] tokenFilters = a.getComponents().getTokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory instanceof ShingleTokenFilterFactory) {
                     return ((ShingleTokenFilterFactory)tokenFilterFactory).getInnerFactory();

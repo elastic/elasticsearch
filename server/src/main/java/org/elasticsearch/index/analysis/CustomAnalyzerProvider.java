@@ -107,13 +107,13 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         return this.customAnalyzer;
     }
 
-    static class AnalyzerComponents {
-        final String tokenizerName;
-        final TokenizerFactory tokenizerFactory;
-        final CharFilterFactory[] charFilters;
-        final TokenFilterFactory[] tokenFilters;
-        final int positionIncrementGap;
-        final int offsetGap;
+    public static class AnalyzerComponents {
+        private final String tokenizerName;
+        private final TokenizerFactory tokenizerFactory;
+        private final CharFilterFactory[] charFilters;
+        private final TokenFilterFactory[] tokenFilters;
+        private final int positionIncrementGap;
+        private final int offsetGap;
 
         AnalyzerComponents(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
                            TokenFilterFactory[] tokenFilters,
@@ -124,6 +124,30 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             this.tokenFilters = tokenFilters;
             this.positionIncrementGap = positionIncrementGap;
             this.offsetGap = offsetGap;
+        }
+
+        public String getTokenizerName() {
+            return tokenizerName;
+        }
+
+        public TokenizerFactory getTokenizerFactory() {
+            return tokenizerFactory;
+        }
+
+        public TokenFilterFactory[] getTokenFilters() {
+            return tokenFilters;
+        }
+
+        public CharFilterFactory[] getCharFilters() {
+            return charFilters;
+        }
+
+        public int getPositionIncrementGap(String fieldName) {
+            return positionIncrementGap;
+        }
+
+        public int getOffsetGap() {
+            return offsetGap;
         }
     }
 }

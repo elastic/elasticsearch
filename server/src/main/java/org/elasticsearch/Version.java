@@ -257,7 +257,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 if (buildStr.startsWith("alpha")) {
                     assert rawMajor >= 5 : "major must be >= 5 but was " + major;
                     build = Integer.parseInt(buildStr.substring(5));
-                    assert build < 25 : "expected a beta build but " + build + " >= 25";
+                    assert build < 25 : "expected a alpha build but " + build + " >= 25";
                 } else if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
                     build = betaOffset + Integer.parseInt(buildStr.substring(4));
                     assert build < 50 : "expected a beta build but " + build + " >= 50";

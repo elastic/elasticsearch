@@ -31,7 +31,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testCreateProcessorInstance() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("source_index"), "my_key",
-            enrichValues, "schedule");
+            enrichValues);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(createClusterStateSupplier("majestic", policy), null);
 
         Map<String, Object> config = new HashMap<>();
@@ -105,7 +105,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testPolicyNameMissing() {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("source_index"), "my_key",
-            enrichValues, "schedule");
+            enrichValues);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(createClusterStateSupplier("_name", policy), null);
 
         Map<String, Object> config = new HashMap<>();
@@ -137,7 +137,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testUnsupportedPolicy() {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
         EnrichPolicy policy =
-            new EnrichPolicy("unsupported", null, Collections.singletonList("source_index"), "my_key", enrichValues, "schedule");
+            new EnrichPolicy("unsupported", null, Collections.singletonList("source_index"), "my_key", enrichValues);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(createClusterStateSupplier("majestic", policy), null);
 
         Map<String, Object> config = new HashMap<>();
@@ -170,7 +170,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testNonExistingDecorateField() throws Exception {
         List<String> enrichValues = Arrays.asList("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, Collections.singletonList("source_index"), "my_key",
-            enrichValues, "schedule");
+            enrichValues);
         EnrichProcessorFactory factory = new EnrichProcessorFactory(createClusterStateSupplier("majestic", policy), null);
 
         Map<String, Object> config = new HashMap<>();

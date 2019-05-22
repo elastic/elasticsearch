@@ -266,9 +266,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Request clusterHealthRequest = new Request("GET", "/_cluster/health");
             clusterHealthRequest.addParameter("wait_for_status", "yellow");
             clusterHealthRequest.addParameter("wait_for_no_relocating_shards", "true");
-            if (getOldClusterVersion().onOrAfter(Version.V_6_2_0)) {
-                clusterHealthRequest.addParameter("wait_for_no_initializing_shards", "true");
-            }
+            clusterHealthRequest.addParameter("wait_for_no_initializing_shards", "true");
             Map<String, Object> clusterHealthResponse = entityAsMap(client().performRequest(clusterHealthRequest));
             assertThat(clusterHealthResponse.get("timed_out"), equalTo(Boolean.FALSE));
 
@@ -384,9 +382,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         request.addParameter("wait_for_status", "yellow");
         request.addParameter("timeout", "30s");
         request.addParameter("wait_for_no_relocating_shards", "true");
-        if (getOldClusterVersion().onOrAfter(Version.V_6_2_0)) {
-            request.addParameter("wait_for_no_initializing_shards", "true");
-        }
+        request.addParameter("wait_for_no_initializing_shards", "true");
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response.get("timed_out"), equalTo(Boolean.FALSE));
     }

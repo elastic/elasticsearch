@@ -109,7 +109,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null))
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
                         new String[] {
-                            "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token"
+                            "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token", "manage_oidc"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()

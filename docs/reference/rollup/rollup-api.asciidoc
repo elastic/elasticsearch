@@ -9,7 +9,7 @@
 
 * <<rollup-put-job,Create Job>>, <<rollup-delete-job,Delete Job>>,
 * <<rollup-start-job,Start Job>>, <<rollup-stop-job,Stop Job>>,
-* <<rollup-get-job,Get Job, List all Jobs>>
+* <<rollup-get-job,Get Job+++,+++ List all Jobs>>
 * <<rollup-job-config,Job configuration details>>
 
 [float]

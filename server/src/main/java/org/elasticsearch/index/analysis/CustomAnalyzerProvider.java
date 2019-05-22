@@ -47,11 +47,10 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
                final Map<String, CharFilterFactory> charFilters,
                final Map<String, TokenFilterFactory> tokenFilters) {
         AnalyzerComponents components = createComponents(name(), analyzerSettings, tokenizers, charFilters, tokenFilters);
-        customAnalyzer = new CustomAnalyzer(components);
+        customAnalyzer = CustomAnalyzer.create(components);
     }
 
-    public static AnalyzerComponents createComponents(String name,
-                                                      Settings settings,
+    static AnalyzerComponents createComponents(String name, Settings settings,
                                                       final Map<String, TokenizerFactory> tokenizers,
                                                       final Map<String, CharFilterFactory> charFilters,
                                                       final Map<String, TokenFilterFactory> tokenFilters) {
@@ -108,22 +107,13 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         return this.customAnalyzer;
     }
 
-    public static class AnalyzerComponents {
+    static class AnalyzerComponents {
         final String tokenizerName;
         final TokenizerFactory tokenizerFactory;
         final CharFilterFactory[] charFilters;
         final TokenFilterFactory[] tokenFilters;
         final int positionIncrementGap;
         final int offsetGap;
-
-        public AnalyzerComponents(AnalyzerComponents clone) {
-            this.tokenizerName = clone.tokenizerName;
-            this.tokenizerFactory = clone.tokenizerFactory;
-            this.charFilters = clone.charFilters;
-            this.tokenFilters = clone.tokenFilters;
-            this.positionIncrementGap = clone.positionIncrementGap;
-            this.offsetGap = clone.offsetGap;
-        }
 
         AnalyzerComponents(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
                            TokenFilterFactory[] tokenFilters,

@@ -36,6 +36,7 @@ import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -482,27 +483,38 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         mapperService.merge("_doc", mapping, MergeReason.MAPPING_UPDATE);
         IndexAnalyzers current = mapperService.getIndexAnalyzers();
-        MappedFieldType fieldType = mapperService.fullName("field");
-        NamedAnalyzer originalFieldsearchAnalyzer = fieldType.searchAnalyzer();
-        NamedAnalyzer originalFieldsearchQuoteAnalyzer = fieldType.searchQuoteAnalyzer();
 
-        MappedFieldType otherFieldType = mapperService.fullName("otherField");
-        NamedAnalyzer originalOtherFieldsearchAnalyzer = otherFieldType.searchAnalyzer();
-        NamedAnalyzer originalOtherFieldsearchQuoteAnalyzer = otherFieldType.searchQuoteAnalyzer();
+        ReloadableCustomAnalyzer originalReloadableAnalyzer = (ReloadableCustomAnalyzer) current.get("reloadableAnalyzer").analyzer();
+        TokenFilterFactory[] originalTokenFilters = originalReloadableAnalyzer.tokenFilters();
+        assertEquals(1, originalTokenFilters.length);
+        assertEquals("myReloadableFilter", originalTokenFilters[0].name());
 
+        // now reload, this should change the tokenfilterFactory inside the analyzer
         mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class));
         IndexAnalyzers updatedAnalyzers = mapperService.getIndexAnalyzers();
-        assertNotSame(current, updatedAnalyzers);
+        assertSame(current, updatedAnalyzers);
         assertSame(current.getDefaultIndexAnalyzer(), updatedAnalyzers.getDefaultIndexAnalyzer());
         assertSame(current.getDefaultSearchAnalyzer(), updatedAnalyzers.getDefaultSearchAnalyzer());
         assertSame(current.getDefaultSearchQuoteAnalyzer(), updatedAnalyzers.getDefaultSearchQuoteAnalyzer());
 
-        assertNotSame(originalFieldsearchAnalyzer, mapperService.fullName("field").searchAnalyzer());
-        assertSame(originalOtherFieldsearchAnalyzer, mapperService.fullName("otherField").searchAnalyzer());
+        assertFalse(assertSameContainedFilters(originalTokenFilters, current.get("reloadableAnalyzer")));
+        assertFalse(assertSameContainedFilters(originalTokenFilters, mapperService.fullName("field").searchAnalyzer()));
+        assertFalse(assertSameContainedFilters(originalTokenFilters, mapperService.fullName("otherField").searchQuoteAnalyzer()));
+    }
 
-        assertSame(originalFieldsearchQuoteAnalyzer, mapperService.fullName("field").searchQuoteAnalyzer());
-        assertNotSame(originalOtherFieldsearchQuoteAnalyzer, mapperService.fullName("otherField").searchQuoteAnalyzer());
-
+    private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {
+        ReloadableCustomAnalyzer updatedReloadableAnalyzer = (ReloadableCustomAnalyzer) updatedAnalyzer.analyzer();
+        TokenFilterFactory[] newTokenFilters = updatedReloadableAnalyzer.tokenFilters();
+        assertEquals(originalTokenFilter.length, newTokenFilters.length);
+        int i = 0;
+        for (TokenFilterFactory tf : newTokenFilters ) {
+            assertEquals(originalTokenFilter[i].name(), tf.name());
+            if (originalTokenFilter[i] != tf) {
+                return false;
+            }
+            i++;
+        }
+        return true;
     }
 
     public static final class ReloadableFilterPlugin extends Plugin implements AnalysisPlugin {

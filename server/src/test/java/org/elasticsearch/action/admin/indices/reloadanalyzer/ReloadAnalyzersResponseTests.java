@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.reloadanalyzer;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.common.Strings;
@@ -33,8 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Repeat(iterations = 50)
-public class ReloadAnalyzersResponseTest extends AbstractBroadcastResponseTestCase<ReloadAnalyzersResponse> {
+public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestCase<ReloadAnalyzersResponse> {
 
     @Override
     protected ReloadAnalyzersResponse createTestInstance(int totalShards, int successfulShards, int failedShards,

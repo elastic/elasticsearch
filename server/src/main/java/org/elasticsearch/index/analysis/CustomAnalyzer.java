@@ -22,58 +22,24 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.util.CloseableThreadLocal;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.analysis.CustomAnalyzerProvider.AnalyzerComponents;
 
 import java.io.Reader;
-import java.util.Map;
 
-public final class CustomAnalyzer extends Analyzer {
-    private CloseableThreadLocal<AnalyzerComponents> storedComponents = new CloseableThreadLocal<>();
-    private volatile AnalyzerComponents current;
+public class CustomAnalyzer extends Analyzer {
 
     private final AnalysisMode analysisMode;
-
-    private static final ReuseStrategy UPDATE_STRATEGY = new ReuseStrategy() {
-        @Override
-        public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
-            CustomAnalyzer custom = (CustomAnalyzer) analyzer;
-            AnalyzerComponents components = custom.getStoredComponents();
-            if (components == null || custom.shouldReload(components)) {
-                custom.setStoredComponents(custom.current);
-                return null;
-            }
-            TokenStreamComponents tokenStream = (TokenStreamComponents) getStoredValue(analyzer);
-            assert tokenStream != null;
-            return tokenStream;
-        }
-
-        @Override
-        public void setReusableComponents(Analyzer analyzer, String fieldName, TokenStreamComponents tokenStream) {
-            setStoredValue(analyzer, tokenStream);
-        }
-    };
+    protected volatile AnalyzerComponents components;
 
     public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
                           TokenFilterFactory[] tokenFilters) {
-        this(new AnalyzerComponents(tokenizerName, tokenizerFactory, charFilters, tokenFilters, -1, -1));
+        this(new AnalyzerComponents(tokenizerName, tokenizerFactory, charFilters, tokenFilters, 0, -1), GLOBAL_REUSE_STRATEGY);
     }
 
-    public CustomAnalyzer(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-                          TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
-       this(new AnalyzerComponents(tokenizerName, tokenizerFactory, charFilters, tokenFilters, positionIncrementGap, offsetGap));
-    }
-
-    public CustomAnalyzer(AnalyzerComponents components) {
-        super(UPDATE_STRATEGY);
-        this.current = components;
-        // merge and transfer token filter analysis modes with analyzer
-        AnalysisMode mode = AnalysisMode.ALL;
-        for (TokenFilterFactory f : current.tokenFilters) {
-            mode = mode.merge(f.getAnalysisMode());
-        }
-        this.analysisMode = mode;
+    CustomAnalyzer(AnalyzerComponents components, ReuseStrategy reuseStrategy) {
+        super(reuseStrategy);
+        this.components = components;
+        this.analysisMode = calculateAnalysisMode(components);
     }
 
     /**
@@ -85,63 +51,36 @@ public final class CustomAnalyzer extends Analyzer {
      * The name of the tokenizer as configured by the user.
      */
     public String getTokenizerName() {
-        return current.tokenizerName;
+        return components.tokenizerName;
     }
 
     public TokenizerFactory tokenizerFactory() {
-        return current.tokenizerFactory;
+        return components.tokenizerFactory;
     }
 
     public TokenFilterFactory[] tokenFilters() {
-        return current.tokenFilters;
+        return components.tokenFilters;
     }
 
     public CharFilterFactory[] charFilters() {
-        return current.charFilters;
+        return components.charFilters;
     }
 
     @Override
     public int getPositionIncrementGap(String fieldName) {
-        return current.positionIncrementGap;
+        return components.positionIncrementGap;
     }
 
-    private boolean shouldReload(AnalyzerComponents source) {
-        return this.current != source;
-    }
-
-    public synchronized void reload(String name,
-                                    Settings settings,
-                                    final Map<String, TokenizerFactory> tokenizers,
-                                    final Map<String, CharFilterFactory> charFilters,
-                                    final Map<String, TokenFilterFactory> tokenFilters) {
-        AnalyzerComponents components = CustomAnalyzerProvider.createComponents(name, settings, tokenizers, charFilters, tokenFilters);
-        this.current = components;
-    }
-
-    @Override
-    public void close() {
-        storedComponents.close();
-    }
-
-    void setStoredComponents(AnalyzerComponents components) {
-        storedComponents.set(components);
-    }
-
-    AnalyzerComponents getStoredComponents() {
-        return storedComponents.get();
-    }
-
-    public AnalyzerComponents getComponents() {
-        return current;
+    protected AnalyzerComponents getComponents() {
+        return this.components;
     }
 
     @Override
     public int getOffsetGap(String field) {
-        final AnalyzerComponents components = getComponents();
-        if (components.offsetGap < 0) {
+        if (this.components.offsetGap < 0) {
             return super.getOffsetGap(field);
         }
-        return components.offsetGap;
+        return this.components.offsetGap;
     }
 
     public AnalysisMode getAnalysisMode() {
@@ -150,7 +89,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
-        final AnalyzerComponents components = getStoredComponents();
+        final AnalyzerComponents components = getComponents();
         Tokenizer tokenizer = components.tokenizerFactory.create();
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : components.tokenFilters) {
@@ -161,7 +100,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected Reader initReader(String fieldName, Reader reader) {
-        final AnalyzerComponents components = getStoredComponents();
+        final AnalyzerComponents components = getComponents();
         if (components.charFilters != null && components.charFilters.length > 0) {
             for (CharFilterFactory charFilter : components.charFilters) {
                 reader = charFilter.create(reader);
@@ -187,5 +126,27 @@ public final class CustomAnalyzer extends Analyzer {
             result = filter.normalize(result);
         }
         return result;
+    }
+
+    private static AnalysisMode calculateAnalysisMode(AnalyzerComponents components) {
+        // merge and transfer token filter analysis modes with analyzer
+        AnalysisMode mode = AnalysisMode.ALL;
+        for (TokenFilterFactory f : components.tokenFilters) {
+            mode = mode.merge(f.getAnalysisMode());
+        }
+        return mode;
+    }
+
+    /**
+     * Factory method that either returns a plain {@link CustomAnalyzer} if the components used for creation are supporting index and search
+     * time use, or a {@link ReloadableCustomAnalyzer} if the components are intended for search time use only.
+     */
+    static CustomAnalyzer create(AnalyzerComponents components) {
+        AnalysisMode mode = calculateAnalysisMode(components);
+        if (mode.equals(AnalysisMode.SEARCH_TIME)) {
+            return new ReloadableCustomAnalyzer(components);
+        } else {
+            return new CustomAnalyzer(components, GLOBAL_REUSE_STRATEGY);
+        }
     }
 }

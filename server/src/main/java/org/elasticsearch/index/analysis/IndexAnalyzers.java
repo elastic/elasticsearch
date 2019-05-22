@@ -68,18 +68,6 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
     }
 
     /**
-     * Partial copy-constructor that keeps references to settings, default index analyzer and normalizers from original
-     * {@link IndexAnalyzers} passed in but takes other analyzers as inputs.
-     */
-    IndexAnalyzers(IndexAnalyzers original, Map<String, NamedAnalyzer> analyzers, IndexAnalysisProviders analysisProviders) {
-        super(original.getIndexSettings());
-        this.analyzers =  unmodifiableMap(new HashMap<>(analyzers));
-        this.normalizers = original.normalizers;
-        this.whitespaceNormalizers = original.whitespaceNormalizers;
-        this.analysisProviders = analysisProviders;
-    }
-
-    /**
      * Returns an analyzer mapped to the given name or <code>null</code> if not present
      */
     public NamedAnalyzer get(String name) {

@@ -52,15 +52,17 @@ public class NativeController {
         UNKNOWN_NATIVE_CODE_INFO = Collections.unmodifiableMap(unknownInfo);
     }
 
+    private final String localNodeName;
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream commandStream;
 
-    NativeController(Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
+    NativeController(String localNodeName, Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, CONTROLLER, null,
                 true, true, false, false, false, false);
         processPipes.connectStreams(CONTROLLER_CONNECT_TIMEOUT);
-        cppLogHandler = new CppLogMessageHandler(null, processPipes.getLogStream().get());
-        commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
+        this.localNodeName = localNodeName;
+        this.cppLogHandler = new CppLogMessageHandler(null, processPipes.getLogStream().get());
+        this.commandStream = new BufferedOutputStream(processPipes.getCommandStream().get());
     }
 
     void tailLogsInThread() {
@@ -107,7 +109,8 @@ public class NativeController {
         }
 
         if (cppLogHandler.hasLogStreamEnded()) {
-            String msg = "Cannot start process [" + command.get(0) + "]: native controller process has stopped";
+            String msg = "Cannot start process [" + command.get(0) + "]: native controller process has stopped on node ["
+                + localNodeName + "]";
             LOGGER.error(msg);
             throw new ElasticsearchException(msg);
         }
@@ -133,7 +136,8 @@ public class NativeController {
         }
 
         if (cppLogHandler.hasLogStreamEnded()) {
-            String msg = "Cannot kill process with PID [" + pid + "]: native controller process has stopped";
+            String msg = "Cannot kill process with PID [" + pid + "]: native controller process has stopped on node ["
+                + localNodeName + "]";
             LOGGER.error(msg);
             throw new ElasticsearchException(msg);
         }

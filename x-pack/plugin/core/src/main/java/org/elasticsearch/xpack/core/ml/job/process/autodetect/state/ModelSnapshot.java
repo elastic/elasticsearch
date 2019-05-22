@@ -137,9 +137,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            Version.writeVersion(minVersion, out);
-        }
+        Version.writeVersion(minVersion, out);
         if (timestamp != null) {
             out.writeBoolean(true);
             out.writeVLong(timestamp.getTime());
@@ -333,7 +331,11 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     public static class Builder {
         private String jobId;
-        private Version minVersion;
+
+        // Stored snapshot documents created prior to 6.3.0 will have no
+        // value for min_version.
+        private Version minVersion = Version.fromString("6.3.0");
+
         private Date timestamp;
         private String description;
         private String snapshotId;

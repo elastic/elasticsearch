@@ -45,13 +45,9 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     CloseIndexResponse() {
     }
 
-    public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged) {
-        this(acknowledged, shardsAcknowledged, emptyList());
-    }
-
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {
         super(acknowledged, shardsAcknowledged);
-        this.indices = Objects.requireNonNull(indices);
+        this.indices = unmodifiableList(Objects.requireNonNull(indices));
     }
 
     public List<IndexResult> getIndices() {

@@ -75,6 +75,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -147,7 +148,7 @@ public class MetaDataIndexStateService {
                 public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
                     if (oldState == newState) {
                         assert blockedIndices.isEmpty() : "List of blocked indices is not empty but cluster state wasn't changed";
-                        listener.onResponse(new CloseIndexResponse(true, false));
+                        listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
                     } else {
                         assert blockedIndices.isEmpty() == false : "List of blocked indices is empty but cluster state was changed";
                         threadPool.executor(ThreadPool.Names.MANAGEMENT)

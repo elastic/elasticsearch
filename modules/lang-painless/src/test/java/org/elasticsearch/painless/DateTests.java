@@ -21,7 +21,6 @@ package org.elasticsearch.painless;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 
 public class DateTests extends ScriptTestCase {
 
@@ -52,6 +51,20 @@ public class DateTests extends ScriptTestCase {
         ));
     }
 
+    public void testPiecesToZonedDateTime() {
+        assertEquals(ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC), exec(
+                "int year = 1983;" +
+                "int month = 10;" +
+                "int day = 13;" +
+                "int hour = 22;" +
+                "int minutes = 15;" +
+                "int seconds = 30;" +
+                "int nanos = 0;" +
+                "String tz = 'Z';" +
+                "return ZonedDateTime.of(year, month, day, hour, minutes, seconds, nanos, ZoneId.of(tz));"
+        ));
+    }
+
     public void testZonedDatetimeToLong() {
         assertEquals(434931330000L, exec(
                 "ZonedDateTime zdt = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);" +
@@ -60,7 +73,7 @@ public class DateTests extends ScriptTestCase {
 
         assertEquals("1983-10-13T22:15:30Z", exec(
                 "ZonedDateTime zdt = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);" +
-                 "return zdt.format(DateTimeFormatter.ISO_INSTANT);"
+                "return zdt.format(DateTimeFormatter.ISO_INSTANT);"
         ));
 
         assertEquals("date: 1983/10/13 time: 22:15:30", exec(
@@ -68,6 +81,23 @@ public class DateTests extends ScriptTestCase {
                 "DateTimeFormatter dtf = DateTimeFormatter.ofPattern(" +
                     "\"'date:' yyyy/MM/dd 'time:' HH:mm:ss\");" +
                 "return zdt.format(dtf);"
+        ));
+    }
+
+    public void testZonedDateTimeManipulation() {
+        assertEquals(ZonedDateTime.of(1983, 10, 16, 22, 15, 30, 0, ZoneOffset.UTC), exec(
+                "ZonedDateTime zdt = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);" +
+                "return zdt.plusDays(3);"
+        ));
+
+        assertEquals(ZonedDateTime.of(1983, 10, 13, 20, 10, 30, 0, ZoneOffset.UTC), exec(
+                "ZonedDateTime zdt = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);" +
+                "return zdt.minusMinutes(125);"
+        ));
+
+        assertEquals(ZonedDateTime.of(1976, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC), exec(
+                "ZonedDateTime zdt = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);" +
+                "return zdt.withYear(1976);"
         ));
     }
 }

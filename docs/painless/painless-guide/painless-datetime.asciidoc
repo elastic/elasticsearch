@@ -55,7 +55,7 @@ ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneOffset.UTC);
 ----
 +
 * Convert a String to a ZonedDateTime using the default parse method with the
-format ISO_INSTANT.
+format ISO_INSTANT
 +
 [source,Painless]
 ----
@@ -64,7 +64,7 @@ ZonedDateTime zdt = ZonedDateTime.parse(datetime);
 ----
 +
 * Convert a String to a ZonedDateTime using the parse method with the already
-made format RFC_1123_DATE_TIME.
+made format RFC_1123_DATE_TIME
 +
 [source,Painless]
 ----
@@ -74,7 +74,7 @@ ZonedDateTime zdt = ZonedDateTime.parse(datetime,
 ----
 +
 * Convert a String to a ZonedDateTime using the parse method with a custom
-DateTimeFormatter.
+DateTimeFormatter
 +
 [source,Painless]
 ----
@@ -82,6 +82,22 @@ String datetime = 'custom y 1983 m 10 d 13 22:15:30 Z';
 DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
         "'custom' 'y' yyyy 'm' MM 'd' dd HH:mm:ss VV");
 ZonedDateTime zdt = ZonedDateTime.parse(datetime, dtf);
+----
++
+* Convert individual pieces of a date to a ZonedDateTime
++
+[source,Painless]
+----
+int year = 1983;
+int month = 10;
+int day = 13;
+int hour = 22;
+int minutes = 15;
+int seconds = 30;
+int nanos = 0;
+String tz = 'Z';
+ZonedDateTime zdt = ZonedDateTime.of(
+        year, month, day, hour, minutes, seconds, nanos, ZoneId.of(tz));
 ----
 
 ==== Conversions From ZonedDateTime
@@ -94,7 +110,7 @@ human-readable display.
 
 *Examples*
 
-* Convert a ZonedDateTime to a long in milliseconds since epoch.
+* Convert a ZonedDateTime to a long in milliseconds since epoch
 +
 [source,Painless]
 ----
@@ -103,7 +119,7 @@ ZonedDateTime zdt =
 long milliSinceEpoch = zdt.toInstant().toEpochMilli();
 ----
 +
-* Convert a ZonedDateTime to a String with the ISO_INSTANT format.
+* Convert a ZonedDateTime to a String with the ISO_INSTANT format
 +
 [source,Painless]
 ----
@@ -112,7 +128,7 @@ ZonedDateTime zdt =
 String datetime = zdt.format(DateTimeFormatter.ISO_INSTANT);
 ----
 +
-* Convert a ZonedDateTime to a String with a custom DateTimeFormatter.
+* Convert a ZonedDateTime to a String with a custom DateTimeFormatter
 +
 [source,Painless]
 ----
@@ -121,4 +137,41 @@ ZonedDateTime zdt =
 DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
         "'date:' yyyy/MM/dd 'time:' HH:mm:ss");
 String datetime = zdt.format(dtf);
+----
+
+==== ZonedDateTime Manipulation
+
+<<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>> has numerous
+methods to add and subtract different sets of time units or set a time unit to
+an specific number. Note these methods do not modify the existing
+ZonedDateTime, but rather return a new one that requires assignment or
+immediate use.
+
+*Examples*
+
+* Add days to a ZonedDateTime
++
+[source,Painless]
+----
+ZonedDateTime zdt =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+ZonedDateTime updatedZdt = zdt.plusDays(3);
+----
++
+* Subtract minutes from a ZonedDateTime
++
+[source,Painless]
+----
+ZonedDateTime zdt =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+ZonedDateTime updatedZdt = zdt.minusMinutes(125);
+----
++
+* Sets the year on a ZonedDateTime
++
+[source,Painless]
+----
+ZonedDateTime zdt =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+ZonedDateTime updatedZdt = zdt.withYear(1976);
 ----

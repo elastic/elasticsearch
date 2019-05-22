@@ -278,9 +278,8 @@ public class IndexDeprecationChecks {
 
         fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> fields.addAll(
             findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
-                IndexDeprecationChecks::isDateFieldWithDeprecatedPattern
-                , IndexDeprecationChecks::formatDateField))));
-
+                IndexDeprecationChecks::isDateFieldWithDeprecatedPattern,
+                IndexDeprecationChecks::formatDateField))));
 
         if (fields.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,

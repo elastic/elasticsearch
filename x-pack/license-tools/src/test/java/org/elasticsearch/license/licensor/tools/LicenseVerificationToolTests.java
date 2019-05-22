@@ -24,7 +24,7 @@ public class LicenseVerificationToolTests extends CommandTestCase {
 
     @Override
     protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated patterns are used to compare Joda vs Java results (y - year and Z zone offset)
+        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
         return false;
     }
 

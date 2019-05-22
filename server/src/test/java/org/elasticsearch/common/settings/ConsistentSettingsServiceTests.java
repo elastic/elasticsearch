@@ -114,8 +114,7 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
         // remove value
         secureSettings = new MockSecureSettings();
         secureSettings.setString("test.another.noise.setting", "noise");
-        // missing value
-        //secureSettings.setString("test.afix.first.bar", "first_secure");
+        // missing value test.afix.first.bar
         secureSettings.setString("test.afix.second.bar", "second_secure");
         secureSettings.setString("test.afix.third.bar", "third_secure");
         builder = Settings.builder();

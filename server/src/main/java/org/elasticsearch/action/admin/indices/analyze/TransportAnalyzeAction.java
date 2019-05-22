@@ -170,8 +170,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
     }
 
-    public static AnalyzeAction.Response analyze(AnalyzeAction.Request request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers,
-                                                 AnalysisRegistry analysisRegistry, Environment environment, int maxTokenCount) throws IOException {
+    public static AnalyzeAction.Response analyze(AnalyzeAction.Request request, String field, Analyzer analyzer,
+                                                 IndexAnalyzers indexAnalyzers, AnalysisRegistry analysisRegistry,
+                                                 Environment environment, int maxTokenCount) throws IOException {
         boolean closeAnalyzer = false;
         if (analyzer == null && request.analyzer() != null) {
             if (indexAnalyzers == null) {
@@ -290,7 +291,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return tokens;
     }
 
-    private static AnalyzeAction.DetailAnalyzeResponse detailAnalyze(AnalyzeAction.Request request, Analyzer analyzer, String field, int maxTokenCount) {
+    private static AnalyzeAction.DetailAnalyzeResponse detailAnalyze(AnalyzeAction.Request request, Analyzer analyzer,
+                                                                     String field, int maxTokenCount) {
         AnalyzeAction.DetailAnalyzeResponse detailResponse;
         final Set<String> includeAttributes = new HashSet<>();
         if (request.attributes() != null) {
@@ -384,7 +386,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 tokenListCreator.analyze(analyzer.tokenStream(field, text), analyzer, field,
                         includeAttributes);
             }
-            detailResponse = new AnalyzeAction.DetailAnalyzeResponse(new AnalyzeAction.AnalyzeTokenList(name, tokenListCreator.getArrayTokens()));
+            detailResponse
+                = new AnalyzeAction.DetailAnalyzeResponse(new AnalyzeAction.AnalyzeTokenList(name, tokenListCreator.getArrayTokens()));
         }
         return detailResponse;
     }
@@ -684,7 +687,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     private static Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalyzeAction.Request request, IndexAnalyzers indexAnalzyers,
-                                                                         AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+                                                                         AnalysisRegistry analysisRegistry,
+                                                                         Environment environment) throws IOException {
         String name;
         TokenizerFactory tokenizerFactory;
         final AnalyzeAction.Request.NameOrDefinition tokenizer = request.tokenizer();

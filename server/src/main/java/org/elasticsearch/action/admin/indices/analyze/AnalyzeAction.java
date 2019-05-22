@@ -279,7 +279,8 @@ public class AnalyzeAction extends Action<AnalyzeAction.Response> {
                 validationException = addValidationError("index is required if normalizer is specified", validationException);
             }
             if (normalizer != null && (tokenizer != null || analyzer != null)) {
-                validationException = addValidationError("tokenizer/analyze should be null if normalizer is specified", validationException);
+                validationException
+                    = addValidationError("tokenizer/analyze should be null if normalizer is specified", validationException);
             }
             return validationException;
         }

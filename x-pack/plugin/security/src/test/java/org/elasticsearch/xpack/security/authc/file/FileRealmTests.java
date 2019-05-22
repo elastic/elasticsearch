@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -94,7 +93,7 @@ public class FileRealmTests extends ESTestCase {
     public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
             .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "cache.hash_algo",
-                Hasher.values()[randomIntBetween(0, Hasher.values().length - 1)].name().toLowerCase(Locale.ROOT))
+                randomFrom(Hasher.getAvailableAlgoCacheHash()))
             .put(globalSettings)
             .build();
         RealmConfig config = getRealmConfig(settings);

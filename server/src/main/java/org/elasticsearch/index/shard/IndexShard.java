@@ -2136,8 +2136,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     StreamSupport
                             .stream(globalCheckpoints.values().spliterator(), false)
                             .anyMatch(v -> v.value < globalCheckpoint);
-            // only sync if there is a shard lagging the primary
-            if (syncNeeded) {
+            // only sync if index is not closed and there is a shard lagging the primary
+            if (syncNeeded && indexSettings.getIndexMetaData().getState() == IndexMetaData.State.OPEN) {
                 logger.trace("syncing global checkpoint for [{}]", reason);
                 globalCheckpointSyncer.run();
             }

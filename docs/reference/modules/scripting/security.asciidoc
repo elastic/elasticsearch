@@ -122,7 +122,7 @@ script.allowed_contexts: search, update <1>
 <1> This will allow only search and update scripts to be executed but not
 aggs or plugin scripts (or any other contexts).
 
-[[deprecated-script=settings]]
+[[deprecated-script-settings]]
 [float]
 === Deprecated script settings
 

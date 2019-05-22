@@ -177,7 +177,7 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
             .get();
         transportClient().admin().indices().prepareRefresh(lookupIndex, queryIndex).get();
 
-        GeoShapeQueryBuilder queryBuilder = QueryBuilders.geoShapeQuery("location", "1", "type")
+        GeoShapeQueryBuilder queryBuilder = QueryBuilders.geoShapeQuery("location", "1")
             .indexedShapeIndex(lookupIndex)
             .indexedShapePath("location");
 

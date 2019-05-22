@@ -248,13 +248,6 @@ The `terms` filter has been replaced by the <<query-dsl-terms-query>>. It behave
 as a query in ``query context'' and as a filter in ``filter context'' (see
 <<query-dsl>>).
 
-[role="exclude",id="query-dsl-type-filter"]
-=== Type Filter
-
-The `type` filter has been replaced by the <<query-dsl-type-query>>. It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
-
 [role="exclude",id="query-dsl-flt-query"]
 === Fuzzy Like This Query
 

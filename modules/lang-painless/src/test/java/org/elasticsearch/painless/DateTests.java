@@ -100,4 +100,18 @@ public class DateTests extends ScriptTestCase {
                 "return zdt.withYear(1976);"
         ));
     }
+
+    public void testZonedDateTimeDifference() {
+        assertEquals(4989L, exec(
+                "ZonedDateTime zdt1 = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);" +
+                "ZonedDateTime zdt2 = ZonedDateTime.of(1983, 10, 13, 22, 15, 35, 0, ZoneOffset.UTC);" +
+                "return ChronoUnit.MILLIS.between(zdt1, zdt2);"
+        ));
+
+        assertEquals(4L, exec(
+                "ZonedDateTime zdt1 = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);" +
+                "ZonedDateTime zdt2 = ZonedDateTime.of(1983, 10, 17, 22, 15, 35, 0, ZoneOffset.UTC);" +
+                "return ChronoUnit.DAYS.between(zdt1, zdt2);"
+        ));
+    }
 }

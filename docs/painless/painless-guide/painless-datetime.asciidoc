@@ -167,11 +167,38 @@ ZonedDateTime zdt =
 ZonedDateTime updatedZdt = zdt.minusMinutes(125);
 ----
 +
-* Sets the year on a ZonedDateTime
+* Set the year on a ZonedDateTime
 +
 [source,Painless]
 ----
 ZonedDateTime zdt =
         ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
 ZonedDateTime updatedZdt = zdt.withYear(1976);
+----
+
+==== Difference Between ZonedDateTimes
+
+Use <<painless-api-reference-shared-ChronoUnit, ChronoUnit>> to calculate the
+difference between two
+<<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>>s for a specific
+time unit.
+
+*Examples*
+
+* Find the difference in milliseconds between two ZonedDateTimes
++
+[source,Painless]
+----
+ZonedDateTime zdt1 = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);
+ZonedDateTime zdt2 = ZonedDateTime.of(1983, 10, 13, 22, 15, 35, 0, ZoneOffset.UTC);
+long differenceInMillis = ChronoUnit.MILLIS.between(zdt1, zdt2);
+----
++
+* Find the difference in days between two ZonedDateTimes
++
+[source,Painless]
+----
+ZonedDateTime zdt1 = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);
+ZonedDateTime zdt2 = ZonedDateTime.of(1983, 10, 17, 22, 15, 35, 0, ZoneOffset.UTC);
+long differenceInDays = ChronoUnit.DAYS.between(zdt1, zdt2);
 ----

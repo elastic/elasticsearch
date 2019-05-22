@@ -120,7 +120,7 @@ public class IndexDeprecationChecks {
         fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> issues.addAll(
             findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap, IndexDeprecationChecks::containsChainedMultiFields))));
         if (issues.size() > 0) {
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Multi-fields within multi-fields",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.2/breaking-changes-7.2.html" +
                     "#_defining_multi_fields_within_multi_fields",

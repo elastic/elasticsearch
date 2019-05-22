@@ -141,7 +141,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
         assertEquals(1, issues.size());
 
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Multi-fields within multi-fields",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.2/breaking-changes-7.2.html" +
                 "#_defining_multi_fields_within_multi_fields",

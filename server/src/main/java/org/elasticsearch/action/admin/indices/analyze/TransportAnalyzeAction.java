@@ -79,7 +79,7 @@ import java.util.function.Function;
 /**
  * Transport action used to execute analyze requests
  */
-public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAction.Request, AnalyzeResponse> {
+public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAction.Request, AnalyzeAction.Response> {
 
     private final Settings settings;
     private final IndicesService indicesService;
@@ -97,8 +97,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     @Override
-    protected Writeable.Reader<AnalyzeResponse> getResponseReader() {
-        return AnalyzeResponse::new;
+    protected Writeable.Reader<AnalyzeAction.Response> getResponseReader() {
+        return AnalyzeAction.Response::new;
     }
 
     @Override
@@ -124,7 +124,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     @Override
-    protected AnalyzeResponse shardOperation(AnalyzeAction.Request request, ShardId shardId) {
+    protected AnalyzeAction.Response shardOperation(AnalyzeAction.Request request, ShardId shardId) {
         try {
             final IndexService indexService;
             if (shardId != null) {
@@ -170,8 +170,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
     }
 
-    public static AnalyzeResponse analyze(AnalyzeAction.Request request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers,
-                                          AnalysisRegistry analysisRegistry, Environment environment, int maxTokenCount) throws IOException {
+    public static AnalyzeAction.Response analyze(AnalyzeAction.Request request, String field, Analyzer analyzer, IndexAnalyzers indexAnalyzers,
+                                                 AnalysisRegistry analysisRegistry, Environment environment, int maxTokenCount) throws IOException {
         boolean closeAnalyzer = false;
         if (analyzer == null && request.analyzer() != null) {
             if (indexAnalyzers == null) {
@@ -237,8 +237,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             throw new IllegalArgumentException("failed to find analyzer");
         }
 
-        List<AnalyzeResponse.AnalyzeToken> tokens = null;
-        DetailAnalyzeResponse detail = null;
+        List<AnalyzeAction.AnalyzeToken> tokens = null;
+        AnalyzeAction.DetailAnalyzeResponse detail = null;
 
         if (request.explain()) {
             detail = detailAnalyze(request, analyzer, field, maxTokenCount);
@@ -250,13 +250,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             analyzer.close();
         }
 
-        return new AnalyzeResponse(tokens, detail);
+        return new AnalyzeAction.Response(tokens, detail);
     }
 
-    private static List<AnalyzeResponse.AnalyzeToken> simpleAnalyze(AnalyzeAction.Request request,
-                                                                    Analyzer analyzer, String field, int maxTokenCount) {
+    private static List<AnalyzeAction.AnalyzeToken> simpleAnalyze(AnalyzeAction.Request request,
+                                                                           Analyzer analyzer, String field, int maxTokenCount) {
         TokenCounter tc = new TokenCounter(maxTokenCount);
-        List<AnalyzeResponse.AnalyzeToken> tokens = new ArrayList<>();
+        List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
         int lastOffset = 0;
         for (String text : request.text()) {
@@ -273,7 +273,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                     if (increment > 0) {
                         lastPosition = lastPosition + increment;
                     }
-                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
+                    tokens.add(new AnalyzeAction.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
                         lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), null));
                     tc.increment();
                 }
@@ -290,8 +290,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return tokens;
     }
 
-    private static DetailAnalyzeResponse detailAnalyze(AnalyzeAction.Request request, Analyzer analyzer, String field, int maxTokenCount) {
-        DetailAnalyzeResponse detailResponse;
+    private static AnalyzeAction.DetailAnalyzeResponse detailAnalyze(AnalyzeAction.Request request, Analyzer analyzer, String field, int maxTokenCount) {
+        AnalyzeAction.DetailAnalyzeResponse detailResponse;
         final Set<String> includeAttributes = new HashSet<>();
         if (request.attributes() != null) {
             for (String attribute : request.attributes()) {
@@ -351,25 +351,25 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 }
             }
 
-            DetailAnalyzeResponse.CharFilteredText[] charFilteredLists =
-                new DetailAnalyzeResponse.CharFilteredText[charFiltersTexts.length];
+            AnalyzeAction.CharFilteredText[] charFilteredLists =
+                new AnalyzeAction.CharFilteredText[charFiltersTexts.length];
 
             if (charFilterFactories != null) {
                 for (int charFilterIndex = 0; charFilterIndex < charFiltersTexts.length; charFilterIndex++) {
-                    charFilteredLists[charFilterIndex] = new DetailAnalyzeResponse.CharFilteredText(
+                    charFilteredLists[charFilterIndex] = new AnalyzeAction.CharFilteredText(
                         charFilterFactories[charFilterIndex].name(), charFiltersTexts[charFilterIndex]);
                 }
             }
-            DetailAnalyzeResponse.AnalyzeTokenList[] tokenFilterLists =
-                new DetailAnalyzeResponse.AnalyzeTokenList[tokenFiltersTokenListCreator.length];
+            AnalyzeAction.AnalyzeTokenList[] tokenFilterLists =
+                new AnalyzeAction.AnalyzeTokenList[tokenFiltersTokenListCreator.length];
 
             if (tokenFilterFactories != null) {
                 for (int tokenFilterIndex = 0; tokenFilterIndex < tokenFiltersTokenListCreator.length; tokenFilterIndex++) {
-                    tokenFilterLists[tokenFilterIndex] = new DetailAnalyzeResponse.AnalyzeTokenList(
+                    tokenFilterLists[tokenFilterIndex] = new AnalyzeAction.AnalyzeTokenList(
                         tokenFilterFactories[tokenFilterIndex].name(), tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens());
                 }
             }
-            detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(
+            detailResponse = new AnalyzeAction.DetailAnalyzeResponse(charFilteredLists, new AnalyzeAction.AnalyzeTokenList(
                     customAnalyzer.getTokenizerName(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
         } else {
             String name;
@@ -384,7 +384,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 tokenListCreator.analyze(analyzer.tokenStream(field, text), analyzer, field,
                         includeAttributes);
             }
-            detailResponse = new DetailAnalyzeResponse(new DetailAnalyzeResponse.AnalyzeTokenList(name, tokenListCreator.getArrayTokens()));
+            detailResponse = new AnalyzeAction.DetailAnalyzeResponse(new AnalyzeAction.AnalyzeTokenList(name, tokenListCreator.getArrayTokens()));
         }
         return detailResponse;
     }
@@ -443,7 +443,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     private static class TokenListCreator {
         int lastPosition = -1;
         int lastOffset = 0;
-        List<AnalyzeResponse.AnalyzeToken> tokens;
+        List<AnalyzeAction.AnalyzeToken> tokens;
         private TokenCounter tc;
 
         TokenListCreator(int maxTokenCount) {
@@ -465,7 +465,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                     if (increment > 0) {
                         lastPosition = lastPosition + increment;
                     }
-                    tokens.add(new AnalyzeResponse.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
+                    tokens.add(new AnalyzeAction.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
                         lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(),
                         extractExtendedAttributes(stream, includeAttributes)));
                     tc.increment();
@@ -484,8 +484,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             }
         }
 
-        private AnalyzeResponse.AnalyzeToken[] getArrayTokens() {
-            return tokens.toArray(new AnalyzeResponse.AnalyzeToken[tokens.size()]);
+        private AnalyzeAction.AnalyzeToken[] getArrayTokens() {
+            return tokens.toArray(new AnalyzeAction.AnalyzeToken[tokens.size()]);
         }
 
     }

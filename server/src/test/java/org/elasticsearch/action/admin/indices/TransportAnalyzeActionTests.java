@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
@@ -139,8 +138,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text("the quick brown fox");
         request.analyzer("standard");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, null, registry, environment, maxTokenCount);
-        List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, "text", null, null, registry, environment, maxTokenCount);
+        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
 
         // Refer to a token filter by its type so we get its default configuration
@@ -190,8 +189,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.analyzer("standard");
         request.text("the 1 brown fox");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, null, registry, environment, maxTokenCount);
-        List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, "text", null, null, registry, environment, maxTokenCount);
+        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(4, tokens.size());
         assertEquals("the", tokens.get(0).getTerm());
         assertEquals(0, tokens.get(0).getStartOffset());
@@ -222,9 +221,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text("the quick brown fox");
         request.analyzer("custom_analyzer");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
             maxTokenCount);
-        List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
+        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("quick", tokens.get(0).getTerm());
         assertEquals("brown", tokens.get(1).getTerm());
@@ -337,9 +336,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request.tokenizer("standard");
         request.addTokenFilter("stop"); // stop token filter is not prebuilt in AnalysisModule#setupPreConfiguredTokenFilters()
         request.text("the quick brown fox");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
             maxTokenCount);
-        List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
+        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
         assertEquals(3, tokens.size());
         assertEquals("quick", tokens.get(0).getTerm());
         assertEquals("brown", tokens.get(1).getTerm());
@@ -350,9 +349,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Request request = new AnalyzeAction.Request("index");
         request.normalizer("my_normalizer");
         request.text("ABc");
-        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
+        AnalyzeAction.Response analyze = TransportAnalyzeAction.analyze(request, "text", null, indexAnalyzers, registry, environment,
             maxTokenCount);
-        List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
+        List<AnalyzeAction.AnalyzeToken> tokens = analyze.getTokens();
 
         assertEquals(1, tokens.size());
         assertEquals("abc", tokens.get(0).getTerm());

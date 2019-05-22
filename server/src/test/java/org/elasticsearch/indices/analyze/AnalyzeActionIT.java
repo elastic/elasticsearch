@@ -19,8 +19,8 @@
 package org.elasticsearch.indices.analyze;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -53,9 +53,9 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "this is a test").get();
+            AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "this is a test").get();
             assertThat(analyzeResponse.getTokens().size(), equalTo(4));
-            AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+            AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(0);
             assertThat(token.getTerm(), equalTo("this"));
             assertThat(token.getStartOffset(), equalTo(0));
             assertThat(token.getEndOffset(), equalTo(4));
@@ -94,7 +94,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testAnalyzeWithNoIndex() throws Exception {
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").get();
+        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
         analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").addTokenFilter("lowercase")
@@ -105,7 +105,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").addTokenFilter("lowercase")
             .get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
-        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+        AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(0);
         assertThat(token.getTerm(), equalTo("this"));
         token = analyzeResponse.getTokens().get(1);
         assertThat(token.getTerm(), equalTo("is"));
@@ -134,9 +134,9 @@ public class AnalyzeActionIT extends ESIntegTestCase {
             final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("THIS IS A TEST");
             requestBuilder.setIndex(indexOrAlias());
             requestBuilder.setField("document.simple");
-            AnalyzeResponse analyzeResponse = requestBuilder.get();
+            AnalyzeAction.Response analyzeResponse = requestBuilder.get();
             assertThat(analyzeResponse.getTokens().size(), equalTo(4));
-            AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(3);
+            AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(3);
             assertThat(token.getTerm(), equalTo("test"));
             assertThat(token.getStartOffset(), equalTo(10));
             assertThat(token.getEndOffset(), equalTo(14));
@@ -146,7 +146,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
 
     // issue #5974
     public void testThatStandardAndDefaultAnalyzersAreSame() throws Exception {
-        AnalyzeResponse response = client().admin().indices().prepareAnalyze("this is a test").setAnalyzer("standard").get();
+        AnalyzeAction.Response response = client().admin().indices().prepareAnalyze("this is a test").setAnalyzer("standard").get();
         assertTokens(response, "this", "is", "a", "test");
 
         response = client().admin().indices().prepareAnalyze("this is a test").setAnalyzer("default").get();
@@ -156,7 +156,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertTokens(response, "this", "is", "a", "test");
     }
 
-    private void assertTokens(AnalyzeResponse response, String ... tokens) {
+    private void assertTokens(AnalyzeAction.Response response, String ... tokens) {
         assertThat(response.getTokens(), hasSize(tokens.length));
         for (int i = 0; i < tokens.length; i++) {
             assertThat(response.getTokens().get(i).getTerm(), is(tokens[i]));
@@ -180,9 +180,9 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         requestBuilder.setText(texts);
         requestBuilder.setIndex(indexOrAlias());
         requestBuilder.setField("simple");
-        AnalyzeResponse analyzeResponse = requestBuilder.get();
+        AnalyzeAction.Response analyzeResponse = requestBuilder.get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(7));
-        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(3);
+        AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(3);
         assertThat(token.getTerm(), equalTo("test"));
         assertThat(token.getPosition(), equalTo(3));
         assertThat(token.getStartOffset(), equalTo(10));
@@ -199,7 +199,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
 
     public void testDetailAnalyzeWithNoIndex() throws Exception {
         //analyzer only
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
+        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
             .setExplain(true).setAnalyzer("simple").get();
 
         assertThat(analyzeResponse.detail().tokenizer(), IsNull.nullValue());
@@ -211,7 +211,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
 
     public void testDetailAnalyzeCustomAnalyzerWithNoIndex() throws Exception {
         //analyzer only
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
+        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
             .setExplain(true).setAnalyzer("simple").get();
 
         assertThat(analyzeResponse.detail().tokenizer(), IsNull.nullValue());
@@ -257,12 +257,12 @@ public class AnalyzeActionIT extends ESIntegTestCase {
             .setType("document").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
         String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze().setIndex(indexOrAlias()).setText(texts)
+        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze().setIndex(indexOrAlias()).setText(texts)
             .setExplain(true).setField("simple").setText(texts).execute().get();
 
         assertThat(analyzeResponse.detail().analyzer().getName(), equalTo("simple"));
         assertThat(analyzeResponse.detail().analyzer().getTokens().length, equalTo(7));
-        AnalyzeResponse.AnalyzeToken token = analyzeResponse.detail().analyzer().getTokens()[3];
+        AnalyzeAction.AnalyzeToken token = analyzeResponse.detail().analyzer().getTokens()[3];
 
         assertThat(token.getTerm(), equalTo("test"));
         assertThat(token.getPosition(), equalTo(3));
@@ -292,7 +292,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         Map<String, Object> stopFilterSettings = new HashMap<>();
         stopFilterSettings.put("type", "stop");
         stopFilterSettings.put("stopwords", new String[]{"foo", "buzz"});
-        AnalyzeResponse analyzeResponse = client().admin().indices()
+        AnalyzeAction.Response analyzeResponse = client().admin().indices()
             .prepareAnalyze()
             .setText("Foo buzz test")
             .setTokenizer("standard")
@@ -359,9 +359,9 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "keyword", "type=keyword"));
         ensureGreen("test");
 
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
+        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
-        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+        AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(0);
         assertThat(token.getTerm(), equalTo("ABC"));
         assertThat(token.getStartOffset(), equalTo(0));
         assertThat(token.getEndOffset(), equalTo(3));
@@ -377,9 +377,9 @@ public class AnalyzeActionIT extends ESIntegTestCase {
             .addMapping("test", "keyword", "type=keyword,normalizer=my_normalizer"));
         ensureGreen("test");
 
-        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
+        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
-        AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+        AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(0);
         assertThat(token.getTerm(), equalTo("abc"));
         assertThat(token.getStartOffset(), equalTo(0));
         assertThat(token.getEndOffset(), equalTo(3));

@@ -22,13 +22,9 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -36,7 +32,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class DetailAnalyzeResponse implements ToXContentFragment {
+public class DetailAnalyzeResponse {
 
     private final boolean customAnalyzer;
     private final AnalyzeTokenList analyzer;
@@ -44,24 +40,16 @@ public class DetailAnalyzeResponse implements ToXContentFragment {
     private final AnalyzeTokenList tokenizer;
     private final AnalyzeTokenList[] tokenfilters;
 
-    public DetailAnalyzeResponse(AnalyzeTokenList analyzer) {
-        this(false, analyzer, null, null, null);
-    }
-
-    public DetailAnalyzeResponse(CharFilteredText[] charfilters, AnalyzeTokenList tokenizer, AnalyzeTokenList[] tokenfilters) {
-        this(true, null, charfilters, tokenizer, tokenfilters);
-    }
-
-    public DetailAnalyzeResponse(boolean customAnalyzer,
+    DetailAnalyzeResponse(boolean customAnalyzer,
                                  AnalyzeTokenList analyzer,
-                                 CharFilteredText[] charfilters,
+                                 List<CharFilteredText> charfilters,
                                  AnalyzeTokenList tokenizer,
-                                 AnalyzeTokenList[] tokenfilters) {
+                                 List<AnalyzeTokenList> tokenfilters) {
         this.customAnalyzer = customAnalyzer;
         this.analyzer = analyzer;
-        this.charfilters = charfilters;
+        this.charfilters = charfilters.toArray(new CharFilteredText[]{});
         this.tokenizer = tokenizer;
-        this.tokenfilters = tokenfilters;
+        this.tokenfilters = tokenfilters.toArray(new AnalyzeTokenList[]{});
     }
 
     public AnalyzeTokenList analyzer() {
@@ -100,80 +88,30 @@ public class DetailAnalyzeResponse implements ToXContentFragment {
         return result;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.CUSTOM_ANALYZER, customAnalyzer);
-
-        if (analyzer != null) {
-            builder.startObject(Fields.ANALYZER);
-            analyzer.toXContentWithoutObject(builder, params);
-            builder.endObject();
-        }
-
-        if (charfilters != null) {
-            builder.startArray(Fields.CHARFILTERS);
-            for (CharFilteredText charfilter : charfilters) {
-                charfilter.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
-
-        if (tokenizer != null) {
-            builder.startObject(Fields.TOKENIZER);
-            tokenizer.toXContentWithoutObject(builder, params);
-            builder.endObject();
-        }
-
-        if (tokenfilters != null) {
-            builder.startArray(Fields.TOKENFILTERS);
-            for (AnalyzeTokenList tokenfilter : tokenfilters) {
-                tokenfilter.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
-        return builder;
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <T> T[] fromList(Class<T> clazz, List<T> list) {
-        if (list == null) {
-            return null;
-        }
-        return list.toArray((T[]) Array.newInstance(clazz, 0));
-    }
-
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<DetailAnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("detail",
         true, args -> new DetailAnalyzeResponse((boolean) args[0], (AnalyzeTokenList) args[1],
-        fromList(CharFilteredText.class, (List<CharFilteredText>)args[2]),
+        (List<CharFilteredText>)args[2],
         (AnalyzeTokenList) args[3],
-        fromList(AnalyzeTokenList.class, (List<AnalyzeTokenList>)args[4])));
+        (List<AnalyzeTokenList>)args[4]));
 
     static {
-        PARSER.declareBoolean(constructorArg(), new ParseField(Fields.CUSTOM_ANALYZER));
-        PARSER.declareObject(optionalConstructorArg(), AnalyzeTokenList.PARSER, new ParseField(Fields.ANALYZER));
-        PARSER.declareObjectArray(optionalConstructorArg(), CharFilteredText.PARSER, new ParseField(Fields.CHARFILTERS));
-        PARSER.declareObject(optionalConstructorArg(), AnalyzeTokenList.PARSER, new ParseField(Fields.TOKENIZER));
-        PARSER.declareObjectArray(optionalConstructorArg(), AnalyzeTokenList.PARSER, new ParseField(Fields.TOKENFILTERS));
+        PARSER.declareBoolean(constructorArg(), new ParseField("custom_analyzer"));
+        PARSER.declareObject(optionalConstructorArg(), AnalyzeTokenList.PARSER, new ParseField("analyzer"));
+        PARSER.declareObjectArray(optionalConstructorArg(), CharFilteredText.PARSER, new ParseField("charfilters"));
+        PARSER.declareObject(optionalConstructorArg(), AnalyzeTokenList.PARSER, new ParseField("tokenizer"));
+        PARSER.declareObjectArray(optionalConstructorArg(), AnalyzeTokenList.PARSER, new ParseField("tokenfilters"));
     }
 
     public static DetailAnalyzeResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    static final class Fields {
-        static final String NAME = "name";
-        static final String FILTERED_TEXT = "filtered_text";
-        static final String CUSTOM_ANALYZER = "custom_analyzer";
-        static final String ANALYZER = "analyzer";
-        static final String CHARFILTERS = "charfilters";
-        static final String TOKENIZER = "tokenizer";
-        static final String TOKENFILTERS = "tokenfilters";
-    }
-
-    public static class AnalyzeTokenList implements ToXContentObject {
+    public static class AnalyzeTokenList {
         private final String name;
         private final AnalyzeResponse.AnalyzeToken[] tokens;
+
+        private static final String TOKENS = "tokens";
 
         @Override
         public boolean equals(Object o) {
@@ -191,9 +129,9 @@ public class DetailAnalyzeResponse implements ToXContentFragment {
             return result;
         }
 
-        public AnalyzeTokenList(String name, AnalyzeResponse.AnalyzeToken[] tokens) {
+        public AnalyzeTokenList(String name, List<AnalyzeResponse.AnalyzeToken> tokens) {
             this.name = name;
-            this.tokens = tokens;
+            this.tokens = tokens.toArray(new AnalyzeResponse.AnalyzeToken[]{});
         }
 
         public String getName() {
@@ -204,35 +142,15 @@ public class DetailAnalyzeResponse implements ToXContentFragment {
             return tokens;
         }
 
-        XContentBuilder toXContentWithoutObject(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Fields.NAME, this.name);
-            builder.startArray(AnalyzeResponse.Fields.TOKENS);
-            if (tokens != null) {
-                for (AnalyzeResponse.AnalyzeToken token : tokens) {
-                    token.toXContent(builder, params);
-                }
-            }
-            builder.endArray();
-            return builder;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            toXContentWithoutObject(builder, params);
-            builder.endObject();
-            return builder;
-        }
-
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<AnalyzeTokenList, Void> PARSER = new ConstructingObjectParser<>("token_list",
             true, args -> new AnalyzeTokenList((String) args[0],
-            fromList(AnalyzeResponse.AnalyzeToken.class, (List<AnalyzeResponse.AnalyzeToken>)args[1])));
+            (List<AnalyzeResponse.AnalyzeToken>)args[1]));
 
         static {
-            PARSER.declareString(constructorArg(), new ParseField(Fields.NAME));
+            PARSER.declareString(constructorArg(), new ParseField("name"));
             PARSER.declareObjectArray(constructorArg(), (p, c) -> AnalyzeResponse.AnalyzeToken.fromXContent(p),
-                new ParseField(AnalyzeResponse.Fields.TOKENS));
+                new ParseField("tokens"));
         }
 
         public static AnalyzeTokenList fromXContent(XContentParser parser) throws IOException {
@@ -241,11 +159,11 @@ public class DetailAnalyzeResponse implements ToXContentFragment {
 
     }
 
-    public static class CharFilteredText implements ToXContentObject {
+    public static class CharFilteredText {
         private final String name;
         private final String[] texts;
 
-        public CharFilteredText(String name, String[] texts) {
+        CharFilteredText(String name, String[] texts) {
             this.name = name;
             if (texts != null) {
                 this.texts = texts;
@@ -262,22 +180,13 @@ public class DetailAnalyzeResponse implements ToXContentFragment {
             return texts;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Fields.NAME, name);
-            builder.array(Fields.FILTERED_TEXT, texts);
-            builder.endObject();
-            return builder;
-        }
-
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<CharFilteredText, Void> PARSER = new ConstructingObjectParser<>("char_filtered_text",
             true, args -> new CharFilteredText((String) args[0], ((List<String>) args[1]).toArray(new String[0])));
 
         static {
-            PARSER.declareString(constructorArg(), new ParseField(Fields.NAME));
-            PARSER.declareStringArray(constructorArg(), new ParseField(Fields.FILTERED_TEXT));
+            PARSER.declareString(constructorArg(), new ParseField("name"));
+            PARSER.declareStringArray(constructorArg(), new ParseField("filtered_text"));
         }
 
         public static CharFilteredText fromXContent(XContentParser parser) throws IOException {

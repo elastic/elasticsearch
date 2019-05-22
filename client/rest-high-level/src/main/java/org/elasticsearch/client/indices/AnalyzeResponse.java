@@ -20,26 +20,30 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-public class AnalyzeResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContentObject {
+public class AnalyzeResponse {
 
-    public static class AnalyzeToken implements ToXContentObject {
+    private static final String TOKENS = "tokens";
+    private static final String TOKEN = "token";
+    private static final String START_OFFSET = "start_offset";
+    private static final String END_OFFSET = "end_offset";
+    private static final String TYPE = "type";
+    private static final String POSITION = "position";
+    private static final String POSITION_LENGTH = "positionLength";
+    private static final String DETAIL = "detail";
+
+    public static class AnalyzeToken {
         private final String term;
         private final int startOffset;
         private final int endOffset;
@@ -106,27 +110,8 @@ public class AnalyzeResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, 
             return this.attributes;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(AnalyzeResponse.Fields.TOKEN, term);
-            builder.field(AnalyzeResponse.Fields.START_OFFSET, startOffset);
-            builder.field(AnalyzeResponse.Fields.END_OFFSET, endOffset);
-            builder.field(AnalyzeResponse.Fields.TYPE, type);
-            builder.field(AnalyzeResponse.Fields.POSITION, position);
-            if (positionLength > 1) {
-                builder.field(AnalyzeResponse.Fields.POSITION_LENGTH, positionLength);
-            }
-            if (attributes != null && !attributes.isEmpty()) {
-                Map<String, Object> sortedAttributes = new TreeMap<>(attributes);
-                for (Map.Entry<String, Object> entity : sortedAttributes.entrySet()) {
-                    builder.field(entity.getKey(), entity.getValue());
-                }
-            }
-            builder.endObject();
-            return builder;
-        }
-
+        // We can't use a ConstructingObjectParser here, because unknown fields are gathered
+        // up into the attributes map, and there isn't a way of doing that in COP yet.
         public static AnalyzeResponse.AnalyzeToken fromXContent(XContentParser parser) throws IOException {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
             String field = null;
@@ -142,17 +127,17 @@ public class AnalyzeResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, 
                     field = parser.currentName();
                     continue;
                 }
-                if (AnalyzeResponse.Fields.TOKEN.equals(field)) {
+                if (TOKEN.equals(field)) {
                     term = parser.text();
-                } else if (AnalyzeResponse.Fields.POSITION.equals(field)) {
+                } else if (POSITION.equals(field)) {
                     position = parser.intValue();
-                } else if (AnalyzeResponse.Fields.START_OFFSET.equals(field)) {
+                } else if (START_OFFSET.equals(field)) {
                     startOffset = parser.intValue();
-                } else if (AnalyzeResponse.Fields.END_OFFSET.equals(field)) {
+                } else if (END_OFFSET.equals(field)) {
                     endOffset = parser.intValue();
-                } else if (AnalyzeResponse.Fields.POSITION_LENGTH.equals(field)) {
+                } else if (POSITION_LENGTH.equals(field)) {
                     positionLength = parser.intValue();
-                } else if (AnalyzeResponse.Fields.TYPE.equals(field)) {
+                } else if (TYPE.equals(field)) {
                     type = parser.text();
                 } else {
                     if (t == XContentParser.Token.VALUE_STRING) {
@@ -175,7 +160,7 @@ public class AnalyzeResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, 
     private final DetailAnalyzeResponse detail;
     private final List<AnalyzeResponse.AnalyzeToken> tokens;
 
-    public AnalyzeResponse(List<AnalyzeResponse.AnalyzeToken> tokens, DetailAnalyzeResponse detail) {
+    private AnalyzeResponse(List<AnalyzeResponse.AnalyzeToken> tokens, DetailAnalyzeResponse detail) {
         this.tokens = tokens;
         this.detail = detail;
     }
@@ -188,39 +173,14 @@ public class AnalyzeResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, 
         return this.detail;
     }
 
-    @Override
-    public Iterator<AnalyzeResponse.AnalyzeToken> iterator() {
-        return tokens.iterator();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (tokens != null) {
-            builder.startArray(AnalyzeResponse.Fields.TOKENS);
-            for (AnalyzeResponse.AnalyzeToken token : tokens) {
-                token.toXContent(builder, params);
-            }
-            builder.endArray();
-        }
-
-        if (detail != null) {
-            builder.startObject(AnalyzeResponse.Fields.DETAIL);
-            detail.toXContent(builder, params);
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
-    }
-
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("analyze_response",
         true, args -> new AnalyzeResponse((List<AnalyzeResponse.AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1]));
 
     static {
         PARSER.declareObjectArray(optionalConstructorArg(),
-            (p, c) -> AnalyzeResponse.AnalyzeToken.fromXContent(p), new ParseField(AnalyzeResponse.Fields.TOKENS));
-        PARSER.declareObject(optionalConstructorArg(), DetailAnalyzeResponse.PARSER, new ParseField(AnalyzeResponse.Fields.DETAIL));
+            (p, c) -> AnalyzeResponse.AnalyzeToken.fromXContent(p), new ParseField(TOKENS));
+        PARSER.declareObject(optionalConstructorArg(), DetailAnalyzeResponse.PARSER, new ParseField(DETAIL));
     }
 
     public static AnalyzeResponse fromXContent(XContentParser parser) throws IOException {
@@ -241,19 +201,4 @@ public class AnalyzeResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, 
         return Objects.hash(detail, tokens);
     }
 
-    @Override
-    public String toString() {
-        return Strings.toString(this, true, true);
-    }
-
-    static final class Fields {
-        static final String TOKENS = "tokens";
-        static final String TOKEN = "token";
-        static final String START_OFFSET = "start_offset";
-        static final String END_OFFSET = "end_offset";
-        static final String TYPE = "type";
-        static final String POSITION = "position";
-        static final String POSITION_LENGTH = "positionLength";
-        static final String DETAIL = "detail";
-    }
 }

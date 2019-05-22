@@ -161,9 +161,11 @@ about EC2 Tags].
 
 `discovery.ec2.availability_zones`::
 
-    A list of the names of the availability zones to use for discovery. Only
-    instances placed in one of the given availability zones will be used for
-    discovery.
+    A list of the names of the availability zones to use for discovery. The
+    name of an availability zone is the
+    https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[region
+    code followed by a letter], such as `us-east-1a`. Only instances placed in
+    one of the given availability zones will be used for discovery.
 
 [[discovery-ec2-filtering]]
 `discovery.ec2.tag.TAGNAME`::

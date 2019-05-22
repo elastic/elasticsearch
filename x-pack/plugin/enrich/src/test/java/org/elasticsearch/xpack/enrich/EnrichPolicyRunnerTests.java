@@ -269,7 +269,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testRunnerNestedSourceMapping() throws Exception {
+    public void testRunnerKeyNestedSourceMapping() throws Exception {
         final String sourceIndex = "source-index";
         XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
         mappingBuilder.startObject()
@@ -284,7 +284,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                         .endObject()
                     .endObject()
                     .startObject("field2")
-                        .field("type", "keyword")
+                        .field("type", "integer")
                     .endObject()
                 .endObject()
             .endObject()
@@ -318,6 +318,55 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testRunnerValueNestedSourceMapping() throws Exception {
+        final String sourceIndex = "source-index";
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
+        mappingBuilder.startObject()
+            .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                    .startObject("key")
+                        .field("type", "keyword")
+                    .endObject()
+                    .startObject("nesting")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("field2")
+                                .field("type", "integer")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+            .endObject();
+        CreateIndexResponse createResponse = client().admin().indices().create(new CreateIndexRequest(sourceIndex)
+            .mapping(MapperService.SINGLE_MAPPING_NAME, mappingBuilder)).actionGet();
+        assertTrue(createResponse.isAcknowledged());
+
+        String policyName = "test1";
+        List<String> enrichFields = List.of("nesting.field2", "missingField");
+        EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndex), "key", enrichFields);
+
+        final long createTime = randomNonNegativeLong();
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        final CountDownLatch latch = new CountDownLatch(1);
+        ActionListener<PolicyExecutionResult> listener = testListener(latch, exception::set);
+        EnrichPolicyRunner enrichPolicyRunner = createPolicyRunner(policyName, policy, listener, createTime);
+
+        logger.info("Starting policy run");
+        enrichPolicyRunner.run();
+        latch.await();
+        if (exception.get() != null) {
+            Exception thrown = exception.get();
+            assertThat(thrown, instanceOf(ElasticsearchException.class));
+            assertThat(thrown.getMessage(), containsString("Enrich policy execution for [" + policyName +
+                "] failed while validating field mappings for index [" + sourceIndex + "]"));
+            assertThat(thrown.getCause().getMessage(), containsString("Could not traverse mapping to field [nesting.field2]. " +
+                "The [nesting] field must be regular object but was [nested]."));
+        } else {
+            fail("Expected exception but nothing was thrown");
+        }
+    }
+
     public void testRunnerObjectSourceMapping() throws Exception {
         final String sourceIndex = "source-index";
         XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
@@ -329,13 +378,13 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                             .startObject("field1")
                                 .field("type", "keyword")
                             .endObject()
+                            .startObject("field2")
+                                .field("type", "integer")
+                            .endObject()
+                            .startObject("field3")
+                                .field("type", "keyword")
+                            .endObject()
                         .endObject()
-                    .endObject()
-                    .startObject("field2")
-                        .field("type", "integer")
-                    .endObject()
-                    .startObject("field3")
-                        .field("type", "keyword")
                     .endObject()
                 .endObject()
             .endObject()
@@ -350,10 +399,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .source(
                 "{" +
                     "\"data\":{" +
-                        "\"field1\":\"value1\"" +
-                    "}," +
-                    "\"field2\":2," +
-                    "\"field3\":\"ignored\"" +
+                        "\"field1\":\"value1\"," +
+                        "\"field2\":2," +
+                        "\"field3\":\"ignored\"" +
+                    "}" +
                 "}",
                 XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -370,11 +419,11 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         Map<?, ?> dataField = ((Map<?, ?>) sourceDocMap.get("data"));
         assertNotNull(dataField);
         assertThat(dataField.get("field1"), is(equalTo("value1")));
-        assertThat(sourceDocMap.get("field2"), is(equalTo(2)));
-        assertThat(sourceDocMap.get("field3"), is(equalTo("ignored")));
+        assertThat(dataField.get("field2"), is(equalTo(2)));
+        assertThat(dataField.get("field3"), is(equalTo("ignored")));
 
         String policyName = "test1";
-        List<String> enrichFields = List.of("field2");
+        List<String> enrichFields = List.of("data.field2", "missingField");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndex), "data.field1", enrichFields);
 
         final long createTime = randomNonNegativeLong();
@@ -422,12 +471,13 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
         Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
         assertNotNull(enrichDocument);
-        assertThat(enrichDocument.size(), is(equalTo(2)));
+        assertThat(enrichDocument.size(), is(equalTo(1)));
         Map<?, ?> resultDataField = ((Map<?, ?>) enrichDocument.get("data"));
         assertNotNull(resultDataField);
+        assertThat(resultDataField.size(), is(equalTo(2)));
         assertThat(resultDataField.get("field1"), is(equalTo("value1")));
-        assertThat(enrichDocument.get("field2"), is(equalTo(2)));
-        assertNull(enrichDocument.get("field3"));
+        assertThat(resultDataField.get("field2"), is(equalTo(2)));
+        assertNull(resultDataField.get("field3"));
     }
 
     public void testRunnerDottedKeyNameSourceMapping() throws Exception {
@@ -439,10 +489,10 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
                     .startObject("data.field1")
                         .field("type", "keyword")
                     .endObject()
-                    .startObject("field2")
+                    .startObject("data.field2")
                         .field("type", "integer")
                     .endObject()
-                    .startObject("field3")
+                    .startObject("data.field3")
                         .field("type", "keyword")
                     .endObject()
                 .endObject()
@@ -458,8 +508,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .source(
                 "{" +
                     "\"data.field1\":\"value1\"," +
-                    "\"field2\":2," +
-                    "\"field3\":\"ignored\"" +
+                    "\"data.field2\":2," +
+                    "\"data.field3\":\"ignored\"" +
                     "}",
                 XContentType.JSON)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -474,11 +524,11 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         Map<String, Object> sourceDocMap = sourceSearchResponse.getHits().getAt(0).getSourceAsMap();
         assertNotNull(sourceDocMap);
         assertThat(sourceDocMap.get("data.field1"), is(equalTo("value1")));
-        assertThat(sourceDocMap.get("field2"), is(equalTo(2)));
-        assertThat(sourceDocMap.get("field3"), is(equalTo("ignored")));
+        assertThat(sourceDocMap.get("data.field2"), is(equalTo(2)));
+        assertThat(sourceDocMap.get("data.field3"), is(equalTo("ignored")));
 
         String policyName = "test1";
-        List<String> enrichFields = List.of("field2");
+        List<String> enrichFields = List.of("data.field2", "missingField");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of(sourceIndex), "data.field1", enrichFields);
 
         final long createTime = randomNonNegativeLong();
@@ -528,8 +578,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertNotNull(enrichDocument);
         assertThat(enrichDocument.size(), is(equalTo(2)));
         assertThat(enrichDocument.get("data.field1"), is(equalTo("value1")));
-        assertThat(enrichDocument.get("field2"), is(equalTo(2)));
-        assertNull(enrichDocument.get("field3"));
+        assertThat(enrichDocument.get("data.field2"), is(equalTo(2)));
+        assertNull(enrichDocument.get("data.field3"));
     }
 
     private EnrichPolicyRunner createPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener,

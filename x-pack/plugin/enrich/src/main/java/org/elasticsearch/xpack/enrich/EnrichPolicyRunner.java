@@ -118,9 +118,12 @@ public class EnrichPolicyRunner implements Runnable {
                         "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
                         policyName, sourceIndex, policy.getIndices());
             }
-            // Validate the key
+            // Validate the key and values
             try {
-                validateField(mapping, policy.getEnrichKey());
+                validateField(mapping, policy.getEnrichKey(), true);
+                for (String valueFieldName : policy.getEnrichValues()) {
+                    validateField(mapping, valueFieldName, false);
+                }
             } catch (ElasticsearchException e) {
                 throw new ElasticsearchException(
                         "Enrich policy execution for [{}] failed while validating field mappings for index [{}]",
@@ -129,7 +132,7 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private void validateField(Map<?, ?> properties, String fieldName) {
+    private void validateField(Map<?, ?> properties, String fieldName, boolean fieldRequired) {
         assert fieldName != null && !fieldName.isEmpty() : "Field name cannot be null or empty";
         String[] fieldParts = fieldName.split("\\.");
         StringBuilder parent = new StringBuilder();
@@ -148,20 +151,28 @@ public class EnrichPolicyRunner implements Runnable {
             }
             Map<?, ?> currentProperties = ((Map<?, ?>) currentField.get("properties"));
             if (currentProperties == null) {
-                throw new ElasticsearchException(
-                    "Could not traverse mapping to field [{}]. Expected the [{}] field to have sub fields but none were configured.",
-                    fieldName,
-                    parent.toString()
-                );
+                if (fieldRequired) {
+                    throw new ElasticsearchException(
+                        "Could not traverse mapping to field [{}]. Expected the [{}] field to have sub fields but none were configured.",
+                        fieldName,
+                        onRoot ? "root" : parent.toString()
+                    );
+                } else {
+                    return;
+                }
             }
             currentField = ((Map<?, ?>) currentProperties.get(fieldPart));
             if (currentField == null) {
-                throw new ElasticsearchException(
-                    "Could not traverse mapping to field [{}]. Could not find the [{}] field under [{}]",
-                    fieldName,
-                    fieldPart,
-                    parent.toString()
-                );
+                if (fieldRequired) {
+                    throw new ElasticsearchException(
+                        "Could not traverse mapping to field [{}]. Could not find the [{}] field under [{}]",
+                        fieldName,
+                        fieldPart,
+                        onRoot ? "root" : parent.toString()
+                    );
+                } else {
+                    return;
+                }
             }
             if (onRoot) {
                onRoot = false;

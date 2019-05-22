@@ -38,8 +38,10 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.Loggers;
@@ -61,16 +63,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -935,6 +940,57 @@ public class IngestServiceTests extends ESTestCase {
         verify(failureHandler, never()).accept(any(), any());
         verify(completionHandler, times(1)).accept(null);
         verify(dropHandler, times(1)).accept(indexRequest);
+    }
+
+    public void testSelectIngestNode() {
+        DiscoveryNode node1 =
+            new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNode.Role.INGEST), Version.CURRENT);
+        DiscoveryNode node2 =
+            new DiscoveryNode("_id2", buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNode.Role.DATA), Version.CURRENT);
+        DiscoveryNode node3 =
+            new DiscoveryNode("_id3", buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNode.Role.INGEST), Version.CURRENT);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder()
+                .putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of()))
+                .build())
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).localNodeId(node2.getId()).build())
+            .build();
+
+        IngestService ingestService = createWithProcessors();
+        ingestService.applyClusterState(new ClusterChangedEvent("test", clusterState, clusterState));
+
+        // Local node (node2) is not the ingest node, so either node1 or node3 should be selected.
+        // Also subsequent calls should not yield the same node as result.
+        DiscoveryNode result1 = ingestService.selectIngestNode();
+        assertThat(result1, either(equalTo(node1)).or(equalTo(node3)));
+        DiscoveryNode result2 = ingestService.selectIngestNode();
+        assertThat(result2, either(equalTo(node1)).or(equalTo(node3)));
+        //
+        assertThat(result1, not(equalTo(result2)));
+    }
+
+    public void testSelectIngestNodeLocal() {
+        DiscoveryNode node1 =
+            new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNode.Role.INGEST), Version.CURRENT);
+        DiscoveryNode node2 =
+            new DiscoveryNode("_id2", buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNode.Role.INGEST), Version.CURRENT);
+        DiscoveryNode node3 =
+            new DiscoveryNode("_id3", buildNewFakeTransportAddress(), Map.of(), Set.of(DiscoveryNode.Role.INGEST), Version.CURRENT);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metaData(MetaData.builder()
+                .putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of()))
+                .build())
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3).localNodeId(node2.getId()).build())
+            .build();
+
+        IngestService ingestService = createWithProcessors();
+        ingestService.applyClusterState(new ClusterChangedEvent("test", clusterState, clusterState));
+        DiscoveryNode result = ingestService.selectIngestNode();
+        assertThat(result, equalTo(node2));
     }
 
     private IngestDocument eqIndexTypeId(final Map<String, Object> source) {

@@ -37,7 +37,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
@@ -61,6 +63,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -83,6 +86,9 @@ public class IngestService implements ClusterStateApplier {
     private volatile Map<String, Pipeline> pipelines = new HashMap<>();
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
+
+    private volatile DiscoveryNodes discoNodes;
+    private final AtomicInteger ingestNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
     public IngestService(ClusterService clusterService, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
@@ -382,6 +388,24 @@ public class IngestService implements ClusterStateApplier {
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
+    /**
+     * Selects which node should execute the ingest execution.
+     *
+     * If the local node is an ingest node then that node is returned, otherwise a random ingest node is returned.
+     */
+    public DiscoveryNode selectIngestNode() {
+        if (discoNodes.getLocalNode().isIngestNode()) {
+            return discoNodes.getLocalNode();
+        } else {
+            if (discoNodes.getIngestNodes().size() == 0) {
+                throw new IllegalStateException("There are no ingest nodes in this cluster, unable to forward request to an ingest node.");
+            }
+
+            DiscoveryNode[] ingestNodes = discoNodes.getIngestNodes().values().toArray(DiscoveryNode.class);
+            return ingestNodes[Math.floorMod(ingestNodeGenerator.incrementAndGet(), ingestNodes.length)];
+        }
+    }
+
     public void executeBulkRequest(Iterable<DocWriteRequest<?>> actionRequests,
         BiConsumer<IndexRequest, Exception> itemFailureHandler, Consumer<Exception> completionHandler,
         Consumer<IndexRequest> itemDroppedHandler) {
@@ -507,6 +531,8 @@ public class IngestService implements ClusterStateApplier {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
+
+        discoNodes = state.getNodes();
 
         IngestMetadata ingestMetadata = state.getMetaData().custom(IngestMetadata.TYPE);
         IngestMetadata previousIngestMetadata = previousState.getMetaData().custom(IngestMetadata.TYPE);

@@ -32,6 +32,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -62,6 +64,7 @@ import org.mockito.MockitoAnnotations;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -74,9 +77,11 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
@@ -186,8 +191,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ImmutableOpenMap<String, DiscoveryNode> ingestNodes = ImmutableOpenMap.<String, DiscoveryNode>builder(2)
             .fPut("node1", remoteNode1).fPut("node2", remoteNode2).build();
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
+        when(nodes.getLocalNode()).thenReturn(localNode);
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
+        when(state.nodes()).thenReturn(nodes);
         MetaData metaData = MetaData.builder().indices(ImmutableOpenMap.<String, IndexMetaData>builder()
             .putAll(
                 Collections.singletonMap(
@@ -196,9 +203,12 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                         settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
                             .build()
                     ).putAlias(AliasMetaData.builder(WITH_DEFAULT_PIPELINE_ALIAS).build()).numberOfShards(1).numberOfReplicas(1).build()))
-            .build()).build();
+            .build())
+            .putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of()))
+            .build();
         when(state.getMetaData()).thenReturn(metaData);
         when(state.metaData()).thenReturn(metaData);
+        when(state.blocks()).thenReturn(ClusterBlocks.EMPTY_CLUSTER_BLOCK);
         when(clusterService.state()).thenReturn(state);
         doAnswer(invocation -> {
             ClusterChangedEvent event = mock(ClusterChangedEvent.class);
@@ -206,8 +216,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             ((ClusterStateApplier)invocation.getArguments()[0]).applyClusterState(event);
             return null;
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
-        // setup the mocked ingest service for capturing calls
-        ingestService = mock(IngestService.class);
+        // setup partially mocked ingest service for capturing calls
+        IngestService ingestService = new IngestService(clusterService, threadPool, null, null, null, List.of());
+        ingestService.applyClusterState(new ClusterChangedEvent("test", state, state));
+        this.ingestService = spy(ingestService);
+        doNothing().when(this.ingestService).executeBulkRequest(any(), any(), any(), any());
         action = new TestTransportBulkAction();
         singleItemBulkWriteAction = new TestSingleItemBulkWriteAction(action);
         reset(transportService); // call on construction of action

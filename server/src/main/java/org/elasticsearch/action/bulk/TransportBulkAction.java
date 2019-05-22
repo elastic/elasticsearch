@@ -26,13 +26,13 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.IngestActionForwarder;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -98,9 +99,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IngestService ingestService;
     private final TransportShardBulkAction shardBulkAction;
     private final LongSupplier relativeTimeProvider;
-    private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final TransportService transportService;
 
     @Inject
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
@@ -125,10 +126,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.shardBulkAction = shardBulkAction;
         this.autoCreateIndex = autoCreateIndex;
         this.relativeTimeProvider = relativeTimeProvider;
-        this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
-        clusterService.addStateApplier(this.ingestForwarder);
+        this.transportService = transportService;
     }
 
     /**
@@ -209,10 +209,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             // also with IngestService.NOOP_PIPELINE_NAME on each request. This ensures that this on the second time through this method,
             // this path is never taken.
             try {
-                if (clusterService.localNode().isIngestNode()) {
+                final DiscoveryNode node = ingestService.selectIngestNode();
+                if (clusterService.localNode().equals(node)) {
                     processBulkIndexIngestRequest(task, bulkRequest, listener);
                 } else {
-                    ingestForwarder.forwardIngestRequest(BulkAction.INSTANCE, bulkRequest, listener);
+                    transportService.sendRequest(node, BulkAction.INSTANCE.name(), bulkRequest,
+                        new ActionListenerResponseHandler<>(listener, BulkAction.INSTANCE.getResponseReader()));
                 }
             } catch (Exception e) {
                 listener.onFailure(e);

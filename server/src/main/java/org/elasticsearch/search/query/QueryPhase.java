@@ -209,7 +209,7 @@ public class QueryPhase implements SearchPhase {
                         sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
                         searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
                     }
-                } finally {
+                } catch (IOException e) {
                     // in case of errors do nothing - keep the same query
                 }
             }
@@ -355,8 +355,10 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.searchAfter() != null) return null;
         if (searchContext.scrollContext() != null) return null;
         if (searchContext.collapse() != null) return null;
+        if (searchContext.trackScores()) return null;
         Sort sort = searchContext.sort().sort;
         SortField sortField = sort.getSort()[0];
+        if (SortField.Type.LONG.equals(sortField.getType()) == false) return null;
 
         // check if this is a field of type Long or Date, that is indexed and has doc values
         String fieldName = sortField.getField();
@@ -368,18 +370,15 @@ public class QueryPhase implements SearchPhase {
         if (fieldType.indexOptions() == IndexOptions.NONE) return null; //TODO: change to pointDataDimensionCount() when implemented
         if (fieldType.hasDocValues() == false) return null;
 
-        // has_parent query has a parameter "score" : true, which expects child docs inherit scores from their parent
-        // even if there is a sort field for children.
-        // this optimization breaks this, as it substitutes parent's scores with scores from DistanceFeatureQuery
-        // thus, we need to avoid to run this optimization for  "has_parent" query
-        if (searchContext.request() != null && searchContext.request().source().query() != null) {
-            if (searchContext.request().source().query().getName().equals("has_parent"))
-                return null;
-        }
-
-        // check that there is NO _score sort field among sort fields, as it will be overwritten with score from DistanceFeatureQuery
+        // check that all sorts are actual document fields or _doc
         for (int i = 1; i < sort.getSort().length; i++) {
-            if (SortField.FIELD_SCORE.equals(sort.getSort()[i])) return  null;
+            SortField sField = sort.getSort()[i];
+            String sFieldName = sortField.getField();
+            if (sFieldName == null) {
+                if (SortField.FIELD_DOC.equals(sField) == false) return null;
+            } else {
+                if (searchContext.mapperService().fullName(sFieldName) == null) return null; // could be _script field that uses _score
+            }
         }
 
         // check that setting of missing values allows optimization
@@ -400,11 +399,9 @@ public class QueryPhase implements SearchPhase {
         if (minValue == maxValue) return new DocValuesFieldExistsQuery(fieldName);
 
         final long origin = (sortField.getReverse()) ? maxValue : minValue;
-        long pivotDistance = (maxValue - minValue) / 2;
-        if (pivotDistance == 0) { // 0 if maxValue = minValue + 1
+        long pivotDistance = (maxValue - minValue) >>> 1; // division by 2 on the unsigned representation to avoid overflow
+        if (pivotDistance == 0) { // 0 if maxValue = (minValue + 1)
             pivotDistance = 1;
-        } else if (pivotDistance < 0) { // negative if overflow happened
-            pivotDistance = - pivotDistance;
         }
         return LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
     }

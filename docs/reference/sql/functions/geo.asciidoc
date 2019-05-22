@@ -3,6 +3,8 @@
 [[sql-functions-geo]]
 === Geo Functions
 
+beta[]
+
 The geo functions work with geometries stored in `geo_point` and `geo_shape` fields, or returned by other geo functions.
 
 ==== Limitations

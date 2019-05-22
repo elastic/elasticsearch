@@ -31,6 +31,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedFunction;
@@ -248,7 +249,7 @@ public final class NodeEnvironment  implements Closeable {
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
-            nodeMetaData = new NodeMetaData(generateNodeId(settings));
+            nodeMetaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
             return;
         }
         boolean success = false;
@@ -393,7 +394,6 @@ public final class NodeEnvironment  implements Closeable {
         logger.info("heap size [{}], compressed ordinary object pointers [{}]", maxHeapSize, useCompressedOops);
     }
 
-
     /**
      * scans the node paths and loads existing metaData file. If not found a new meta data will be generated
      * and persisted into the nodePaths
@@ -403,10 +403,15 @@ public final class NodeEnvironment  implements Closeable {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, paths);
         if (metaData == null) {
-            metaData = new NodeMetaData(generateNodeId(settings));
+            metaData = new NodeMetaData(generateNodeId(settings), Version.CURRENT);
+        } else {
+            metaData = metaData.upgradeToCurrentVersion();
         }
+
         // we write again to make sure all paths have the latest state file
+        assert metaData.nodeVersion().equals(Version.CURRENT) : metaData.nodeVersion() + " != " + Version.CURRENT;
         NodeMetaData.FORMAT.writeAndCleanup(metaData, paths);
+
         return metaData;
     }
 

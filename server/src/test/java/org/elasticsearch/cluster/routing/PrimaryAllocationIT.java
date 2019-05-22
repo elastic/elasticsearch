@@ -118,7 +118,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[1].getResponse().getResult(), equalTo(DocWriteResponse.Result.UPDATED));
     }
 
-    private void createStaleReplicaScenario(String master) throws Exception {
+    // returns data paths settings of in-sync shard copy
+    private Settings createStaleReplicaScenario(String master) throws Exception {
         client().prepareIndex("test", "type1").setSource(jsonBuilder()
             .startObject().field("field", "value1").endObject()).get();
         refresh();
@@ -150,6 +151,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .startObject().field("field", "value1").endObject()).get();
 
         logger.info("--> shut down node that has new acknowledged document");
+        final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
 
         ensureStableCluster(1, master);
@@ -167,6 +169,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         // kick reroute a second time and check that all shards are unassigned
         assertThat(client(master).admin().cluster().prepareReroute().get().getState().getRoutingNodes().unassigned().size(),
             equalTo(2));
+        return inSyncDataPathSettings;
     }
 
     public void testDoNotAllowStaleReplicasToBePromotedToPrimary() throws Exception {
@@ -177,10 +180,10 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .setSettings(Settings.builder().put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1)).get());
         ensureGreen();
-        createStaleReplicaScenario(master);
+        final Settings inSyncDataPathSettings = createStaleReplicaScenario(master);
 
         logger.info("--> starting node that reuses data folder with the up-to-date primary shard");
-        internalCluster().startDataOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNode(inSyncDataPathSettings);
 
         logger.info("--> check that the up-to-date primary shard gets promoted and that documents are available");
         ensureYellow("test");
@@ -373,6 +376,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .put("index.unassigned.node_left.delayed_timeout", "0ms")).get());
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         ensureGreen("test");
+        final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
         ensureYellow("test");
         assertEquals(2, client().admin().cluster().prepareState().get().getState().metaData().index("test")
@@ -390,7 +394,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .metaData().index("test").inSyncAllocationIds(0).size());
 
         logger.info("--> starting node that reuses data folder with the up-to-date shard");
-        internalCluster().startDataOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNode(inSyncDataPathSettings);
         ensureGreen("test");
     }
 
@@ -402,6 +406,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 1).put("index.unassigned.node_left.delayed_timeout", "0ms")).get());
         String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
         ensureGreen("test");
+        final Settings inSyncDataPathSettings = internalCluster().dataPathSettings(replicaNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
         ensureYellow("test");
         assertEquals(2, client().admin().cluster().prepareState().get().getState()
@@ -424,7 +429,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             .metaData().index("test").inSyncAllocationIds(0).size());
 
         logger.info("--> starting node that reuses data folder with the up-to-date shard");
-        internalCluster().startDataOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNode(inSyncDataPathSettings);
         assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState()
             .getRoutingTable().index("test").allPrimaryShardsUnassigned()));
     }

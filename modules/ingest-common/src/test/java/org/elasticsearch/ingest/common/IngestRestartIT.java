@@ -91,9 +91,15 @@ public class IngestRestartIT extends ESIntegTestCase {
         checkPipelineExists.accept(pipelineIdWithoutScript);
 
 
-        internalCluster().stopCurrentMasterNode();
-        internalCluster().startNode(Settings.builder().put("script.allowed_types", "none"));
+        internalCluster().restartNode(internalCluster().getMasterName(), new InternalTestCluster.RestartCallback() {
 
+            @Override
+            public Settings onNodeStopped(String nodeName) {
+                return Settings.builder().put("script.allowed_types", "none").build();
+            }
+
+        });
+        
         checkPipelineExists.accept(pipelineIdWithoutScript);
         checkPipelineExists.accept(pipelineIdWithScript);
 

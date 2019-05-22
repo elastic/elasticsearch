@@ -266,18 +266,19 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         return copyTo;
     }
 
-    private String readComplexJsonElement(XContentParser parser, int tokenDepth) throws IOException {
+    private String readComplexJsonElement(XContentParser parser) throws IOException {
+        int tokenDepth = 10;
         XContentParser.Token closingToken = null;
         if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
             closingToken = XContentParser.Token.END_ARRAY;
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             closingToken = XContentParser.Token.END_OBJECT;
-        } else throw new IOException("Incorrect token type");
+        } else return null;
 
         StringBuilder builder = new StringBuilder();
-        for (int i = 0;i < tokenDepth
+        for (int i = 0; i < tokenDepth
             && parser.currentToken() != null
-            && parser.currentToken() != XContentParser.Token.END_OBJECT;i++) {
+            && parser.currentToken() != closingToken; i++) {
             builder.append(parser.text());
         }
         return builder.toString();
@@ -296,15 +297,17 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         } catch (Exception e) {
             String valuePreview = "";
             try {
-
                 XContentParser parser = context.parser();
-                int tokenDepth = 10;
                 if (parser.currentToken().isValue()) {
                     valuePreview = parser.text();
                 } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                     valuePreview = "null";
                 } else {
-                    valuePreview = readComplexJsonElement(parser, tokenDepth);
+                    valuePreview = readComplexJsonElement(parser);
+                    if (valuePreview == null) {
+                        // @reviewers: need some better handling here, but not sure in which case (if any) it may occur
+                        valuePreview = "unexpected value";
+                    }
                 }
             } catch (Exception innerException) {
                 throw new MapperParsingException("failed to parse field [{}] of type [{}] in document with id '{}'. " +
@@ -321,6 +324,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     /**
      * Parse the field value and populate <code>fields</code>.
+     *
+     * Implementations of this method should ensure that on failing to parse parser.currentToken() must be the
+     * current failing token
      */
     protected abstract void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException;
 

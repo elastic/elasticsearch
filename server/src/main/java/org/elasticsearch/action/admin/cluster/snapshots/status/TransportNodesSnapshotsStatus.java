@@ -60,7 +60,6 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     private final SnapshotShardsService snapshotShardsService;
 
-    @Inject
     public TransportNodesSnapshotsStatus(ThreadPool threadPool, ClusterService clusterService,
                                          TransportService transportService, SnapshotShardsService snapshotShardsService,
                                          ActionFilters actionFilters) {

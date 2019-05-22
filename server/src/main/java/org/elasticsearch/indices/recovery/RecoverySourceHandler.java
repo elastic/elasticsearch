@@ -30,7 +30,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -112,8 +111,7 @@ public class RecoverySourceHandler {
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
-        // if the target is on an old version, it won't be able to handle out-of-order file chunks.
-        this.maxConcurrentFileChunks = request.targetNode().getVersion().onOrAfter(Version.V_6_7_0) ? maxConcurrentFileChunks : 1;
+        this.maxConcurrentFileChunks = maxConcurrentFileChunks;
     }
 
     public StartRecoveryRequest getRequest() {

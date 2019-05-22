@@ -66,8 +66,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
@@ -334,32 +332,23 @@ public class MockNioTransport extends TcpTransport {
         private static final TimeValue CHECK_INTERVAL = TimeValue.timeValueSeconds(2);
 
         private final ThreadPool threadPool;
-        private final AtomicInteger registered = new AtomicInteger(0);
-        private final AtomicBoolean running = new AtomicBoolean(false);
         private final ConcurrentHashMap<Thread, Long> registry = new ConcurrentHashMap<>();
 
+        private volatile boolean stopped;
         private volatile Scheduler.ScheduledCancellable cancellable;
 
         TransportThreadWatchdog(ThreadPool threadPool) {
             this.threadPool = threadPool;
+            cancellable = threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
         }
 
         public boolean register() {
-            registered.getAndIncrement();
             Long previousValue = registry.put(Thread.currentThread(), threadPool.relativeTimeInNanos());
-            if (previousValue != null) {
-                return false;
-            }
-            if (running.compareAndSet(false, true)) {
-                assert cancellable == null;
-                cancellable = threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
-            }
-            return true;
+            return previousValue == null;
         }
 
         public void unregister() {
             Long previousValue = registry.remove(Thread.currentThread());
-            registered.decrementAndGet();
             assert previousValue != null;
             maybeLogElapsedTime(previousValue);
         }
@@ -384,19 +373,17 @@ public class MockNioTransport extends TcpTransport {
                         Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n")));
                 }
             }
-            if (registered.get() > 0) {
+            if (stopped == false) {
                 cancellable = threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
-            } else {
-                cancellable = null;
-                running.set(false);
+                if (stopped) {
+                    cancellable.cancel();
+                }
             }
         }
 
         public void stop() {
-            final Scheduler.ScheduledCancellable scheduledCancellable = cancellable;
-            if (scheduledCancellable != null) {
-                scheduledCancellable.cancel();
-            }
+            stopped = true;
+            cancellable.cancel();
         }
     }
 }

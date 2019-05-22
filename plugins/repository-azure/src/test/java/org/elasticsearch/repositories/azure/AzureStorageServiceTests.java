@@ -99,7 +99,10 @@ public class AzureStorageServiceTests extends ESTestCase {
             assertThat(client4.getEndpoint().toString(), equalTo("https://myaccount4.blob.core.windows.net"));
             assertThat(client4.getCredentials(), instanceOf(com.microsoft.azure.storage.StorageCredentialsSharedAccessSignature.class));
             StorageCredentialsSharedAccessSignature sas = (StorageCredentialsSharedAccessSignature) client4.getCredentials();
-            assertThat(sas.getToken(), equalTo(java.util.Base64.getEncoder().encodeToString(("sig=signature4&foo=b%r").getBytes(StandardCharsets.UTF_8))));
+            assertThat(
+                sas.getToken(),
+                equalTo(java.util.Base64.getEncoder().encodeToString(("sig=signature4&foo=b%r").getBytes(StandardCharsets.UTF_8)))
+            );
         }
     }
 

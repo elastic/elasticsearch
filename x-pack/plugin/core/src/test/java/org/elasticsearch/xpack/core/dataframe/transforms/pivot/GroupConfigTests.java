@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -26,6 +27,9 @@ import java.util.Map;
 import java.util.Set;
 
 public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
+
+    // array of illegal characters, see {@link AggregatorFactories#VALID_AGG_NAME}
+    private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = {'[', ']', '>'};
 
     public static GroupConfig randomGroupConfig() {
         Map<String, Object> source = new LinkedHashMap<>();
@@ -85,6 +89,34 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // strict throws
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             expectThrows(IllegalArgumentException.class, () -> GroupConfig.fromXContent(parser, false));
+        }
+    }
+
+    public void testInvalidGroupByNames() throws IOException {
+
+        String invalidName = randomAlphaOfLengthBetween(0, 5)
+                + ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(0, ILLEGAL_FIELD_NAME_CHARACTERS.length - 1)]
+                + randomAlphaOfLengthBetween(0, 5);
+
+        XContentBuilder source = JsonXContent.contentBuilder()
+                .startObject()
+                    .startObject(invalidName)
+                        .startObject("terms")
+                            .field("field", "user")
+                        .endObject()
+                    .endObject()
+                .endObject();
+
+        // lenient, passes but reports invalid
+        try (XContentParser parser = createParser(source)) {
+            GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
+            assertFalse(groupConfig.isValid());
+        }
+
+        // strict throws
+        try (XContentParser parser = createParser(source)) {
+            Exception e = expectThrows(ParsingException.class, () -> GroupConfig.fromXContent(parser, false));
+            assertTrue(e.getMessage().startsWith("Invalid group name"));
         }
     }
 

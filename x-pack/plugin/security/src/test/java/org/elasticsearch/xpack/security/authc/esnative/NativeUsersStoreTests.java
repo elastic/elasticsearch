@@ -118,6 +118,7 @@ public class NativeUsersStoreTests extends ESTestCase {
             0, 1, 1L,
                 true,
                 BytesReference.bytes(jsonBuilder().map(values)),
+                Collections.emptyMap(),
                 Collections.emptyMap());
 
         final PlainActionFuture<NativeUsersStore.ReservedUserInfo> future = new PlainActionFuture<>();
@@ -187,6 +188,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 UNASSIGNED_SEQ_NO, 0, 1L,
                 false,
                 null,
+                Collections.emptyMap(),
                 Collections.emptyMap());
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
@@ -229,6 +231,7 @@ public class NativeUsersStoreTests extends ESTestCase {
                 0, 1, 1L,
                 true,
                 source,
+                Collections.emptyMap(),
                 Collections.emptyMap());
 
         actionRespond(GetRequest.class, new GetResponse(getResult));

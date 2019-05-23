@@ -58,6 +58,8 @@ public class DateProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T11:05:15.000+02:00"));
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+            "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testJodaPatternMultipleFormats() {
@@ -96,6 +98,8 @@ public class DateProcessorTests extends ESTestCase {
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("unable to parse date [2010]"));
         }
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+            "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testInvalidJodaPattern() {
@@ -113,7 +117,7 @@ public class DateProcessorTests extends ESTestCase {
         }
     }
 
-    public void testJodaPatternLocale() {
+        public void testJodaPatternLocale() {
         //TODO investigate if this is a bug in Joda
         assumeFalse("Can't run in a FIPS JVM, Joda parse date error", inFipsJvm());
             DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),
@@ -124,6 +128,8 @@ public class DateProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+            "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testJodaPatternDefaultYear() {

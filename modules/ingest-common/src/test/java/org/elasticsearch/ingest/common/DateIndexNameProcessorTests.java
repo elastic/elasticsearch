@@ -43,6 +43,11 @@ public class DateIndexNameProcessorTests extends ESTestCase {
                 Collections.singletonMap("_field", "2016-04-25T12:24:20.101Z"));
         processor.execute(document);
         assertThat(document.getSourceAndMetadata().get("_index"), equalTo("<events-{20160425||/y{yyyyMMdd|UTC}}>"));
+        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
+            "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
+            "Prefix your date format with '8' to use the new specifier.",
+            "'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
+                " Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testTAI64N()throws Exception {

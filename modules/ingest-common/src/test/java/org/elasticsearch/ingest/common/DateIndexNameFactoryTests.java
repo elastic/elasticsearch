@@ -31,6 +31,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class DateIndexNameFactoryTests extends ESTestCase {
+    @Override
+    protected boolean enableWarningsCheck() {
+        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
+        return false;
+    }
 
     public void testDefaults() throws Exception {
         DateIndexNameProcessor.Factory factory = new DateIndexNameProcessor.Factory(TestTemplateService.instance());

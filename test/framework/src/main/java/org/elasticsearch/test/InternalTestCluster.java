@@ -817,7 +817,6 @@ public final class InternalTestCluster extends TestCluster {
         private MockNode node;
         private final Settings originalNodeSettings;
         private Client nodeClient;
-        private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
         private final int nodeAndClientId;
@@ -875,9 +874,8 @@ public final class InternalTestCluster extends TestCluster {
 
         void resetClient() {
             if (closed.get() == false) {
-                Releasables.close(nodeClient, transportClient);
+                Releasables.close(nodeClient);
                 nodeClient = null;
-                transportClient = null;
             }
         }
 

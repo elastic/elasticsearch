@@ -277,11 +277,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static final String TEST_CLUSTER_NODE_PREFIX = "node_t";
 
     /**
-     * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
-     */
-    public static final String TESTS_CLIENT_RATIO = "tests.client.ratio";
-
-    /**
      * Key used to eventually switch to using an external cluster and provide its transport addresses
      */
     public static final String TESTS_CLUSTER = "tests.cluster";
@@ -1347,8 +1342,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Returns a random admin client. This client can either be a node or a transport client pointing to any of
-     * the nodes in the cluster.
+     * Returns a random admin client. This client can be pointing to any of the nodes in the cluster.
      */
     protected AdminClient admin() {
         return client().admin();

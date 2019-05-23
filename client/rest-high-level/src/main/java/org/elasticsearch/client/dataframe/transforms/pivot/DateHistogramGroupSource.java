@@ -70,8 +70,16 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         DATE_FIELD_UNITS = Collections.unmodifiableSet(dateFieldUnits);
     }
 
+    /**
+     * Interval can be specified in 2 ways:
+     *
+     * fixed_interval fixed intervals like 1h, 1m, 1d
+     * calendar_interval calendar aware intervals like 1M, 1Y, ...
+     *
+     * Note: data frames do not support the deprecated interval option
+     */
     public interface Interval extends ToXContentFragment {
-
+        String getName();
     }
 
     public static class FixedInterval implements Interval {
@@ -80,6 +88,11 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
 
         public FixedInterval(DateHistogramInterval interval) {
             this.interval = interval;
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
         }
 
         @Override
@@ -119,6 +132,11 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
                 throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
                     "as a calendar interval.");
             }
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
         }
 
         @Override

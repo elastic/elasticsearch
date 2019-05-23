@@ -27,8 +27,16 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class DateHistogramGroupSource extends SingleGroupSource {
 
+    /**
+     * Interval can be specified in 2 ways:
+     *
+     * fixed_interval fixed intervals like 1h, 1m, 1d
+     * calendar_interval calendar aware intervals like 1M, 1Y, ...
+     *
+     * Note: data frames do not support the deprecated interval option
+     */
     public interface Interval extends Writeable, ToXContentFragment {
-
+        String getName();
     }
 
     public static class FixedInterval implements Interval {
@@ -41,6 +49,11 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         public FixedInterval(StreamInput in) throws IOException {
             this.interval = new DateHistogramInterval(in);
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
         }
 
         @Override
@@ -83,13 +96,18 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         public CalendarInterval(DateHistogramInterval interval) {
             this.interval = interval;
             if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
-                throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
+                throw new IllegalArgumentException("The supplied interval [" + interval + "] could not be parsed " +
                     "as a calendar interval.");
             }
         }
 
         public CalendarInterval(StreamInput in) throws IOException {
             this.interval = new DateHistogramInterval(in);
+        }
+
+        @Override
+        public String getName() {
+            return NAME;
         }
 
         @Override
@@ -133,7 +151,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         case 1:
             return new CalendarInterval(in);
         default:
-            throw new IllegalArgumentException("unknown type");
+            throw new IllegalArgumentException("unknown interval");
         }
     }
 

@@ -8,17 +8,12 @@ package org.elasticsearch.xpack.core.dataframe.transforms.pivot;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<DateHistogramGroupSource> {
-
-    private static List<String> TIME_UNITS = new ArrayList<>(DateHistogramAggregationBuilder.DATE_FIELD_UNITS.keySet());
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
         String field = randomAlphaOfLengthBetween(1, 20);
@@ -28,7 +23,7 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
                     new DateHistogramInterval(randomPositiveTimeValue())));
         } else {
             dateHistogramGroupSource = new DateHistogramGroupSource(field, new DateHistogramGroupSource.CalendarInterval(
-                    new DateHistogramInterval(randomTimeValue(1,1, "m", "h", "d", "w"))));
+                    new DateHistogramInterval(randomTimeValue(1, 1, "m", "h", "d", "w"))));
         }
 
         if (randomBoolean()) {

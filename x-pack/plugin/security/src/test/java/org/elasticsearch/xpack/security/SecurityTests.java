@@ -57,7 +57,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -276,17 +275,45 @@ public class SecurityTests extends ESTestCase {
         int numIters = randomIntBetween(1,10);
         for (int i = 0; i < numIters; i++) {
             boolean tlsOn = randomBoolean();
+            boolean securityExplicitlyEnabled = randomBoolean();
             String discoveryType = randomFrom("single-node", "zen", randomAlphaOfLength(4));
-            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType);
+
+            final Settings settings;
+            if (securityExplicitlyEnabled) {
+                settings = Settings.builder().put("xpack.security.enabled", true).build();
+            } else {
+                settings = Settings.EMPTY;
+            }
+            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType, settings);
             MetaData.Builder builder = MetaData.builder();
-            License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
+            License.OperationMode licenseMode = randomFrom(License.OperationMode.values());
+            License license = TestUtils.generateSignedLicense(licenseMode.description(), TimeValue.timeValueHours(24));
             TestUtils.putLicense(builder, license);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
-            EnumSet<License.OperationMode> productionModes = EnumSet.of(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
-                    License.OperationMode.STANDARD);
-            if (productionModes.contains(license.operationMode()) && tlsOn == false && "single-node".equals(discoveryType) == false) {
+
+            final boolean expectFailure;
+            switch (licenseMode) {
+                case PLATINUM:
+                case GOLD:
+                case STANDARD:
+                    expectFailure = tlsOn == false && "single-node".equals(discoveryType) == false;
+                    break;
+                case BASIC:
+                    expectFailure = tlsOn == false && "single-node".equals(discoveryType) == false && securityExplicitlyEnabled;
+                    break;
+                case MISSING:
+                case TRIAL:
+                    expectFailure = false;
+                    break;
+                default:
+                    throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
+            }
+            logger.info("Test TLS join; Lic:{} TLS:{} Disco:{} Settings:{}  ; Expect Failure: {}",
+                licenseMode, tlsOn, discoveryType, settings.toDelimitedString(','), expectFailure);
+            if (expectFailure) {
                 IllegalStateException ise = expectThrows(IllegalStateException.class, () -> validator.accept(node, state));
-                assertEquals("TLS setup is required for license type [" + license.operationMode().name() + "]", ise.getMessage());
+                assertEquals("Transport TLS ([xpack.security.transport.ssl.enabled]) is required for license type ["
+                    + license.operationMode().description() + "] when security is enabled", ise.getMessage());
             } else {
                 validator.accept(node, state);
             }

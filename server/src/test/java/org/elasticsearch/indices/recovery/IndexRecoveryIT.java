@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -90,6 +91,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertFalse;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexRecoveryIT extends ESIntegTestCase {
@@ -788,5 +790,49 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch(indexName).get(), numDocs);
         }
+    }
+
+    /** Makes sure the new master does not repeatedly fetch index metadata from recovering replicas */
+    public void testOngoingRecoveryAndMasterFailOver() throws Exception {
+        String indexName = "test";
+        internalCluster().startNodes(2);
+        String nodeWithPrimary = internalCluster().startDataOnlyNode();
+        assertAcked(client().admin().indices().prepareCreate(indexName)
+            .setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.routing.allocation.include._name", nodeWithPrimary)));
+        MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
+        CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
+        CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
+        Semaphore blockRecovery = new Semaphore(1);
+        transport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action) && blockRecovery.tryAcquire()) {
+                phase1ReadyBlocked.countDown();
+                try {
+                    allowToCompletePhase1Latch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        try {
+            String nodeWithReplica = internalCluster().startDataOnlyNode();
+            assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica)));
+            phase1ReadyBlocked.await();
+            internalCluster().restartNode(clusterService().state().nodes().getMasterNode().getName(),
+                new InternalTestCluster.RestartCallback());
+            internalCluster().ensureAtLeastNumDataNodes(3);
+            assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .putNull("index.routing.allocation.include._name")));
+            assertFalse(client().admin().cluster().prepareHealth(indexName).setWaitForActiveShards(2).get().isTimedOut());
+        } finally {
+            allowToCompletePhase1Latch.countDown();
+        }
+        ensureGreen(indexName);
     }
 }

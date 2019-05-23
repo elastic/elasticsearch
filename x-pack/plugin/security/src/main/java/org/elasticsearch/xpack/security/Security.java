@@ -1180,7 +1180,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
-                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
+                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings), settings)
                 .andThen(new ValidateUpgradedSecurityIndex())
                 .andThen(new ValidateLicenseCanBeDeserialized())
                 .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
@@ -1191,18 +1191,21 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     static final class ValidateTLSOnJoin implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean isTLSEnabled;
         private final String discoveryType;
+        private final Settings settings;
 
-        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType) {
+        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType, Settings settings) {
             this.isTLSEnabled = isTLSEnabled;
             this.discoveryType = discoveryType;
+            this.settings = settings;
         }
 
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             License license = LicenseService.getLicense(state.metaData());
-            if (license != null && license.isProductionLicense() &&
-                    isTLSEnabled == false && "single-node".equals(discoveryType) == false) {
-                throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name() + "]");
+            if (isTLSEnabled == false && "single-node".equals(discoveryType) == false
+                && XPackLicenseState.isTransportTlsRequired(license, settings)) {
+                throw new IllegalStateException("Transport TLS ([" + XPackSettings.TRANSPORT_SSL_ENABLED.getKey() +
+                    "]) is required for license type [" + license.operationMode().description() + "] when security is enabled");
             }
         }
     }

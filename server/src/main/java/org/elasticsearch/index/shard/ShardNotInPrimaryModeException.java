@@ -1,8 +1,3 @@
-package org.elasticsearch.gradle.precommit;
-
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
-import org.gradle.testkit.runner.BuildResult;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -21,19 +16,21 @@ import org.gradle.testkit.runner.BuildResult;
  * specific language governing permissions and limitations
  * under the License.
  */
-public class JarHellTaskIT extends GradleIntegrationTestCase {
 
-    public void testJarHellDetected() {
-        BuildResult result = getGradleRunner("jarHell")
-            .withArguments("clean", "precommit", "-s", "-Dlocal.repo.path=" + getLocalTestRepoPath())
-            .buildAndFail();
+package org.elasticsearch.index.shard;
 
-        assertTaskFailed(result, ":jarHell");
-        assertOutputContains(
-            result.getOutput(),
-            "java.lang.IllegalStateException: jar hell!",
-            "class: org.apache.logging.log4j.Logger"
-        );
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+
+public class ShardNotInPrimaryModeException extends IllegalIndexShardStateException {
+
+    public ShardNotInPrimaryModeException(final ShardId shardId, final IndexShardState currentState) {
+        super(shardId, currentState, "shard is not in primary mode");
+    }
+
+    public ShardNotInPrimaryModeException(final StreamInput in) throws IOException {
+        super(in);
     }
 
 }

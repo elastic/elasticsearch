@@ -39,6 +39,7 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.ArtifactRepository
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.execution.TaskExecutionGraph
@@ -563,11 +564,11 @@ class BuildPlugin implements Plugin<Project> {
         project.getRepositories().all { repository ->
             if (repository instanceof MavenArtifactRepository) {
                 final MavenArtifactRepository maven = (MavenArtifactRepository) repository
-                assertRepositoryURIUsesHttps(project, maven.getUrl())
+                assertRepositoryURIUsesHttps(maven, project, maven.getUrl())
                 repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(project, uri) }
             } else if (repository instanceof IvyArtifactRepository) {
                 final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
-                assertRepositoryURIUsesHttps(project, ivy.getUrl())
+                assertRepositoryURIUsesHttps(ivy, project, ivy.getUrl())
             }
         }
         RepositoryHandler repos = project.repositories
@@ -593,9 +594,9 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    private static void assertRepositoryURIUsesHttps(final Project project, final URI uri) {
+    private static void assertRepositoryURIUsesHttps(final ArtifactRepository repository, final Project project, final URI uri) {
         if (uri != null && uri.toURL().getProtocol().equals("http")) {
-            throw new GradleException("repository on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
+            throw new GradleException("repository [${repository.name}] on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
         }
     }
 

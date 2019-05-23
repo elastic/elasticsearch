@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedFunction;
+
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.List;
@@ -111,12 +113,12 @@ public class XContentSubParser implements XContentParser {
     }
 
     @Override
-    public <T> Map<String, T> genericMap(MapValueParser<T> mapValueParser) throws IOException {
+    public <T> Map<String, T> genericMap(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
         return parser.genericMap(mapValueParser);
     }
 
     @Override
-    public <T> Map<String, T> genericMapOrdered(MapValueParser<T> mapValueParser) throws IOException {
+    public <T> Map<String, T> genericMapOrdered(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
         return parser.genericMapOrdered(mapValueParser);
     }
 

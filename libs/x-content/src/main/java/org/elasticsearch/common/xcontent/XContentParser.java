@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedFunction;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -117,10 +119,6 @@ public interface XContentParser extends Closeable {
         INT, LONG, FLOAT, DOUBLE
     }
 
-    interface MapValueParser<T> {
-        T apply(XContentParser parser) throws IOException;
-    }
-
     XContentType contentType();
 
     Token nextToken() throws IOException;
@@ -139,9 +137,21 @@ public interface XContentParser extends Closeable {
 
     Map<String, String> mapStringsOrdered() throws IOException;
 
-    <T> Map<String, T> genericMap(MapValueParser<T> mapValueParser) throws IOException;
+    /**
+     * Returns an instance of {@link Map<String, T>} holding parsed map.
+     * @param mapValueParser parser for parsing a single map value
+     * @param <T> map value type
+     * @return {@link Map<String, T> object
+     */
+    <T> Map<String, T> genericMap(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException;
 
-    <T> Map<String, T> genericMapOrdered(MapValueParser<T> mapValueParser) throws IOException;
+    /**
+     * Returns an instance of {@link Map<String, T>} holding parsed map.
+     * @param mapValueParser parser for parsing a single map value
+     * @param <T> map value type
+     * @return {@link Map<String, T> object for which the iteration order is the same as the input entries appearance order
+     */
+    <T> Map<String, T> genericMapOrdered(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException;
 
     List<Object> list() throws IOException;
 

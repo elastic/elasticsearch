@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public abstract class AbstractXContentParser implements XContentParser {
 
@@ -280,12 +282,12 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public <T> Map<String, T> genericMap(MapValueParser<T> mapValueParser) throws IOException {
+    public <T> Map<String, T> genericMap(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
         return readGenericMap(this, mapValueParser);
     }
 
     @Override
-    public <T> Map<String, T> genericMapOrdered(MapValueParser<T> mapValueParser) throws IOException {
+    public <T> Map<String, T> genericMapOrdered(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
         return readGenericOrderedMap(this, mapValueParser);
     }
 
@@ -299,17 +301,13 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readListOrderedMap(this);
     }
 
-    interface MapFactory<T> {
-        Map<String, T> newMap();
-    }
+    static final Supplier<Map<String, Object>> SIMPLE_MAP_FACTORY = HashMap::new;
 
-    static final MapFactory<Object> SIMPLE_MAP_FACTORY = HashMap::new;
+    static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
-    static final MapFactory<Object> ORDERED_MAP_FACTORY = LinkedHashMap::new;
+    static final Supplier<Map<String, String>> SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;
 
-    static final MapFactory<String> SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;
-
-    static final MapFactory<String> ORDERED_MAP_STRINGS_FACTORY = LinkedHashMap::new;
+    static final Supplier<Map<String, String>> ORDERED_MAP_STRINGS_FACTORY = LinkedHashMap::new;
 
     static Map<String, Object> readMap(XContentParser parser) throws IOException {
         return readMap(parser, SIMPLE_MAP_FACTORY);
@@ -327,11 +325,13 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readMapStrings(parser, ORDERED_MAP_STRINGS_FACTORY);
     }
 
-    static <T> Map<String, T> readGenericMap(XContentParser parser, MapValueParser<T> valueParser) throws IOException {
+    static <T> Map<String, T> readGenericMap(
+            XContentParser parser, CheckedFunction<XContentParser, T, IOException> valueParser) throws IOException {
         return readGenericMap(parser, HashMap::new, valueParser);
     }
 
-    static <T> Map<String, T> readGenericOrderedMap(XContentParser parser, MapValueParser<T> valueParser) throws IOException {
+    static <T> Map<String, T> readGenericOrderedMap(
+            XContentParser parser, CheckedFunction<XContentParser, T, IOException> valueParser) throws IOException {
         return readGenericMap(parser, LinkedHashMap::new, valueParser);
     }
 
@@ -343,19 +343,19 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readList(parser, ORDERED_MAP_FACTORY);
     }
 
-    static Map<String, Object> readMap(XContentParser parser, MapFactory<Object> mapFactory) throws IOException {
+    static Map<String, Object> readMap(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         return readGenericMap(parser, mapFactory, p -> readValue(p, mapFactory));
     }
 
-    static Map<String, String> readMapStrings(XContentParser parser, MapFactory<String> mapFactory) throws IOException {
-        return readGenericMap(parser, mapFactory, p -> p.text());
+    static Map<String, String> readMapStrings(XContentParser parser, Supplier<Map<String, String>> mapFactory) throws IOException {
+        return readGenericMap(parser, mapFactory, XContentParser::text);
     }
 
     static <T> Map<String, T> readGenericMap(
             XContentParser parser,
-            MapFactory<T> mapFactory,
-            MapValueParser<T> mapValueParser) throws IOException {
-        Map<String, T> map = mapFactory.newMap();
+            Supplier<Map<String, T>> mapFactory,
+            CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+        Map<String, T> map = mapFactory.get();
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
@@ -374,7 +374,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         return map;
     }
 
-    static List<Object> readList(XContentParser parser, MapFactory<Object> mapFactory) throws IOException {
+    static List<Object> readList(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
@@ -396,17 +396,17 @@ public abstract class AbstractXContentParser implements XContentParser {
         return list;
     }
 
-    static Object readValue(XContentParser parser, MapFactory<Object> mapFactory) throws IOException {
+    static Object readValue(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         switch (parser.currentToken()) {
-            case VALUE_NULL: return null;
             case VALUE_STRING: return parser.text();
             case VALUE_NUMBER: return parser.numberValue();
             case VALUE_BOOLEAN: return parser.booleanValue();
             case START_OBJECT: return readMap(parser, mapFactory);
             case START_ARRAY: return readList(parser, mapFactory);
             case VALUE_EMBEDDED_OBJECT: return parser.binaryValue();
+            case VALUE_NULL:
+            default: return null;
         }
-        return null;
     }
 
     @Override

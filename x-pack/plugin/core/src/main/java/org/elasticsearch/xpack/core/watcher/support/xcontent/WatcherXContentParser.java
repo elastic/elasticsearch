@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -124,12 +125,12 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
-    public <T> Map<String, T> genericMap(MapValueParser<T> mapValueParser) throws IOException {
+    public <T> Map<String, T> genericMap(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
         return parser.genericMap(mapValueParser);
     }
 
     @Override
-    public <T> Map<String, T> genericMapOrdered(MapValueParser<T> mapValueParser) throws IOException {
+    public <T> Map<String, T> genericMapOrdered(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
         return parser.genericMapOrdered(mapValueParser);
     }
 

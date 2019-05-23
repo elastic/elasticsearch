@@ -36,6 +36,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -332,34 +333,37 @@ public class XContentParserTests extends ESTestCase {
 
     public void testGenericMap() throws IOException {
         String content = "{" +
+            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }, " +
             "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
-            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }, " +
-            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }" +
+            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }" +
             "}";
-        Map<String, SimpleStruct> expectedMap =
-            Map.of(
-                "a", new SimpleStruct(1, 0.1, "aaa"),
-                "b", new SimpleStruct(2, 0.2, "bbb"),
-                "c", new SimpleStruct(3, 0.3, "ccc"));
+        SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
+        SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
+        SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
-            assertThat(parser.genericMap(SimpleStruct::fromXContent), equalTo(expectedMap));
+            Map<String, SimpleStruct> actualMap = parser.genericMap(SimpleStruct::fromXContent);
+            // Verify map contents, ignore the iteration order.
+            assertThat(actualMap, equalTo(Map.of("a", structA, "b", structB, "c", structC)));
+            assertThat(actualMap.values(), containsInAnyOrder(structA, structB, structC));
             assertNull(parser.nextToken());
         }
     }
 
     public void testGenericMapOrdered() throws IOException {
         String content = "{" +
+            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }, " +
             "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, " +
-            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }, " +
-            "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }" +
+            "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }" +
             "}";
-        Map<String, SimpleStruct> expectedMap =
-            Map.of(
-                "a", new SimpleStruct(1, 0.1, "aaa"),
-                "b", new SimpleStruct(2, 0.2, "bbb"),
-                "c", new SimpleStruct(3, 0.3, "ccc"));
+        SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
+        SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
+        SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
-            assertThat(parser.genericMapOrdered(SimpleStruct::fromXContent), equalTo(expectedMap));
+            Map<String, SimpleStruct> actualMap = parser.genericMapOrdered(SimpleStruct::fromXContent);
+            // Verify map contents, ignore the iteration order.
+            assertThat(actualMap, equalTo(Map.of("a", structA, "b", structB, "c", structC)));
+            // Verify that map's iteration order is the same as the order in which fields appear in JSON.
+            assertThat(actualMap.values(), contains(structC, structA, structB));
             assertNull(parser.nextToken());
         }
     }

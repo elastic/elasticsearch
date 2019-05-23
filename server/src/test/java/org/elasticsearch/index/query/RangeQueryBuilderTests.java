@@ -58,15 +58,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
-
-    // TODO a test from AbstractQueryTestCase. How to test this without warning checks?
-//    public void testNegativeBoosts() {
-//    }
 
     @Override
     protected RangeQueryBuilder doCreateTestQueryBuilder() {
@@ -93,7 +84,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                         query.timeZone(randomDateTimeZone().getID());
                     }
                     if (randomBoolean()) {
-                        query.format("yyyy-MM-dd'T'HH:mm:ss.SSSZZ");
+                        query.format("8yyyy-MM-dd'T'HH:mm:ss.SSSXX");
                     }
                 }
                 break;
@@ -286,7 +277,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        \"" + DATE_FIELD_NAME + "\" : {\n" +
                 "            \"gte\": \"01/01/2012\",\n" +
                 "            \"lt\": \"2030\",\n" +
-                "            \"format\": \"dd/MM/yyyy||yyyy\"\n" +
+                "            \"format\": \"8dd/MM/yyyy||yyyy\"\n" +
                 "        }\n" +
                 "    }\n" +
                 "}";
@@ -306,7 +297,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        \"" + DATE_FIELD_NAME + "\" : {\n" +
                 "            \"gte\": \"01/01/2012\",\n" +
                 "            \"lt\": \"2030\",\n" +
-                "            \"format\": \"yyyy\"\n" +
+                "            \"format\": \"8yyyy\"\n" +
                 "        }\n" +
                 "    }\n" +
                 "}";
@@ -467,7 +458,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         query.from(queryFromValue);
         query.to(queryToValue);
         query.timeZone(randomDateTimeZone().getID());
-        query.format("yyyy-MM-dd");
+        query.format("8yyyy-MM-dd");
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));

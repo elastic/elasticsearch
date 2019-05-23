@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.enrich;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -29,11 +32,13 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -45,7 +50,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Collections.singletonList(ReindexPlugin.class);
+        return List.of(ReindexPlugin.class, EnrichPlugin.class);
     }
 
     public void testRunner() throws Exception {
@@ -148,10 +153,12 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         SearchResponse enrichSearchResponse = client().search(
             new SearchRequest(".enrich-test1")
                 .source(SearchSourceBuilder.searchSource()
-                    .query(QueryBuilders.matchAllQuery()))).get();
+                    .query(QueryBuilders.matchAllQuery())
+                    .docValueField("_enrich_source")
+                    .fetchSource(false))).get();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(1L));
-        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        Map<String, Object> enrichDocument = decodeEnrichSource(enrichSearchResponse.getHits().iterator().next());
         assertNotNull(enrichDocument);
         assertThat(enrichDocument.size(), is(equalTo(3)));
         assertThat(enrichDocument.get("field1"), is(equalTo("value1")));
@@ -281,10 +288,12 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         SearchResponse enrichSearchResponse = client().search(
             new SearchRequest(".enrich-test1")
                 .source(SearchSourceBuilder.searchSource()
-                    .query(QueryBuilders.matchAllQuery()))).get();
+                    .query(QueryBuilders.matchAllQuery())
+                    .docValueField("_enrich_source")
+                    .fetchSource(false))).get();
 
         assertThat(enrichSearchResponse.getHits().getTotalHits().value, equalTo(3L));
-        Map<String, Object> enrichDocument = enrichSearchResponse.getHits().iterator().next().getSourceAsMap();
+        Map<String, Object> enrichDocument = decodeEnrichSource(enrichSearchResponse.getHits().iterator().next());
         assertNotNull(enrichDocument);
         assertThat(enrichDocument.size(), is(equalTo(4)));
         assertThat(enrichDocument.get("field1"), is(equalTo("value1")));
@@ -304,5 +313,12 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(shard.getSegments().size(), is(equalTo(1)));
         Segment segment = shard.getSegments().iterator().next();
         assertThat(segment.getNumDocs(), is(equalTo(3)));
+    }
+
+    private static Map<String, Object> decodeEnrichSource(SearchHit searchHit) throws IOException {
+        String encoded = searchHit.field("_enrich_source").getValue();
+        try (InputStream in = new ByteArrayInputStream(Base64.getDecoder().decode(encoded))) {
+            return XContentHelper.convertToMap(XContentType.SMILE.xContent(), in, false);
+        }
     }
 }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.apache.lucene.document.Document;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
@@ -18,7 +18,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.enrich.EnrichProcessorFactory.EnrichSpecification
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 final class ExactMatchProcessor extends AbstractProcessor {
@@ -85,12 +83,13 @@ final class ExactMatchProcessor extends AbstractProcessor {
                 assert docId != PostingsEnum.NO_MORE_DOCS : "no matching doc id for [" + enrichKey + "]";
                 assert penum.nextDoc() == PostingsEnum.NO_MORE_DOCS : "more than one doc id matching for [" + enrichKey + "]";
 
-                // TODO: The use of _source is temporarily until enrich source field mapper has been added (see PR #41521)
-                Document document = leafReader.document(docId, Set.of(SourceFieldMapper.NAME));
-                BytesRef source = document.getBinaryValue(SourceFieldMapper.NAME);
-                assert source != null;
+                BinaryDocValues enrichSourceField = leafReader.getBinaryDocValues(EnrichSourceFieldMapper.NAME);
+                assert enrichSourceField != null : "enrich source field is missing";
 
-                final BytesReference encoded = new BytesArray(source);
+                boolean exact = enrichSourceField.advanceExact(docId);
+                assert exact : "doc id [" + docId + "] doesn't have binary doc values";
+
+                final BytesReference encoded = new BytesArray(enrichSourceField.binaryValue());
                 final Map<String, Object> decoded =
                     XContentHelper.convertToMap(encoded, false, XContentType.SMILE).v2();
                 for (EnrichSpecification specification : specifications) {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.enrich;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.enrich.EnrichProcessorFactory.EnrichSpecification;
@@ -243,8 +241,9 @@ public class ExactMatchProcessorTests extends ESTestCase {
     }
 
     private static Document createEnrichDocument(String key, Map<String, ?> decorateValues) throws IOException {
+        XContentType contentType = XContentType.SMILE;
         BytesReference decorateContent;
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.SMILE.xContent())) {
+        try (XContentBuilder builder = XContentBuilder.builder(contentType.xContent())) {
             builder.map(decorateValues);
             builder.flush();
             ByteArrayOutputStream outputStream = (ByteArrayOutputStream) builder.getOutputStream();
@@ -252,7 +251,7 @@ public class ExactMatchProcessorTests extends ESTestCase {
         }
         Document document = new Document();
         document.add(new StringField("key", key, Field.Store.NO));
-        document.add(new StoredField(SourceFieldMapper.NAME, decorateContent.toBytesRef()));
+        document.add(EnrichSourceFieldMapper.createEnrichSourceField(decorateContent, contentType));
         return document;
     }
 

@@ -23,9 +23,11 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -56,7 +58,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.core.XPackSettings.ENRICH_ENABLED_SETTING;
 
-public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
+public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin, MapperPlugin {
 
     static final Setting<Integer> ENRICH_FETCH_SIZE_SETTING =
         Setting.intSetting("index.xpack.enrich.fetch_size", 10000, 1, 1000000, Setting.Property.NodeScope);
@@ -67,6 +69,11 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
         this.enabled = ENRICH_ENABLED_SETTING.get(settings);
+    }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return Map.of(EnrichSourceFieldMapper.NAME, new EnrichSourceFieldMapper.TypeParser());
     }
 
     @Override

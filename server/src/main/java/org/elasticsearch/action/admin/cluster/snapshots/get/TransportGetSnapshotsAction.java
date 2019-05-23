@@ -108,9 +108,9 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                               boolean verbose, ActionListener<GetSnapshotsResponse> listener) {
         List<Future<List<SnapshotInfo>>> futures = new ArrayList<>(repos.size());
 
-        // run concurrently for all repos on SNAPSHOT thread pool
+        // run concurrently for all repos on GENERIC thread pool
         for (final RepositoryMetaData repo : repos) {
-            futures.add(threadPool.executor(ThreadPool.Names.SNAPSHOT).submit(
+            futures.add(threadPool.executor(ThreadPool.Names.GENERIC).submit(
                     () -> getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose)));
         }
         assert repos.size() == futures.size();

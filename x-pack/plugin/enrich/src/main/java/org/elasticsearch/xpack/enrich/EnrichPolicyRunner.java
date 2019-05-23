@@ -21,6 +21,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -115,8 +117,8 @@ public class EnrichPolicyRunner implements Runnable {
             // First ensure mapping is set
             if (mapping.get("properties") == null) {
                 throw new ElasticsearchException(
-                        "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
-                        policyName, sourceIndex, policy.getIndices());
+                    "Enrich policy execution for [{}] failed. Could not read mapping for source [{}] included by pattern [{}]",
+                    policyName, sourceIndex, policy.getIndices());
             }
             // Validate the key and values
             try {
@@ -269,8 +271,23 @@ public class EnrichPolicyRunner implements Runnable {
                 } else {
                     logger.info("Policy [{}]: Transferred [{}] documents to enrich index [{}]", policyName,
                         bulkByScrollResponse.getCreated(), destinationIndexName);
-                    refreshEnrichIndex(destinationIndexName);
+                    forceMergeEnrichIndex(destinationIndexName);
                 }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private void forceMergeEnrichIndex(final String destinationIndexName) {
+        logger.debug("Policy [{}]: Force merging newly created enrich index [{}]", policyName, destinationIndexName);
+        client.admin().indices().forceMerge(new ForceMergeRequest(destinationIndexName).maxNumSegments(1), new ActionListener<>() {
+            @Override
+            public void onResponse(ForceMergeResponse forceMergeResponse) {
+                refreshEnrichIndex(destinationIndexName);
             }
 
             @Override

@@ -107,12 +107,11 @@ public enum FormatNames {
     STRICT_YEAR_MONTH("strictYearMonth", "strict_year_month"),
     STRICT_YEAR_MONTH_DAY("strictYearMonthDay", "strict_year_month_day");
 
-    private final String camelCaseName;
-    private final String snakeCaseName;
     private static final Set<String> ALL_NAMES = Arrays.stream(values())
                                                        .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
                                                        .collect(Collectors.toSet());
-
+    private final String camelCaseName;
+    private final String snakeCaseName;
 
     FormatNames(String camelCaseName, String snakeCaseName) {
         this.camelCaseName = camelCaseName;

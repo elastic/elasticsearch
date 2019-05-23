@@ -132,7 +132,6 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
             "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
             "Prefix your date format with '8' to use the new specifier.");
-
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {

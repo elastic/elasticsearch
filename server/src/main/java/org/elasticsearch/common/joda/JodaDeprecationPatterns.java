@@ -29,6 +29,7 @@ import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 public class JodaDeprecationPatterns {
+    public static final String USE_PREFIX_8_WARNING = "Prefix your date format with '8' to use the new specifier.";
     private static Map<String, String> JODA_PATTERNS_DEPRECATIONS = new LinkedHashMap<>();
 
     static {
@@ -41,8 +42,6 @@ public class JodaDeprecationPatterns {
         JODA_PATTERNS_DEPRECATIONS.put("z",
             "'z' time zone text. Will print 'Z' for Zulu given UTC timezone.");
     }
-
-    public static final String USE_PREFIX_8_WARNING = "Prefix your date format with '8' to use the new specifier.";
 
     /**
      * Checks if date parsing pattern is deprecated.
@@ -61,19 +60,25 @@ public class JodaDeprecationPatterns {
                                           .filter(s -> pattern.contains(s))
                                           .findAny()
                                           .isPresent();
-            if (isDeprecated)
+            if (isDeprecated) {
                 return true;
+            }
         }
         return false;
     }
 
+    /**
+     * Formats deprecation message for suggestion field in a warning header.
+     * Joins all warnings in a one message.
+     * @param format
+     * @return a formatted deprecation message
+     */
     public static String formatSuggestion(String format) {
         List<String> patterns = DateFormatter.splitCombinedPatterns(format);
 
         StringJoiner joiner = new StringJoiner("; ");
         for (String pattern : patterns) {
             if (isDeprecatedFormat(pattern)) {
-
                 String suggestion = JODA_PATTERNS_DEPRECATIONS.entrySet().stream()
                                                               .filter(s -> pattern.contains(s.getKey()))
                                                               .map(s -> s.getValue())

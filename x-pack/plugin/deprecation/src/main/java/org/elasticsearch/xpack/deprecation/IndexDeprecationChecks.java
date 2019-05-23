@@ -292,7 +292,7 @@ public class IndexDeprecationChecks {
 
     private static boolean isDateFieldWithDeprecatedPattern(Map<?, ?> property) {
         return "date".equals(property.get("type")) &&
-                property.containsKey("format") &&
+            property.containsKey("format") &&
             JodaDeprecationPatterns.isDeprecatedFormat((String) property.get("format"));
     }
 

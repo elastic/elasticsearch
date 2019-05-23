@@ -67,12 +67,7 @@ setup:
 
 ---
 "Test preview transform":
-  - skip:
-      reason:  date histo interval is deprecated
-      features: "warnings"
   - do:
-      warnings:
-        - "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future."
       data_frame.preview_data_frame_transform:
         body: >
           {
@@ -80,7 +75,7 @@ setup:
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
-                "by-hour": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
               "aggs": {
                 "avg_response": {"avg": {"field": "responsetime"}},
                 "time.max": {"max": {"field": "time"}},
@@ -128,7 +123,7 @@ setup:
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
-                "by-hour": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }

@@ -81,7 +81,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends AbstractBuilderTestCase {
 
-    private static final int NUMBER_OF_TESTQUERIES = 20;
+    private static final int NUMBER_OF_TESTQUERIES = 1;
 
     public final QB createTestQueryBuilder() {
         return createTestQueryBuilder(supportsBoost(), supportsQueryName());

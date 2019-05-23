@@ -84,7 +84,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * Settings used when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      * so that some of the configuration parameters can be overridden through test instance methods, similarly
-     * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
+     * to how {@link #nodeSettings(int)} works.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
 

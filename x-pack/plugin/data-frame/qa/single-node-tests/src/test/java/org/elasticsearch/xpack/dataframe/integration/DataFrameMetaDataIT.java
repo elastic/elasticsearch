@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -15,6 +16,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Map;
 
+@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameMetaDataIT extends DataFrameRestTestCase {
 
     private boolean indicesCreated = false;

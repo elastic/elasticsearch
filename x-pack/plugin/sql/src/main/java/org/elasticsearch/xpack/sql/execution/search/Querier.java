@@ -180,7 +180,7 @@ public class Querier {
                 }
             }
 
-            this.data = new PriorityQueue<>(size) {
+            this.data = new PriorityQueue<Tuple<List<?>, Integer>>(size) {
 
                 // compare row based on the received attribute sort
                 // if a sort item is not in the list, it is assumed the sorting happened in ES

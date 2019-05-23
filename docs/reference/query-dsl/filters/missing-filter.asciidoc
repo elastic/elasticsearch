@@ -42,6 +42,7 @@ These documents would *not* match the above filter:
 <3> This field has one non-`null` value.
 
 [float]
+[[_literal_null_value_literal_mapping]]
 ==== `null_value` mapping
 
 If the field mapping includes a `null_value` (see <<mapping-core-types>>) then explicit `null` values

@@ -10,6 +10,7 @@ your application from Elasticsearch 1.x to Elasticsearch 1.6.
 The More Like This API query has been deprecated and will be removed in 2.0. Instead use the <<query-dsl-mlt-query, More Like This Query>>.
 
 [float]
+[[_literal_top_children_literal_query]]
 === `top_children` query
 
 The `top_children` query has been deprecated and will be removed in 2.0. Instead the `has_child` query should be used.

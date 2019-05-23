@@ -74,7 +74,6 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
  *
  * @see SecuritySettingsSource
  */
-@ESIntegTestCase.ClusterScope(transportClientRatio = 0.0)
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;

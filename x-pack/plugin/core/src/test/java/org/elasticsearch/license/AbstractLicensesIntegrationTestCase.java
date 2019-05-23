@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
 
-@ESIntegTestCase.ClusterScope(transportClientRatio = 0.0)
 public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCase {
 
     @Override

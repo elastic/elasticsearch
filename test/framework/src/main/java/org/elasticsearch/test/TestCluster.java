@@ -52,8 +52,6 @@ public abstract class TestCluster implements Closeable {
 
     protected Random random;
 
-    protected double transportClientRatio = 0.0;
-
     public TestCluster(long seed) {
         this.seed = seed;
     }

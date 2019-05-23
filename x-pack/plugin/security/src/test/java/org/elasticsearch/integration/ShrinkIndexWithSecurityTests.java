@@ -18,7 +18,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 /**
  * Integration test that uses multiple data nodes to test that the shrink index api works with security.
  */
-@ClusterScope(minNumDataNodes = 2, transportClientRatio = 0.0)
+@ClusterScope(minNumDataNodes = 2)
 public class ShrinkIndexWithSecurityTests extends SecurityIntegTestCase {
 
     @Override

@@ -23,7 +23,7 @@ import java.util.Collection;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
-@ESIntegTestCase.ClusterScope(scope = SUITE, transportClientRatio = 0.0)
+@ESIntegTestCase.ClusterScope(scope = SUITE)
 public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase {
 
     @Override

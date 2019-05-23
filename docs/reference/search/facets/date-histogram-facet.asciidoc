@@ -85,6 +85,7 @@ milliseconds to actual do the relevant rounding, and then be applied
 again to get to the original unit. For example, when storing in a
 numeric field seconds resolution, the `factor` can be set to `1000`.
 
+[[_pre_post_offset_2]]
 ==== Pre / Post Offset
 
 Specific offsets can be provided for pre rounding and post rounding. The

@@ -75,6 +75,7 @@ test {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'
   exclude '**/S3BlobStoreRepositoryTests.class'
+  exclude '**/S3RepositoryThirdPartyTests.class'
 }
 
 boolean useFixture = false
@@ -189,6 +190,20 @@ if (useFixture) {
                     'repository_s3/50_repository_ecs_credentials/*'
             ].join(",")
   }
+}
+
+task thirdPartyTests(type: Test) {
+  include '**/S3RepositoryThirdPartyTests.class'
+  systemProperty 'test.s3.account', s3PermanentAccessKey
+  systemProperty 'test.s3.key', s3PermanentSecretKey
+  systemProperty 'test.s3.bucket', s3PermanentBucket
+  systemProperty 'test.s3.base', s3PermanentBasePath
+}
+
+// TODO: Make these tests work with Minio as well. Currently, this is blocked by not being able to lazily configure system properties
+//       on JUnit Test tasks.
+if (!useFixture) {
+  check.dependsOn(thirdPartyTests)
 }
 
 File parentFixtures = new File(project.buildDir, "fixtures")

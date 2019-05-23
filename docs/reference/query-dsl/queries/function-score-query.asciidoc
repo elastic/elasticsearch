@@ -434,6 +434,7 @@ curl 'localhost:9200/hotels/_search/' -d '{
 Next, we show how the computed score looks like for each of the three
 possible decay functions.
 
+[[_normal_decay_keyword_literal_gauss_literal]]
 ===== Normal decay, keyword `gauss`
 
 When choosing `gauss` as the decay function in the above example, the
@@ -455,6 +456,7 @@ of 0.56. "BnB Bellevue" and "Backback Nap" are both pretty close to the
 defined location but "BnB Bellevue" is cheaper, so it gets a multiplier
 of 0.86 whereas "Backpack Nap" gets a value of 0.66.
 
+[[_exponential_decay_keyword_literal_exp_literal]]
 ===== Exponential decay, keyword `exp`
 
 When choosing `exp` as the decay function in the above example, the
@@ -464,6 +466,7 @@ image::https://f.cloud.github.com/assets/4320215/768161/082975c0-e899-11e2-86f7-
 
 image::https://f.cloud.github.com/assets/4320215/768162/0b606884-e899-11e2-907b-aefc77eefef6.png[width="700px"]
 
+[[_linear_decay_keyword_literal_linear_literal]]
 ===== Linear' decay, keyword `linear`
 
 When choosing `linear` as the decay function in the above example, the

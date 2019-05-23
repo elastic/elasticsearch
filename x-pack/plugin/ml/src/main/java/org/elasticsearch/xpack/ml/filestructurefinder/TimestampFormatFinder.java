@@ -793,7 +793,7 @@ public final class TimestampFormatFinder {
 
             if (onlyConsiderFormat == null || onlyConsiderFormat.canMergeWith(match.timestampFormat)) {
 
-                // Valid indetermine day/month numbers will be in the range 1 to 31.
+                // Valid indeterminate day/month numbers will be in the range 1 to 31.
                 // -1 is used to mean "not present", and we ignore that here.
 
                 if (match.firstIndeterminateDateNumber > 0) {

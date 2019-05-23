@@ -35,9 +35,6 @@ be secured as well, or at least communicate with the cluster in a secured way:
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations/cross-cluster.asciidoc
 include::ccs-clients-integrations/cross-cluster.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations/java.asciidoc
-include::ccs-clients-integrations/java.asciidoc[]
-
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/security/ccs-clients-integrations/http.asciidoc
 include::ccs-clients-integrations/http.asciidoc[]
 

@@ -10,8 +10,14 @@ IMPORTANT: The Migration Assistance API is deprecated, use the
 <<migration-api-deprecation,deprecation info API>> instead, which provides more
 complete and detailed information about actions necessary prior to upgrade.
 
+ifdef::asciidoctor[]
+deprecated:[6.7, "Use the <<migration-api-deprecation,Deprecation Info API>> instead."]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.7, Use the <<migration-api-deprecation,Deprecation Info API>>
-instead.] The migration assistance API analyzes existing indices in the cluster
+instead.] 
+endif::[]
+The migration assistance API analyzes existing indices in the cluster
 and returns the information about indices that require some changes before the
 cluster can be upgraded to the next major version.
 

@@ -218,7 +218,7 @@ public class SecurityWithBasicLicenseIT extends ESRestTestCase {
         } else {
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(e.getMessage(), containsString("missing authentication credentials for REST request"));
+            assertThat(e.getMessage(), containsString("missing authentication token for REST request"));
         }
     }
 
@@ -236,7 +236,7 @@ public class SecurityWithBasicLicenseIT extends ESRestTestCase {
         } else {
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(e.getMessage(), containsString("missing authentication credentials for REST request"));
+            assertThat(e.getMessage(), containsString("missing authentication token for REST request"));
         }
     }
 

@@ -189,8 +189,10 @@ time unit.
 +
 [source,Painless]
 ----
-ZonedDateTime zdt1 = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);
-ZonedDateTime zdt2 = ZonedDateTime.of(1983, 10, 13, 22, 15, 35, 0, ZoneOffset.UTC);
+ZonedDateTime zdt1 =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);
+ZonedDateTime zdt2 =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 35, 0, ZoneOffset.UTC);
 long differenceInMillis = ChronoUnit.MILLIS.between(zdt1, zdt2);
 ----
 +
@@ -198,7 +200,9 @@ long differenceInMillis = ChronoUnit.MILLIS.between(zdt1, zdt2);
 +
 [source,Painless]
 ----
-ZonedDateTime zdt1 = ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);
-ZonedDateTime zdt2 = ZonedDateTime.of(1983, 10, 17, 22, 15, 35, 0, ZoneOffset.UTC);
+ZonedDateTime zdt1 =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);
+ZonedDateTime zdt2 =
+        ZonedDateTime.of(1983, 10, 17, 22, 15, 35, 0, ZoneOffset.UTC);
 long differenceInDays = ChronoUnit.DAYS.between(zdt1, zdt2);
 ----

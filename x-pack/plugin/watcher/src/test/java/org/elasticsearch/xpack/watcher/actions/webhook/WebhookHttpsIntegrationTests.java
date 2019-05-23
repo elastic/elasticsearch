@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
+import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
 import org.elasticsearch.xpack.watcher.common.http.HttpMethod;
@@ -82,7 +83,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                 .body(new TextTemplate("{key=value}"))
                 .method(HttpMethod.POST);
 
-        watcherClient().preparePutWatch("_id")
+        new PutWatchRequestBuilder(client(), "_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))
@@ -121,7 +122,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                 .body(new TextTemplate("{key=value}"))
                 .method(HttpMethod.POST);
 
-        watcherClient().preparePutWatch("_id")
+        new PutWatchRequestBuilder(client(), "_id")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(simpleInput("key", "value"))

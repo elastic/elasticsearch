@@ -332,7 +332,7 @@ data through a bind-mount:
 
 As a last resort, you can also force the container to mutate the ownership of
 any bind-mounts used for the <<path-settings,data and log dirs>> through the
-environment variable `TAKE_FILE_OWNERSHIP`. Inn this case, they will be owned by
+environment variable `TAKE_FILE_OWNERSHIP`. In this case, they will be owned by
 uid:gid `1000:0` providing read/write access to the {es} process as required.
 --
 

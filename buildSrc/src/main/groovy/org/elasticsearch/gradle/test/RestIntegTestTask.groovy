@@ -87,13 +87,14 @@ class RestIntegTestTask extends DefaultTask {
         runner.systemProperty('tests.rest.load_packaged', 'false')
 
         if (System.getProperty("tests.rest.cluster") == null) {
-            if (System.getProperty("tests.cluster") != null) {
-                throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")
+            if (System.getProperty("tests.cluster") != null || System.getProperty("tests.clustername") != null) {
+                throw new IllegalArgumentException("tests.rest.cluster, tests.cluster, and tests.clustername must all be null or non-null")
             }
             if (usesTestclusters == true) {
                 ElasticsearchCluster cluster = project.testClusters."${name}"
                 runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",") }")
                 runner.nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI }")
+                runner.nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName() }")
             } else {
                 // we pass all nodes to the rest cluster to allow the clients to round-robin between them
                 // this is more realistic than just talking to a single node
@@ -103,6 +104,7 @@ class RestIntegTestTask extends DefaultTask {
                 // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
                 // both as separate sysprops
                 runner.nonInputProperties.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
+                runner.nonInputProperties.systemProperty('tests.clustername', "${-> nodes[0].clusterName}")
 
                 // dump errors and warnings from cluster log on failure
                 TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {
@@ -123,12 +125,13 @@ class RestIntegTestTask extends DefaultTask {
                 }
             }
         } else {
-            if (System.getProperty("tests.cluster") == null) {
-                throw new IllegalArgumentException("tests.rest.cluster and tests.cluster must both be null or non-null")
+            if (System.getProperty("tests.cluster") == null || System.getProperty("tests.clustername") == null) {
+                throw new IllegalArgumentException("tests.rest.cluster, tests.cluster, and tests.clustername must all be null or non-null")
             }
             // an external cluster was specified and all responsibility for cluster configuration is taken by the user
             runner.systemProperty('tests.rest.cluster', System.getProperty("tests.rest.cluster"))
             runner.systemProperty('test.cluster', System.getProperty("tests.cluster"))
+            runner.systemProperty('test.clustername', System.getProperty("tests.clustername"))
         }
 
         // copy the rest spec/tests into the test resources

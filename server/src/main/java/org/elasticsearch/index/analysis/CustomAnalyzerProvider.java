@@ -50,11 +50,11 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         customAnalyzer = CustomAnalyzer.create(components);
     }
 
-    static AnalyzerComponents createComponents(String name, Settings settings,
+    static AnalyzerComponents createComponents(String name, Settings analyzerSettings,
                                                       final Map<String, TokenizerFactory> tokenizers,
                                                       final Map<String, CharFilterFactory> charFilters,
                                                       final Map<String, TokenFilterFactory> tokenFilters) {
-        String tokenizerName = settings.get("tokenizer");
+        String tokenizerName = analyzerSettings.get("tokenizer");
         if (tokenizerName == null) {
             throw new IllegalArgumentException("Custom Analyzer [" + name + "] must be configured with a tokenizer");
         }
@@ -65,7 +65,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
                 "[" + tokenizerName + "]");
         }
 
-        List<String> charFilterNames = settings.getAsList("char_filter");
+        List<String> charFilterNames = analyzerSettings.getAsList("char_filter");
         List<CharFilterFactory> charFiltersList = new ArrayList<>(charFilterNames.size());
         for (String charFilterName : charFilterNames) {
             CharFilterFactory charFilter = charFilters.get(charFilterName);
@@ -78,11 +78,11 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
         int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
 
-        positionIncrementGap = settings.getAsInt("position_increment_gap", positionIncrementGap);
+        positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
 
-        int offsetGap = settings.getAsInt("offset_gap", -1);
+        int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
 
-        List<String> tokenFilterNames = settings.getAsList("filter");
+        List<String> tokenFilterNames = analyzerSettings.getAsList("filter");
         List<TokenFilterFactory> tokenFilterList = new ArrayList<>(tokenFilterNames.size());
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
@@ -142,7 +142,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             return charFilters;
         }
 
-        public int getPositionIncrementGap(String fieldName) {
+        public int getPositionIncrementGap() {
             return positionIncrementGap;
         }
 

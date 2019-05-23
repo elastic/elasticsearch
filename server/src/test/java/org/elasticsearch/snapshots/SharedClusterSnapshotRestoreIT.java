@@ -1345,11 +1345,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             final Path repoPath = randomRepoPath();
             logger.info("--> create repository with name " + repoName);
             assertAcked(client.admin().cluster().preparePutRepository(repoName)
-                    .setType("mock").setSettings(Settings.builder()
-                            .put("location", repoPath)
-                            .put("compress", false)
-                            .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
-                            .put("wait_after_unblock", 200)));
+                    .setType("fs").setSettings(Settings.builder().put("location", repoPath).build()));
             List<String> snapshotNames = new ArrayList<>();
             repo2SnapshotNames.put(repoName, snapshotNames);
 

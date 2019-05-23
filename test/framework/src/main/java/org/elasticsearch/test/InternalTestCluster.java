@@ -853,7 +853,7 @@ public final class InternalTestCluster extends TestCluster {
             return getOrBuildNodeClient();
         }
 
-        // nocommit: collapse these together?
+        // TODO: collapse these together?
         Client nodeClient() {
             if (closed.get()) {
                 throw new RuntimeException("already closed");

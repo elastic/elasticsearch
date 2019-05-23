@@ -107,6 +107,8 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 this.failedResponses.put(response.repository, response.error);
             }
         }
+        successfulResponses = Collections.unmodifiableMap(successfulResponses);
+        failedResponses = Collections.unmodifiableMap(failedResponses);
     }
 
     public GetSnapshotsResponse() {
@@ -142,14 +144,14 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
      * Returns a map of repository name to the list of {@link SnapshotInfo} for each successful response.
      */
     public Map<String, List<SnapshotInfo>> getSuccessfulResponses() {
-        return Map.copyOf(successfulResponses);
+        return successfulResponses;
     }
 
     /**
      * Returns a map of repository name to {@link ElasticsearchException} for each unsuccessful response.
      */
     public Map<String, ElasticsearchException> getFailedResponses() {
-        return Map.copyOf(failedResponses);
+        return failedResponses;
     }
 
     /**

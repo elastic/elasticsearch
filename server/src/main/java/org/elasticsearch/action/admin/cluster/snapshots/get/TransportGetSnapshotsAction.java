@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
-import org.apache.logging.log4j.core.util.Throwables;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -28,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAc
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.repositories.IndexId;
@@ -50,11 +51,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 /**
@@ -106,34 +106,45 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private void getMultipleReposSnapshotInfo(List<RepositoryMetaData> repos, String[] snapshots, boolean ignoreUnavailable,
                                               boolean verbose, ActionListener<GetSnapshotsResponse> listener) {
-        List<Future<List<SnapshotInfo>>> futures = new ArrayList<>(repos.size());
+        GroupedActionListener<Tuple<String, Tuple<List<SnapshotInfo>, ElasticsearchException>>> groupedActionListener =
+                new GroupedActionListener<>(
+                        ActionListener.map(listener, responses -> {
+                            assert repos.size() == responses.size();
+
+                            Map<String, List<SnapshotInfo>> successfulResponses = new HashMap<>();
+                            Map<String, ElasticsearchException> failedResponses = new HashMap<>();
+
+                            Iterator<Tuple<String, Tuple<List<SnapshotInfo>, ElasticsearchException>>> it = responses.iterator();
+
+                            while (it.hasNext()) {
+                                Tuple<String, Tuple<List<SnapshotInfo>, ElasticsearchException>> response = it.next();
+                                String repo = response.v1();
+                                Tuple<List<SnapshotInfo>, ElasticsearchException> result = response.v2();
+                                if (result.v1() != null) {
+                                    assert result.v2() == null;
+                                    successfulResponses.put(repo, result.v1());
+                                } else {
+                                    assert result.v2() != null;
+                                    failedResponses.put(repo, result.v2());
+                                }
+                            }
+
+                            return new GetSnapshotsResponse(successfulResponses, failedResponses);
+                        }), repos.size());
 
         // run concurrently for all repos on GENERIC thread pool
         for (final RepositoryMetaData repo : repos) {
-            futures.add(threadPool.executor(ThreadPool.Names.GENERIC).submit(
-                    () -> getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose)));
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(
+                    () -> {
+                        // Unfortunately, there is no Either in Java, so we use Tuple with only one value set
+                        try {
+                            groupedActionListener.onResponse(Tuple.tuple(repo.name(),
+                                    Tuple.tuple(getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose), null)));
+                        } catch (ElasticsearchException e) {
+                            groupedActionListener.onResponse(Tuple.tuple(repo.name(), Tuple.tuple(null, e)));
+                        }
+                    });
         }
-        assert repos.size() == futures.size();
-
-        Map<String, List<SnapshotInfo>> successfulResponses = new HashMap<>();
-        Map<String, ElasticsearchException> failedResponses = new HashMap<>();
-
-        for (int i = 0; i < repos.size(); i++) {
-            final String repo = repos.get(i).name();
-            try {
-                successfulResponses.put(repo, futures.get(i).get());
-            } catch (InterruptedException e) {
-                Throwables.rethrow(e);
-            } catch (ExecutionException e) {
-                if (e.getCause() instanceof ElasticsearchException) {
-                    failedResponses.put(repo, (ElasticsearchException) e.getCause());
-                } else {
-                    Throwables.rethrow(e);
-                }
-            }
-        }
-
-        listener.onResponse(new GetSnapshotsResponse(successfulResponses, failedResponses));
     }
 
     private List<SnapshotInfo> getSingleRepoSnapshotInfo(String repo, String[] snapshots, boolean ignoreUnavailable, boolean verbose) {

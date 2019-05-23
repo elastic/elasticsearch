@@ -1364,13 +1364,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        Supplier<String[]> repoNames = () -> randomFrom(new String[]{"_all"},
-                new String[]{"repo*"}, repoList.toArray(new String[0]));
-
-
         logger.info("--> get and verify snapshots");
         GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster()
-                .prepareGetSnapshots(repoNames.get())
+                .prepareGetSnapshots(randomFrom(new String[]{"_all"}, new String[]{"repo*"}, repoList.toArray(new String[0])))
                 .setSnapshots(randomFrom("_all", "*"))
                 .get();
 
@@ -1380,7 +1376,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots(repo);
             assertEquals(snapshotNames, snapshots.stream().map(s -> s.snapshotId().getName()).collect(Collectors.toList()));
         }
-
 
         logger.info("--> specify all snapshot names with ignoreUnavailable=false");
         GetSnapshotsResponse getSnapshotsResponse2 = client.admin().cluster()

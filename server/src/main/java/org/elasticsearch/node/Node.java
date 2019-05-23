@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -134,12 +135,14 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
@@ -480,8 +483,17 @@ public class Node implements Closeable {
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
 
 
-            modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class), transportService,
-                clusterService, threadPool, xContentRegistry));
+            RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment,
+                pluginsService.filterPlugins(RepositoryPlugin.class), transportService, clusterService, threadPool, xContentRegistry);
+            RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
+            SnapshotsService snapshotsService = new SnapshotsService(settings, clusterService,
+                clusterModule.getIndexNameExpressionResolver(), repositoryService, threadPool);
+            SnapshotShardsService snapshotShardsService = new SnapshotShardsService(settings, clusterService, snapshotsService, threadPool,
+                transportService, indicesService, actionModule.getActionFilters(), clusterModule.getIndexNameExpressionResolver());
+            TransportNodesSnapshotsStatus nodesSnapshotsStatus = new TransportNodesSnapshotsStatus(threadPool, clusterService,
+                transportService, snapshotShardsService, actionModule.getActionFilters());
+            RestoreService restoreService = new RestoreService(clusterService, repositoryService, clusterModule.getAllocationService(),
+                metaDataCreateIndexService, metaDataIndexUpgradeService, clusterService.getClusterSettings());
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry,
                 networkService, clusterService.getMasterService(), clusterService.getClusterApplierService(),
@@ -556,6 +568,11 @@ public class Node implements Closeable {
                     b.bind(PersistentTasksService.class).toInstance(persistentTasksService);
                     b.bind(PersistentTasksClusterService.class).toInstance(persistentTasksClusterService);
                     b.bind(PersistentTasksExecutorRegistry.class).toInstance(registry);
+                    b.bind(RepositoriesService.class).toInstance(repositoryService);
+                    b.bind(SnapshotsService.class).toInstance(snapshotsService);
+                    b.bind(SnapshotShardsService.class).toInstance(snapshotShardsService);
+                    b.bind(TransportNodesSnapshotsStatus.class).toInstance(nodesSnapshotsStatus);
+                    b.bind(RestoreService.class).toInstance(restoreService);
                 }
             );
             injector = modules.createInjector();

@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class NodeEnvironmentTests extends ESTestCase {
     private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
-    public void testNodeLockSingleEnvironment() throws IOException {
+    public void testNodeLock() throws IOException {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
         NodeEnvironment env = newNodeEnvironment(settings);
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);

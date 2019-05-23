@@ -242,39 +242,31 @@ public final class NodeEnvironment  implements Closeable {
             return;
         }
         boolean success = false;
-        NodeLock nodeLock = null;
 
         try {
             sharedDataPath = environment.sharedDataFile();
-            IOException exception = null;
 
-            try {
-                nodeLock = new NodeLock(logger, environment,
-                    dir -> {
-                        Files.createDirectories(dir);
-                        return true;
-                    });
-            } catch (LockObtainFailedException e) {
-                // ignore any LockObtainFailedException
-            } catch (IOException e) {
-                exception = e;
+            for (Path path : environment.dataFiles()) {
+                Files.createDirectories(resolveNodePath(path));
             }
 
-            if (nodeLock == null) {
+            final NodeLock nodeLock;
+            try {
+                nodeLock = new NodeLock(logger, environment, dir -> true);
+            } catch (IOException e) {
                 final String message = String.format(
                     Locale.ROOT,
-                    "failed to obtain node locks, tried [%s] with lock id [0];" +
+                    "failed to obtain node locks, tried %s;" +
                         " maybe these locations are not writable or multiple nodes were started on the same data path?",
                     Arrays.toString(environment.dataFiles()));
-                throw new IllegalStateException(message, exception);
+                throw new IllegalStateException(message, e);
             }
+
             this.locks = nodeLock.locks;
             this.nodePaths = nodeLock.nodePaths;
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
 
-            if (logger.isDebugEnabled()) {
-                logger.debug("using node location {}", Arrays.toString(nodePaths));
-            }
+            logger.debug("using node location {}", Arrays.toString(nodePaths));
 
             maybeLogPathDetails();
             maybeLogHeapDetails();

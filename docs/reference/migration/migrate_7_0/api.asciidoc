@@ -76,6 +76,7 @@ pools. Note that `core` and `max` will be populated for scaling thread pools,
 and `size` will be populated for fixed thread pools.
 
 [float]
+[[fields-param-removed-bulk-update-request]]
 ==== The parameter `fields` deprecated in 6.x has been removed from Bulk request
 and Update request. The Update API returns `400 - Bad request` if request contains
 unknown parameters (instead of ignored in the previous version).
@@ -118,6 +119,7 @@ body. Specifying `fields` in the request body as opposed to a parameter was depr
 in 6.4.0, and is now unsupported in 7.0.0.
 
 [float]
+[[copy-settings-deprecated-shrink-split-apis]]
 ==== `copy_settings` is deprecated on shrink and split APIs
 
 Versions of Elasticsearch prior to 6.4.0 did not copy index settings on shrink
@@ -143,6 +145,7 @@ current user was not authorized for any alias. An empty response with
 status 200 - OK is now returned instead at all times.
 
 [float]
+[[user-object-removed-put-user-api]]
 ==== Put User API response no longer has `user` object
 
 The Put User API response was changed in 6.5.0 to add the `created` field
@@ -150,6 +153,7 @@ outside of the user object where it previously had been. In 7.0.0 the user
 object has been removed in favor of the top level `created` field.
 
 [float]
+[[source-include-exclude-params-removed]]
 ==== Source filtering url parameters `_source_include` and `_source_exclude` have been removed
 
 The deprecated in 6.x url parameters are now removed. Use `_source_includes` and `_source_excludes` instead.
@@ -168,6 +172,7 @@ removed.
 
 
 [float]
+[[deprecated-termvector-endpoint-removed]]
 ==== Deprecated `_termvector` endpoint removed
 
 The `_termvector` endpoint was deprecated in 2.0 and has now been removed.
@@ -186,6 +191,7 @@ using the `allow_restricted_indices` flag on the permission (as any other index
 privilege).
 
 [float]
+[[remove-get-support-cache-clear-api]]
 ==== Removed support for `GET` on the `_cache/clear` API
 
 The `_cache/clear` API no longer supports the `GET` HTTP verb. It must be called

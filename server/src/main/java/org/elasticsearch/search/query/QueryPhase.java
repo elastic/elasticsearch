@@ -47,6 +47,7 @@ import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -358,7 +359,7 @@ public class QueryPhase implements SearchPhase {
         if (searchContext.trackScores()) return null;
         Sort sort = searchContext.sort().sort;
         SortField sortField = sort.getSort()[0];
-        if (SortField.Type.LONG.equals(sortField.getType()) == false) return null;
+        if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return null;
 
         // check if this is a field of type Long or Date, that is indexed and has doc values
         String fieldName = sortField.getField();

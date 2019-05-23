@@ -104,4 +104,4 @@
                 type: keyword
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Types cannot be provided in put mapping requests, unless the include_type_name parameter is set to true." }
+  - match: { error.reason: /Types cannot be provided in put mapping requests/ }

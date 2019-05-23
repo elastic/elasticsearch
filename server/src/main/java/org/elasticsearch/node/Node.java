@@ -251,6 +251,7 @@ public class Node implements Closeable {
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
+    final NamedWriteableRegistry namedWriteableRegistry;
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
@@ -589,6 +590,7 @@ public class Node implements Closeable {
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             client.initialize(injector.getInstance(new Key<Map<Action, TransportAction>>() {}),
                     () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
+            this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");
             actionModule.initRestHandlers(() -> clusterService.state().nodes());

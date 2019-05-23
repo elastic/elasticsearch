@@ -106,42 +106,22 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private void getMultipleReposSnapshotInfo(List<RepositoryMetaData> repos, String[] snapshots, boolean ignoreUnavailable,
                                               boolean verbose, ActionListener<GetSnapshotsResponse> listener) {
-        GroupedActionListener<Tuple<String, Tuple<List<SnapshotInfo>, ElasticsearchException>>> groupedActionListener =
+        final GroupedActionListener<GetSnapshotsResponse.Response> groupedActionListener =
                 new GroupedActionListener<>(
                         ActionListener.map(listener, responses -> {
                             assert repos.size() == responses.size();
-
-                            Map<String, List<SnapshotInfo>> successfulResponses = new HashMap<>();
-                            Map<String, ElasticsearchException> failedResponses = new HashMap<>();
-
-                            Iterator<Tuple<String, Tuple<List<SnapshotInfo>, ElasticsearchException>>> it = responses.iterator();
-
-                            while (it.hasNext()) {
-                                Tuple<String, Tuple<List<SnapshotInfo>, ElasticsearchException>> response = it.next();
-                                String repo = response.v1();
-                                Tuple<List<SnapshotInfo>, ElasticsearchException> result = response.v2();
-                                if (result.v1() != null) {
-                                    assert result.v2() == null;
-                                    successfulResponses.put(repo, result.v1());
-                                } else {
-                                    assert result.v2() != null;
-                                    failedResponses.put(repo, result.v2());
-                                }
-                            }
-
-                            return new GetSnapshotsResponse(successfulResponses, failedResponses);
+                            return new GetSnapshotsResponse(responses);
                         }), repos.size());
 
         // run concurrently for all repos on GENERIC thread pool
         for (final RepositoryMetaData repo : repos) {
             threadPool.executor(ThreadPool.Names.GENERIC).execute(
                     () -> {
-                        // Unfortunately, there is no Either in Java, so we use Tuple with only one value set
                         try {
-                            groupedActionListener.onResponse(Tuple.tuple(repo.name(),
-                                    Tuple.tuple(getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose), null)));
+                            groupedActionListener.onResponse(GetSnapshotsResponse.Response.snapshots(
+                                    repo.name(), getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose)));
                         } catch (ElasticsearchException e) {
-                            groupedActionListener.onResponse(Tuple.tuple(repo.name(), Tuple.tuple(null, e)));
+                            groupedActionListener.onResponse(GetSnapshotsResponse.Response.error(repo.name(), e));
                         }
                     });
         }

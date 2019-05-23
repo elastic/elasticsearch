@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -86,22 +85,21 @@ public class GetSnapshotsResponseTests extends ESTestCase {
 
     private GetSnapshotsResponse createTestInstance() {
         Set<String> repositories = new HashSet<>();
-        Map<String, List<SnapshotInfo>> successfulResponses = new HashMap<>();
-        Map<String, ElasticsearchException> failedResponses = new HashMap<>();
+        List<GetSnapshotsResponse.Response> responses = new ArrayList<>();
 
         for (int i = 0; i < randomIntBetween(0, 5); i++) {
             String repository = randomValueOtherThanMany(r -> repositories.contains(r), () -> randomAlphaOfLength(10));
             repositories.add(repository);
-            successfulResponses.put(repository, createSnapshotInfos());
+            responses.add(GetSnapshotsResponse.Response.snapshots(repository, createSnapshotInfos()));
         }
 
         for (int i = 0; i < randomIntBetween(0, 5); i++) {
             String repository = randomValueOtherThanMany(r -> repositories.contains(r), () -> randomAlphaOfLength(10));
             repositories.add(repository);
-            failedResponses.put(repository, new ElasticsearchException(randomAlphaOfLength(10)));
+            responses.add(GetSnapshotsResponse.Response.error(repository, new ElasticsearchException(randomAlphaOfLength(10))));
         }
 
-        return new GetSnapshotsResponse(successfulResponses, failedResponses);
+        return new GetSnapshotsResponse(responses);
     }
 
     public void testSerialization() throws IOException {

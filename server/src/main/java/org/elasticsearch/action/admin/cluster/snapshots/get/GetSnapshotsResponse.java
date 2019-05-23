@@ -33,6 +33,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -53,17 +54,13 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 (p, c) -> Response.fromXContent(p), new ParseField("responses"));
     }
 
-    public GetSnapshotsResponse(Map<String, List<SnapshotInfo>> successfulResponses, Map<String, ElasticsearchException> failedResponses) {
-        this.successfulResponses = successfulResponses;
-        this.failedResponses = failedResponses;
-    }
 
-    private static class Response {
-        String repository;
-        List<SnapshotInfo> snapshots;
-        ElasticsearchException error;
+    public static class Response {
+        private String repository;
+        private List<SnapshotInfo> snapshots;
+        private ElasticsearchException error;
 
-        static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER =
+        private static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER =
                 new ConstructingObjectParser<>(Response.class.getName(), true,
                         (args) -> new Response((String) args[0],
                                 (List<SnapshotInfo>) args[1], (ElasticsearchException) args[2]));
@@ -76,13 +73,21 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                     (p, c) -> ElasticsearchException.fromXContent(p), new ParseField("error"));
         }
 
-        Response(String repository, List<SnapshotInfo> snapshots, ElasticsearchException error) {
+        private Response(String repository, List<SnapshotInfo> snapshots, ElasticsearchException error) {
             this.repository = repository;
             this.snapshots = snapshots;
             this.error = error;
         }
 
-        static Response fromXContent(XContentParser parser) throws IOException {
+        public static Response snapshots(String repository, List<SnapshotInfo> snapshots) {
+            return new Response(repository, snapshots, null);
+        }
+
+        public static Response error(String repository, ElasticsearchException error) {
+            return new Response(repository, null, error);
+        }
+
+        private static Response fromXContent(XContentParser parser) throws IOException {
             return RESPONSE_PARSER.parse(parser, null);
         }
     }
@@ -90,7 +95,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     private Map<String, List<SnapshotInfo>> successfulResponses = Collections.emptyMap();
     private Map<String, ElasticsearchException> failedResponses = Collections.emptyMap();
 
-    private GetSnapshotsResponse(List<Response> responses) {
+    public GetSnapshotsResponse(Collection<Response> responses) {
         this.successfulResponses = new HashMap<>();
         this.failedResponses = new HashMap<>();
         for (Response response : responses) {

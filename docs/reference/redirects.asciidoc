@@ -603,3 +603,11 @@ See <<faster-prefix-queries>>.
 monitoring, reporting, machine learning, and many other capabilities. By default, 
 when you install {es}, {xpack} is installed.
 
+[role="exclude",id="setup-xpack-client"]
+=== Configuring {xpack} Java Clients
+
+The `TransportClient` is deprecated in favour of the
+{java-rest}/java-rest-high.html[Java High Level REST Client] and was removed in
+Elasticsearch 8.0. The
+{java-rest}/java-rest-high-level-migration.html[migration guide] describes all
+the steps needed to migrate.

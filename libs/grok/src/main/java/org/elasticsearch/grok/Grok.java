@@ -240,7 +240,6 @@ public final class Grok {
      */
     public Map<String, Object> captures(String text) {
         byte[] textAsBytes = text.getBytes(StandardCharsets.UTF_8);
-        Map<String, Object> fields = new HashMap<>();
         Matcher matcher = compiledExpression.matcher(textAsBytes);
         int result;
         try {
@@ -256,6 +255,7 @@ public final class Grok {
             // TODO: I think we should throw an error here?
             return null;
         } else if (compiledExpression.numberOfNames() > 0) {
+            Map<String, Object> fields = new HashMap<>();
             Region region = matcher.getEagerRegion();
             for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
                 NameEntry e = entry.next();
@@ -270,8 +270,9 @@ public final class Grok {
                     }
                 }
             }
+            return fields;
         }
-        return fields;
+        return Collections.emptyMap();
     }
 
     public static Map<String, String> getBuiltinPatterns() {

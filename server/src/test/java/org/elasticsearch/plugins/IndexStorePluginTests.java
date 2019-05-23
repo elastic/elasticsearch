@@ -84,11 +84,11 @@ public class IndexStorePluginTests extends ESTestCase {
         if (JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0) {
             assertThat(e, hasToString(matches(
                     "java.lang.IllegalStateException: Duplicate key store \\(attempted merging values " +
-                            "org.elasticsearch.plugins.IndexStorePluginTests\\$BarStorePlugin.* " +
-                            "and org.elasticsearch.plugins.IndexStorePluginTests\\$FooStorePlugin.*\\)")));
+                            "org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+ " +
+                            "and org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+\\)")));
         } else {
             assertThat(e, hasToString(matches(
-                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.plugins.IndexStorePluginTests\\$BarStorePlugin.*")));
+                    "java.lang.IllegalStateException: Duplicate key org.elasticsearch.index.store.FsDirectoryFactory@[\\w\\d]+")));
         }
     }
 

@@ -11,7 +11,6 @@ clusters.
 You will need to update the configuration for several clients to work with a
 secured cluster:
 
-* <<java-clients, Java Clients>>
 * <<http-clients, HTTP Clients>>
 
 

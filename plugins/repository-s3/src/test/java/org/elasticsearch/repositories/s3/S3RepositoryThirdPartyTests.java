@@ -137,6 +137,9 @@ public class S3RepositoryThirdPartyTests extends ESSingleNodeTestCase {
         logger.info("--> deleting a snapshot to trigger repository cleanup");
         client.admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", "test-snap")).actionGet();
 
+        // TODO: On S3 this might not be 100% stable because assertConsistency uses LIST operations to find stale blobs.
+        //       For now I'm assuming this to be ok because we make the same assumptions about correctness for listing the index-N blobs
+        //       and haven't seen a test failure from that so far.
         BlobStoreTestUtil.assertConsistency(repo, genericExec);
     }
 

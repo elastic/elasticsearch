@@ -282,13 +282,9 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public <T> Map<String, T> genericMap(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
-        return readGenericMap(this, mapValueParser);
-    }
-
-    @Override
-    public <T> Map<String, T> genericMapOrdered(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
-        return readGenericOrderedMap(this, mapValueParser);
+    public <T> Map<String, T> map(
+            Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+        return readGenericMap(this, mapFactory, mapValueParser);
     }
 
     @Override
@@ -323,16 +319,6 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static Map<String, String> readOrderedMapStrings(XContentParser parser) throws IOException {
         return readMapStrings(parser, ORDERED_MAP_STRINGS_FACTORY);
-    }
-
-    static <T> Map<String, T> readGenericMap(
-            XContentParser parser, CheckedFunction<XContentParser, T, IOException> valueParser) throws IOException {
-        return readGenericMap(parser, HashMap::new, valueParser);
-    }
-
-    static <T> Map<String, T> readGenericOrderedMap(
-            XContentParser parser, CheckedFunction<XContentParser, T, IOException> valueParser) throws IOException {
-        return readGenericMap(parser, LinkedHashMap::new, valueParser);
     }
 
     static List<Object> readList(XContentParser parser) throws IOException {

@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A xcontent parser that is used by watcher. This is a special parser that is
@@ -125,13 +126,9 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
-    public <T> Map<String, T> genericMap(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
-        return parser.genericMap(mapValueParser);
-    }
-
-    @Override
-    public <T> Map<String, T> genericMapOrdered(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
-        return parser.genericMapOrdered(mapValueParser);
+    public <T> Map<String, T> map(
+            Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+        return parser.map(mapFactory, mapValueParser);
     }
 
     @Override

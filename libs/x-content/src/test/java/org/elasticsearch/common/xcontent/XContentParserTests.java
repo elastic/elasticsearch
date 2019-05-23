@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -341,7 +342,7 @@ public class XContentParserTests extends ESTestCase {
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
-            Map<String, SimpleStruct> actualMap = parser.genericMap(SimpleStruct::fromXContent);
+            Map<String, SimpleStruct> actualMap = parser.map(HashMap::new, SimpleStruct::fromXContent);
             // Verify map contents, ignore the iteration order.
             assertThat(actualMap, equalTo(Map.of("a", structA, "b", structB, "c", structC)));
             assertThat(actualMap.values(), containsInAnyOrder(structA, structB, structC));
@@ -359,7 +360,7 @@ public class XContentParserTests extends ESTestCase {
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
-            Map<String, SimpleStruct> actualMap = parser.genericMapOrdered(SimpleStruct::fromXContent);
+            Map<String, SimpleStruct> actualMap = parser.map(LinkedHashMap::new, SimpleStruct::fromXContent);
             // Verify map contents, ignore the iteration order.
             assertThat(actualMap, equalTo(Map.of("a", structA, "b", structB, "c", structC)));
             // Verify that map's iteration order is the same as the order in which fields appear in JSON.
@@ -377,7 +378,7 @@ public class XContentParserTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             XContentParseException exception = expectThrows(
                 XContentParseException.class,
-                () -> parser.genericMap(SimpleStruct::fromXContent));
+                () -> parser.map(HashMap::new, SimpleStruct::fromXContent));
             assertThat(exception, hasMessage(containsString("s doesn't support values of type: VALUE_NUMBER")));
         }
     }

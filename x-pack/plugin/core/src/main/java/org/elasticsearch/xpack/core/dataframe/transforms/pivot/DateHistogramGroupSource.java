@@ -64,7 +64,8 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(NAME, interval.toString());
+            builder.field(NAME);
+            interval.toXContent(builder, params);
             return builder;
         }
 
@@ -85,7 +86,6 @@ public class DateHistogramGroupSource extends SingleGroupSource {
             }
 
             final FixedInterval that = (FixedInterval) other;
-
             return Objects.equals(this.interval, that.interval);
         }
 
@@ -123,7 +123,8 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(NAME, interval.toString());
+            builder.field(NAME);
+            interval.toXContent(builder, params);
             return builder;
         }
 
@@ -144,7 +145,6 @@ public class DateHistogramGroupSource extends SingleGroupSource {
             }
 
             final CalendarInterval that = (CalendarInterval) other;
-
             return Objects.equals(this.interval, that.interval);
         }
 
@@ -198,13 +198,13 @@ public class DateHistogramGroupSource extends SingleGroupSource {
             Interval interval = null;
 
             if (fixedInterval != null && calendarInterval != null) {
-                throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
+                throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found both");
             } else if (fixedInterval != null) {
                 interval = new FixedInterval(new DateHistogramInterval(fixedInterval));
             } else if (calendarInterval != null) {
                 interval = new CalendarInterval(new DateHistogramInterval(calendarInterval));
             } else {
-                throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found both");
+                throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
             }
 
             return new DateHistogramGroupSource(field, interval);

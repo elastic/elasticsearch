@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
@@ -48,27 +49,23 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
 
     // From DateHistogramAggregationBuilder in core, transplanted and modified to a set
     // so we don't need to import a dependency on the class
-    private static final Set<String> DATE_FIELD_UNITS;
-    static {
-        Set<String> dateFieldUnits = new HashSet<>();
-        dateFieldUnits.add("year");
-        dateFieldUnits.add("1y");
-        dateFieldUnits.add("quarter");
-        dateFieldUnits.add("1q");
-        dateFieldUnits.add("month");
-        dateFieldUnits.add("1M");
-        dateFieldUnits.add("week");
-        dateFieldUnits.add("1w");
-        dateFieldUnits.add("day");
-        dateFieldUnits.add("1d");
-        dateFieldUnits.add("hour");
-        dateFieldUnits.add("1h");
-        dateFieldUnits.add("minute");
-        dateFieldUnits.add("1m");
-        dateFieldUnits.add("second");
-        dateFieldUnits.add("1s");
-        DATE_FIELD_UNITS = Collections.unmodifiableSet(dateFieldUnits);
-    }
+    private static final Set<String> DATE_FIELD_UNITS = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
+            "year",
+            "1y",
+            "quarter",
+            "1q",
+            "month",
+            "1M",
+            "week",
+            "1w",
+            "day",
+            "1d",
+            "hour",
+            "1h",
+            "minute",
+            "1m",
+            "second",
+            "1s")));
 
     /**
      * Interval can be specified in 2 ways:
@@ -103,7 +100,8 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(NAME, interval.toString());
+            builder.field(NAME);
+            interval.toXContent(builder, params);
             return builder;
         }
 
@@ -118,7 +116,6 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
             }
 
             final FixedInterval that = (FixedInterval) other;
-
             return Objects.equals(this.interval, that.interval);
         }
 
@@ -135,7 +132,7 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         public CalendarInterval(DateHistogramInterval interval) {
             this.interval = interval;
             if (DATE_FIELD_UNITS.contains(interval.toString()) == false) {
-                throw new IllegalArgumentException("The supplied interval [" + interval +"] could not be parsed " +
+                throw new IllegalArgumentException("The supplied interval [" + interval + "] could not be parsed " +
                     "as a calendar interval.");
             }
         }
@@ -152,7 +149,8 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(NAME, interval.toString());
+            builder.field(NAME);
+            interval.toXContent(builder, params);
             return builder;
         }
 
@@ -167,7 +165,6 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
             }
 
             final CalendarInterval that = (CalendarInterval) other;
-
             return Objects.equals(this.interval, that.interval);
         }
 
@@ -188,13 +185,13 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
                    Interval interval = null;
 
                    if (fixedInterval != null && calendarInterval != null) {
-                       throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
+                       throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found both");
                    } else if (fixedInterval != null) {
                        interval = new FixedInterval(new DateHistogramInterval(fixedInterval));
                    } else if (calendarInterval != null) {
                        interval = new CalendarInterval(new DateHistogramInterval(calendarInterval));
                    } else {
-                       throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found both");
+                       throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
                    }
 
                    ZoneId zoneId = (ZoneId) args[3];

@@ -140,17 +140,14 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, shardParent);
 
             final String shardIdFileName = path.getFileName().toString();
-            final String nodeIdFileName = shardParentParent.getParent().getFileName().toString();
             if (Files.isDirectory(path) && shardIdFileName.chars().allMatch(Character::isDigit) // SHARD-ID path element check
                 && NodeEnvironment.INDICES_FOLDER.equals(shardParentParent.getFileName().toString()) // `indices` check
-                && nodeIdFileName.chars().allMatch(Character::isDigit) // NODE-ID check
-                && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // `nodes` check
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
                 indexName = indexMetaData.getIndex().getName();
             } else {
                 throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
-                    + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]");
+                    + " ], expected .../indices/[INDEX-UUID]/[SHARD-ID]");
             }
         } else {
             // otherwise resolve shardPath based on the index name and shard id

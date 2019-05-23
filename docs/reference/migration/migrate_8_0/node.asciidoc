@@ -14,3 +14,15 @@
 The `node.max_local_storage_nodes` setting was deprecated in 7.x and
 has been removed in 8.0. Nodes should be run on separate data paths
 to ensure that each node is consistently assigned to the same data path.
+
+[float]
+==== Change of data folder layout
+
+While data was previously stored in `$DATA_DIR/nodes/$nodeOrdinal`, it
+has now, with the removal of the `node.max_local_storage_nodes` setting,
+moved directly to `$DATA_DIR`. Upon startup, Elasticsearch will check
+to see if there is data in the old location, and automatically move it
+to the new location. This automatic migration only works if `$nodeOrdinal`
+is 0, i.e., multiple node instances have not previously run on the same
+data path, which required for `node.max_local_storage_nodes` to explicitly
+be configured.

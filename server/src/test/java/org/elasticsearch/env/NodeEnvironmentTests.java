@@ -373,10 +373,10 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
+                equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
 
         IndexSettings s3 = new IndexSettings(s2.getIndexMetaData(), Settings.builder().build());
 
@@ -385,10 +385,10 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
+                equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
 
         env.close();
     }
@@ -418,7 +418,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         String[] paths = tmpPaths();
         // simulate some previous left over temp files
         for (String path : randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
-            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path));
+            final Path nodePath = PathUtils.get(path);
             Files.createDirectories(nodePath);
             Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
             if (randomBoolean()) {
@@ -433,7 +433,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // check we clean up
         for (String path: paths) {
-            final Path nodePath = NodeEnvironment.resolveNodePath(PathUtils.get(path));
+            final Path nodePath = PathUtils.get(path);
             final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
             assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
             final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");

@@ -19,16 +19,16 @@
 
 package org.elasticsearch.analysis.common;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse.AnalyzeToken;
 import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzersResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.BeforeClass;
+import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -47,41 +47,32 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-@AwaitsFix(bugUrl="Cannot be run outside IDE yet")
 public class SynonymAnalyzerIT extends ESIntegTestCase {
-
-    private static Path config;
-    private static Path synonymsFile;
-    private static final String synonymsFileName = "synonyms.txt";
-
-    @BeforeClass
-    public static void initConfigDir() throws IOException {
-        config = createTempDir().resolve("config");
-        if (Files.exists(config) == false) {
-            Files.createDirectory(config);
-        }
-        synonymsFile = config.resolve(synonymsFileName);
-        Files.createFile(synonymsFile);
-        assertTrue(Files.exists(synonymsFile));
-    }
-
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(CommonAnalysisPlugin.class);
     }
 
+    /**
+     * This test needs to write to the config directory, this is difficult in an external cluster so we overwrite this to force running with
+     * {@link InternalTestCluster}
+     */
     @Override
-    protected Path nodeConfigPath(int nodeOrdinal) {
-        return config;
+    protected boolean ignoreExternalCluster() {
+        return true;
     }
 
-    public void testSynonymsUpdateable() throws FileNotFoundException, IOException {
+    public void testSynonymsUpdateable() throws FileNotFoundException, IOException, InterruptedException {
+        Path config = internalCluster().getInstance(Environment.class).configFile();
+        String synonymsFileName = "synonyms.txt";
+        Path synonymsFile = config.resolve(synonymsFileName);
+        Files.createFile(synonymsFile);
+        assertTrue(Files.exists(synonymsFile));
         try (PrintWriter out = new PrintWriter(
                 new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.CREATE), StandardCharsets.UTF_8))) {
             out.println("foo, baz");
         }
-        assertTrue(Files.exists(synonymsFile));
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
                 .put("index.number_of_shards", cluster().numDataNodes() * 2)
                 .put("index.number_of_replicas", 1)
@@ -104,26 +95,29 @@ public class SynonymAnalyzerIT extends ESIntegTestCase {
         assertEquals("foo", analyzeResponse.getTokens().get(0).getTerm());
         assertEquals("baz", analyzeResponse.getTokens().get(1).getTerm());
 
-        // now update synonyms file and trigger reloading
-        try (PrintWriter out = new PrintWriter(
-                new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
-            out.println("foo, baz, buzz");
+        // now update synonyms file several times and trigger reloading
+        for (int i = 0; i < 10; i++) {
+            String testTerm = randomAlphaOfLength(10);
+            try (PrintWriter out = new PrintWriter(
+                    new OutputStreamWriter(Files.newOutputStream(synonymsFile, StandardOpenOption.WRITE), StandardCharsets.UTF_8))) {
+                out.println("foo, baz, " + testTerm);
+            }
+            ReloadAnalyzersResponse reloadResponse = client().admin().indices().prepareReloadAnalyzers("test").execute().actionGet();
+            assertNoFailures(reloadResponse);
+            assertEquals(cluster().numDataNodes(), reloadResponse.getSuccessfulShards());
+
+            analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
+            assertEquals(3, analyzeResponse.getTokens().size());
+            Set<String> tokens = new HashSet<>();
+            analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
+            assertTrue(tokens.contains("foo"));
+            assertTrue(tokens.contains("baz"));
+            assertTrue(tokens.contains(testTerm));
+
+            response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")).get();
+            assertHitCount(response, 1L);
+            response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", testTerm)).get();
+            assertHitCount(response, 1L);
         }
-        ReloadAnalyzersResponse reloadResponse = client().admin().indices().prepareReloadAnalyzers("test").execute().actionGet();
-        assertNoFailures(reloadResponse);
-        assertEquals(cluster().numDataNodes(), reloadResponse.getSuccessfulShards());
-
-        analyzeResponse = client().admin().indices().prepareAnalyze("test", "foo").setAnalyzer("my_synonym_analyzer").get();
-        assertEquals(3, analyzeResponse.getTokens().size());
-        Set<String> tokens = new HashSet<>();
-        analyzeResponse.getTokens().stream().map(AnalyzeToken::getTerm).forEach(t -> tokens.add(t));
-        assertTrue(tokens.contains("foo"));
-        assertTrue(tokens.contains("baz"));
-        assertTrue(tokens.contains("buzz"));
-
-        response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "baz")).get();
-        assertHitCount(response, 1L);
-        response = client().prepareSearch("test").setQuery(QueryBuilders.matchQuery("field", "buzz")).get();
-        assertHitCount(response, 1L);
     }
 }

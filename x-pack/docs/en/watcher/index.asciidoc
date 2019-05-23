@@ -89,9 +89,6 @@ include::actions.asciidoc[]
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/transform.asciidoc
 include::transform.asciidoc[]
 
-:edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/java.asciidoc
-include::java.asciidoc[]
-
 :edit_url: https://github.com/elastic/elasticsearch/edit/{branch}/x-pack/docs/en/watcher/managing-watches.asciidoc
 include::managing-watches.asciidoc[]
 

@@ -21,7 +21,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = TEST, supportsDedicatedMasters = false, numDataNodes = 1)
+@ClusterScope(scope = TEST, supportsDedicatedMasters = false, numDataNodes = 1, transportClientRatio = 0.0)
 public class IpFilteringUpdateTests extends SecurityIntegTestCase {
 
     private static int randomClientPort;

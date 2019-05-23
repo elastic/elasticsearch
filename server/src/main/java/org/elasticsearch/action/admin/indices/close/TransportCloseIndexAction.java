@@ -40,6 +40,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
+
 /**
  * Close index action
  */
@@ -109,7 +111,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
                                    final ActionListener<CloseIndexResponse> listener) throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
-            listener.onResponse(new CloseIndexResponse(true, false));
+            listener.onResponse(new CloseIndexResponse(true, false, Collections.emptyList()));
             return;
         }
 

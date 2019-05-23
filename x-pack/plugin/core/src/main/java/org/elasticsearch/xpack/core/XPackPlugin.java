@@ -25,7 +25,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -124,7 +123,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
     protected final Settings settings;
     //private final Environment env;
-    protected boolean transportClientMode;
     protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
@@ -136,8 +134,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
             final Path configPath) {
         super(settings);
         this.settings = settings;
-        this.transportClientMode = transportClientMode(settings);
-        Environment env = transportClientMode ? null : new Environment(settings, configPath);
+        Environment env = new Environment(settings, configPath);
 
         setSslService(new SSLService(settings, env));
         setLicenseState(new XPackLicenseState(settings));
@@ -217,12 +214,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         if (settings.get(xpackInstalledNodeAttrSetting) != null) {
             throw new IllegalArgumentException("Directly setting [" + xpackInstalledNodeAttrSetting + "] is not permitted");
         }
-
-        if (transportClientMode) {
-            return super.additionalSettings();
-        } else {
-            return Settings.builder().put(super.additionalSettings()).put(xpackInstalledNodeAttrSetting, "true").build();
-        }
+        return Settings.builder().put(super.additionalSettings()).put(xpackInstalledNodeAttrSetting, "true").build();
     }
 
     @Override
@@ -231,10 +223,6 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         //modules.add(b -> b.bind(Clock.class).toInstance(getClock()));
         // used to get core up and running, we do not bind the actual feature set here
         modules.add(b -> XPackPlugin.createFeatureSetMultiBinder(b, EmptyXPackFeatureSet.class));
-
-        if (transportClientMode) {
-            modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
-        }
         return modules;
     }
 

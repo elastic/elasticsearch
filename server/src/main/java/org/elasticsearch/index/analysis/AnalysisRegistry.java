@@ -523,14 +523,14 @@ public final class AnalysisRegistry implements Closeable {
         if (normalizerFactory instanceof CustomNormalizerProvider) {
             ((CustomNormalizerProvider) normalizerFactory).build(tokenizerName, tokenizerFactory, charFilters, tokenFilters);
         }
+        if (normalizers.containsKey(name)) {
+            throw new IllegalStateException("already registered analyzer with name: " + name);
+        }
         Analyzer normalizerF = normalizerFactory.get();
         if (normalizerF == null) {
             throw new IllegalArgumentException("normalizer [" + normalizerFactory.name() + "] created null normalizer");
         }
         NamedAnalyzer normalizer = new NamedAnalyzer(name, normalizerFactory.scope(), normalizerF);
-        if (normalizers.containsKey(name)) {
-            throw new IllegalStateException("already registered analyzer with name: " + name);
-        }
         normalizers.put(name, normalizer);
     }
 }

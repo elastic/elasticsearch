@@ -306,6 +306,11 @@ public class DoSection implements ExecutableSection {
                      * We skip warnings related to types deprecation so that we can continue to run the many
                      * mixed-version tests that used typed APIs.
                      */
+                } else // noinspection StatementWithEmptyBody
+                        if (message.endsWith("Prefix your date format with '8' to use the new specifier.")) {
+                        /*
+                         * Skipping warning checks related to joda-java migration.
+                         */
                 } else if (expected.remove(message) == false) {
                     unexpected.add(header);
                 }

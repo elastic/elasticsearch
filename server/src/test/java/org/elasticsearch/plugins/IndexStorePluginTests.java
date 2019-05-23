@@ -22,15 +22,13 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
@@ -41,8 +39,8 @@ public class IndexStorePluginTests extends ESTestCase {
     public static class BarStorePlugin extends Plugin implements IndexStorePlugin {
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-            return Collections.singletonMap("store", IndexStore::new);
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap("store", new FsDirectoryFactory());
         }
 
     }
@@ -50,8 +48,8 @@ public class IndexStorePluginTests extends ESTestCase {
     public static class FooStorePlugin extends Plugin implements IndexStorePlugin {
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-            return Collections.singletonMap("store", IndexStore::new);
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap("store", new FsDirectoryFactory());
         }
 
     }
@@ -65,8 +63,8 @@ public class IndexStorePluginTests extends ESTestCase {
         }
 
         @Override
-        public Map<String, Function<IndexSettings, IndexStore>> getIndexStoreFactories() {
-            return Collections.singletonMap(TYPE, IndexStore::new);
+        public Map<String, DirectoryFactory> getDirectoryFactories() {
+            return Collections.singletonMap(TYPE, new FsDirectoryFactory());
         }
 
     }

@@ -271,8 +271,9 @@ public final class Grok {
                 }
             }
             return fields;
+        } else {
+            return Collections.emptyMap();
         }
-        return Collections.emptyMap();
     }
 
     public static Map<String, String> getBuiltinPatterns() {

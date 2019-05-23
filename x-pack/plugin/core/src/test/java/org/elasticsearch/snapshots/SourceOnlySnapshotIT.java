@@ -54,7 +54,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-@ESIntegTestCase.ClusterScope(numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(numDataNodes = 0, transportClientRatio = 0.0)
 public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
     @Override

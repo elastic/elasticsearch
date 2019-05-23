@@ -7,7 +7,6 @@ package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -26,7 +25,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +38,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -77,6 +74,7 @@ import static org.hamcrest.core.IsCollectionContaining.hasItem;
  *
  * @see SecuritySettingsSource
  */
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0.0)
 public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS;
@@ -261,14 +259,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings())
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NIO)
-                .put(customSecuritySettingsSource.transportClientSettings())
-                .build();
-    }
-
-    @Override
     protected boolean addMockTransportService() {
         return false; // security has its own transport service
     }
@@ -276,19 +266,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return customSecuritySettingsSource.nodePlugins();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return customSecuritySettingsSource.transportClientPlugins();
-    }
-
-    @Override
-    protected Settings externalClusterClientSettings() {
-        return Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), SecuritySettingsSource.TEST_USER_NAME + ":"
-                        + SecuritySettingsSourceField.TEST_PASSWORD)
-                .build();
     }
 
     /**
@@ -334,24 +311,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows to override the transport client username (used while sending requests to the test cluster) when the
-     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
-     */
-    protected String transportClientUsername() {
-        return SECURITY_DEFAULT_SETTINGS.transportClientUsername();
-    }
-
-    /**
-     * Allows to override the transport client password (used while sending requests to the test cluster) when the
-     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
-     */
-    protected SecureString transportClientPassword() {
-        return SECURITY_DEFAULT_SETTINGS.transportClientPassword();
-    }
-
-    /**
      * Allows to control whether ssl key information is auto generated or not on the transport layer
      */
     protected boolean transportSSLEnabled() {
@@ -391,16 +350,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         @Override
         protected SecureString nodeClientPassword() {
             return SecurityIntegTestCase.this.nodeClientPassword();
-        }
-
-        @Override
-        protected String transportClientUsername() {
-            return SecurityIntegTestCase.this.transportClientUsername();
-        }
-
-        @Override
-        protected SecureString transportClientPassword() {
-            return SecurityIntegTestCase.this.transportClientPassword();
         }
     }
 

@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 // The random usage of meta fields such as _timestamp add noise to the test, so disable random index templates:
-@ESIntegTestCase.ClusterScope
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0.0)
 public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     protected static final SecureString USERS_PASSWD = new SecureString("change_me".toCharArray());

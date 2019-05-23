@@ -77,7 +77,7 @@ import static org.hamcrest.core.CombinableMatcher.both;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     private Settings settings;
     private LifecyclePolicy lifecyclePolicy;
@@ -110,26 +110,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
-        settings.put(XPackSettings.INDEX_LIFECYCLE_ENABLED.getKey(), true);
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(XPackSettings.LOGSTASH_ENABLED.getKey(), false);
-        return settings.build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, TestILMPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
     }
 
     @Before

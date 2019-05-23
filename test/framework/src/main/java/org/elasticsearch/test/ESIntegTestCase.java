@@ -290,6 +290,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static final String TESTS_CLUSTER = "tests.cluster";
 
     /**
+     * Key used to eventually switch to using an external cluster and provide the cluster name
+     */
+    public static final String TESTS_CLUSTER_NAME = "tests.clustername";
+
+    /**
      * Key used to retrieve the index random seed from the index settings on a running node.
      * The value of this seed can be used to initialize a random context for a specific index.
      * It's set once per test via a generic index template.
@@ -1829,7 +1834,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    private ExternalTestCluster buildExternalCluster(String clusterAddresses) throws IOException {
+    private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
         int i = 0;
@@ -1838,7 +1843,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             InetAddress inetAddress = InetAddress.getByName(url.getHost());
             transportAddresses[i++] = new TransportAddress(new InetSocketAddress(inetAddress, url.getPort()));
         }
-        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), transportClientPlugins(), transportAddresses);
+        return new ExternalTestCluster(createTempDir(), externalClusterClientSettings(), nodePlugins(), getClientWrapper(), clusterName,
+            transportAddresses);
     }
 
     protected Settings externalClusterClientSettings() {
@@ -1855,7 +1861,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (scope == Scope.TEST) {
                 throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
             }
-            return buildExternalCluster(clusterAddresses);
+            String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
+            if (Strings.isNullOrEmpty(clusterName)) {
+                throw new IllegalArgumentException("External test cluster name must be provided");
+            }
+            return buildExternalCluster(clusterAddresses, clusterName);
         }
 
         final String nodePrefix;

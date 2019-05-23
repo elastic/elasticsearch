@@ -26,6 +26,8 @@ integTestCluster {
   extraConfigFile 'transport.crt', project.projectDir.toPath().resolve('src/test/resources/ssl/transport.crt')
   extraConfigFile 'ca.crt', caFile
 
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.authc.anonymous.roles', 'superuser'
   setting 'xpack.ilm.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'basic'

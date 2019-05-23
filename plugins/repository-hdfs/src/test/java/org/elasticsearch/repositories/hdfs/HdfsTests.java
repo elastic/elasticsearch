@@ -41,7 +41,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.Executor;
 
@@ -162,7 +161,7 @@ public class HdfsTests extends ESSingleNodeTestCase {
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
 
-    public void testCleanup() throws IOException {
+    public void testCleanup() {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/31498", JavaVersion.current().equals(JavaVersion.parse("11")));
         Client client = client();
 

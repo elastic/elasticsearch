@@ -20,11 +20,15 @@ package org.elasticsearch.action.admin.cluster.state;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -83,8 +87,11 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
 
     public void testNonLocalRequestAlwaysFindsMasterAndWaitsForMetadata() throws Exception {
         runRepeatedlyWhileChangingMaster(() -> {
-            final long waitForMetaDataVersion = randomLongBetween(1, 20);
-            final ClusterStateRequestBuilder clusterStateRequestBuilder = client().admin().cluster().prepareState()
+            final String node = randomFrom(internalCluster().getNodeNames());
+            final long metadataVersion
+                = internalCluster().getInstance(ClusterService.class, node).getClusterApplierService().state().metaData().version();
+            final long waitForMetaDataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
+            final ClusterStateRequestBuilder clusterStateRequestBuilder = client(node).admin().cluster().prepareState()
                 .clear().setNodes(true).setMetaData(true)
                 .setMasterNodeTimeout(TimeValue.timeValueMillis(100)).setWaitForTimeOut(TimeValue.timeValueMillis(100))
                 .setWaitForMetaDataVersion(waitForMetaDataVersion);
@@ -104,8 +111,10 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
 
     public void testLocalRequestWaitsForMetadata() throws Exception {
         runRepeatedlyWhileChangingMaster(() -> {
-            final long waitForMetaDataVersion = randomLongBetween(1, 20);
             final String node = randomFrom(internalCluster().getNodeNames());
+            final long metadataVersion
+                = internalCluster().getInstance(ClusterService.class, node).getClusterApplierService().state().metaData().version();
+            final long waitForMetaDataVersion = randomLongBetween(Math.max(1, metadataVersion - 3), metadataVersion + 5);
             final ClusterStateResponse clusterStateResponse = client(node).admin().cluster()
                 .prepareState().clear().setLocal(true).setMetaData(true).setWaitForMetaDataVersion(waitForMetaDataVersion)
                 .setMasterNodeTimeout(TimeValue.timeValueMillis(100)).setWaitForTimeOut(TimeValue.timeValueMillis(100))

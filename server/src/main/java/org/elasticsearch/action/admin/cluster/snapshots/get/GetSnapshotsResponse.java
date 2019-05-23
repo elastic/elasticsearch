@@ -95,8 +95,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         this.failedResponses = new HashMap<>();
         for (Response response : responses) {
             if (response.snapshots != null) {
+                assert response.error == null;
                 this.successfulResponses.put(response.repository, response.snapshots);
             } else {
+                assert response.snapshots == null;
                 this.failedResponses.put(response.repository, response.error);
             }
         }

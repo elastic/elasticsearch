@@ -78,6 +78,9 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             ++linesConsumed;
         }
 
+        // null to allow GC before timestamp search
+        sampleDocEnds = null;
+
         // If we get here the XML parser should have confirmed this
         assert messagePrefix.charAt(0) == '<';
         String topLevelTag = messagePrefix.substring(1);

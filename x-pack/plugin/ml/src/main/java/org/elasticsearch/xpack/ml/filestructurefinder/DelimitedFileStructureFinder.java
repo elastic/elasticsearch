@@ -26,7 +26,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.SortedMap;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -88,7 +87,10 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             prevMessageEndLineNumber = lineNumber;
         }
 
-        String preamble = Pattern.compile("\n").splitAsStream(sample).limit(lineNumbers.get(1)).collect(Collectors.joining("\n", "", "\n"));
+        String preamble = String.join("\n", sampleLines.subList(0, lineNumbers.get(1))) + "\n";
+
+        // null to allow GC before timestamp search
+        sampleLines = null;
 
         char delimiter = (char) csvPreference.getDelimiterChar();
         FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.DELIMITED)

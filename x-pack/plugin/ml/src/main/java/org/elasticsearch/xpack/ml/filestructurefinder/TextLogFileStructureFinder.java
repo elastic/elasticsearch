@@ -86,6 +86,9 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
                 + "problem is probably that the primary timestamp format has been incorrectly detected, so try overriding it.");
         }
 
+        // null to allow GC before Grok pattern search
+        sampleLines = null;
+
         FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.SEMI_STRUCTURED_TEXT)
             .setCharset(charsetName)
             .setHasByteOrderMarker(hasByteOrderMarker)

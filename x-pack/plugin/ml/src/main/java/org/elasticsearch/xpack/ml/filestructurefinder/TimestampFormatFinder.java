@@ -445,6 +445,9 @@ public final class TimestampFormatFinder {
                     if (existingFormat.canMergeWith(newFormat)) {
                         matchedFormats.set(i, existingFormat.mergeWith(newFormat));
                         mustAdd = false;
+                        // Sharing formats considerably reduces the memory usage during the analysis
+                        // when there are many samples, so reconstruct the match with a shared format
+                        match = new TimestampMatch(match, matchedFormats.get(i));
                         break;
                     }
                 }
@@ -1070,6 +1073,10 @@ public final class TimestampFormatFinder {
 
         boolean canMergeWith(TimestampFormat other) {
 
+            if (this == other) {
+                return true;
+            }
+
             return other != null &&
                 this.simplePattern.pattern().equals(other.simplePattern.pattern()) &&
                 this.grokPatternName.equals(other.grokPatternName) &&
@@ -1164,7 +1171,7 @@ public final class TimestampFormatFinder {
         final String epilogue;
 
         TimestampMatch(CandidateTimestampFormat chosenTimestampFormat, String preface, String matchedDate, String epilogue) {
-            this.preface = preface;
+            this.preface = Objects.requireNonNull(preface);
             this.timestampFormat = new TimestampFormat(chosenTimestampFormat.javaTimestampFormatSupplier.apply(matchedDate),
                 chosenTimestampFormat.simplePattern, chosenTimestampFormat.outputGrokPatternName,
                 chosenTimestampFormat.customGrokPatternDefinitions(),
@@ -1174,7 +1181,16 @@ public final class TimestampFormatFinder {
             this.secondIndeterminateDateNumber = indeterminateDateNumbers[1];
             this.hasTimezoneDependentParsing = requiresTimezoneDependentParsing(timestampFormat.rawJavaTimestampFormats.get(0),
                 matchedDate);
-            this.epilogue = epilogue;
+            this.epilogue = Objects.requireNonNull(epilogue);
+        }
+
+        TimestampMatch(TimestampMatch toCopyExceptFormat, TimestampFormat timestampFormat) {
+            this.preface = toCopyExceptFormat.preface;
+            this.timestampFormat = Objects.requireNonNull(timestampFormat);
+            this.firstIndeterminateDateNumber = toCopyExceptFormat.firstIndeterminateDateNumber;
+            this.secondIndeterminateDateNumber = toCopyExceptFormat.secondIndeterminateDateNumber;
+            this.hasTimezoneDependentParsing = toCopyExceptFormat.hasTimezoneDependentParsing;
+            this.epilogue = toCopyExceptFormat.epilogue;
         }
 
         static boolean requiresTimezoneDependentParsing(String format, String matchedDate) {
@@ -1214,7 +1230,7 @@ public final class TimestampFormatFinder {
 
                         // TODO consider support for overriding the locale too
                         // But it's not clear-cut as Grok only knows English and German date
-                        // words and for indetermine formats we're expecting numbers anyway
+                        // words and for indeterminate formats we're expecting numbers anyway
                         DateTimeFormatter javaTimeFormatter = DateTimeFormatter.ofPattern(javaTimestampFormat, Locale.ROOT)
                             .withResolverStyle(ResolverStyle.LENIENT);
                         TemporalAccessor accessor = javaTimeFormatter.parse(matchedDate);
@@ -1226,7 +1242,7 @@ public final class TimestampFormatFinder {
 
                         // TODO consider support for overriding the locale too
                         // But it's not clear-cut as Grok only knows English and German date
-                        // words and for indetermine formats we're expecting numbers anyway
+                        // words and for indeterminate formats we're expecting numbers anyway
                         javaTimeFormatter = DateTimeFormatter.ofPattern(javaTimestampFormat, Locale.ROOT)
                             .withResolverStyle(ResolverStyle.LENIENT);
                         accessor = javaTimeFormatter.parse(matchedDate);

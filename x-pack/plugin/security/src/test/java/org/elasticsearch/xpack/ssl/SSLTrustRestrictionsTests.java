@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.is;
  *
  * @see RestrictedTrustManager
  */
-@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, transportClientRatio = 0.0)
 @TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
@@ -147,15 +147,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             throw new ElasticsearchException("failed to write restrictions", e);
         }
         runResourceWatcher();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        Settings parentSettings = super.transportClientSettings();
-        Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
-                .put(nodeSSL);
-        return builder.build();
     }
 
     @Override

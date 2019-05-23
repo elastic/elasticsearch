@@ -51,10 +51,10 @@ public class NodeEnvironmentEvilTests extends ESTestCase {
             Settings build = Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
                     .putList(Environment.PATH_DATA_SETTING.getKey(), tempPaths).build();
-            IOException ioException = expectThrows(IOException.class, () -> {
+            IOException exception = expectThrows(IOException.class, () -> {
                 new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
             });
-            assertTrue(ioException.getMessage(), ioException.getMessage().startsWith(path.toString()));
+            assertTrue(exception.getMessage(), exception.getMessage().startsWith(path.toString()));
         }
     }
 

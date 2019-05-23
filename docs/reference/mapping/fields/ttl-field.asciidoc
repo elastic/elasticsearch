@@ -106,6 +106,7 @@ may still be retrieved before they are purged.
 How many deletions are handled by a single <<docs-bulk,`bulk`>> request. The
 default value is `10000`.
 
+[[_note_on_literal_detect_noop_literal]]
 ==== Note on `detect_noop`
 If an update tries to update just the `_ttl` without changing the `_source` of
 the document it's expiration time won't be updated if `detect_noop` is `true`.

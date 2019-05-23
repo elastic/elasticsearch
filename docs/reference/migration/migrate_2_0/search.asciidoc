@@ -5,6 +5,7 @@
 
 Partial fields have been removed in favor of <<search-request-source-filtering,source filtering>>.
 
+[[_literal_search_type_count_literal_deprecated]]
 ==== `search_type=count` deprecated
 
 The `count` search type has been deprecated. All benefits from this search
@@ -112,6 +113,7 @@ to `false` to ignore field names completely when highlighting.
 The postings highlighter doesn't support the `require_field_match` option
 anymore, it will only highlight fields that were queried.
 
+[[_postings_highlighter_doesn_8217_t_support_literal_match_phrase_prefix_literal]]
 ==== Postings highlighter doesn't support `match_phrase_prefix`
 
 The `match` query with type set to `phrase_prefix` (or the

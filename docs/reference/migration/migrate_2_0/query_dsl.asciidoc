@@ -26,12 +26,14 @@ be cacheable. Filter context is introduced by:
   aggregations or index aliases
 --
 
+[[_literal_terms_literal_query_and_filter]]
 ==== `terms` query and filter
 
 The `execution` option of the `terms` filter is now deprecated and is ignored
 if provided. Similarly, the `terms` query no longer supports the
 `minimum_should_match` parameter.
 
+[[_literal_or_literal_and_literal_and_literal_now_implemented_via_literal_bool_literal]]
 ==== `or` and `and` now implemented via `bool`
 
 The `or` and `and` filters previously had a different execution pattern to the
@@ -43,6 +45,7 @@ handle both cases optimally.  As a result of this change, the `or` and `and`
 filters are now sugar syntax which are executed internally as a `bool` query.
 These filters may be removed in the future.
 
+[[_literal_filtered_literal_query_and_literal_query_literal_filter_deprecated]]
 ==== `filtered` query and `query` filter deprecated
 
 The `query` filter is deprecated as is it no longer needed -- all queries can
@@ -177,6 +180,7 @@ query have been removed in favor of the
 The parameter `percent_terms_to_match` has been removed in favor of
 `minimum_should_match`.
 
+[[_literal_limit_literal_filter_deprecated]]
 ==== `limit` filter deprecated
 
 The `limit` filter is deprecated and becomes a no-op. You can achieve similar

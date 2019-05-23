@@ -30,6 +30,7 @@ returned in the time zone specified.
 In addition to this, the `pre_zone_adjust_large_interval` is removed because
 we now always return dates and bucket keys in UTC.
 
+[[_including_excluding_terms]]
 ==== Including/excluding terms
 
 `include`/`exclude` filtering on the `terms` aggregation now uses the same

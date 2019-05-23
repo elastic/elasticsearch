@@ -57,7 +57,7 @@ In 2.0, Elasticsearch automatically threads listeners that are used from the
 client when the client is a node client or a transport client. Threading can
 no longer be manually set.
 
-
+[[_query_filter_refactoring]]
 ==== Query/filter refactoring
 
 `org.elasticsearch.index.queries.FilterBuilders` has been removed as part of the merge of

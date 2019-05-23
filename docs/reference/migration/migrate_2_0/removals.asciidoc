@@ -60,11 +60,13 @@ still need to use multicast discovery, you can install the plugin with:
 
 See {plugins}/discovery-multicast.html for more information.
 
+[[_literal__shutdown_literal_api]]
 ==== `_shutdown` API
 
 The `_shutdown` API has been removed without a replacement. Nodes should be
 managed via the operating system and the provided start/stop scripts.
 
+[[_literal_murmur3_literal_is_now_a_plugin]]
 ==== `murmur3` is now a plugin
 
 The `murmur3` field, which indexes hashes of the field values, has been moved
@@ -75,6 +77,7 @@ out of core and is available as a plugin. It can be installed as:
 ./bin/plugin install mapper-murmur3
 ------------------
 
+[[_literal__size_literal_is_now_a_plugin]]
 ==== `_size` is now a plugin
 
 The `_size` meta-data field, which indexes the size in bytes of the original

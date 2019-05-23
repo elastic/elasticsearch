@@ -197,6 +197,7 @@ It is no longer possible to set custom file path outside `CONF_DIR` for `*_path`
 in <<analysis-charfilters,char>> or <<analysis-tokenfilters,token>> filters.
 You must specify either relative path to `CONF_DIR` location or absolute path inside `CONF_DIR` location.
 
+[[_literal_es_classpath_removed_literal]]
 ==== `ES_CLASSPATH removed`
 
 The `ES_CLASSPATH` environment variable is no longer used to set the class

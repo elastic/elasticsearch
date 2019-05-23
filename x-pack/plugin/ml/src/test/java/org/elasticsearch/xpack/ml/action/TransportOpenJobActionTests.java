@@ -406,14 +406,12 @@ public class TransportOpenJobActionTests extends ESTestCase {
         Map<String, String> nodeAttr = new HashMap<>();
         nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
-        Version node1Version = VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion(Version.CURRENT));
-        Version node2Version = randomValueOtherThan(node1Version,
-            () -> VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion(Version.CURRENT)));
+        Version version = Version.fromString("6.3.0");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
                 .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        nodeAttr, Collections.emptySet(), node1Version))
+                        nodeAttr, Collections.emptySet(), version))
                 .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                        nodeAttr, Collections.emptySet(), node2Version))
+                        nodeAttr, Collections.emptySet(), version))
                 .build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();

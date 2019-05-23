@@ -33,6 +33,7 @@ removed in Elasticsearch 6.0.0.
 === Java API changes
 
 [float]
+[[_removed_some_of_the_literal_source_literal_overrides]]
 ==== Removed some of the `source` overrides
 
 In an effort to clean up internals we've removed the following methods:

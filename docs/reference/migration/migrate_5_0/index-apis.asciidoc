@@ -50,6 +50,7 @@ CPU usage can be obtained from `OsStats.Cpu#getPercent`.
 Suggest stats exposed through `suggest` in indices stats has been merged
 with `search` stats. `suggest` stats is exposed as part of `search` stats.
 
+[[_creating_indices_starting_with_emphasis_emphasis_or_emphasis_emphasis]]
 ==== Creating indices starting with '-' or '+'
 
 Elasticsearch no longer allows indices to be created started with '-' or '+', so

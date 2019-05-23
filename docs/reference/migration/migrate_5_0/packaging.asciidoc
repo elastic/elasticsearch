@@ -1,6 +1,7 @@
 [[breaking_50_packaging]]
 === Packaging
 
+[[_apt_yum_repository_url_changes]]
 ==== APT/YUM repository URL changes
 
 The repository for apt and yum packages has changed from
@@ -54,6 +55,7 @@ longer configures the thread stack size. When installing the Windows
 service, you must configure thread stack size. For additional details,
 see the <<windows-service,installation docs>>.
 
+[[_bin_bash_is_now_required]]
 ==== /bin/bash is now required
 
 Previously, the scripts used to start Elasticsearch and run plugin

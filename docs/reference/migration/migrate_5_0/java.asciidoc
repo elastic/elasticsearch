@@ -353,6 +353,7 @@ Removed the `getMemoryAvailable` method from `OsStats`, which could be previousl
 `clusterStatsResponse.getNodesStats().getOs().getMem()` which exposes `getTotal()`, `getFree()`,
 `getUsed()`, `getFreePercent()` and `getUsedPercent()`.
 
+[[_setrefresh_boolean_has_been_removed]]
 ==== setRefresh(boolean) has been removed
 
 `setRefresh(boolean)` has been removed in favor of `setRefreshPolicy(RefreshPolicy)` because there
@@ -393,6 +394,7 @@ The `setWaitForRelocatingShards(int)` method has been removed in favor of `setWa
 which instead uses a boolean flag to denote whether the cluster health operation should wait for there to
 be no relocating shards in the cluster before returning.
 
+[[_blobcontainer_interface_for_snapshot_restore]]
 ==== BlobContainer Interface for Snapshot/Restore
 
 Some methods have been removed from the `BlobContainer` interface for Snapshot/Restore repositories.  In particular,

@@ -44,6 +44,7 @@ false. The new `allocate_empty_primary` command corresponds to the old
 Elasticsearch no longer supports plugins registering custom allocation
 commands. It was unused and hopefully unneeded.
 
+[[_literal_index_shared_filesystem_recover_on_any_node_literal_changes]]
 ==== `index.shared_filesystem.recover_on_any_node` changes
 
 The behavior of `index.shared_filesystem.recover_on_any_node: true` has been

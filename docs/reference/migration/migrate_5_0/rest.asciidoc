@@ -16,6 +16,7 @@ that contains unrecognized query string parameters.
 When specifying an `_id` value longer than 512 bytes, the request will be
 rejected.
 
+[[_literal__optimize_literal_endpoint_removed]]
 ==== `/_optimize` endpoint removed
 
 The deprecated `/_optimize` endpoint has been removed. The `/_forcemerge`
@@ -24,11 +25,13 @@ endpoint should be used in lieu of optimize.
 The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 `POST` HTTP verb.
 
+[[_index_creation_endpoint_only_accepts_literal_put_literal]]
 ==== Index creation endpoint only accepts `PUT`
 
 It used to be possible to create an index by either calling `PUT index_name`
 or `POST index_name`. Only the former is now supported.
 
+[[_literal_head_index_type_literal_replaced_with_literal_head_index__mapping_type_literal]]
 ==== `HEAD {index}/{type}` replaced with `HEAD {index}/_mapping/{type}`
 
 The endpoint for checking whether a type exists has been changed from
@@ -36,12 +39,14 @@ The endpoint for checking whether a type exists has been changed from
 removal of types when `HEAD {index}/{id}` will be used to check whether a
 document exists in an index. The old endpoint will keep working until 6.0.
 
+[[_removed_literal_mem_literal_section_from_literal__cluster_stats_literal_response]]
 ==== Removed `mem` section from `/_cluster/stats` response
 
 The `mem` section contained only the `total` value, which was actually the
 memory available throughout all nodes in the cluster. The section contains now
 `total`, `free`, `used`, `used_percent` and `free_percent`.
 
+[[_revised_node_roles_aggregate_returned_by_literal__cluster_stats_literal]]
 ==== Revised node roles aggregate returned by `/_cluster/stats`
 
 The `client`, `master_only`, `data_only` and `master_data` fields have been
@@ -50,6 +55,7 @@ node can contribute to multiple counts as it can have multiple roles. Every
 node is implicitly a coordinating node, so whenever a node has no explicit
 roles, it will be counted as coordinating only.
 
+[[_removed_shard_literal_version_literal_information_from_literal__cluster_state_literal_routing_table]]
 ==== Removed shard `version` information from `/_cluster/state` routing table
 
 We now store allocation id's of shards in the cluster state and use that to 
@@ -79,6 +85,7 @@ removed in Elasticsearch 6.0.0.
 The `filters` and `char_filters` parameters have been renamed `filter` and `char_filter`.
 The `token_filters` parameter has been removed. Use `filter` instead.
 
+[[_literal_delete__query_literal_endpoint_removed]]
 ==== `DELETE /_query` endpoint removed
 
 The `DELETE /_query` endpoint provided by the Delete-By-Query plugin has been
@@ -101,6 +108,7 @@ The `PUT /_search/template/{id}/_create` endpoint that previously allowed to cre
 Some REST endpoints (e.g., cluster update index settings) supported detecting content in the Java
 properties format (line-delimited key=value pairs). This support has been removed.
 
+[[_literal_wait_for_relocating_shards_literal_is_now_literal_wait_for_no_relocating_shards_literal_in_literal__cluster_health_literal]]
 ==== `wait_for_relocating_shards` is now `wait_for_no_relocating_shards` in `/_cluster/health`
 
 The `wait_for_relocating_shards` parameter that used to take a number is now simply a boolean

@@ -1,6 +1,7 @@
 [[breaking_50_document_api_changes]]
 === Document API changes
 
+[[_literal_refresh_literal_no_longer_supports_truthy_and_falsy_values]]
 ==== `?refresh` no longer supports truthy and falsy values
 The `?refresh` request parameter used to accept any value other than `false`,
 `0`, `off`, and `no` to mean "make the changes from this request visible for
@@ -11,6 +12,7 @@ url entirely. If you add `?refresh=wait_for` Elasticsearch will wait for the
 changes to become visible before replying to the request but won't take any
 immediate refresh related action. See <<docs-refresh>>.
 
+[[_literal_created_literal_field_deprecated_in_the_index_api]]
 ==== `created` field deprecated in the Index API
 
 The `created` field has been deprecated in the Index API. It now returns
@@ -18,6 +20,7 @@ The `created` field has been deprecated in the Index API. It now returns
 `"result": "updated"` when it updated the document. This is also true for
 `index` bulk operations.
 
+[[_literal_found_literal_field_deprecated_in_the_delete_api]]
 ==== `found` field deprecated in the Delete API
 
 The `found` field has been deprecated in the Delete API. It now returns

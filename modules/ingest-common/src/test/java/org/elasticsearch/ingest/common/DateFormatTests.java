@@ -44,6 +44,8 @@ public class DateFormatTests extends ESTestCase {
                         .atZone(ZoneId.of("GMT-8"))
                         .format(DateTimeFormatter.ofPattern("MM dd HH:mm:ss", Locale.ENGLISH)),
                 equalTo("11 24 01:29:01"));
+        assertWarnings("'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
+                "Prefix your date format with '8' to use the new specifier.");
     }
 
     public void testParseJodaDefaultYear() {

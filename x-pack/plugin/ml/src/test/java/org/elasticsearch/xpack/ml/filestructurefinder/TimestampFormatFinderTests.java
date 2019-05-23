@@ -158,7 +158,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         assertSame(TimestampFormatFinder.TAI64N_CANDIDATE_FORMAT,
             TimestampFormatFinder.makeCandidateFromOverrideFormat("TAI64N", NOOP_TIMEOUT_CHECKER));
 
-        // Override is covered by a built in format
+        // Override is covered by a built-in format
         TimestampFormatFinder.CandidateTimestampFormat candidate =
             TimestampFormatFinder.makeCandidateFromOverrideFormat("yyyy-MM-dd'T'HH:mm:ss.SSS", NOOP_TIMEOUT_CHECKER);
         assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.outputGrokPatternName, candidate.outputGrokPatternName);
@@ -171,7 +171,7 @@ public class TimestampFormatFinderTests extends FileStructureTestCase {
         // Other supported formats are returned if exact format doesn't match
         assertEquals(Collections.singletonList("ISO8601"), candidate.javaTimestampFormatSupplier.apply("2018-05-15T16:14:56,374"));
 
-        // Override is supported but not covered by any built in format
+        // Override is supported but not covered by any built-in format
         candidate =
             TimestampFormatFinder.makeCandidateFromOverrideFormat("MM/dd/yyyy H:mm:ss zzz", NOOP_TIMEOUT_CHECKER);
         assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);

@@ -298,7 +298,7 @@ public class GrokPatternCreatorTests extends FileStructureTestCase {
 
     public void testCreateGrokPatternFromExamplesGivenMultiTimestampLogsAndCustomDefinition() {
 
-        // Two timestamps: one custom, one built in
+        // Two timestamps: one custom, one built-in
         Collection<String> sampleMessages = Arrays.asList(
             "559550912540598297\t4/20/2016 2:06PM\t2016-04-20T21:06:53Z\t38545844\tserv02nw07\t192.168.114.28\tAuthpriv\t" +
                 "Info\tsshd\tsubsystem request for sftp",

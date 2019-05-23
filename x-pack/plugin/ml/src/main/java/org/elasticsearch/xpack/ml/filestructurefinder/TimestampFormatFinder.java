@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.filestructurefinder;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.grok.Grok;
@@ -217,9 +218,9 @@ public final class TimestampFormatFinder {
      * @param errorOnMultiplePatterns Should an exception be thrown if samples are uploaded that require different Grok patterns?
      * @param timeoutChecker          Will abort the operation if its timeout is exceeded.
      */
-    public TimestampFormatFinder(List<String> explanation, String overrideFormat, boolean requireFullMatch, boolean errorOnNoTimestamp,
-                                 boolean errorOnMultiplePatterns, TimeoutChecker timeoutChecker) {
-        this.explanation = explanation;
+    public TimestampFormatFinder(List<String> explanation, @Nullable String overrideFormat, boolean requireFullMatch,
+                                 boolean errorOnNoTimestamp, boolean errorOnMultiplePatterns, TimeoutChecker timeoutChecker) {
+        this.explanation = Objects.requireNonNull(explanation);
         this.requireFullMatch = requireFullMatch;
         this.errorOnNoTimestamp = errorOnNoTimestamp;
         this.errorOnMultiplePatterns = errorOnMultiplePatterns;
@@ -315,7 +316,7 @@ public final class TimestampFormatFinder {
 
     /**
      * Given a user supplied Java timestamp format, return an appropriate candidate timestamp object as required by this class.
-     * The returned candidate might be a built in one, or might be generated from the supplied format.
+     * The returned candidate might be a built-in one, or might be generated from the supplied format.
      * @param overrideFormat A user supplied Java timestamp format.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @return An appropriate candidate timestamp object.
@@ -341,16 +342,18 @@ public final class TimestampFormatFinder {
         Tuple<String, String> grokPatternAndRegex = overrideFormatToGrokAndRegex(overrideFormat);
         DateTimeFormatter javaTimeFormatter = DateTimeFormatter.ofPattern(overrideFormat, Locale.ROOT);
 
-        // This timestamp is chosen to avoid the possibility of truncating zeroes
+        // This timestamp (2001-02-03T04:05:06,123456789+0545) is chosen such that the month, day and hour all have just 1 digit.
+        // This means that it will distinguish between formats that do/don't output leading zeroes for month, day and hour.
+        // Additionally it has the full 9 digits of fractional second precision, to avoid the possibility of truncating the fraction.
         String generatedTimestamp = javaTimeFormatter.withZone(ZoneOffset.ofHoursMinutesSeconds(5, 45, 0))
-            .format(Instant.ofEpochMilli(951844699123L).plusNanos(456789L));
+            .format(Instant.ofEpochMilli(981173106123L).plusNanos(456789L));
         for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS) {
 
             TimestampMatch match = checkCandidate(candidate, generatedTimestamp, null, true, timeoutChecker);
             if (match != null) {
                 return new CandidateTimestampFormat(example -> {
 
-                    // Modify the built in candidate so it prefers to return the user supplied format
+                    // Modify the built-in candidate so it prefers to return the user supplied format
                     // if at all possible, and only falls back to standard logic for other situations
                     try {
                         // TODO consider support for overriding the locale too
@@ -380,7 +383,7 @@ public final class TimestampFormatFinder {
      * @param timeoutChecker   Will abort the operation if its timeout is exceeded.
      * @return The timestamp format, or <code>null</code> if none matches.
      */
-    private static TimestampMatch checkCandidate(CandidateTimestampFormat candidate, String text, BitSet numberPosBitSet,
+    private static TimestampMatch checkCandidate(CandidateTimestampFormat candidate, String text, @Nullable BitSet numberPosBitSet,
                                                  boolean requireFullMatch, TimeoutChecker timeoutChecker) {
         if (requireFullMatch) {
             Map<String, Object> captures = timeoutChecker.grokCaptures(candidate.strictFullMatchGrok, text,
@@ -483,6 +486,21 @@ public final class TimestampFormatFinder {
             return;
         }
 
+        double[] weights = calculateMatchWeights();
+        timeoutChecker.check("timestamp format determination");
+        int highestWeightFormatIndex = findHighestWeightIndex(weights);
+        timeoutChecker.check("timestamp format determination");
+        selectHighestWeightFormat(highestWeightFormatIndex);
+    }
+
+    /**
+     * For each matched format, calculate a weight that can be used to decide which match is best.  The
+     * weight for each matched format is the sum of the weights for all matches that have that format.
+     * @return An array of weights.  There is one entry in the array for each entry in {@link #matchedFormats},
+     *         in the same order as the entries in {@link #matchedFormats}.
+     */
+    private double[] calculateMatchWeights() {
+
         int remainingMatches = matches.size();
         double[] weights = new double[matchedFormats.size()];
         for (TimestampMatch match : matches) {
@@ -502,9 +520,49 @@ public final class TimestampFormatFinder {
             }
         }
 
-        timeoutChecker.check("timestamp format determination");
+        return weights;
+    }
+
+    /**
+     * Used to weight a timestamp match according to how far along the line it is found.
+     * Timestamps at the very beginning of the line are given a weight of 1.  The weight
+     * progressively decreases the more text there is preceding the timestamp match, but
+     * is always greater than 0.
+     * @return A weight in the range (0, 1].
+     */
+    private static double weightForMatch(String preface) {
+        return Math.pow(1.0 + preface.length() / 15.0, -1.1);
+    }
+
+    /**
+     * Given an array of weights, find the difference between the two highest values.
+     * @param weights Array of weights.  Must have at least two elements.
+     * @return The difference between the two highest values.
+     */
+    private static double findDifferenceBetweenTwoHighestWeights(double[] weights) {
+        assert weights.length >= 2;
 
         double highestWeight = 0.0;
+        double secondHighestWeight = 0.0;
+        for (double weight : weights) {
+            if (weight > highestWeight) {
+                secondHighestWeight = highestWeight;
+                highestWeight = weight;
+            } else if (weight > secondHighestWeight) {
+                secondHighestWeight = weight;
+            }
+        }
+        return highestWeight - secondHighestWeight;
+    }
+
+    /**
+     * Given an array of weights, find the index with the highest weight.
+     * @param weights Array of weights.
+     * @return The index of the element with the highest weight.
+     */
+    private static int findHighestWeightIndex(double[] weights) {
+
+        double highestWeight = Double.NEGATIVE_INFINITY;
         int highestWeightFormatIndex = -1;
         for (int index = 0; index < weights.length; ++index) {
             double weight = weights[index];
@@ -514,17 +572,27 @@ public final class TimestampFormatFinder {
             }
         }
 
-        timeoutChecker.check("timestamp format determination");
+        return highestWeightFormatIndex;
+    }
 
-        // Is the selected format not already at the beginning of the list?
-        if (highestWeightFormatIndex > 0) {
-            cachedJavaTimestampFormats = null;
-            List<TimestampFormat> newMatchedFormats = new ArrayList<>(matchedFormats);
-            // Swap the selected format with the one that's currently at the beginning of the list
-            newMatchedFormats.set(0, matchedFormats.get(highestWeightFormatIndex));
-            newMatchedFormats.set(highestWeightFormatIndex, matchedFormats.get(0));
-            matchedFormats = newMatchedFormats;
+    /**
+     * Ensure the highest weight matched format is at the beginning of the list of matched formats.
+     * @param highestWeightFormatIndex The index of the matched format with the highest weight.
+     */
+    private void selectHighestWeightFormat(int highestWeightFormatIndex) {
+
+        assert highestWeightFormatIndex >= 0;
+        // If the selected format is already at the beginning of the list there's nothing to do
+        if (highestWeightFormatIndex == 0) {
+            return;
         }
+
+        cachedJavaTimestampFormats = null;
+        List<TimestampFormat> newMatchedFormats = new ArrayList<>(matchedFormats);
+        // Swap the selected format with the one that's currently at the beginning of the list
+        newMatchedFormats.set(0, matchedFormats.get(highestWeightFormatIndex));
+        newMatchedFormats.set(highestWeightFormatIndex, matchedFormats.get(0));
+        matchedFormats = newMatchedFormats;
     }
 
     /**
@@ -625,7 +693,8 @@ public final class TimestampFormatFinder {
      * return the corresponding pattern with the placeholders replaced with concrete
      * day/month formats.
      */
-    private List<String> determiniseJavaTimestampFormats(List<String> rawJavaTimestampFormats, TimestampFormat onlyConsiderFormat) {
+    private List<String> determiniseJavaTimestampFormats(List<String> rawJavaTimestampFormats,
+                                                         @Nullable TimestampFormat onlyConsiderFormat) {
 
         // This method needs rework if the class is ever made thread safe
 
@@ -639,7 +708,13 @@ public final class TimestampFormatFinder {
         return cachedJavaTimestampFormats;
     }
 
-    private boolean guessIsDayFirst(List<String> rawJavaTimestampFormats, TimestampFormat onlyConsiderFormat, Locale localeForFallback) {
+    /**
+     * If timestamp formats where the order of day and month could vary (as in a choice between dd/MM/yyyy
+     * or MM/dd/yyyy for example), make a guess about whether the day comes first.
+     * @return <code>true</code> if the day comes first and <code>false</code> if the month comes first.
+     */
+    private boolean guessIsDayFirst(List<String> rawJavaTimestampFormats, @Nullable TimestampFormat onlyConsiderFormat,
+                                    Locale localeForFallback) {
 
         Boolean isDayFirst = guessIsDayFirstFromFormats(rawJavaTimestampFormats);
         if (isDayFirst != null) {
@@ -655,7 +730,7 @@ public final class TimestampFormatFinder {
     /**
      * If timestamp formats where the order of day and month could vary (as in a choice between dd/MM/yyyy
      * or MM/dd/yyyy for example), make a guess about whether the day comes first based on quirks of the
-     * built in Grok patterns.
+     * built-in Grok patterns.
      * @return <code>true</code> if the day comes first, <code>false</code> if the month comes first, and
      *         <code>null</code> if there is insufficient evidence to decide.
      */
@@ -709,7 +784,7 @@ public final class TimestampFormatFinder {
      * @return <code>true</code> if the day comes first, <code>false</code> if the month comes first, and
      *         <code>null</code> if there is insufficient evidence to decide.
      */
-    Boolean guessIsDayFirstFromMatches(TimestampFormat onlyConsiderFormat) {
+    Boolean guessIsDayFirstFromMatches(@Nullable TimestampFormat onlyConsiderFormat) {
 
         BitSet firstIndeterminateNumbers = new BitSet();
         BitSet secondIndeterminateNumbers = new BitSet();
@@ -718,7 +793,11 @@ public final class TimestampFormatFinder {
 
             if (onlyConsiderFormat == null || onlyConsiderFormat.canMergeWith(match.timestampFormat)) {
 
+                // Valid indetermine day/month numbers will be in the range 1 to 31.
+                // -1 is used to mean "not present", and we ignore that here.
+
                 if (match.firstIndeterminateDateNumber > 0) {
+                    assert match.firstIndeterminateDateNumber <= 31;
                     if (match.firstIndeterminateDateNumber > 12) {
                         explanation.add("Guessing day precedes month in timestamps as one sample had first number ["
                             + match.firstIndeterminateDateNumber + "]");
@@ -727,6 +806,7 @@ public final class TimestampFormatFinder {
                     firstIndeterminateNumbers.set(match.firstIndeterminateDateNumber);
                 }
                 if (match.secondIndeterminateDateNumber > 0) {
+                    assert match.secondIndeterminateDateNumber <= 31;
                     if (match.secondIndeterminateDateNumber > 12) {
                         explanation.add("Guessing month precedes day in timestamps as one sample had second number ["
                             + match.secondIndeterminateDateNumber + "]");
@@ -768,7 +848,7 @@ public final class TimestampFormatFinder {
      * If timestamp formats where the order of day and month could vary (as in a choice between dd/MM/yyyy
      * or MM/dd/yyyy for example), make a guess about whether the day comes first based on the default order
      * for a given locale.
-     * @return <code>true</code> if the day comes first, <code>false</code> if the month comes first.
+     * @return <code>true</code> if the day comes first and <code>false</code> if the month comes first.
      */
     boolean guessIsDayFirstFromLocale(Locale locale) {
 
@@ -882,31 +962,6 @@ public final class TimestampFormatFinder {
             mapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, formats);
         }
         return mapping;
-    }
-
-    /**
-     * Used to weight a timestamp match according to how far along the line it is found.
-     * Timestamps at the very beginning of the line are given a weight of 1.  The weight
-     * progressively decreases the more text there is preceding the timestamp match, but
-     * is always greater than 0.
-     * @return A weight in the range (0, 1].
-     */
-    private static double weightForMatch(String preface) {
-        return Math.pow(1.0 + preface.length() / 15.0, -1.1);
-    }
-
-    private static double findDifferenceBetweenTwoHighestWeights(double[] weights) {
-        double highestWeight = 0.0;
-        double secondHighestWeight = 0.0;
-        for (double weight : weights) {
-            if (weight > highestWeight) {
-                secondHighestWeight = highestWeight;
-                highestWeight = weight;
-            } else if (weight > secondHighestWeight) {
-                secondHighestWeight = weight;
-            }
-        }
-        return highestWeight - secondHighestWeight;
     }
 
     /**
@@ -1261,7 +1316,8 @@ public final class TimestampFormatFinder {
 
         @Override
         public int hashCode() {
-            return Objects.hash(preface, timestampFormat, firstIndeterminateDateNumber, secondIndeterminateDateNumber, epilogue);
+            return Objects.hash(preface, timestampFormat, firstIndeterminateDateNumber, secondIndeterminateDateNumber,
+                hasTimezoneDependentParsing, epilogue);
         }
 
         @Override
@@ -1278,6 +1334,7 @@ public final class TimestampFormatFinder {
                 Objects.equals(this.timestampFormat, that.timestampFormat) &&
                 this.firstIndeterminateDateNumber == that.firstIndeterminateDateNumber &&
                 this.secondIndeterminateDateNumber == that.secondIndeterminateDateNumber &&
+                this.hasTimezoneDependentParsing == that.hasTimezoneDependentParsing &&
                 Objects.equals(this.epilogue, that.epilogue);
         }
 
@@ -1287,6 +1344,7 @@ public final class TimestampFormatFinder {
                 + ((firstIndeterminateDateNumber > 0 || secondIndeterminateDateNumber > 0)
                     ? ", indeterminate date numbers = (" + firstIndeterminateDateNumber + "," + secondIndeterminateDateNumber + ")"
                     : "")
+                + ", has timezone-dependent parsing = " + hasTimezoneDependentParsing
                 + (epilogue.isEmpty() ? "" : ", epilogue = '" + epilogue + "'");
         }
     }

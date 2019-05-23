@@ -250,6 +250,27 @@ public final class FileStructureUtils {
     }
 
     /**
+     * Finds the appropriate date mapping for a collection of field values.  Throws
+     * {@link IllegalArgumentException} if no consistent date mapping can be found.
+     * @param explanation List of reasons for choosing the overall file structure.  This list
+     *                    may be non-empty when the method is called, and this method may
+     *                    append to it.
+     * @param fieldValues Values of the field for which mappings are to be guessed.  The guessed
+     *                    mapping will be compatible with all the provided values.  Must not be
+     *                    empty.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @return The sub-section of the index mappings most appropriate for the field.
+     */
+    static Map<String, String> findTimestampMapping(List<String> explanation, Collection<String> fieldValues,
+                                                    TimeoutChecker timeoutChecker) {
+        assert fieldValues.isEmpty() == false;
+
+        TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, timeoutChecker);
+        fieldValues.forEach(timestampFormatFinder::addSample);
+        return timestampFormatFinder.getEsDateMappingTypeWithFormat();
+    }
+
+    /**
      * Given some sample values for a field, guess the most appropriate index mapping for the
      * field.
      * @param explanation List of reasons for choosing the overall file structure.  This list
@@ -265,27 +286,17 @@ public final class FileStructureUtils {
      */
     static Map<String, String> guessScalarMapping(List<String> explanation, String fieldName, Collection<String> fieldValues,
                                                   TimeoutChecker timeoutChecker) {
-
         assert fieldValues.isEmpty() == false;
 
         if (fieldValues.stream().allMatch(value -> "true".equals(value) || "false".equals(value))) {
             return Collections.singletonMap(MAPPING_TYPE_SETTING, "boolean");
         }
 
-        // This checks if a date mapping would be appropriate, and, if so, finds the correct format
-        TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, timeoutChecker);
-        for (String fieldValue : fieldValues) {
-            try {
-                timestampFormatFinder.addSample(fieldValue);
-            } catch (IllegalArgumentException e) {
-                // To be mapped as type date all the values must match the same timestamp format - it is
-                // not acceptable for all values to be dates, but with different formats
-                timestampFormatFinder = null;
-                break;
-            }
-        }
-        if (timestampFormatFinder != null) {
-            return timestampFormatFinder.getEsDateMappingTypeWithFormat();
+        try {
+            return findTimestampMapping(explanation, fieldValues, timeoutChecker);
+        } catch (IllegalArgumentException e) {
+            // To be mapped as type "date" all the values must match the same timestamp format - if
+            // they don't we'll end up here, and move on to try other possible mappings
         }
 
         if (fieldValues.stream().allMatch(NUMBER_GROK::match)) {

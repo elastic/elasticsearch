@@ -523,18 +523,13 @@ public final class GrokPatternCreator {
             if (mappings != null) {
                 Map<String, String> fullMappingType = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType);
                 if ("date".equals(mappingType)) {
-                    assert values.isEmpty() == false;
-                    TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(explanation, true, true, true, timeoutChecker);
-                    for (String value : values) {
-                        try {
-                            timestampFormatFinder.addSample(value);
-                        } catch (IllegalArgumentException e) {
-                            timestampFormatFinder = null;
-                            break;
-                        }
-                    }
-                    if (timestampFormatFinder != null) {
-                        fullMappingType = timestampFormatFinder.getEsDateMappingTypeWithFormat();
+                    try {
+                        fullMappingType = FileStructureUtils.findTimestampMapping(explanation, values, timeoutChecker);
+                    } catch (IllegalArgumentException e) {
+                        // This feels like it shouldn't happen, but there may be some obscure edge case
+                        // where it does, and in production it will cause less frustration to just return
+                        // a mapping type of "date" with no format than to fail the whole analysis
+                        assert e == null : e.getMessage();
                     }
                     timeoutChecker.check("mapping determination");
                 }

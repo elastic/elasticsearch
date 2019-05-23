@@ -595,3 +595,11 @@ See <<faster-phrase-queries>>.
 [role="exclude",id="_faster_prefix_queries_with_literal_index_prefixes_literal.html"]
 
 See <<faster-prefix-queries>>.
+
+[role="exclude",id="setup-xpack"]
+=== Set up {xpack}
+
+{xpack} is an Elastic Stack extension that provides security, alerting,
+monitoring, reporting, machine learning, and many other capabilities. By default, 
+when you install {es}, {xpack} is installed.
+

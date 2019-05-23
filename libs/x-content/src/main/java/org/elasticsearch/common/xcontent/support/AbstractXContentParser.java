@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -34,6 +35,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public abstract class AbstractXContentParser implements XContentParser {
 
@@ -280,6 +282,12 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
+    public <T> Map<String, T> map(
+            Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+        return readGenericMap(this, mapFactory, mapValueParser);
+    }
+
+    @Override
     public List<Object> list() throws IOException {
         return readList(this);
     }
@@ -289,21 +297,13 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readListOrderedMap(this);
     }
 
-    public interface MapFactory {
-        Map<String, Object> newMap();
-    }
+    static final Supplier<Map<String, Object>> SIMPLE_MAP_FACTORY = HashMap::new;
 
-    interface MapStringsFactory {
-        Map<String, String> newMap();
-    }
+    static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
-    static final MapFactory SIMPLE_MAP_FACTORY = HashMap::new;
+    static final Supplier<Map<String, String>> SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;
 
-    static final MapFactory ORDERED_MAP_FACTORY = LinkedHashMap::new;
-
-    static final MapStringsFactory SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;
-
-    static final MapStringsFactory ORDERED_MAP_STRINGS_FACTORY = LinkedHashMap::new;
+    static final Supplier<Map<String, String>> ORDERED_MAP_STRINGS_FACTORY = LinkedHashMap::new;
 
     static Map<String, Object> readMap(XContentParser parser) throws IOException {
         return readMap(parser, SIMPLE_MAP_FACTORY);
@@ -329,28 +329,19 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readList(parser, ORDERED_MAP_FACTORY);
     }
 
-    static Map<String, Object> readMap(XContentParser parser, MapFactory mapFactory) throws IOException {
-        Map<String, Object> map = mapFactory.newMap();
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-        }
-        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
-            // Must point to field name
-            String fieldName = parser.currentName();
-            // And then the value...
-            token = parser.nextToken();
-            Object value = readValue(parser, mapFactory, token);
-            map.put(fieldName, value);
-        }
-        return map;
+    static Map<String, Object> readMap(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+        return readGenericMap(parser, mapFactory, p -> readValue(p, mapFactory));
     }
 
-    static Map<String, String> readMapStrings(XContentParser parser, MapStringsFactory mapStringsFactory) throws IOException {
-        Map<String, String> map = mapStringsFactory.newMap();
+    static Map<String, String> readMapStrings(XContentParser parser, Supplier<Map<String, String>> mapFactory) throws IOException {
+        return readGenericMap(parser, mapFactory, XContentParser::text);
+    }
+
+    static <T> Map<String, T> readGenericMap(
+            XContentParser parser,
+            Supplier<Map<String, T>> mapFactory,
+            CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+        Map<String, T> map = mapFactory.get();
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
@@ -363,13 +354,13 @@ public abstract class AbstractXContentParser implements XContentParser {
             String fieldName = parser.currentName();
             // And then the value...
             parser.nextToken();
-            String value = parser.text();
+            T value = mapValueParser.apply(parser);
             map.put(fieldName, value);
         }
         return map;
     }
 
-    static List<Object> readList(XContentParser parser, MapFactory mapFactory) throws IOException {
+    static List<Object> readList(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();
@@ -386,28 +377,22 @@ public abstract class AbstractXContentParser implements XContentParser {
 
         ArrayList<Object> list = new ArrayList<>();
         for (; token != null && token != XContentParser.Token.END_ARRAY; token = parser.nextToken()) {
-            list.add(readValue(parser, mapFactory, token));
+            list.add(readValue(parser, mapFactory));
         }
         return list;
     }
 
-    public static Object readValue(XContentParser parser, MapFactory mapFactory, XContentParser.Token token) throws IOException {
-        if (token == XContentParser.Token.VALUE_NULL) {
-            return null;
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            return parser.text();
-        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-            return parser.numberValue();
-        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            return parser.booleanValue();
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            return readMap(parser, mapFactory);
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            return readList(parser, mapFactory);
-        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-            return parser.binaryValue();
+    static Object readValue(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+        switch (parser.currentToken()) {
+            case VALUE_STRING: return parser.text();
+            case VALUE_NUMBER: return parser.numberValue();
+            case VALUE_BOOLEAN: return parser.booleanValue();
+            case START_OBJECT: return readMap(parser, mapFactory);
+            case START_ARRAY: return readList(parser, mapFactory);
+            case VALUE_EMBEDDED_OBJECT: return parser.binaryValue();
+            case VALUE_NULL:
+            default: return null;
         }
-        return null;
     }
 
     @Override

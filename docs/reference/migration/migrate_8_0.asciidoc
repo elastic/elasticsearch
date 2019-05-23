@@ -20,6 +20,7 @@ coming[8.0.0]
 * <<breaking_80_ilm_changes>>
 * <<breaking_80_java_changes>>
 * <<breaking_80_network_changes>>
+* <<breaking_80_node_changes>>
 * <<breaking_80_transport_changes>>
 * <<breaking_80_http_changes>>
 * <<breaking_80_reindex_changes>>
@@ -54,6 +55,7 @@ include::migrate_8_0/security.asciidoc[]
 include::migrate_8_0/ilm.asciidoc[]
 include::migrate_8_0/java.asciidoc[]
 include::migrate_8_0/network.asciidoc[]
+include::migrate_8_0/node.asciidoc[]
 include::migrate_8_0/transport.asciidoc[]
 include::migrate_8_0/http.asciidoc[]
 include::migrate_8_0/reindex.asciidoc[]

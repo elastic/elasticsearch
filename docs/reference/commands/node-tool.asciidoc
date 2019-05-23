@@ -13,7 +13,7 @@ with the data on disk.
 [source,shell]
 --------------------------------------------------
 bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-version
-  [--ordinal <Integer>] [-E <KeyValuePair>]
+  [-E <KeyValuePair>]
   [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
@@ -289,10 +289,6 @@ it can join a different cluster.
 
 `override-version`:: Overwrites the version number stored in the data path so
 that a node can start despite being incompatible with the on-disk data.
-
-`--ordinal <Integer>`:: If there is <<max-local-storage-nodes,more than one
-node sharing a data path>> then this specifies which node to target. Defaults
-to `0`, meaning to use the first node in the data path.
 
 `-E <KeyValuePair>`:: Configures a setting.
 

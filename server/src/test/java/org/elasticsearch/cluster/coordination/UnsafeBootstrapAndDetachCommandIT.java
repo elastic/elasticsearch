@@ -56,10 +56,10 @@ import static org.hamcrest.Matchers.greaterThan;
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
-    private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, int nodeOrdinal, boolean abort)
+    private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort)
             throws Exception {
         final MockTerminal terminal = new MockTerminal();
-        final OptionSet options = command.getParser().parse("-ordinal", Integer.toString(nodeOrdinal));
+        final OptionSet options = command.getParser().parse();
         final String input;
 
         if (abort) {
@@ -80,14 +80,14 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
     }
 
     private MockTerminal unsafeBootstrap(Environment environment, boolean abort) throws Exception {
-        final MockTerminal terminal = executeCommand(new UnsafeBootstrapMasterCommand(), environment, 0, abort);
+        final MockTerminal terminal = executeCommand(new UnsafeBootstrapMasterCommand(), environment, abort);
         assertThat(terminal.getOutput(), containsString(UnsafeBootstrapMasterCommand.CONFIRMATION_MSG));
         assertThat(terminal.getOutput(), containsString(UnsafeBootstrapMasterCommand.MASTER_NODE_BOOTSTRAPPED_MSG));
         return terminal;
     }
 
     private MockTerminal detachCluster(Environment environment, boolean abort) throws Exception {
-        final MockTerminal terminal = executeCommand(new DetachClusterCommand(), environment, 0, abort);
+        final MockTerminal terminal = executeCommand(new DetachClusterCommand(), environment, abort);
         assertThat(terminal.getOutput(), containsString(DetachClusterCommand.CONFIRMATION_MSG));
         assertThat(terminal.getOutput(), containsString(DetachClusterCommand.NODE_DETACHED_MSG));
         return terminal;
@@ -490,7 +490,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
             protected void cleanUpOldMetaData(Terminal terminal, Path[] dataPaths, long newGeneration) {
                 throw new SimulatedDeleteFailureException();
             }
-        }, environment, 0, false);
+        }, environment, false);
 
 
         // check original meta-data left untouched.
@@ -503,7 +503,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         assertNotEquals(originalMetaData.clusterUUID(), secondMetaData.clusterUUID());
 
         // check that a new run will cleanup.
-        executeCommand(new UnsafeBootstrapMasterCommand(), environment, 0, false);
+        executeCommand(new UnsafeBootstrapMasterCommand(), environment, false);
 
         assertNull(loadMetaData(dataPaths, namedXContentRegistry, originalManifest));
         assertNull(loadMetaData(dataPaths, namedXContentRegistry, secondManifest));

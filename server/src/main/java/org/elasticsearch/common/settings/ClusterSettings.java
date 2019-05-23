@@ -390,7 +390,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ThreadContext.DEFAULT_HEADERS_SETTING,
             Loggers.LOG_DEFAULT_LEVEL_SETTING,
             Loggers.LOG_LEVEL_SETTING,
-            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
             NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
             OsService.REFRESH_INTERVAL_SETTING,
             ProcessService.REFRESH_INTERVAL_SETTING,

@@ -114,6 +114,7 @@ If both `doc` and `script` is specified, then `doc` is ignored. Best is
 to put your field pairs of the partial document in the script itself.
 
 [float]
+[[_literal_detect_noop_literal]]
 === `detect_noop`
 
 By default if `doc` is specified then the document is always updated even

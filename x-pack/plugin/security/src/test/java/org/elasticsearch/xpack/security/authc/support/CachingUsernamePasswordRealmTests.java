@@ -63,7 +63,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/42267")
     public void testCacheSettings() {
         String cachingHashAlgo = randomFrom(Hasher.getAvailableAlgoCacheHash());
         int maxUsers = randomIntBetween(10, 100);

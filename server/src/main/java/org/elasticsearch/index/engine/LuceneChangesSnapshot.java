@@ -188,8 +188,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             int readerIndex = 0;
             CombinedDocValues combinedDocValues = null;
             LeafReaderContext leaf = null;
-            for (int i = 0; i < scoreDocs.length; i++) {
-                ScoreDoc scoreDoc = scoreDocs[i];
+            for (ScoreDoc scoreDoc : scoreDocs) {
                 if (scoreDoc.doc >= docBase + maxDoc) {
                     do {
                         leaf = leaves.get(readerIndex++);

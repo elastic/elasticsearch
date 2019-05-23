@@ -247,6 +247,10 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
         }
         final ClientID clientId = new ClientID(require(config, RP_CLIENT_ID));
         final SecureString clientSecret = config.getSetting(RP_CLIENT_SECRET);
+        if (clientSecret.length() == 0) {
+            throw new SettingsException("The configuration setting [" + RealmSettings.getFullSettingKey(config, RP_CLIENT_SECRET)
+                + "] is required");
+        }
         final ResponseType responseType;
         try {
             // This should never happen as it's already validated in the settings

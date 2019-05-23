@@ -19,6 +19,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.MockTokenizer;
@@ -1801,7 +1802,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         index("test", "type1", "2", "text", new String[] {"", text2});
         refresh();
 
-        IdsQueryBuilder idsQueryBuilder = QueryBuilders.idsQuery("type1").addIds("2");
+        IdsQueryBuilder idsQueryBuilder = QueryBuilders.idsQuery().addIds("2");
         field.highlighterType("plain");
         response = client().prepareSearch("test")
                 .setQuery(idsQueryBuilder)
@@ -1824,7 +1825,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         // But if the field was actually empty then you should get no highlighting field
         index("test", "type1", "3", "text", new String[] {});
         refresh();
-        idsQueryBuilder = QueryBuilders.idsQuery("type1").addIds("3");
+        idsQueryBuilder = QueryBuilders.idsQuery().addIds("3");
         field.highlighterType("plain");
         response = client().prepareSearch("test")
                 .setQuery(idsQueryBuilder)
@@ -1847,7 +1848,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         index("test", "type1", "4");
         refresh();
 
-        idsQueryBuilder = QueryBuilders.idsQuery("type1").addIds("4");
+        idsQueryBuilder = QueryBuilders.idsQuery().addIds("4");
         field.highlighterType("plain");
         response = client().prepareSearch("test")
                 .setQuery(idsQueryBuilder)

@@ -152,13 +152,13 @@ public interface DateFormatter {
     }
 
     static List<String> splitCombinedPatterns(String input) {
-        List<String> formatters = new ArrayList<>();
+        List<String> patterns = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
             if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
-            formatters.add(pattern);
+            patterns.add(pattern);
         }
-        return formatters;
+        return patterns;
     }
 }

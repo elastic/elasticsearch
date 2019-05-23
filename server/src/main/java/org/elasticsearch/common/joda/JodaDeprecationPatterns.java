@@ -48,16 +48,16 @@ public class JodaDeprecationPatterns {
      * Deprecated here means: when it was not already prefixed with 8 (meaning already upgraded)
      * and it is not a predefined pattern from <code>FormatNames</code>  like basic_date_time_no_millis
      * and it uses pattern characters which changed meaning from joda to java like Y becomes y.
-     * @param format - a format to be checked
+     * @param pattern - a format to be checked
      * @return true if format is deprecated, otherwise false
      */
-    public static boolean isDeprecatedFormat(String format) {
-        List<String> patterns = DateFormatter.splitCombinedPatterns(format);
+    public static boolean isDeprecatedPattern(String pattern) {
+        List<String> patterns = DateFormatter.splitCombinedPatterns(pattern);
 
-        for (String pattern : patterns) {
-            boolean isDeprecated = pattern.startsWith("8") == false && FormatNames.exist(pattern) == false &&
+        for (String subPattern : patterns) {
+            boolean isDeprecated = subPattern.startsWith("8") == false && FormatNames.exist(subPattern) == false &&
                 JODA_PATTERNS_DEPRECATIONS.keySet().stream()
-                                          .filter(s -> pattern.contains(s))
+                                          .filter(s -> subPattern.contains(s))
                                           .findAny()
                                           .isPresent();
             if (isDeprecated) {
@@ -70,17 +70,17 @@ public class JodaDeprecationPatterns {
     /**
      * Formats deprecation message for suggestion field in a warning header.
      * Joins all warnings in a one message.
-     * @param format
+     * @param pattern - a pattern to be formatted
      * @return a formatted deprecation message
      */
-    public static String formatSuggestion(String format) {
-        List<String> patterns = DateFormatter.splitCombinedPatterns(format);
+    public static String formatSuggestion(String pattern) {
+        List<String> patterns = DateFormatter.splitCombinedPatterns(pattern);
 
         StringJoiner joiner = new StringJoiner("; ");
-        for (String pattern : patterns) {
-            if (isDeprecatedFormat(pattern)) {
+        for (String subPattern : patterns) {
+            if (isDeprecatedPattern(subPattern)) {
                 String suggestion = JODA_PATTERNS_DEPRECATIONS.entrySet().stream()
-                                                              .filter(s -> pattern.contains(s.getKey()))
+                                                              .filter(s -> subPattern.contains(s.getKey()))
                                                               .map(s -> s.getValue())
                                                               .collect(Collectors.joining("; "));
                 joiner.add(suggestion);

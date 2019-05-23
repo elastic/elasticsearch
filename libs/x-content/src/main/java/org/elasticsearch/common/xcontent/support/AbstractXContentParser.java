@@ -19,11 +19,14 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import static org.elasticsearch.common.xcontent.support.MapParser.readGenericMap;
+
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.MapParser.MapFactory;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -280,16 +283,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public <T> Map<String, T> genericMap(MapValueParser<T> mapValueParser) throws IOException {
-        return readGenericMap(this, mapValueParser);
-    }
-
-    @Override
-    public <T> Map<String, T> genericMapOrdered(MapValueParser<T> mapValueParser) throws IOException {
-        return readGenericOrderedMap(this, mapValueParser);
-    }
-
-    @Override
     public List<Object> list() throws IOException {
         return readList(this);
     }
@@ -297,10 +290,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public List<Object> listOrderedMap() throws IOException {
         return readListOrderedMap(this);
-    }
-
-    interface MapFactory<T> {
-        Map<String, T> newMap();
     }
 
     static final MapFactory<Object> SIMPLE_MAP_FACTORY = HashMap::new;
@@ -327,14 +316,6 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readMapStrings(parser, ORDERED_MAP_STRINGS_FACTORY);
     }
 
-    static <T> Map<String, T> readGenericMap(XContentParser parser, MapValueParser<T> valueParser) throws IOException {
-        return readGenericMap(parser, HashMap::new, valueParser);
-    }
-
-    static <T> Map<String, T> readGenericOrderedMap(XContentParser parser, MapValueParser<T> valueParser) throws IOException {
-        return readGenericMap(parser, LinkedHashMap::new, valueParser);
-    }
-
     static List<Object> readList(XContentParser parser) throws IOException {
         return readList(parser, SIMPLE_MAP_FACTORY);
     }
@@ -349,29 +330,6 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static Map<String, String> readMapStrings(XContentParser parser, MapFactory<String> mapFactory) throws IOException {
         return readGenericMap(parser, mapFactory, p -> p.text());
-    }
-
-    static <T> Map<String, T> readGenericMap(
-            XContentParser parser,
-            MapFactory<T> mapFactory,
-            MapValueParser<T> mapValueParser) throws IOException {
-        Map<String, T> map = mapFactory.newMap();
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-        }
-        for (; token == XContentParser.Token.FIELD_NAME; token = parser.nextToken()) {
-            // Must point to field name
-            String fieldName = parser.currentName();
-            // And then the value...
-            parser.nextToken();
-            T value = mapValueParser.apply(parser);
-            map.put(fieldName, value);
-        }
-        return map;
     }
 
     static List<Object> readList(XContentParser parser, MapFactory<Object> mapFactory) throws IOException {
@@ -398,15 +356,15 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static Object readValue(XContentParser parser, MapFactory<Object> mapFactory) throws IOException {
         switch (parser.currentToken()) {
-            case VALUE_NULL: return null;
             case VALUE_STRING: return parser.text();
             case VALUE_NUMBER: return parser.numberValue();
             case VALUE_BOOLEAN: return parser.booleanValue();
             case START_OBJECT: return readMap(parser, mapFactory);
             case START_ARRAY: return readList(parser, mapFactory);
             case VALUE_EMBEDDED_OBJECT: return parser.binaryValue();
+            case VALUE_NULL:
+            default: return null;
         }
-        return null;
     }
 
     @Override

@@ -17,10 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.common.xcontent;
+package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,7 +33,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 /**
  * Simple structure with 3 fields: int, double and String.
- * Used for testing parsers.
+ * Used by {@link MapParserTests} class.
  */
 class SimpleStruct implements ToXContentObject {
 

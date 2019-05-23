@@ -135,7 +135,7 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             TimeUnit.MILLISECONDS);
     }
 
-    protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(String field, DateHistogramInterval interval, ZoneId zone, String format) {
+    protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(String field,
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setInterval(interval)
@@ -144,9 +144,9 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
     }
 
     protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(String field,
-                                                                      DateHistogramInterval interval,
-                                                                      ZoneId zone,
-                                                                      String format) {
+                                                                                          DateHistogramInterval interval,
+                                                                                          ZoneId zone,
+                                                                                          String format) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
             .setDateHistgramInterval(interval)

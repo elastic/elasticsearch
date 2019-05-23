@@ -73,6 +73,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         int max = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(
                 Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build());
         assertEquals(value, max);
+        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.");
     }
 
     public void testNodeLockSingleEnvironment() throws IOException {
@@ -95,6 +97,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
         env.close();
         assertThat(env.lockedShards(), empty());
+        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.");
     }
 
     @SuppressForbidden(reason = "System.out.*")
@@ -129,6 +133,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             assertEquals(first.nodeDataPaths()[i].getParent(), second.nodeDataPaths()[i].getParent());
         }
         IOUtils.close(first, second);
+        assertWarnings("[node.max_local_storage_nodes] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.");
     }
 
     public void testShardLock() throws Exception {

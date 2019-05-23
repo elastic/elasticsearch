@@ -903,6 +903,14 @@ public class FieldSortIT extends ESIntegTestCase {
                 .addSort(SortBuilders.fieldSort("kkk").unmappedType("keyword"))
                 .get();
         assertNoFailures(searchResponse);
+
+        // nested field
+        searchResponse = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort(SortBuilders.fieldSort("nested.foo").unmappedType("keyword")
+                .setNestedSort(new NestedSortBuilder("nested").setNestedSort(new NestedSortBuilder("nested.foo"))))
+            .get();
+        assertNoFailures(searchResponse);
     }
 
     public void testSortMVField() throws Exception {

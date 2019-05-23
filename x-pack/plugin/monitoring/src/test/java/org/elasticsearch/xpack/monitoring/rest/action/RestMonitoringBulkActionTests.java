@@ -6,8 +6,7 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -25,23 +24,25 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
+import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
-import org.elasticsearch.xpack.core.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
+import org.mockito.ArgumentCaptor;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RestMonitoringBulkActionTests extends ESTestCase {
@@ -171,31 +172,20 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
     }
 
     private RestBuilderListener<MonitoringBulkResponse> getRestBuilderListener(final RestRequest restRequest) throws Exception {
-        final Client client = mock(Client.class);
-        final XPackClient xpackClient = mock(XPackClient.class);
-        final MonitoringClient monitoringClient = mock(MonitoringClient.class);
-        final AtomicReference<RestBuilderListener<MonitoringBulkResponse>> listenerReference = new AtomicReference<>();
-        final MonitoringBulkRequestBuilder builder = new MonitoringBulkRequestBuilder(client){
-            @SuppressWarnings("unchecked")
-            @Override
-            public void execute(ActionListener<MonitoringBulkResponse> listener) {
-                listenerReference.set((RestBuilderListener)listener);
-            }
-        };
-        when(monitoringClient.prepareMonitoringBulk()).thenReturn(builder);
-        when(xpackClient.monitoring()).thenReturn(monitoringClient);
-
-        final CheckedConsumer<RestChannel, Exception> consumer = action.doPrepareRequest(restRequest, xpackClient);
-
+        final NodeClient client = mock(NodeClient.class);
+        final CheckedConsumer<RestChannel, Exception> consumer = action.prepareRequest(restRequest, client);
         final RestChannel channel = mock(RestChannel.class);
         when(channel.newBuilder()).thenReturn(JsonXContent.contentBuilder());
 
+        final ArgumentCaptor<RestBuilderListener> captor = ArgumentCaptor.forClass(RestBuilderListener.class);
+
         // trigger/capture execution
         consumer.accept(channel);
+        verify(client).execute(eq(MonitoringBulkAction.INSTANCE), any(MonitoringBulkRequest.class), captor.capture());
 
-        assertThat(listenerReference.get(), not(nullValue()));
+        assertThat(captor.getValue(), not(nullValue()));
 
-        return listenerReference.get();
+        return (RestBuilderListener<MonitoringBulkResponse>) captor.getValue();
     }
 
     private static FakeRestRequest createRestRequest(final String systemId, final String systemApiVersion, final String interval) {

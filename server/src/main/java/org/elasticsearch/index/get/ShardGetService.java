@@ -118,7 +118,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     public GetResult get(Engine.GetResult engineGetResult, String id, String type,
                             String[] fields, FetchSourceContext fetchSourceContext) {
         if (!engineGetResult.exists()) {
-            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
         }
 
         currentMetric.inc();
@@ -174,7 +174,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         if (get == null || get.exists() == false) {
-            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null);
+            return new GetResult(shardId.getIndexName(), type, id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
         }
 
         try {
@@ -187,7 +187,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
     private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext,
                                                         Engine.GetResult get, MapperService mapperService) {
-        Map<String, DocumentField> fields = null;
+        Map<String, DocumentField> documentFields = null;
+        Map<String, DocumentField> metaDataFields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields, fetchSourceContext);
@@ -201,9 +202,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
             if (!fieldVisitor.fields().isEmpty()) {
                 fieldVisitor.postProcess(mapperService);
-                fields = new HashMap<>(fieldVisitor.fields().size());
+                documentFields = new HashMap<>();
+                metaDataFields = new HashMap<>();
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
-                    fields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
+                    if (MapperService.isMetadataField(entry.getKey())) {
+                        metaDataFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));                        
+                    } else {
+                        documentFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
+                    }
                 }
             }
         }
@@ -240,7 +246,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         return new GetResult(shardId.getIndexName(), type, id, get.docIdAndVersion().seqNo, get.docIdAndVersion().primaryTerm,
-            get.version(), get.exists(), source, fields);
+            get.version(), get.exists(), source, documentFields, metaDataFields);
     }
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext) {

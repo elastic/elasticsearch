@@ -201,7 +201,7 @@ task thirdPartyTests(type: Test) {
 }
 
 // TODO: Make these tests work with Minio as well. Currently, this is blocked by not being able to lazily configure system properties
-//       on JUnit Test tasks.
+//       on JUnit Test tasks and us having to lazily configure the dynamically set endpoint of Minio.
 if (!useFixture) {
   check.dependsOn(thirdPartyTests)
 }

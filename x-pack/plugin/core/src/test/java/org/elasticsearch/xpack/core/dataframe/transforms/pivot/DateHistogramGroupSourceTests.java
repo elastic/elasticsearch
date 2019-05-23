@@ -22,7 +22,7 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
         String field = randomAlphaOfLengthBetween(1, 20);
-        DateHistogramGroupSource dateHistogramGroupSource; // = new DateHistogramGroupSource(field);
+        DateHistogramGroupSource dateHistogramGroupSource;
         if (randomBoolean()) {
             dateHistogramGroupSource = new DateHistogramGroupSource(field, new DateHistogramGroupSource.FixedInterval(
                     new DateHistogramInterval(randomPositiveTimeValue())));

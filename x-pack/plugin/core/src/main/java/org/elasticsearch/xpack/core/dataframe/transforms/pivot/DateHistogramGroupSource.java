@@ -231,8 +231,6 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(field);
         interval.writeTo(out);
-        //out.writeLong(interval);
-        //out.writeOptionalWriteable(dateHistogramInterval);
         out.writeOptionalZoneId(timeZone);
         out.writeOptionalString(format);
     }

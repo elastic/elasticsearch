@@ -23,7 +23,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.index.store.SmbDirectoryWrapper;
 

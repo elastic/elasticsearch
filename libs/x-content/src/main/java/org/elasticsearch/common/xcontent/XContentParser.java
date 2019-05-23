@@ -138,18 +138,18 @@ public interface XContentParser extends Closeable {
     Map<String, String> mapStringsOrdered() throws IOException;
 
     /**
-     * Returns an instance of {@link Map<String, T>} holding parsed map.
+     * Returns an instance of {@link Map} holding parsed map.
      * @param mapValueParser parser for parsing a single map value
      * @param <T> map value type
-     * @return {@link Map<String, T> object
+     * @return {@link Map} object
      */
     <T> Map<String, T> genericMap(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException;
 
     /**
-     * Returns an instance of {@link Map<String, T>} holding parsed map.
+     * Returns an instance of {@link Map} holding parsed map.
      * @param mapValueParser parser for parsing a single map value
      * @param <T> map value type
-     * @return {@link Map<String, T> object for which the iteration order is the same as the input entries appearance order
+     * @return {@link Map} object for which the iteration order is the same as the input entries appearance order
      */
     <T> Map<String, T> genericMapOrdered(CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException;
 

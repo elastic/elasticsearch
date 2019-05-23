@@ -80,6 +80,7 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
      */
     public interface Interval extends ToXContentFragment {
         String getName();
+        DateHistogramInterval getInterval();
     }
 
     public static class FixedInterval implements Interval {
@@ -93,6 +94,11 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         @Override
         public String getName() {
             return NAME;
+        }
+
+        @Override
+        public DateHistogramInterval getInterval() {
+            return interval;
         }
 
         @Override
@@ -137,6 +143,11 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         @Override
         public String getName() {
             return NAME;
+        }
+
+        @Override
+        public DateHistogramInterval getInterval() {
+            return interval;
         }
 
         @Override

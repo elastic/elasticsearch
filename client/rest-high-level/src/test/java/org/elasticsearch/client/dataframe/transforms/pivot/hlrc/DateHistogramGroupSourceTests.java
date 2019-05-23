@@ -65,9 +65,15 @@ public class DateHistogramGroupSourceTests extends AbstractResponseTestCase<
             org.elasticsearch.client.dataframe.transforms.pivot.DateHistogramGroupSource clientInstance) {
         assertThat(serverTestInstance.getField(), equalTo(clientInstance.getField()));
         assertThat(serverTestInstance.getFormat(), equalTo(clientInstance.getFormat()));
-        //assertThat(serverTestInstance.getInterval(), equalTo(clientInstance.getInterval()));
+        assertSameInterval(serverTestInstance.getInterval(), clientInstance.getInterval());
         assertThat(serverTestInstance.getTimeZone(), equalTo(clientInstance.getTimeZone()));
-        //assertThat(serverTestInstance.getType(), equalTo(clientInstance.getType()));
+        assertThat(serverTestInstance.getType().name(), equalTo(clientInstance.getType().name()));
+    }
+
+    private void assertSameInterval(DateHistogramGroupSource.Interval serverTestInstance,
+            org.elasticsearch.client.dataframe.transforms.pivot.DateHistogramGroupSource.Interval clientInstance) {
+        assertEquals(serverTestInstance.getName(), clientInstance.getName());
+        assertEquals(serverTestInstance.getInterval(), clientInstance.getInterval());
     }
 
 }

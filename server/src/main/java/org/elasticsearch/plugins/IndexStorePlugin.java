@@ -41,7 +41,7 @@ public interface IndexStorePlugin {
          * @param indexSettings the shards index settings
          * @param shardPath the path the shard is using
          * @return a new lucene directory instance
-         * @throws IOException
+         * @throws IOException if an IOException occurs while opening the directory
          */
         Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException;
     }

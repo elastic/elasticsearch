@@ -307,7 +307,7 @@ Per default, the assumption is that the documents in the bucket are also contain
 --------------------------------------------------
 
  
-	
+[[_size_amp_shard_size_2]]	
 ===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By

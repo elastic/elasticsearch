@@ -622,7 +622,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             randomIntBetween(1, 10000));
     }
 
-    private ActionListener<PolicyExecutionResult> createTestListener(final CountDownLatch latch, final Consumer<Exception> exceptionConsumer) {
+    private ActionListener<PolicyExecutionResult> createTestListener(final CountDownLatch latch,
+                                                                     final Consumer<Exception> exceptionConsumer) {
         return new ActionListener<>() {
             @Override
             public void onResponse(PolicyExecutionResult policyExecutionResult) {

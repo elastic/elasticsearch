@@ -27,8 +27,6 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.shard.ShardId;
@@ -127,17 +125,6 @@ public abstract class FileRestoreContext {
             final Map<String, StoreFileMetaData> snapshotMetaData = new HashMap<>();
             final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new HashMap<>();
             for (final BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles.indexFiles()) {
-                try {
-                    // in 1.3.3 we added additional hashes for .si / segments_N files
-                    // to ensure we don't double the space in the repo since old snapshots
-                    // don't have this hash we try to read that hash from the blob store
-                    // in a bwc compatible way.
-                    maybeRecalculateMetadataHash(fileInfo, recoveryTargetMetadata);
-                } catch (Exception e) {
-                    // if the index is broken we might not be able to read it
-                    logger.warn(new ParameterizedMessage("[{}] Can't calculate hash from blog for file [{}] [{}]", shardId,
-                        fileInfo.physicalName(), fileInfo.metadata()), e);
-                }
                 snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
                 fileInfos.put(fileInfo.metadata().name(), fileInfo);
             }
@@ -237,7 +224,7 @@ public abstract class FileRestoreContext {
     protected abstract InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo);
 
     @SuppressWarnings("unchecked")
-    private Iterable<StoreFileMetaData> concat(Store.RecoveryDiff diff) {
+    private static Iterable<StoreFileMetaData> concat(Store.RecoveryDiff diff) {
         return Iterables.concat(diff.different, diff.missing);
     }
 
@@ -276,29 +263,4 @@ public abstract class FileRestoreContext {
         }
     }
 
-    /**
-     * This is a BWC layer to ensure we update the snapshots metadata with the corresponding hashes before we compare them.
-     * The new logic for StoreFileMetaData reads the entire {@code .si} and {@code segments.n} files to strengthen the
-     * comparison of the files on a per-segment / per-commit level.
-     */
-    private void maybeRecalculateMetadataHash(final BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store.MetadataSnapshot snapshot)
-        throws IOException {
-        final StoreFileMetaData metadata;
-        if (fileInfo != null && (metadata = snapshot.get(fileInfo.physicalName())) != null) {
-            if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
-                // we have a hash - check if our repo has a hash too otherwise we have
-                // to calculate it.
-                // we might have multiple parts even though the file is small... make sure we read all of it.
-                try (InputStream stream = fileInputStream(fileInfo)) {
-                    BytesRefBuilder builder = new BytesRefBuilder();
-                    Store.MetadataSnapshot.hashFile(builder, stream, fileInfo.length());
-                    BytesRef hash = fileInfo.metadata().hash(); // reset the file infos metadata hash
-                    assert hash.length == 0;
-                    hash.bytes = builder.bytes();
-                    hash.offset = 0;
-                    hash.length = builder.length();
-                }
-            }
-        }
-    }
 }

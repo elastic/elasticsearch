@@ -161,4 +161,12 @@ public final class QueryParserHelper {
             throw new IllegalArgumentException("field expansion matches too many fields, limit: " + limit + ", got: " + fields.size());
         }
     }
+
+    /**
+     * Returns true if any of the fields is the wildcard {@code *}, false otherwise.
+     * @param fields A collection of field names
+     */
+    public static boolean hasAllFieldsWildcard(Collection<String> fields) {
+        return fields.stream().anyMatch(Regex::isMatchAllPattern);
+    }
 }

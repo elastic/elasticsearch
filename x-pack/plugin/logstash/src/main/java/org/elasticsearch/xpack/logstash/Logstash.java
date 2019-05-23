@@ -36,19 +36,13 @@ public class Logstash extends Plugin implements ActionPlugin {
             Pattern.quote("${logstash.template.version}");
 
     private final boolean enabled;
-    private final boolean transportClientMode;
 
     public Logstash(Settings settings) {
         this.enabled = XPackSettings.LOGSTASH_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     boolean isEnabled() {
       return enabled;
-    }
-
-    boolean isTransportClient() {
-      return transportClientMode;
     }
 
     public Collection<Module> createGuiceModules() {

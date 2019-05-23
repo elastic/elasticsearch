@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -59,11 +58,6 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
             trySocketConnection(socket, transportAddress.address());
             assertThat(socket.isClosed(), is(true));
         }
-    }
-
-    public void testThatIpFilteringIsNotAppliedForDefaultTransport() throws Exception {
-        Client client = internalCluster().transportClient();
-        assertGreenClusterState(client);
     }
 
     public void testThatIpFilteringIsAppliedForProfile() throws Exception {

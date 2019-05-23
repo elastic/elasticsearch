@@ -366,7 +366,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        boolean isUnmapped = false;
         if (DOC_FIELD_NAME.equals(fieldName)) {
             if (order == SortOrder.DESC) {
                 return SORT_DOC_REVERSE;
@@ -374,6 +373,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 return SORT_DOC;
             }
         } else {
+            boolean isUnmapped = false;
             MappedFieldType fieldType = context.fieldMapper(fieldName);
             if (fieldType == null) {
                 isUnmapped = true;

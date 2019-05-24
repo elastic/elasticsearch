@@ -31,6 +31,7 @@ import org.gradle.plugins.ide.eclipse.model.SourceFolder
 plugins {
     id 'com.gradle.build-scan' version '2.2.1'
     id 'base'
+    id 'elasticsearch.global-build-info'
 }
 if (Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {
     buildScan {
@@ -262,7 +263,7 @@ allprojects {
   }
 
   project.afterEvaluate {
-    configurations.all {
+    configurations.matching { it.canBeResolved }.all {
       resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
         projectSubstitutions.each { k,v ->
           subs.substitute(subs.module(k)).with(subs.project(v))
@@ -336,7 +337,7 @@ gradle.projectsEvaluated {
     if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
       integTest.mustRunAfter test
     }
-    configurations.all { Configuration configuration ->
+    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.all { Dependency dep ->
         Project upstreamProject = dependencyToProject(dep)
         if (upstreamProject != null) {
@@ -617,7 +618,3 @@ allprojects {
     }
   } 
 }
-
-
-
-

@@ -69,37 +69,10 @@ processResources {
 if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
-// Gradle 4.10 does not support setting this to 11 yet
-targetCompatibility = "10"
-sourceCompatibility = "10"
 
-// We have a few classes that need to be compiled for older java versions because these are used to run checks against
-// those
-sourceSets {
-  minimumRuntime {
-    // We only want Java here, but the Groovy doesn't configure javadoc correctly if we don't define this as groovy
-    groovy {
-      srcDirs = ['src/main/minimumRuntime']
-    }
-  }
-}
-compileMinimumRuntimeGroovy {
-  targetCompatibility = 8
-  sourceCompatibility = 8
-}
-dependencies {
-  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
-      // eclipse is confused if this is set explicitly
-    compile sourceSets.minimumRuntime.output
-  }
-  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
-  minimumRuntimeCompile localGroovy()
-  minimumRuntimeCompile gradleApi()
-}
-jar {
-  from sourceSets.minimumRuntime.output
-}
-
+// Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
+targetCompatibility = '8'
+sourceCompatibility = '8'
 
 /*****************************************************************************
  *                    Dependencies used by the entire build                  *
@@ -164,7 +137,6 @@ if (project != rootProject) {
   dependenciesInfo.enabled = false
   forbiddenApisMain.enabled = false
   forbiddenApisTest.enabled = false
-  forbiddenApisMinimumRuntime.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 

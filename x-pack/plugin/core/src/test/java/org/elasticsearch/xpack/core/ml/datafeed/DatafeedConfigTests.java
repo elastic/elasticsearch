@@ -762,10 +762,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             datafeedConfig.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.V_6_0_0);
+                in.setVersion(Version.CURRENT);
                 DatafeedConfig streamedDatafeedConfig = new DatafeedConfig(in);
                 assertEquals(datafeedConfig, streamedDatafeedConfig);
 

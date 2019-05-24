@@ -113,7 +113,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     public DateIntervalWrapper() {}
 
     public DateIntervalWrapper(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_8_0_0)) { // TODO change this after backport
+        if (in.getVersion().before(Version.V_7_2_0)) {
             long interval = in.readLong();
             DateHistogramInterval histoInterval = in.readOptionalWriteable(DateHistogramInterval::new);
 
@@ -288,11 +288,15 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
         } else {
             // We're not sure what the interval was originally (legacy) so use old behavior of assuming
             // calendar first, then fixed.  Required because fixed/cal overlap in places ("1h")
-            DateTimeUnit intervalAsUnit = tryIntervalAsCalendarUnit();
-            if (intervalAsUnit != null) {
-                tzRoundingBuilder = Rounding.builder(tryIntervalAsCalendarUnit());
+            DateTimeUnit calInterval = tryIntervalAsCalendarUnit();
+            TimeValue fixedInterval = tryIntervalAsFixedUnit();
+            if (calInterval != null) {
+                tzRoundingBuilder = Rounding.builder(calInterval);
+            } else if (fixedInterval != null) {
+                tzRoundingBuilder = Rounding.builder(fixedInterval);
             } else {
-                tzRoundingBuilder = Rounding.builder(tryIntervalAsFixedUnit());
+                // If we get here we have exhausted our options and are not able to parse this interval
+                throw new IllegalArgumentException("Unable to parse interval [" + dateHistogramInterval + "]");
             }
         }
         if (timeZone != null) {
@@ -370,7 +374,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) { // TODO change this after backport
+        if (out.getVersion().before(Version.V_7_2_0)) {
             if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
                 out.writeLong(TimeValue.parseTimeValue(dateHistogramInterval.toString(),
                     DateHistogramAggregationBuilder.NAME + ".innerWriteTo").getMillis());

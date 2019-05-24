@@ -186,11 +186,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         jobId = in.readString();
         jobType = in.readString();
         jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            groups = Collections.unmodifiableList(in.readStringList());
-        } else {
-            groups = Collections.emptyList();
-        }
+        groups = Collections.unmodifiableList(in.readStringList());
         description = in.readOptionalString();
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -199,10 +195,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (in.readBoolean()) {
                 in.readVLong();
             }
-        }
-        // for removed establishedModelMemory field
-        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalLong();
         }
         analysisConfig = new AnalysisConfig(in);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
@@ -449,9 +441,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeStringCollection(groups);
-        }
+        out.writeStringCollection(groups);
         out.writeOptionalString(description);
         out.writeVLong(createTime.getTime());
         if (finishedTime != null) {
@@ -463,10 +453,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         // for removed last_data_time field
         if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(false);
-        }
-        // for removed establishedModelMemory field
-        if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalLong(null);
         }
         analysisConfig.writeTo(out);
         out.writeOptionalWriteable(analysisLimits);
@@ -676,11 +662,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             id = in.readOptionalString();
             jobType = in.readString();
             jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                groups = in.readStringList();
-            } else {
-                groups = Collections.emptyList();
-            }
+            groups = in.readStringList();
             description = in.readOptionalString();
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -689,10 +671,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 if (in.readBoolean()) {
                     in.readVLong();
                 }
-            }
-            // for removed establishedModelMemory field
-            if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0)) {
-                 in.readOptionalLong();
             }
             analysisConfig = in.readOptionalWriteable(AnalysisConfig::new);
             analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
@@ -861,9 +839,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             } else {
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeStringCollection(groups);
-            }
+            out.writeStringCollection(groups);
             out.writeOptionalString(description);
             if (createTime != null) {
                 out.writeBoolean(true);
@@ -880,10 +856,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             // for removed last_data_time field
             if (out.getVersion().before(Version.V_7_0_0)) {
                 out.writeBoolean(false);
-            }
-            // for removed establishedModelMemory field
-            if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0)) {
-                out.writeOptionalLong(null);
             }
             out.writeOptionalWriteable(analysisConfig);
             out.writeOptionalWriteable(analysisLimits);

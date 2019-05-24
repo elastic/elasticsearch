@@ -329,19 +329,8 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(request, new ActionListener<NodeTasksResponse>() {
-                @Override
-                public void onResponse(
-                        TransportTasksAction<OperationTask, TasksRequest, TasksResponse, TaskResponse>.NodeTasksResponse response) {
-                    try {
-                        channel.sendResponse(response);
-                    } catch (Exception e) {
-                        onFailure(e);
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+            nodeOperation(request, ActionListener.wrap(channel::sendResponse,
+                e -> {
                     try {
                         channel.sendResponse(e);
                     } catch (IOException e1) {
@@ -349,10 +338,9 @@ public abstract class TransportTasksAction<
                         logger.warn("Failed to send failure", e1);
                     }
                 }
-            });
+            ));
         }
     }
-
 
     private class NodeTaskRequest extends TransportRequest {
         private TasksRequest tasksRequest;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -124,8 +125,18 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             if (indexService != null) {
                 IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
-                    exists = true;
-                    return new StoreFilesMetaData(shardId, indexShard.snapshotStoreRecoveryMetadata());
+                    try {
+                        final StoreFilesMetaData storeFilesMetaData =
+                            new StoreFilesMetaData(shardId, indexShard.snapshotStoreRecoveryMetadata());
+                        exists = true;
+                        return storeFilesMetaData;
+                    } catch (org.apache.lucene.index.IndexNotFoundException e) {
+                        logger.trace(new ParameterizedMessage("[{}] node is missing index, responding with empty", shardId), e);
+                        return new StoreFilesMetaData(shardId, Store.RecoveryMetadataSnapshot.EMPTY);
+                    } catch (IOException e) {
+                        logger.warn(new ParameterizedMessage("[{}] can't read metadata from store, responding with empty", shardId), e);
+                        return new StoreFilesMetaData(shardId, Store.RecoveryMetadataSnapshot.EMPTY);
+                    }
                 }
             }
             // try and see if we an list unallocated
@@ -204,7 +215,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             this.metadataSnapshot = new Store.RecoveryMetadataSnapshot(in);
         }
 
@@ -270,7 +281,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         }
 
         @Override
@@ -313,7 +324,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         }
 
         @Override

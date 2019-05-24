@@ -4,22 +4,23 @@
 The `elasticsearch-node` command enables you to perform certain unsafe
 operations on a node that are only possible while it is shut down. This command
 allows you to adjust the <<modules-node,role>> of a node and may be able to
-recover some data after a disaster.
+recover some data after a disaster or start a node even if it is incompatible
+with the data on disk.
 
 [float]
 === Synopsis
 
 [source,shell]
 --------------------------------------------------
-bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster
-  [--ordinal <Integer>] [-E <KeyValuePair>]
+bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-version
+  [-E <KeyValuePair>]
   [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
 [float]
 === Description
 
-This tool has three modes:
+This tool has four modes:
 
 * `elasticsearch-node repurpose` can be used to delete unwanted data from a
   node if it used to be a <<data-node,data node>> or a
@@ -35,6 +36,11 @@ This tool has three modes:
   created with the `elasticsearch-node unsafe-bootstap` command. If unsafe
   cluster bootstrapping was not possible, it also enables you to move nodes
   into a brand-new cluster.
+
+* `elasticsearch-node override-version` enables you to start up a node
+  even if the data in the data path was written by an incompatible version of
+  {es}. This may sometimes allow you to downgrade to an earlier version of
+  {es}.
 
 [[node-tool-repurpose]]
 [float]
@@ -109,6 +115,25 @@ way forward that does not risk data loss, but it may be possible to use the
 `elasticsearch-node` tool to construct a new cluster that contains some of the
 data from the failed cluster.
 
+[[node-tool-override-version]]
+[float]
+==== Bypassing version checks
+
+The data that {es} writes to disk is designed to be read by the current version
+and a limited set of future versions. It cannot generally be read by older
+versions, nor by versions that are more than one major version newer. The data
+stored on disk includes the version of the node that wrote it, and {es} checks
+that it is compatible with this version when starting up.
+
+In rare circumstances it may be desirable to bypass this check and start up an
+{es} node using data that was written by an incompatible version. This may not
+work if the format of the stored data has changed, and it is a risky process
+because it is possible for the format to change in ways that {es} may
+misinterpret, silently leading to data loss.
+
+To bypass this check, you can use the `elasticsearch-node override-version`
+tool to overwrite the version number stored in the data path with the current
+version, causing {es} to believe that it is compatible with the on-disk data.
 
 [[node-tool-unsafe-bootstrap]]
 [float]
@@ -262,9 +287,8 @@ one-node cluster.
 `detach-cluster`:: Specifies to unsafely detach this node from its cluster so
 it can join a different cluster.
 
-`--ordinal <Integer>`:: If there is <<max-local-storage-nodes,more than one
-node sharing a data path>> then this specifies which node to target. Defaults
-to `0`, meaning to use the first node in the data path.
+`override-version`:: Overwrites the version number stored in the data path so
+that a node can start despite being incompatible with the on-disk data.
 
 `-E <KeyValuePair>`:: Configures a setting.
 
@@ -422,4 +446,33 @@ Do you want to proceed?
 
 Confirm [y/N] y
 Node was successfully detached from the cluster
+----
+
+[float]
+==== Bypassing version checks
+
+Run the `elasticsearch-node override-version` command to overwrite the version
+stored in the data path so that a node can start despite being incompatible
+with the data stored in the data path:
+
+[source, txt]
+----
+node$ ./bin/elasticsearch-node override-version
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+This data path was last written by Elasticsearch version [x.x.x] and may no
+longer be compatible with Elasticsearch version [y.y.y]. This tool will bypass
+this compatibility check, allowing a version [y.y.y] node to start on this data
+path, but a version [y.y.y] node may not be able to read this data or may read
+it incorrectly leading to data loss.
+
+You should not use this tool. Instead, continue to use a version [x.x.x] node
+on this data path. If necessary, you can use reindex-from-remote to copy the
+data from here into an older cluster.
+
+Do you want to proceed?
+
+Confirm [y/N] y
+Successfully overwrote this node's metadata to bypass its version compatibility checks.
 ----

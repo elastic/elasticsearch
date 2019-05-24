@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -65,7 +66,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testActionFiltersRequest() throws ExecutionException, InterruptedException {
+    public void testActionFiltersRequest() throws InterruptedException {
         int numFilters = randomInt(10);
         Set<Integer> orders = new HashSet<>(numFilters);
         while (orders.size() < numFilters) {
@@ -139,7 +140,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    public void testTooManyContinueProcessingRequest() throws ExecutionException, InterruptedException {
+    public void testTooManyContinueProcessingRequest() throws InterruptedException {
         final int additionalContinueCount = randomInt(10);
 
         RequestTestFilter testFilter = new RequestTestFilter(randomInt(), new RequestCallback() {
@@ -169,19 +170,17 @@ public class TransportActionFilterChainTests extends ESTestCase {
         final AtomicInteger responses = new AtomicInteger();
         final List<Throwable> failures = new CopyOnWriteArrayList<>();
 
-        transportAction.execute(new TestRequest(), new ActionListener<TestResponse>() {
+        transportAction.execute(new TestRequest(), new LatchedActionListener<>(new ActionListener<TestResponse>() {
             @Override
             public void onResponse(TestResponse testResponse) {
                 responses.incrementAndGet();
-                latch.countDown();
             }
 
             @Override
             public void onFailure(Exception e) {
                 failures.add(e);
-                latch.countDown();
             }
-        });
+        }, latch));
 
         if (!latch.await(10, TimeUnit.SECONDS)) {
             fail("timeout waiting for the filter to notify the listener as many times as expected");

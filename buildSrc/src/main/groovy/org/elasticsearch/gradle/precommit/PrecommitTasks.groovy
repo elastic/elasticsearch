@@ -118,15 +118,13 @@ class PrecommitTasks {
     }
 
     private static Task configureThirdPartyAudit(Project project) {
-        ThirdPartyAuditTask thirdPartyAuditTask = project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
-        thirdPartyAuditTask.configure {
-            dependsOn(buildResources)
-            signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
-            javaHome = project.runtimeJavaHome
-            targetCompatibility = project.runtimeJavaVersion
+        return project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class) { task ->
+            task.dependsOn(buildResources)
+            task.signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
+            task.javaHome = project.runtimeJavaHome
+            task.targetCompatibility.set(project.provider({ project.runtimeJavaVersion }))
         }
-        return thirdPartyAuditTask
     }
 
     private static Task configureForbiddenApisCli(Project project) {
@@ -134,15 +132,18 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis) {
             dependsOn(buildResources)
-            targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
-            if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
-                doLast {
-                    project.logger.info(
-                            "Forbidden APIs does not support java version past 11. Will use the signatures from 11 for ",
-                            project.runtimeJavaVersion
-                    )
+            doFirst {
+                // we need to defer this configuration since we don't know the runtime java version until execution time
+                targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
+                if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
+                    doLast {
+                        project.logger.info(
+                                "Forbidden APIs does not support java version past 11. Will use the signatures from 11 for ",
+                                project.runtimeJavaVersion
+                        )
+                    }
+                    targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
                 }
-                targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
             }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"

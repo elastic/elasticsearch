@@ -46,14 +46,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      */
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
-    // The below version is missing from the 7.3 JAR
-    private static final org.apache.lucene.util.Version LUCENE_7_2_1 = org.apache.lucene.util.Version.fromBits(7, 2, 1);
-    public static final int V_6_3_0_ID = 6030099;
-    public static final Version V_6_3_0 = new Version(V_6_3_0_ID, org.apache.lucene.util.Version.LUCENE_7_3_1);
-    public static final int V_6_3_1_ID = 6030199;
-    public static final Version V_6_3_1 = new Version(V_6_3_1_ID, org.apache.lucene.util.Version.LUCENE_7_3_1);
-    public static final int V_6_3_2_ID = 6030299;
-    public static final Version V_6_3_2 = new Version(V_6_3_2_ID, org.apache.lucene.util.Version.LUCENE_7_3_1);
     public static final int V_6_4_0_ID = 6040099;
     public static final Version V_6_4_0 = new Version(V_6_4_0_ID, org.apache.lucene.util.Version.LUCENE_7_4_0);
     public static final int V_6_4_1_ID = 6040199;
@@ -152,12 +144,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 return V_6_4_1;
             case V_6_4_0_ID:
                 return V_6_4_0;
-            case V_6_3_2_ID:
-                return V_6_3_2;
-            case V_6_3_1_ID:
-                return V_6_3_1;
-            case V_6_3_0_ID:
-                return V_6_3_0;
             case V_EMPTY_ID:
                 return V_EMPTY;
             default:

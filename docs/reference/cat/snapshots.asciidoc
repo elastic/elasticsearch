@@ -1,5 +1,5 @@
 [[cat-snapshots]]
-== cat snapshots
+== Cat single repository snapshots
 
 The `snapshots` command shows all snapshots that belong to a specific repository.
 To find a list of available repositories to query, the command `/_cat/repositories` can be used.
@@ -32,3 +32,15 @@ Each snapshot contains information about when it was started and stopped.
 Start and stop timestamps are available in two formats.
 The `HH:MM:SS` output is simply for quick human consumption.
 The epoch time retains more information, including date, and is machine sortable if the snapshot process spans days.
+
+== Cat multiple repositories snapshots
+It is also possible to get the list of snapshots from multiple repositories.
+Here are some examples:
+[source,js]
+--------------------------------------------------
+GET /_cat/snapshots/_all
+GET /_cat/snapshots/repo1,repo2
+GET /_cat/snapshots/repo*
+--------------------------------------------------
+
+Please note that if one of the repositories fails during the request you will get an exception instead of the table.

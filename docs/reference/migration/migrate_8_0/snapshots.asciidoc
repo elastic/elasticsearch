@@ -10,6 +10,11 @@
 // end::notable-breaking-changes[]
 
 [float]
+=== Get snapshots response format is changed
+It's possible to get snapshots from multiple repositories in one go. The response format has changed
+and now contains separate response for each repository. See <<modules-snapshots>> for more information.
+
+[float]
 ==== Deprecated node level compress setting removed
 
 For shared file system repositories (`"type": "fs"`), the node level setting `repositories.fs.compress` could

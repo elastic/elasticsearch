@@ -1,7 +1,12 @@
 [[indices-warmers]]
 == Warmers
 
+ifdef::asciidoctor[]
+deprecated::[2.3.0,"Thanks to disk-based norms and doc values, warmers don't have use-cases anymore"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[2.3.0,Thanks to disk-based norms and doc values, warmers don't have use-cases anymore]
+endif::[]
 
 Index warming allows to run registered search requests to warm up the index
 before it is available for search. With the near real time aspect of search,

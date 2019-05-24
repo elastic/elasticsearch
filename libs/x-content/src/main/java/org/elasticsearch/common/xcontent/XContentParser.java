@@ -136,11 +136,9 @@ public interface XContentParser extends Closeable {
 
     Map<String, String> mapStrings() throws IOException;
 
-    Map<String, String> mapStringsOrdered() throws IOException;
-
     /**
      * Returns an instance of {@link Map} holding parsed map.
-     * Serves as a replacement for the "map", "mapOrdered", "mapStrings" and "mapStringsOrdered" methods above.
+     * Serves as a replacement for the "map", "mapOrdered" and "mapStrings" methods above.
      *
      * @param mapFactory factory for creating new {@link Map} objects
      * @param mapValueParser parser for parsing a single map value

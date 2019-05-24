@@ -189,7 +189,7 @@ public class XContentParserTests extends ESTestCase {
             assertThat(parser.currentName(), equalTo("foo"));
             token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
-            return randomBoolean() ? parser.mapStringsOrdered() : parser.mapStrings();
+            return parser.mapStrings();
         }
     }
 

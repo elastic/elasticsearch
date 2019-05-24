@@ -277,11 +277,6 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    public Map<String, String> mapStringsOrdered() throws IOException {
-        return readOrderedMapStrings(this);
-    }
-
-    @Override
     public <T> Map<String, T> map(
             Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
         return readGenericMap(this, mapFactory, mapValueParser);
@@ -303,8 +298,6 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static final Supplier<Map<String, String>> SIMPLE_MAP_STRINGS_FACTORY = HashMap::new;
 
-    static final Supplier<Map<String, String>> ORDERED_MAP_STRINGS_FACTORY = LinkedHashMap::new;
-
     static Map<String, Object> readMap(XContentParser parser) throws IOException {
         return readMap(parser, SIMPLE_MAP_FACTORY);
     }
@@ -313,12 +306,12 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readMap(parser, ORDERED_MAP_FACTORY);
     }
 
-    static Map<String, String> readMapStrings(XContentParser parser) throws IOException {
-        return readMapStrings(parser, SIMPLE_MAP_STRINGS_FACTORY);
+    static Map<String, Object> readMap(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+        return readGenericMap(parser, mapFactory, p -> readValue(p, mapFactory));
     }
 
-    static Map<String, String> readOrderedMapStrings(XContentParser parser) throws IOException {
-        return readMapStrings(parser, ORDERED_MAP_STRINGS_FACTORY);
+    static Map<String, String> readMapStrings(XContentParser parser) throws IOException {
+        return readGenericMap(parser, SIMPLE_MAP_STRINGS_FACTORY, XContentParser::text);
     }
 
     static List<Object> readList(XContentParser parser) throws IOException {
@@ -327,14 +320,6 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static List<Object> readListOrderedMap(XContentParser parser) throws IOException {
         return readList(parser, ORDERED_MAP_FACTORY);
-    }
-
-    static Map<String, Object> readMap(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
-        return readGenericMap(parser, mapFactory, p -> readValue(p, mapFactory));
-    }
-
-    static Map<String, String> readMapStrings(XContentParser parser, Supplier<Map<String, String>> mapFactory) throws IOException {
-        return readGenericMap(parser, mapFactory, XContentParser::text);
     }
 
     static <T> Map<String, T> readGenericMap(

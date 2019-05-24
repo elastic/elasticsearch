@@ -121,11 +121,6 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
-    public Map<String, String> mapStringsOrdered() throws IOException {
-        return parser.mapStringsOrdered();
-    }
-
-    @Override
     public <T> Map<String, T> map(
             Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
         return parser.map(mapFactory, mapValueParser);

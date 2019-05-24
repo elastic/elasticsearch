@@ -92,7 +92,7 @@ For more information, see
 {metricbeat-ref}/configuration-metricbeat.html[Specify which modules to run] and 
 {metricbeat-ref}/metricbeat-module-elasticsearch.html[{es} module]. 
 
-// tag::enable-es-module[]
+// end::enable-es-module[]
 --
 
 . Configure the {es} {xpack} module in {metricbeat} on each {es} node. +

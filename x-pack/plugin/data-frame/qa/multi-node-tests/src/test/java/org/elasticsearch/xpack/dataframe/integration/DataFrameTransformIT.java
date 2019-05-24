@@ -34,7 +34,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         createReviewsIndex();
 
         Map<String, SingleGroupSource> groups = new HashMap<>();
-        groups.put("by-day", createDateHistogramGroupSource("timestamp", DateHistogramInterval.DAY, null, null));
+        groups.put("by-day", createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null, null));
         groups.put("by-user", TermsGroupSource.builder().setField("user_id").build());
         groups.put("by-business", TermsGroupSource.builder().setField("business_id").build());
 
@@ -48,10 +48,8 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             "reviews-by-user-business-day",
             REVIEWS_INDEX_NAME);
 
-        final RequestOptions options =
-            expectWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
-        assertTrue(putDataFrameTransform(config, options).isAcknowledged());
-        assertTrue(startDataFrameTransform(config.getId(), options).isStarted());
+        assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
+        assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isStarted());
 
         waitUntilCheckpoint(config.getId(), 1L);
 

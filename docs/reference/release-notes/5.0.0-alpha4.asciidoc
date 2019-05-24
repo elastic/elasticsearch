@@ -41,7 +41,7 @@ Snapshot/Restore::
 
 
 
-[[breaking java-5.0.0-alpha4]]
+[[breaking-java-5.0.0-alpha4]]
 [float]
 === Breaking Java changes
 

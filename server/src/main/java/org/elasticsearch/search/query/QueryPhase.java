@@ -78,6 +78,7 @@ import static org.elasticsearch.search.query.QueryCollectorContext.createFiltere
 import static org.elasticsearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createMultiCollectorContext;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
+import static org.elasticsearch.search.query.TopDocsCollectorContext.shortcutTotalHitCount;
 
 
 /**
@@ -188,33 +189,6 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
-            // try to rewrite numeric or date sort to the optimized distanceFeatureQuery
-            if (searchContext.sort() != null) {
-                try {
-                    Query rewrittenQuery = tryRewriteNumericLongOrDateSort(searchContext, searcher.getIndexReader());
-                    if (rewrittenQuery != null) {
-                        query = new BooleanQuery.Builder()
-                            .add(query, BooleanClause.Occur.FILTER) // filter for original query
-                            .add(rewrittenQuery, BooleanClause.Occur.SHOULD) //should for rewrittenQuery
-                            .build();
-
-                        // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the 2nd sort
-                        SortField[] oldSortFields = searchContext.sort().sort.getSort();
-                        DocValueFormat[] oldFormats = searchContext.sort().formats;
-                        SortField[] newSortFields = new SortField[oldSortFields.length + 1];
-                        DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
-                        newSortFields[0] = SortField.FIELD_SCORE;
-                        newFormats[0] = DocValueFormat.RAW;
-                        System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
-                        System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
-                        sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
-                        searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
-                    }
-                } catch (IOException e) {
-                    // in case of errors do nothing - keep the same query
-                }
-            }
-
             final LinkedList<QueryCollectorContext> collectors = new LinkedList<>();
             // whether the chain contains a collector that filters documents
             boolean hasFilterCollector = false;
@@ -241,6 +215,29 @@ public class QueryPhase implements SearchPhase {
                 collectors.add(createMinScoreCollectorContext(searchContext.minimumScore()));
                 // this collector can filter documents during the collection
                 hasFilterCollector = true;
+            }
+
+            // try to rewrite numeric or date sort to the optimized distanceFeatureQuery
+            if (searchContext.sort() != null) {
+                try {
+                    Query rewrittenQuery = tryRewriteLongSort(searchContext, searcher.getIndexReader(), query, hasFilterCollector);
+                    if (rewrittenQuery != null) {
+                        query = rewrittenQuery;
+                        // modify sorts: add sort on _score as 1st sort, and move the sort on the original field as the 2nd sort
+                        SortField[] oldSortFields = searchContext.sort().sort.getSort();
+                        DocValueFormat[] oldFormats = searchContext.sort().formats;
+                        SortField[] newSortFields = new SortField[oldSortFields.length + 1];
+                        DocValueFormat[] newFormats = new DocValueFormat[oldSortFields.length + 1];
+                        newSortFields[0] = SortField.FIELD_SCORE;
+                        newFormats[0] = DocValueFormat.RAW;
+                        System.arraycopy(oldSortFields, 0, newSortFields, 1, oldSortFields.length);
+                        System.arraycopy(oldFormats, 0, newFormats, 1, oldFormats.length);
+                        sortAndFormatsForRewrittenNumericSort = searchContext.sort(); // stash SortAndFormats to restore it later
+                        searchContext.sort(new SortAndFormats(new Sort(newSortFields), newFormats));
+                    }
+                } catch (IOException e) {
+                    // in case of errors do nothing - keep the same query
+                }
             }
 
             boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
@@ -352,11 +349,13 @@ public class QueryPhase implements SearchPhase {
         }
     }
 
-     private static Query tryRewriteNumericLongOrDateSort(SearchContext searchContext, IndexReader reader) throws IOException {
+     private static Query tryRewriteLongSort(SearchContext searchContext, IndexReader reader,
+            Query query, boolean hasFilterCollector) throws IOException {
         if (searchContext.searchAfter() != null) return null;
         if (searchContext.scrollContext() != null) return null;
         if (searchContext.collapse() != null) return null;
         if (searchContext.trackScores()) return null;
+        if (searchContext.aggregations() != null) return null;
         Sort sort = searchContext.sort().sort;
         SortField sortField = sort.getSort()[0];
         if (SortField.Type.LONG.equals(IndexSortConfig.getSortFieldType(sortField)) == false) return null;
@@ -392,19 +391,36 @@ public class QueryPhase implements SearchPhase {
         // check for multiple values
         if (PointValues.size(reader, fieldName) != PointValues.getDocCount(reader, fieldName)) return null; //TODO: handle multiple values
 
+        // check if the optimization makes sense with the track_total_hits setting
+         if (searchContext.trackTotalHitsUpTo() == Integer.MAX_VALUE) {
+             // with filter, we can't pre-calculate hitsCount, we need to explicitly calculate them => optimization does't make sense
+             if (hasFilterCollector) return null;
+             // if we can't pre-calculate hitsCount based on the query type, optimization does't make sense
+             if (shortcutTotalHitCount(reader, query) == -1) return null;
+         }
+
         byte[] minValueBytes = PointValues.getMinPackedValue(reader, fieldName);
         byte[] maxValueBytes = PointValues.getMaxPackedValue(reader, fieldName);
         if ((maxValueBytes == null) || (minValueBytes == null)) return null;
         long minValue = LongPoint.decodeDimension(minValueBytes, 0);
         long maxValue = LongPoint.decodeDimension(maxValueBytes, 0);
-        if (minValue == maxValue) return new DocValuesFieldExistsQuery(fieldName);
 
-        final long origin = (sortField.getReverse()) ? maxValue : minValue;
-        long pivotDistance = (maxValue - minValue) >>> 1; // division by 2 on the unsigned representation to avoid overflow
-        if (pivotDistance == 0) { // 0 if maxValue = (minValue + 1)
-            pivotDistance = 1;
+        Query rewrittenQuery;
+        if (minValue == maxValue) {
+            rewrittenQuery = new DocValuesFieldExistsQuery(fieldName);
+        } else {
+            long origin = (sortField.getReverse()) ? maxValue : minValue;
+            long pivotDistance = (maxValue - minValue) >>> 1; // division by 2 on the unsigned representation to avoid overflow
+            if (pivotDistance == 0) { // 0 if maxValue = (minValue + 1)
+                pivotDistance = 1;
+            }
+            rewrittenQuery = LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
         }
-        return LongPoint.newDistanceFeatureQuery(sortField.getField(), 1, origin, pivotDistance);
+        rewrittenQuery = new BooleanQuery.Builder()
+            .add(query, BooleanClause.Occur.FILTER) // filter for original query
+            .add(rewrittenQuery, BooleanClause.Occur.SHOULD) //should for rewrittenQuery
+            .build();
+        return rewrittenQuery;
     }
 
     // Restore fieldsDocs to remove the first _score sort

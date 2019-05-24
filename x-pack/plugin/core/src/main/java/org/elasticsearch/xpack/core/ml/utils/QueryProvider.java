@@ -68,7 +68,7 @@ public class QueryProvider implements Writeable, ToXContentObject {
                 null);
     }
 
-    static QueryProvider fromStream(StreamInput in) throws IOException {
+    public static QueryProvider fromStream(StreamInput in) throws IOException {
         return new QueryProvider(in.readMap(), in.readOptionalNamedWriteable(QueryBuilder.class), in.readException());
     }
 

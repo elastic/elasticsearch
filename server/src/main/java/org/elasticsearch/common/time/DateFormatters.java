@@ -1503,7 +1503,7 @@ public class DateFormatters {
             return WEEK_YEAR;
         } else if (FormatNames.WEEK_YEAR_WEEK.matches(input) ) {
             return WEEKYEAR_WEEK;
-        } else if (FormatNames.WEEK_YEAR_WEEK_DAY.matches(input) ) {
+        } else if (FormatNames.WEEKYEAR_WEEK_DAY.matches(input) ) {
             return WEEKYEAR_WEEK_DAY;
         } else if (FormatNames.YEAR.matches(input)) {
             return YEAR;
@@ -1572,7 +1572,7 @@ public class DateFormatters {
             return STRICT_WEEK_DATE_TIME;
         } else if (FormatNames.STRICT_WEEK_DATE_TIME_NO_MILLIS.matches(input) ) {
             return STRICT_WEEK_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.STRICT_WEEK_YEAR.matches(input) ) {
+        } else if (FormatNames.STRICT_WEEKYEAR.matches(input) ) {
             return STRICT_WEEKYEAR;
         } else if (FormatNames.STRICT_WEEKYEAR_WEEK.matches(input) ) {
             return STRICT_WEEKYEAR_WEEK;

@@ -117,7 +117,7 @@ public class DateProcessorTests extends ESTestCase {
         }
     }
 
-        public void testJodaPatternLocale() {
+    public void testJodaPatternLocale() {
         //TODO investigate if this is a bug in Joda
         assumeFalse("Can't run in a FIPS JVM, Joda parse date error", inFipsJvm());
             DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10),

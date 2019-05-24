@@ -287,7 +287,7 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(index, equalTo(MonitoringTemplateUtils.indexName(DateFormatter.forPattern("YYYY.MM.dd"),
                                                                     expectedSystem,
                                                                     ISODateTimeFormat.dateTime().parseMillis(timestamp))));
-        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. " +
+        assertWarnings("'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year. " +
             "Prefix your date format with '8' to use the new specifier.");
 
 

@@ -148,7 +148,7 @@ public class Joda {
             formatter = ISODateTimeFormat.weekyear();
         } else if (FormatNames.WEEK_YEAR_WEEK.matches(input)) {
             formatter = ISODateTimeFormat.weekyearWeek();
-        } else if (FormatNames.WEEK_YEAR_WEEK_DAY.matches(input)) {
+        } else if (FormatNames.WEEKYEAR_WEEK_DAY.matches(input)) {
             formatter = ISODateTimeFormat.weekyearWeekDay();
         } else if (FormatNames.YEAR.matches(input)) {
             formatter = ISODateTimeFormat.year();
@@ -222,7 +222,7 @@ public class Joda {
             formatter = StrictISODateTimeFormat.weekDateTime();
         } else if (FormatNames.STRICT_WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
             formatter = StrictISODateTimeFormat.weekDateTimeNoMillis();
-        } else if (FormatNames.STRICT_WEEK_YEAR.matches(input) ) {
+        } else if (FormatNames.STRICT_WEEKYEAR.matches(input) ) {
             formatter = StrictISODateTimeFormat.weekyear();
         } else if (FormatNames.STRICT_WEEKYEAR_WEEK.matches(input)) {
             formatter = StrictISODateTimeFormat.weekyearWeek();

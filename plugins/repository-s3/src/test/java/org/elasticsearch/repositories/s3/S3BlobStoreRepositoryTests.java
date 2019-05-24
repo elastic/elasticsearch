@@ -38,7 +38,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.AfterClass;
+import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
@@ -78,8 +78,8 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         }
     }
 
-    @AfterClass
-    public static void wipeRepository() {
+    @After
+    public void wipeRepository() {
         blobs.clear();
     }
 

@@ -258,7 +258,12 @@ specified using the `routing` parameter.
 [[index-timestamp]]
 === Timestamp
 
+ifdef::asciidoctor[]
+deprecated::[2.0.0-beta2,"The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[2.0.0-beta2,The `_timestamp` field is deprecated.  Instead, use a normal <<date,`date`>> field and set its value explicitly]
+endif::[]
 
 A document can be indexed with a `timestamp` associated with it. The
 `timestamp` value of a document can be set using the `timestamp`

@@ -594,12 +594,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
         try {
             if (processContext.setDying() == false) {
                 logger.debug("Cannot close job [{}] as it has been marked as dying", jobId);
-                // The only way we can get here is if 2 close requests are made while open is still working,
-                // and in that case there are 3 threads working simultaneously:
-                // 1. This one running close
-                // 2. The other one running close that is ahead of us and has already set the context to dying
-                // 3. The one running open
-                // This thread can leave everything to the other two
+                // The only way we can get here is if 2 close requests are made very close together.
+                // The other close has done the work so it's safe to return here without doing anything.
                 return;
             }
 

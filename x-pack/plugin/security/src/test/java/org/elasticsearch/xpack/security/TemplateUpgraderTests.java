@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.not;
  * templates when started within security, as this requires certain
  * system privileges
  */
-@ClusterScope(maxNumDataNodes = 1, scope = Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(maxNumDataNodes = 1, scope = Scope.SUITE, numClientNodes = 0)
 public class TemplateUpgraderTests extends SecurityIntegTestCase {
 
     public void testTemplatesWorkAsExpected() throws Exception {

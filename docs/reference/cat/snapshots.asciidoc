@@ -36,11 +36,14 @@ The epoch time retains more information, including date, and is machine sortable
 == Cat multiple repositories snapshots
 It is also possible to get the list of snapshots from multiple repositories.
 Here are some examples:
+
 [source,js]
 --------------------------------------------------
 GET /_cat/snapshots/_all
 GET /_cat/snapshots/repo1,repo2
 GET /_cat/snapshots/repo*
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:no repo2]
 
 Please note that if one of the repositories fails during the request you will get an exception instead of the table.

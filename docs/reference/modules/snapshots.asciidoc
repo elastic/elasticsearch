@@ -469,9 +469,11 @@ It is also possible to retrieve snapshots for multiple repositories in one go, f
 [source,sh]
 -----------------------------------
 GET /_snapshot/_all
-GET /_snapshot/repo1,repo2
-GET /_snapshot/repo*/snap*
+GET /_snapshot/my_backup,my_fs_backup
+GET /_snapshot/my*/snap*
 -----------------------------------
+// CONSOLE
+// TEST[skip:no my_fs_backup]
 
 A currently running snapshot can be retrieved using the following command:
 

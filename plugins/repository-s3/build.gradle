@@ -166,8 +166,10 @@ if (useFixture) {
     return 'http://127.0.0.1:' + minioPort
   }
 
-  def minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
+  File minioAddressFile = new File(project.buildDir, 'generated-resources/s3Fixture.address')
 
+  // We can't lazy evaluate a system property for the Minio address passed to JUnit so we write it to a resource file
+  // and pass its name instead.
   task writeMinioAddress {
     dependsOn tasks.bundlePlugin, tasks.postProcessFixture
     outputs.file(minioAddressFile)
@@ -179,7 +181,7 @@ if (useFixture) {
   thirdPartyTests {
     dependsOn writeMinioAddress
     inputs.file(minioAddressFile)
-    systemProperty 'test.s3.endpoint', 's3Fixture.address'
+    systemProperty 'test.s3.endpoint', minioAddressFile.name
   }
 
   BuildPlugin.requireDocker(tasks.thirdPartyTests)

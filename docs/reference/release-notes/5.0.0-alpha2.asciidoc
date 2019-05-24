@@ -34,7 +34,7 @@ Settings::
 
 
 
-[[breaking java-5.0.0-alpha2]]
+[[breaking-java-5.0.0-alpha2]]
 [float]
 === Breaking Java changes
 

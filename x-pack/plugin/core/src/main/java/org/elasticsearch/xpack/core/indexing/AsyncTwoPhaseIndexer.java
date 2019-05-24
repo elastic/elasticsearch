@@ -290,7 +290,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
         checkState(state.get());
 
-        IndexerState updated = state.updateAndGet(prev -> {
+        return state.updateAndGet(prev -> {
             switch (prev) {
             case INDEXING:
                 // ready for another job
@@ -316,9 +316,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 throw new IllegalStateException("Indexer job encountered an illegal state [" + prev + "]");
             }
         });
-
-
-        return updated;
     }
 
     private void onSearchResponse(SearchResponse searchResponse) {

@@ -137,8 +137,13 @@ from the source index can be copied to the target index by adding the URL
 parameter `copy_settings=true` to the request. Note that `copy_settings` can not
 be set to `false`. The parameter `copy_settings` will be removed in 8.0.0
 
+ifdef::asciidoctor[]
+deprecated:[6.4.0, "not copying settings is deprecated, copying settings will be the default behavior in 7.x"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.4.0, not copying settings is deprecated, copying settings will be
 the default behavior in 7.x]
+endif::[]
 
 [float]
 === Monitoring the shrink process

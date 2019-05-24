@@ -120,10 +120,6 @@ public interface XContentParser extends Closeable {
         INT, LONG, FLOAT, DOUBLE
     }
 
-    interface MapValueParser<T> {
-        T apply(XContentParser parser) throws IOException;
-    }
-
     XContentType contentType();
 
     Token nextToken() throws IOException;

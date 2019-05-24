@@ -5,8 +5,8 @@
 showTables
 SHOW TABLES "geo";
 
- name:s        | type:s
-geo            |BASE TABLE
+ name:s        | type:s     | kind:s
+geo            |BASE TABLE  |INDEX
 ;
 
 // DESCRIBE

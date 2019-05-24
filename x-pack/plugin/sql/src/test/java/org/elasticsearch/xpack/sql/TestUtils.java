@@ -18,6 +18,7 @@ import java.time.ZonedDateTime;
 import java.time.ZoneId;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
@@ -30,7 +31,7 @@ public class TestUtils {
 
     public static final Configuration TEST_CFG = new Configuration(DateUtils.UTC, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN,
-            null, null, null, false);
+            null, null, null, false, false);
 
     /**
      * Returns the current UTC date-time with milliseconds precision.
@@ -55,7 +56,8 @@ public class TestUtils {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                false);
+                false,
+                randomBoolean());
     }
 
     public static Configuration randomConfiguration(ZoneId providedZoneId) {
@@ -68,7 +70,8 @@ public class TestUtils {
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
-                false);
+                false,
+                randomBoolean());
     }
 
 }

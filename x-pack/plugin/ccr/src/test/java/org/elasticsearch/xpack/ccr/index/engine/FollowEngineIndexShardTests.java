@@ -80,7 +80,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
                 replicaRouting.allocationId());
         indexShard.updateShardState(primaryRouting, indexShard.getOperationPrimaryTerm() + 1, (shard, listener) -> {},
             0L, Collections.singleton(primaryRouting.allocationId().getId()),
-            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(), Collections.emptySet());
+            new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build());
 
         final CountDownLatch latch = new CountDownLatch(1);
         ActionListener<Releasable> actionListener = ActionListener.wrap(releasable -> {

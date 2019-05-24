@@ -144,7 +144,7 @@ file.
 // end::remote-monitoring-user[]
 --
 
-.. Identify where to send the monitoring data. +
+. Identify where to send the monitoring data. +
 +
 --
 TIP: In production environments, we strongly recommend using a separate cluster 

@@ -25,7 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.test.StreamsUtils;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -58,9 +60,13 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
             .put("base_path", System.getProperty("test.s3.base", "/"));
-        final String endpoint = System.getProperty("test.s3.endpoint");
-        if (endpoint != null) {
-            settings = settings.put("endpoint", endpoint);
+        final String endpointPath = System.getProperty("test.s3.endpoint");
+        if (endpointPath != null) {
+            try {
+                settings = settings.put("endpoint", StreamsUtils.copyToStringFromClasspath("/" + endpointPath));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
         }
         AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
             .setType("s3")

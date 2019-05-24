@@ -108,7 +108,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         });
 
         if (wasStartedAndSetStopped.get()) {
-            onStop();
+            doSaveState(IndexerState.STOPPED, getPosition(), this::onStop);
         }
         return currentState;
     }
@@ -287,7 +287,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     private IndexerState finishAndSetState() {
-        return state.updateAndGet(prev -> {
+
+        checkState(state.get());
+
+        IndexerState updated = state.updateAndGet(prev -> {
             switch (prev) {
             case INDEXING:
                 // ready for another job
@@ -295,12 +298,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             case STOPPING:
                 // must be started again
-                onStop();
                 return IndexerState.STOPPED;
 
             case ABORTING:
                 // abort and exit
-                onAbort();
                 return IndexerState.ABORTING; // This shouldn't matter, since onAbort() will kill the task first
 
             case STOPPED:
@@ -315,6 +316,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 throw new IllegalStateException("Indexer job encountered an illegal state [" + prev + "]");
             }
         });
+
+
+        return updated;
     }
 
     private void onSearchResponse(SearchResponse searchResponse) {
@@ -409,7 +413,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
         case STOPPING:
             logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), () -> {});
+            doSaveState(IndexerState.STOPPED, getPosition(), this::onStop);
             return false;
 
         case STOPPED:

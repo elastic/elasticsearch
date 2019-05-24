@@ -50,14 +50,29 @@ Can be set to:
 --
 
 `cluster.routing.allocation.disable_new_allocation`::
-    deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
+ifdef::asciidoctor[]
+deprecated:[1.0.0.RC1,"Replaced by `cluster.routing.allocation.enable`"]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
+endif::[]
 
 `cluster.routing.allocation.disable_allocation`::
-    deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
+ifdef::asciidoctor[]
+deprecated:[1.0.0.RC1,"Replaced by `cluster.routing.allocation.enable`"]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
+endif::[]
 
 
 `cluster.routing.allocation.disable_replica_allocation`::
-    deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
+ifdef::asciidoctor[]
+deprecated:[1.0.0.RC1,"Replaced by `cluster.routing.allocation.enable`"]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.0.0.RC1,Replaced by `cluster.routing.allocation.enable`]
+endif::[]
 
 `cluster.routing.allocation.same_shard.host`::
       Allows to perform a check to prevent allocation of multiple instances

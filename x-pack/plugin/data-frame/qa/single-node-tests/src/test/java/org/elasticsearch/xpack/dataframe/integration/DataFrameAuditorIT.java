@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 import org.junit.Before;
@@ -22,6 +23,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameAuditorIT extends DataFrameRestTestCase {
 
     private static final String TEST_USER_NAME = "df_admin_plus_data";

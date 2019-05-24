@@ -382,7 +382,6 @@ class ClusterFormationTasks {
                 // Don't wait for state, just start up quickly. This will also allow new and old nodes in the BWC case to become the master
                 'discovery.initial_state_timeout' : '0s'
         ]
-        esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
         if (node.nodeVersion.onOrAfter('6.7.0')) {
             esConfig['transport.port'] =  node.config.transportPort

@@ -89,7 +89,6 @@ public class FileRealmTests extends ESTestCase {
         return new RealmConfig(REALM_IDENTIFIER, settings, TestEnvironment.newEnvironment(settings), threadContext);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/42267")
     public void testAuthenticateCaching() throws Exception {
         Settings settings = Settings.builder()
             .put(RealmSettings.realmSettingPrefix(REALM_IDENTIFIER) + "cache.hash_algo",

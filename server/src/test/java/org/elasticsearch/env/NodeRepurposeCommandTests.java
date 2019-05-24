@@ -190,14 +190,10 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         }
     }
 
-    private static void verifySuccess(Settings settings, Matcher<String> outputMatcher, boolean verbose) throws Exception {
-        verifySuccess(settings, outputMatcher, verbose, 0);
-    }
-
-    static void verifySuccess(Settings settings, Matcher<String> outputMatcher, boolean verbose, int ordinal) throws Exception {
+    static void verifySuccess(Settings settings, Matcher<String> outputMatcher, boolean verbose) throws Exception {
         withTerminal(verbose, outputMatcher, terminal -> {
             terminal.addTextInput(randomFrom("y", "Y"));
-            executeRepurposeCommand(terminal, settings, ordinal);
+            executeRepurposeCommand(terminal, settings, 0);
             assertThat(terminal.getOutput(), containsString("Node successfully repurposed"));
         });
     }

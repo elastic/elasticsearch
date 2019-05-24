@@ -92,12 +92,12 @@ public class BootstrapForTesting {
         BootstrapInfo.getSystemProperties();
 
         // check for jar hell
-//        try {
-//            final Logger logger = LogManager.getLogger(JarHell.class);
-//            JarHell.checkJarHell(logger::debug);
-//        } catch (Exception e) {
-//            throw new RuntimeException("found jar hell in test classpath", e);
-//        }
+        try {
+            final Logger logger = LogManager.getLogger(JarHell.class);
+            JarHell.checkJarHell(logger::debug);
+        } catch (Exception e) {
+            throw new RuntimeException("found jar hell in test classpath", e);
+        }
 
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();

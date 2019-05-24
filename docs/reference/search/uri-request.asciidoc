@@ -103,7 +103,12 @@ Defaults to no terminate_after.
 
 |`search_type` |The type of the search operation to perform. Can be
 `dfs_query_then_fetch`, `query_then_fetch`, `scan`
-deprecated[2.1.0,Replaced by a regular `scroll` sorted by `_doc`]
+ifdef::asciidoctor[]
+deprecated:[2.1.0,"Replaced by a regular `scroll` sorted by `_doc`"] 
+endif::[]
+ifndef::asciidoctor[]
+deprecated[2.1.0,Replaced by a regular `scroll` sorted by `_doc`] 
+endif::[]
 or `count`
 deprecated[2.0.0-beta1,Replaced by `size: 0`]. Defaults to `query_then_fetch`. See
 <<search-request-search-type,_Search Type_>> for

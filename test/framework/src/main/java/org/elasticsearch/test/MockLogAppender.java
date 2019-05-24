@@ -117,7 +117,7 @@ public class MockLogAppender extends AbstractAppender {
 
         @Override
         public void assertMatched() {
-            assertThat("expected to see " + name + " but did not", saw, equalTo(false));
+            assertThat("expected not to see " + name + " but did", saw, equalTo(false));
         }
     }
 

@@ -116,7 +116,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
 
-        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. " +
+        assertWarnings("'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year. " +
             "Prefix your date format with '8' to use the new specifier.");
     }
 }

@@ -64,11 +64,6 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         return Collections.singletonList(FetchTermVectorsPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
         client().admin()

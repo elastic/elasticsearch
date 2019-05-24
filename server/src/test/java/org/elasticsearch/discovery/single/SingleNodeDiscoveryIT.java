@@ -100,7 +100,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                         "other",
                         Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
                         Function.identity())) {
-            other.beforeTest(random(), 0);
+            other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             final ClusterState second = other.getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));
@@ -175,7 +175,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
             Loggers.addAppender(clusterLogger, mockAppender);
             try {
-                other.beforeTest(random(), 0);
+                other.beforeTest(random());
                 final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
                 assertThat(first.nodes().getSize(), equalTo(1));
                 assertBusy(() -> mockAppender.assertAllExpectationsMatched());

@@ -138,12 +138,8 @@ public class Bucket implements ToXContentObject, Writeable {
         if (in.getVersion().before(Version.V_6_5_0)) {
             in.readList(Bucket::readOldPerPartitionNormalization);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            scheduledEvents = in.readStringList();
-            if (scheduledEvents.isEmpty()) {
-                scheduledEvents = Collections.emptyList();
-            }
-        } else {
+        scheduledEvents = in.readStringList();
+        if (scheduledEvents.isEmpty()) {
             scheduledEvents = Collections.emptyList();
         }
     }
@@ -164,9 +160,7 @@ public class Bucket implements ToXContentObject, Writeable {
         if (out.getVersion().before(Version.V_6_5_0)) {
             out.writeList(Collections.emptyList());
         }
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeStringCollection(scheduledEvents);
-        }
+        out.writeStringCollection(scheduledEvents);
     }
 
     @Override

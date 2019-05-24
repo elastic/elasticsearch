@@ -1,3 +1,8 @@
+setup:
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/42258"
+
 ---
 "Put job and datafeed without aggs in old cluster":
 
@@ -48,8 +53,8 @@
 ---
 "Put job and datafeed with aggs in old cluster - pre-deprecated interval":
   - skip:
-      version: "8.0.0 - "  #TODO change this after backport
-      reason:  calendar_interval introduced in 7.1.0
+      version: "7.1.99 - "
+      reason:  "calendar_interval introduced in 7.2.0"
 
   - do:
       ml.put_job:
@@ -118,8 +123,8 @@
 ---
 "Put job and datafeed with aggs in old cluster - deprecated interval with warning":
   - skip:
-      version: " - 7.99.99"  #TODO change this after backport
-      reason:  calendar_interval introduced in 7.1.0
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
       features: warnings
 
   - do:

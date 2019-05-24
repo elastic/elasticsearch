@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -33,14 +32,12 @@ import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -73,7 +70,6 @@ public class ReservedRealmTests extends ESTestCase {
         usersStore = mock(NativeUsersStore.class);
         securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
-        when(securityIndex.checkMappingVersion(any())).thenReturn(true);
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -165,9 +161,6 @@ public class ReservedRealmTests extends ESTestCase {
 
         verify(securityIndex, times(2)).indexExists();
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
-        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityIndex, times(2)).checkMappingVersion(predicateCaptor.capture());
-        verifyVersionPredicate(principal, predicateCaptor.getValue());
         verifyNoMoreInteractions(usersStore);
     }
 
@@ -183,10 +176,6 @@ public class ReservedRealmTests extends ESTestCase {
         final User user = listener.actionGet();
         assertEquals(expectedUser, user);
         verify(securityIndex).indexExists();
-
-        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
-        verifyVersionPredicate(principal, predicateCaptor.getValue());
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
         reservedRealm.doLookupUser("foobar", future);
@@ -231,10 +220,6 @@ public class ReservedRealmTests extends ESTestCase {
 
         verify(securityIndex).indexExists();
         verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
-
-        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
-        verifyVersionPredicate(principal, predicateCaptor.getValue());
 
         verifyNoMoreInteractions(usersStore);
     }
@@ -447,29 +432,5 @@ public class ReservedRealmTests extends ESTestCase {
                 return null;
             }).when(usersStore).getReservedUserInfo(eq(entry.getKey()), any(ActionListener.class));
         }
-    }
-
-    private void verifyVersionPredicate(String principal, Predicate<Version> versionPredicate) {
-        switch (principal) {
-            case LogstashSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
-                break;
-            case BeatsSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_6_2_3), is(false));
-                assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
-                break;
-            case APMSystemUser.NAME:
-                assertThat(versionPredicate.test(Version.V_6_4_0), is(false));
-                assertThat(versionPredicate.test(Version.V_6_5_0), is(true));
-                break;
-            case RemoteMonitoringUser.NAME:
-                assertThat(versionPredicate.test(Version.V_6_4_0), is(false));
-                assertThat(versionPredicate.test(Version.V_6_5_0), is(true));
-                break;
-            default:
-                assertThat(versionPredicate.test(Version.V_6_3_0), is(true));
-                break;
-        }
-        assertThat(versionPredicate.test(Version.V_7_0_0), is(true));
     }
 }

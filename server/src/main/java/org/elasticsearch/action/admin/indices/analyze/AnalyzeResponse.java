@@ -71,7 +71,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             return Objects.hash(term, startOffset, endOffset, position, positionLength, attributes, type);
         }
 
-        public AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength,
+        AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength,
                             String type, Map<String, Object> attributes) {
             this.term = term;
             this.position = position;
@@ -82,7 +82,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             this.attributes = attributes;
         }
 
-        public AnalyzeToken(StreamInput in) throws IOException {
+        AnalyzeToken(StreamInput in) throws IOException {
             term = in.readString();
             startOffset = in.readInt();
             endOffset = in.readInt();
@@ -203,7 +203,6 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
     }
 
     private final DetailAnalyzeResponse detail;
-
     private final List<AnalyzeToken> tokens;
 
     public AnalyzeResponse(List<AnalyzeToken> tokens, DetailAnalyzeResponse detail) {

@@ -5,16 +5,6 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
-
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
@@ -52,11 +42,21 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.TEMPLATE_VERSION_PATTERN;
@@ -394,14 +394,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN);
     }
 
-    public void testMappingVersionMatching() throws IOException {
-        String templateString = "/" + SECURITY_MAIN_TEMPLATE_7 + ".json";
-        ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
-        manager.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
-        assertTrue(manager.checkMappingVersion(Version.CURRENT.minimumIndexCompatibilityVersion()::before));
-        assertFalse(manager.checkMappingVersion(Version.CURRENT.minimumIndexCompatibilityVersion()::after));
-    }
-
     public void testMissingVersionMappingThrowsError() throws IOException {
         String templateString = "/missing-version-security-index-template.json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
@@ -429,10 +421,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         assertTrue(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
             SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, clusterState, logger,
-            Version.V_6_0_0::before));
-        assertFalse(SecurityIndexManager.checkTemplateExistsAndVersionMatches(
-            SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7, clusterState, logger,
-            Version.V_6_0_0::after));
+            v -> Version.CURRENT.minimumCompatibilityVersion().before(v)));
     }
 
     public void testUpToDateMappingsAreIdentifiedAsUpToDate() throws IOException {

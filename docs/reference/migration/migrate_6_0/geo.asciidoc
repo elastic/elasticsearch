@@ -3,6 +3,7 @@
 === Geo changes
 
 [float]
+[[_deprecated_literal_shapebuilders_literal_helper_class]]
 ==== Deprecated `ShapeBuilders` helper class
 
 The `ShapeBuilders` class containing static methods to create shape specific builders
@@ -10,6 +11,7 @@ The `ShapeBuilders` class containing static methods to create shape specific bui
 constructor instead (e.g., `new MultiPointBuilder()).
 
 [float]
+[[_deprecated_literal_shapebuilder_parse_literal_static_method]]
 ==== Deprecated `ShapeBuilder.parse` static method
 
 The `ShapeBuilder.parse` method has been deprecated. Use `ShapeParser.parse` instead.

@@ -20,6 +20,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 === Indexing changes
 
 [float]
+[[_deprecated_usage_of_literal_internal_literal_versioning_for_optimistic_concurrency_control]]
 ==== Deprecated usage of `internal` versioning for optimistic concurrency control
 
 `internal` version may not uniquely identify a document's version if an indexed document
@@ -33,6 +34,7 @@ See <<optimistic-concurrency-control>> for more details.
 === Plugin changes
 
 [float]
+[[_literal_ingest_geoip_literal_and_literal_ingest_user_agent_literal_are_no_longer_distributed_as_plugins]]
 ==== `ingest-geoip` and `ingest-user-agent` are no longer distributed as plugins
 
 The `ingest-geoip` and `ingest-user-agent` plugins have been converted to

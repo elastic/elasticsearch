@@ -3,6 +3,7 @@
 === Stats and info changes
 
 [float]
+[[_removal_of_literal_throttle_time_literal_in_the_literal_store_literal_stats]]
 ==== Removal of `throttle_time` in the `store` stats
 
 Given that store throttling has been removed, the `store` stats do not report

@@ -116,6 +116,7 @@ The default is `10%` which is often plenty: for example, if you give the JVM
 two shards that are heavily indexing.
 
 [float]
+[[_disable_literal__field_names_literal]]
 === Disable `_field_names`
 
 The <<mapping-field-names-field,`_field_names` field>> introduces some

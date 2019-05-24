@@ -38,6 +38,7 @@ Starting with version 6.3, all of the {xpack} features ship with the default
 distribution of {es}. You no longer need to install {xpack} separately. 
 
 [float]
+[[deprecation_of_the_literal_x_pack_literal_configuration_directory]]
 ==== Deprecation of the `x-pack` configuration directory
  
 In 6.2 and earlier releases, the 

@@ -3,6 +3,7 @@
 === Aggregations changes
 
 [float]
+[[_deprecated_literal_pattern_literal_element_of_include_exclude_for_terms_aggregations_has_been_removed]]
 ==== Deprecated `pattern` element of include/exclude for terms aggregations has been removed
 
 The `include` and `exclude` options of `terms` aggregations used to accept a
@@ -53,6 +54,7 @@ POST /twitter/_search?size=0
 // TEST[setup:twitter]
 
 [float]
+[[_numeric_literal_to_literal_and_literal_from_literal_parameters_in_literal_date_range_literal_aggregation_are_interpreted_according_to_literal_format_literal_now]]
 ==== Numeric `to` and `from` parameters in `date_range` aggregation are interpreted according to `format` now
 
 Numeric `to` and `from` parameters in `date_range` aggregations used to always be interpreted as `epoch_millis`,
@@ -62,6 +64,7 @@ If the `format` in the mappings is not compatible with the numeric input value, 
 `format` (e.g. `epoch_millis`, `epoch_second`) must be specified in the `date_range` aggregation, otherwise an error is thrown.
 
 [float]
+[[_literal_global_ordinals_hash_literal_and_literal_global_ordinals_low_cardinality_literal_are_deprecated_in_the_literal_terms_literal_aggregation]]
 ==== `global_ordinals_hash` and `global_ordinals_low_cardinality` are deprecated in the `terms` aggregation
 
 The execution hints `global_ordinals_hash` and `global_ordinals_low_cardinality` are deprecated and should be replaced
@@ -69,6 +72,7 @@ by `global_ordinals` which now internally choose whether it should remap global 
 segment ordinals.
 
 [float]
+[[_literal_missing_literal_is_deprecated_in_the_literal_composite_literal_aggregation]]
 ==== `missing` is deprecated in the `composite` aggregation
 
 The `missing` option of the `composite` aggregation is deprecated, `missing_bucket`

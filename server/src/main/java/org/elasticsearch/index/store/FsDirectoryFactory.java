@@ -30,13 +30,13 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -44,7 +44,8 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
-public class FsDirectoryService extends DirectoryService {
+public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+
     public static final Setting<LockFactory> INDEX_LOCK_FACTOR_SETTING = new Setting<>("index.store.fs.fs_lock", "native", (s) -> {
         switch (s) {
             case "native":
@@ -56,27 +57,20 @@ public class FsDirectoryService extends DirectoryService {
         } // can we set on both - node and index level, some nodes might be running on NFS so they might need simple rather than native
     }, Property.IndexScope, Property.NodeScope);
 
-    private final ShardPath path;
-
-    @Inject
-    public FsDirectoryService(IndexSettings indexSettings, ShardPath path) {
-        super(path.getShardId(), indexSettings);
-        this.path = path;
-    }
 
     @Override
-    public Directory newDirectory() throws IOException {
+    public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
         final Path location = path.resolveIndex();
         final LockFactory lockFactory = indexSettings.getValue(INDEX_LOCK_FACTOR_SETTING);
         Files.createDirectories(location);
-        Directory wrapped = newFSDirectory(location, lockFactory);
+        Directory wrapped = newFSDirectory(location, lockFactory, indexSettings);
         Set<String> preLoadExtensions = new HashSet<>(
                 indexSettings.getValue(IndexModule.INDEX_STORE_PRE_LOAD_SETTING));
         wrapped = setPreload(wrapped, location, lockFactory, preLoadExtensions);
         return wrapped;
     }
 
-    protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
+    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
         final String storeType =
                 indexSettings.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey());
         IndexModule.Type type;

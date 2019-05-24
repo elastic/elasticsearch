@@ -1515,6 +1515,10 @@ public class CoordinatorTests extends ESTestCase {
 
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
+
+            final int pendingTaskCount = leader.masterService.getFakeMasterServicePendingTaskCount();
+            runFor((pendingTaskCount + 1) * DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "draining task queue");
+
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
             final String leaderId = leader.getId();
 
@@ -1527,6 +1531,8 @@ public class CoordinatorTests extends ESTestCase {
                 assertFalse(nodeId + " should not have an active publication", clusterNode.coordinator.publicationInProgress());
 
                 if (clusterNode == leader) {
+                    assertThat(nodeId + " is still the leader", clusterNode.coordinator.getMode(), is(LEADER));
+                    assertThat(nodeId + " did not change term", clusterNode.coordinator.getCurrentTerm(), is(leaderTerm));
                     continue;
                 }
 

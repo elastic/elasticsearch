@@ -57,7 +57,7 @@ multiple times if necessary.
 ==== Step 3: Shutdown and upgrade all nodes
 
 Stop all Elasticsearch services on all nodes in the cluster. Each node can be
-upgraded following the same procedure described in <<upgrade-node>>.
+upgraded following the same procedure described in <<upgrade-node, Stop and upgrade a single node>>.
 
 ==== Step 4: Start the cluster
 

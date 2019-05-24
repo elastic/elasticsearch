@@ -27,11 +27,14 @@ import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.InvalidUserDataException
+import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.plugins.ExtraPropertiesExtension
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
+import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.compile.JavaCompile
@@ -57,9 +60,12 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.pluginManager.apply(JavaBasePlugin)
 
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
-        BuildPlugin.globalBuildInfo(project)
         BuildPlugin.configureRepositories(project)
         BuildPlugin.configureTestTasks(project)
+
+        ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
+        project.extensions.getByType(JavaPluginExtension).sourceCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
+        project.extensions.getByType(JavaPluginExtension).targetCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion
 
         // only setup tests to build
         SourceSetContainer sourceSets = project.extensions.getByType(SourceSetContainer)

@@ -108,9 +108,11 @@ thirdPartyAudit.ignoreMissingClasses (
   'org.apache.log.Logger'
 )
 
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.ignoreMissingClasses (
-    'javax.xml.bind.DatatypeConverter',
-    'javax.xml.bind.JAXBContext'
-  )
+rootProject.globalInfo.ready {
+  if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+    thirdPartyAudit.ignoreMissingClasses(
+            'javax.xml.bind.DatatypeConverter',
+            'javax.xml.bind.JAXBContext'
+    )
+  }
 }

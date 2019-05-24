@@ -93,8 +93,10 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (fixtureName.equals('secureHdfsFixture') || fixtureName.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")}");
-      if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
-        miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
+      rootProject.globalInfo.ready {
+        if (project.runtimeJavaVersion == JavaVersion.VERSION_1_9) {
+          miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
+        }
       }
     }
     // If it's an HA fixture, set a nameservice to use in the JVM options

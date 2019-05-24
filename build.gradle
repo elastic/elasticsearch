@@ -241,8 +241,7 @@ allprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
     // for security example plugins
-    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
-    "org.elasticsearch.client:x-pack-transport:${version}": ':x-pack:transport-client'
+    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core'
   ]
 
   /*
@@ -619,21 +618,6 @@ allprojects {
   } 
 }
 
-subprojects {
-    // Common config when running with a FIPS-140 runtime JVM
-    if (project.ext.has("inFipsJvm") && project.ext.inFipsJvm) {
-        tasks.withType(Test) {
-          systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-          systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-        }
-        project.pluginManager.withPlugin("elasticsearch.testclusters") {
-          project.testClusters.all {
-            systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-            systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-          }
-        }
-    }
-}
 
 
 

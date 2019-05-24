@@ -842,8 +842,7 @@ class BuildPlugin implements Plugin<Project> {
                 test.jvmArgs "-Xmx${System.getProperty('tests.heap.size', '512m')}",
                         "-Xms${System.getProperty('tests.heap.size', '512m')}",
                         '-XX:+HeapDumpOnOutOfMemoryError',
-                        "-XX:HeapDumpPath=$heapdumpDir",
-                        '--illegal-access=warn'
+                        "-XX:HeapDumpPath=$heapdumpDir"
 
 
                 if (System.getProperty('tests.jvm.argline')) {

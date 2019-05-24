@@ -350,6 +350,7 @@ too many files will make search _slower_ if the filesystem cache is not large
 enough to hold all the data. Use with caution.
 
 [float]
+[[_map_identifiers_as_literal_keyword_literal]]
 === Map identifiers as `keyword`
 
 When you have numeric identifiers in your documents, it is tempting to map them

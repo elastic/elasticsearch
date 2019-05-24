@@ -30,6 +30,7 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.Storage.BlobListOption;
 import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageException;
+
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -49,11 +50,11 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -131,12 +132,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     Map<String, BlobMetaData> listBlobsByPrefix(String path, String prefix) throws IOException {
         final String pathPrefix = buildKey(path, prefix);
         final MapBuilder<String, BlobMetaData> mapBuilder = MapBuilder.newMapBuilder();
-        SocketAccess.doPrivilegedVoidIOException(
-            () -> client().get(bucketName).list(BlobListOption.prefix(pathPrefix)).iterateAll().forEach(blob -> {
+        SocketAccess.doPrivilegedVoidIOException(() -> {
+            client().get(bucketName).list(BlobListOption.prefix(pathPrefix)).iterateAll().forEach(blob -> {
                 assert blob.getName().startsWith(path);
                 final String suffixName = blob.getName().substring(path.length());
                 mapBuilder.put(suffixName, new PlainBlobMetaData(suffixName, blob.getSize()));
-            }));
+            });
+        });
         return mapBuilder.immutableMap();
     }
 

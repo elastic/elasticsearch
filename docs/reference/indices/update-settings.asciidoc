@@ -135,7 +135,12 @@ deprecated[1.5.0, As of 2.0 `index.fail_on_merge_failure` is removed and the eng
     * Number values are also supported, e.g. `1`.
 
 `index.gc_deletes`::
-    experimental[]
+ifdef::asciidoctor[]
+experimental:[]
+endif::[]
+ifndef::asciidoctor[]
+experimental[]
+endif::[]
 
 `index.ttl.disable_purge`::
     experimental[] Disables temporarily the purge of expired docs.

@@ -1,18 +1,6 @@
 [[painless-datetime]]
 === Using Datetime in Painless
 
-==== Datetime API
-
-Datetimes in Painless use the standard Java libraries and are available through
-the Painless <<painless-api-reference-shared, Shared API>>. Most of the classes
-from the following Java packages are available to use in Painless scripts:
-
-* <<painless-api-reference-shared-java-time, java.time>>
-* <<painless-api-reference-shared-java-time-chrono, java.time.chrono>>
-* <<painless-api-reference-shared-java-time-format, java.time.format>>
-* <<painless-api-reference-shared-java-time-temporal, java.time.temporal>>
-* <<painless-api-reference-shared-java-time-zone, java.time.zone>>
-
 ==== Datetime Representation
 
 Datetimes in Painless are most commonly represented as a
@@ -34,6 +22,18 @@ a datetime to a ZonedDateTime representation, modify, or compare the
 ZonedDateTime representation, and then format it back to a long or String
 representation for storage or as a returned result depending on the script's
 objective(s).
+
+==== Datetime API
+
+Datetimes in Painless use the standard Java libraries and are available through
+the Painless <<painless-api-reference-shared, Shared API>>. Most of the classes
+from the following Java packages are available to use in Painless scripts:
+
+* <<painless-api-reference-shared-java-time, java.time>>
+* <<painless-api-reference-shared-java-time-chrono, java.time.chrono>>
+* <<painless-api-reference-shared-java-time-format, java.time.format>>
+* <<painless-api-reference-shared-java-time-temporal, java.time.temporal>>
+* <<painless-api-reference-shared-java-time-zone, java.time.zone>>
 
 ==== Datetime Parsing and Formatting
 
@@ -58,7 +58,7 @@ DateTimeFormatter see the
 ----
 long milliSinceEpoch = 434931330000L;
 Instant instant = Instant.ofEpochMilli(milliSinceEpoch);
-ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneOffset.UTC);
+ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));
 ----
 +
 * parse from a String (ISO 1806)
@@ -114,7 +114,7 @@ ZonedDateTime zdt = ZonedDateTime.of(
 [source,Painless]
 ----
 ZonedDateTime zdt =
-        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
 long milliSinceEpoch = zdt.toInstant().toEpochMilli();
 ----
 +
@@ -123,7 +123,7 @@ long milliSinceEpoch = zdt.toInstant().toEpochMilli();
 [source,Painless]
 ----
 ZonedDateTime zdt =
-        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
 String datetime = zdt.format(DateTimeFormatter.ISO_INSTANT);
 ----
 Note the specification of a built-in DateTimeFormatter.
@@ -133,77 +133,163 @@ Note the specification of a built-in DateTimeFormatter.
 [source,Painless]
 ----
 ZonedDateTime zdt =
-        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
 DateTimeFormatter dtf = DateTimeFormatter.ofPattern(
         "'date:' yyyy/MM/dd 'time:' HH:mm:ss");
 String datetime = zdt.format(dtf);
 ----
 Note the specification of a custom DateTimeFormatter.
++
+* format to individual pieces
++
+[source,Painless]
+----
+ZonedDateTime zdt =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 100, ZoneId.of(tz));
+int year = zdt.year;
+int month = zdt.monthValue;
+int day = zdt.dayOfMonth;
+int hour = zdt.hour;
+int minutes = zdt.minute;
+int seconds = zdt.second;
+int nanos = zdt.nano;
+----
 
 ==== Datetime Modification
 
-<<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>> has numerous
-methods to add and subtract different sets of time units or set a time unit to
-an specific number. Note these methods do not modify the existing
-ZonedDateTime, but rather return a new one that requires assignment or
+Modifications to datetimes such as adding/subtracting a few seconds or setting
+a specific day are often required to meet a script's objectives. Use either a
+long or a ZonedDateTime to do datetime modification. Use standard
+<<painless-operators-numeric, numeric operators>> to modify a long
+representation of a datetime. Use <<method-call-operator, method calls>> to
+modify a ZonedDateTime representation of a datetime. Note most modification
+methods for a ZonedDateTime return a new instance that needs assignment or
 immediate use.
 
-*Examples*
+===== Datetime Modification Examples
 
-* Add days to a ZonedDateTime
+* Subtract three seconds from a long (milliseconds)
++
+[source,Painless]
+----
+long milliSinceEpoch = 434931330000L;
+milliSinceEpoch = milliSinceEpoch - 1000L*3L;
+----
++
+* Add three days to a datetime
 +
 [source,Painless]
 ----
 ZonedDateTime zdt =
-        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
 ZonedDateTime updatedZdt = zdt.plusDays(3);
 ----
 +
-* Subtract minutes from a ZonedDateTime
+* Subtract 125 minutes from a datetime
 +
 [source,Painless]
 ----
 ZonedDateTime zdt =
-        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
 ZonedDateTime updatedZdt = zdt.minusMinutes(125);
 ----
 +
-* Set the year on a ZonedDateTime
+* Set the year on a datetime
 +
 [source,Painless]
 ----
 ZonedDateTime zdt =
-        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
 ZonedDateTime updatedZdt = zdt.withYear(1976);
 ----
 
-==== Difference Between ZonedDateTimes
+==== Elapsed Time
 
-Use <<painless-api-reference-shared-ChronoUnit, ChronoUnit>> to calculate the
-difference between two
-<<painless-api-reference-shared-ZonedDateTime, ZonedDateTime>>s for a specific
-time unit.
+A script's objectives may require the elapsed time (difference) between two
+datetimes. Use either two longs or two ZonedDateTimes to calculate an elapsed
+time. Use <<subtraction-operator, subtraction>> to calculate an elapsed time
+between two longs. Use <<painless-api-reference-shared-ChronoUnit, ChronoUnit>>
+to calculate the difference between two ZonedDateTimes.
 
-*Examples*
+===== Elapsed Time Examples
 
-* Find the difference in milliseconds between two ZonedDateTimes
+* Elapsed time for two longs (milliseconds)
++
+[source,Painless]
+----
+long startTimestamp = 434931327000L;
+long endTimestamp = 434931330000L;
+long differenceInMillis = endTimestamp - startTimestamp;
+----
++
+* Elapsed time in milliseconds for two datetimes
 +
 [source,Painless]
 ----
 ZonedDateTime zdt1 =
-        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneId.of('Z'));
 ZonedDateTime zdt2 =
-        ZonedDateTime.of(1983, 10, 13, 22, 15, 35, 0, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 35, 0, ZoneId.of('Z'));
 long differenceInMillis = ChronoUnit.MILLIS.between(zdt1, zdt2);
 ----
 +
-* Find the difference in days between two ZonedDateTimes
+* Elapsed time in days for two datetimes
 +
 [source,Painless]
 ----
 ZonedDateTime zdt1 =
-        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 11000000, ZoneId.of('Z'));
 ZonedDateTime zdt2 =
-        ZonedDateTime.of(1983, 10, 17, 22, 15, 35, 0, ZoneOffset.UTC);
+        ZonedDateTime.of(1983, 10, 17, 22, 15, 35, 0, ZoneId.of('Z'));
 long differenceInDays = ChronoUnit.DAYS.between(zdt1, zdt2);
+----
+
+==== Datetime Comparison
+
+Comparisons of datetimes are often required to meet a script's objectives. Use
+either two longs or two ZonedDateTimes to do a datetime comparison. Use
+standard <<painless-operators-boolean, comparison operators>> to compare two
+long datetime representations. Use <<method-call-operator, method calls>> to
+compare two ZonedDateTime datetime representations.
+
+===== Datetime Comparison Examples
+
+* Comparison of two longs (milliseconds)
++
+[source,Painless]
+----
+long timestamp1 = 434931327000L;
+long timestamp2 = 434931330000L;
+
+if (timestamp1 > timestamp2) {
+   // handle condition
+}
+----
++
+* Before comparision of two datetimes
++
+[source,Painless]
+----
+ZonedDateTime zdt1 =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
+ZonedDateTime zdt2 =
+        ZonedDateTime.of(1983, 10, 17, 22, 15, 35, 0, ZoneId.of('Z'));
+
+if (zdt1.isBefore(zdt2)) {
+    // handle condition
+}
+----
++
+* After comparision of two datetimes
++
+[source,Painless]
+----
+ZonedDateTime zdt1 =
+        ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of('Z'));
+ZonedDateTime zdt2 =
+        ZonedDateTime.of(1983, 10, 17, 22, 15, 35, 0, ZoneId.of('Z'));
+
+if (zdt1.isAfter(zdt2)) {
+    // handle condition
+}
 ----

@@ -907,9 +907,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     }
 
     private boolean updateLocalCheckpoint(String allocationId, CheckpointState cps, long localCheckpoint) {
-        // a local checkpoint for a shard copy should be a valid sequence number or the pre-6.0 sequence number indicator
-        assert localCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO :
-                "invalid local checkpoint for shard copy [" + allocationId + "]";
+        // a local checkpoint for a shard copy should be a valid sequence number
+        assert localCheckpoint >= SequenceNumbers.NO_OPS_PERFORMED :
+            "invalid local checkpoint [" + localCheckpoint + "] for shard copy [" + allocationId + "]";
         if (localCheckpoint > cps.localCheckpoint) {
             logger.trace("updated local checkpoint of [{}] from [{}] to [{}]", allocationId, cps.localCheckpoint, localCheckpoint);
             cps.localCheckpoint = localCheckpoint;

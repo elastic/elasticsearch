@@ -17,23 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.store.smbsimplefs;
 
-import org.elasticsearch.index.AbstractIndexComponent;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.index.store.SmbDirectoryWrapper;
 
-public class IndexStore extends AbstractIndexComponent {
+import java.io.IOException;
+import java.nio.file.Path;
 
-    public IndexStore(IndexSettings indexSettings) {
-        super(indexSettings);
+public final class SmbSimpleFsDirectoryFactory extends FsDirectoryFactory {
+
+    @Override
+    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        return new SmbDirectoryWrapper(new SimpleFSDirectory(location, lockFactory));
     }
-
-    /**
-     * The shard store class that should be used for each shard.
-     */
-    public DirectoryService newDirectoryService(ShardPath path) {
-        return new FsDirectoryService(indexSettings, path);
-    }
-
 }

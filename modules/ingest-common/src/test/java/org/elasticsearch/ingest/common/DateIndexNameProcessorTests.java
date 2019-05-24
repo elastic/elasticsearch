@@ -109,8 +109,14 @@ public class DateIndexNameProcessorTests extends ESTestCase {
         assertThat(document.getSourceAndMetadata().get("_index"),
             equalTo("<"+indexNamePrefix+"{"+DateTimeFormat.forPattern(indexNameFormat)
                 .print(dateTimeFunction.apply(date))+"||/"+dateRounding+"{"+indexNameFormat+"|UTC}}>"));
-        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
-            "Prefix your date format with '8' to use the new specifier.");
+        if (indexNameFormat.equals("yyyy-MM-dd'T'HH:mm:ss.SSSZ")) {
+            assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
+                "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
+                "Prefix your date format with '8' to use the new specifier.");
+        } else {
+            assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
+                "Prefix your date format with '8' to use the new specifier.");
+        }
     }
 
     public void testJodaTimeDeprecation() throws Exception {

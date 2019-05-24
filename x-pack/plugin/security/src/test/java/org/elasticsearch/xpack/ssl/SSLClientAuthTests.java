@@ -119,7 +119,7 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             Request request = new Request("GET", "/");
             RequestOptions.Builder options = request.getOptions().toBuilder();
-            options.addHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword()));
+            options.addHeader("Authorization", basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
             request.setOptions(options);
             Response response = restClient.performRequest(request);
             assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

@@ -469,7 +469,7 @@ final class StoreRecovery {
             }
             final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
             assert indexShard.getEngineOrNull() == null;
-            repository.restoreShard(indexShard, indexShard.store(), restoreSource.snapshot().getSnapshotId(),
+            repository.restoreShard(indexShard.store(), restoreSource.snapshot().getSnapshotId(),
                 restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
             final Store store = indexShard.store();
             store.bootstrapNewHistory();

@@ -111,6 +111,3 @@ Then in your project's `pom.xml` if using maven, add the following repositories 
   </repositories>
 --------------------------------------------------------------
 --
-
-. If you are using {stack} {security-features}, there are more configuration
-steps. See {stack-ov}/java-clients.html[Java Client and Security].

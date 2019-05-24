@@ -60,10 +60,20 @@ parameters:
     final estimation. Defaults to 1.03
 
 `indices.fielddata.breaker.limit`::
-    deprecated[1.4.0.Beta1,Replaced by `indices.breaker.fielddata.limit`]
+ifdef::asciidoctor[]
+deprecated:[1.4.0.Beta1,"Replaced by `indices.breaker.fielddata.limit`"]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.4.0.Beta1,Replaced by `indices.breaker.fielddata.limit`]
+endif::[]
 
 `indices.fielddata.breaker.overhead`::
-    deprecated[1.4.0.Beta1,Replaced by `indices.breaker.fielddata.overhead`]
+ifdef::asciidoctor[]
+deprecated:[1.4.0.Beta1,"Replaced by `indices.breaker.fielddata.overhead`"]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[1.4.0.Beta1,Replaced by `indices.breaker.fielddata.overhead`]
+endif::[]
 
 [float]
 [[request-circuit-breaker]]

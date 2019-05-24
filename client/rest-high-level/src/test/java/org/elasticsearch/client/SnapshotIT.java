@@ -199,7 +199,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
             .findFirst()
             .map(SnapshotInfo::userMetadata)
             .ifPresentOrElse(metadata -> assertEquals(originalMetadata, metadata),
-                () -> fail("response did not contain expected _meta field"));
+                () -> fail("response did not contain expected metadata field"));
     }
 
     public void testSnapshotsStatus() throws IOException {

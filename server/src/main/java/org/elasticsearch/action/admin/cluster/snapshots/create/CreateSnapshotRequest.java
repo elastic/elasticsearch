@@ -157,7 +157,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             validationException = addValidationError("settings is null", validationException);
         }
         if (isMetadataTooBig(userMetadata)) {
-            validationException = addValidationError("_meta must be smaller than 1024 bytes", validationException);
+            validationException = addValidationError("metadata must be smaller than 1024 bytes", validationException);
         }
         return validationException;
     }
@@ -443,9 +443,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
-            } else if (name.equals("_meta")) {
+            } else if (name.equals("metadata")) {
                 if (entry.getValue() != null && (entry.getValue() instanceof Map == false)) {
-                    throw new IllegalArgumentException("malformed _meta, should be an object");
+                    throw new IllegalArgumentException("malformed metadata, should be an object");
                 }
                 userMetadata((Map<String, Object>) entry.getValue());
             }
@@ -476,7 +476,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (indicesOptions != null) {
             indicesOptions.toXContent(builder, params);
         }
-        builder.field("_meta", userMetadata);
+        builder.field("metadata", userMetadata);
         builder.endObject();
         return builder;
     }
@@ -528,7 +528,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             ", includeGlobalState=" + includeGlobalState +
             ", waitForCompletion=" + waitForCompletion +
             ", masterNodeTimeout=" + masterNodeTimeout +
-            ", _meta=" + userMetadata +
+            ", metadata=" + userMetadata +
             '}';
     }
 }

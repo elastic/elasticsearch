@@ -70,8 +70,7 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     @Override
     protected boolean enableWarningsCheck() {
-        // the transport client uses deprecated SSL settings since we do not know what to do about
-        // secure settings for the transport client
+        // TODO: consider setting this back to true now that the transport client is gone
         return false;
     }
 

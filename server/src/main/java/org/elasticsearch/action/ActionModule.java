@@ -685,8 +685,6 @@ public class ActionModule extends AbstractModule {
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
         bind(TransportPutMappingAction.RequestValidators.class).toInstance(mappingRequestValidators);
-
-        // Supporting classes only used when not a transport client
         bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
         bind(TransportLivenessAction.class).asEagerSingleton();
 

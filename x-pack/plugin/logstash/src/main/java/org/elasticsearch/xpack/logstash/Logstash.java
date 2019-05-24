@@ -25,7 +25,7 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 /**
- * This class activates/deactivates the logstash modules depending if we're running a node client or transport client
+ * This class supplies the logstash featureset and templates
  */
 public class Logstash extends Plugin implements ActionPlugin {
 

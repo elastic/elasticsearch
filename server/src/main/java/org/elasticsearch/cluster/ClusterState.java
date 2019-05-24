@@ -113,12 +113,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
          * Tests whether or not the custom should be serialized. The criteria are:
          * <ul>
          * <li>the output stream must be at least the minimum supported version of the custom</li>
-         * <li>the output stream must have the feature required by the custom (if any) or not be a transport client</li>
+         * <li>the output stream must have the feature required by the custom (if any)</li>
          * </ul>
          * <p>
          * That is, we only serialize customs to clients than can understand the custom based on the version of the client and the features
-         * that the client has. For transport clients we can be lenient in requiring a feature in which case we do not send the custom but
-         * for connected nodes we always require that the node has the required feature.
+         * that the client has.
          *
          * @param out    the output stream
          * @param custom the custom to serialize

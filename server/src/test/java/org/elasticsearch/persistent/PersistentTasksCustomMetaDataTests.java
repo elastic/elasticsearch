@@ -271,7 +271,6 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(streamVersion);
         Set<String> features = new HashSet<>();
-        // if a transport client, then it must have the feature otherwise we add the feature randomly
         if (randomBoolean()) {
             features.add("test");
         }

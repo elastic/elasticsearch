@@ -147,11 +147,11 @@ public final class NetworkModule {
         }
     }
 
+    // TODO: consider moving this to the ClusterModule
+    // this lives here instead of the more aptly named ClusterModule because it used to be used by the Transport client
     /**
      * Register an allocation command.
      * <p>
-     * This lives here instead of the more aptly named ClusterModule because the Transport client needs these to be registered.
-     * </p>
      * @param reader the reader to read it from a stream
      * @param parser the parser to read it from XContent
      * @param commandName the names under which the command should be parsed. The {@link ParseField#getPreferredName()} is special because

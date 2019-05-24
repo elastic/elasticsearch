@@ -47,10 +47,6 @@ class PluginPropertiesExtension {
     @Input
     boolean hasNativeController = false
 
-    /** Indicates whether the plugin jar should be made available for the transport client. */
-    @Input
-    boolean hasClientJar = false
-
     /** True if the plugin requires the elasticsearch keystore to exist, false otherwise. */
     @Input
     boolean requiresKeystore = false

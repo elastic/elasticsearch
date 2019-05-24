@@ -38,8 +38,7 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
      *
      * See {@link DiscoveryNodes#resolveNodes} for a full description of the options.
      *
-     * TODO: once we stop using the transport client as a gateway to the cluster, we can get rid of this and resolve it to concrete nodes
-     * in the rest layer
+     * TODO: we can get rid of this and resolve it to concrete nodes in the rest layer
      **/
     private String[] nodesIds;
 

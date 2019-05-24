@@ -67,11 +67,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
-/**
- * This class activates/deactivates the monitoring modules depending if we're running a node client, transport client:
- * - node clients: all modules are bound
- * - transport clients: only action/transport actions are bound
- */
 public class Monitoring extends Plugin implements ActionPlugin {
 
     /**

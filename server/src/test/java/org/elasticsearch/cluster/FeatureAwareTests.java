@@ -134,7 +134,7 @@ public class FeatureAwareTests extends ESTestCase {
         final Version afterVersion = randomVersionBetween(random(), version, Version.CURRENT);
         final Custom custom = new RequiredFeatureCustom(version);
         {
-            // the feature is present and the client is not a transport client
+            // the feature is present
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(afterVersion);
             assertTrue(custom.getRequiredFeature().isPresent());
@@ -148,7 +148,7 @@ public class FeatureAwareTests extends ESTestCase {
         final Version afterVersion = randomVersionBetween(random(), version, Version.CURRENT);
         final Custom custom = new RequiredFeatureCustom(version);
         {
-            // the feature is missing but we should serialize it anyway because the client is not a transport client
+            // the feature is missing but we should serialize it anyway
             final BytesStreamOutput out = new BytesStreamOutput();
             out.setVersion(afterVersion);
             assertTrue(FeatureAware.shouldSerialize(out, custom));

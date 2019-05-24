@@ -390,7 +390,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
             XContentParseException e = expectThrows(XContentParseException.class,
                 () -> parser.parseResults(inputStream).forEachRemaining(a -> {
                 }));
-            assertEquals("[1:3] [autodetect_result] unknown field [unknown], parser not found", e.getMessage());
+            assertEquals("[1:13] [autodetect_result] unknown field [unknown], parser not found", e.getMessage());
         }
     }
 

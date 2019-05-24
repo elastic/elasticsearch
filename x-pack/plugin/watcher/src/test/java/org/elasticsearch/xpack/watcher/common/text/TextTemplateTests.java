@@ -210,7 +210,7 @@ public class TextTemplateTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         XContentParseException ex = expectThrows(XContentParseException.class, () -> TextTemplate.parse(parser));
-        assertEquals("[1:2] [script] unknown field [template], parser not found", ex.getMessage());
+        assertEquals("[1:13] [script] unknown field [template], parser not found", ex.getMessage());
     }
 
     public void testParserInvalidMissingText() throws Exception {
@@ -222,7 +222,7 @@ public class TextTemplateTests extends ESTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         XContentParseException ex = expectThrows(XContentParseException.class, () -> TextTemplate.parse(parser));
-        assertEquals("[1:2] [script] unknown field [type], parser not found", ex.getMessage());
+        assertEquals("[1:9] [script] unknown field [type], parser not found", ex.getMessage());
     }
 
     public void testNullObject() throws Exception {

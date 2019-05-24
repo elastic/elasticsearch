@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -254,7 +255,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                                 JsonXContent.contentBuilder().startObject().startObject(typeName)
                                         .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
                                         .endObject().endObject()
-                        ).get();
+                        ).setMasterNodeTimeout(TimeValue.timeValueMinutes(5)).get();
 
                         assertThat(response.isAcknowledged(), equalTo(true));
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();

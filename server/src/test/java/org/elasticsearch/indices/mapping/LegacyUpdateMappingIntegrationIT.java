@@ -26,10 +26,12 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -252,16 +254,20 @@ public class LegacyUpdateMappingIntegrationIT extends ESIntegTestCase {
                                 .put("index.version.created", Version.V_5_6_0) // for multiple types
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5)))
+            .get();
 
-        int recCount = randomIntBetween(200, 600);
+        int recCount = randomIntBetween(20, 200);
         int numberOfTypes = randomIntBetween(1, 5);
         List<IndexRequestBuilder> indexRequests = new ArrayList<>();
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type" + (rec % numberOfTypes);
             String fieldName = "field_" + type + "_" + rec;
-            indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec)).setSource(fieldName, "some_value"));
+            indexRequests.add(client().prepareIndex("test", type, Integer.toString(rec))
+                .setTimeout(TimeValue.timeValueMinutes(5)).setSource(fieldName, "some_value"));
         }
-        indexRandom(true, indexRequests);
+        indexRandom(true, false, indexRequests);
 
         logger.info("checking all the documents are there");
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
@@ -276,6 +282,9 @@ public class LegacyUpdateMappingIntegrationIT extends ESIntegTestCase {
             String fieldName = "field_" + type + "_" + rec;
             assertConcreteMappingsOnAll("test", type, fieldName);
         }
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+            Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey())).get();
     }
 
     @SuppressWarnings("unchecked")

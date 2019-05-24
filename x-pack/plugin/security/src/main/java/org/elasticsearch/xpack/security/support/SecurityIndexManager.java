@@ -130,12 +130,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         return new SecurityIndexManager(null, aliasName, internalIndexName, internalIndexFormat, mappingSourceSupplier, indexState);
     }
 
-    public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
-        // pull value into local variable for consistent view
-        final State currentIndexState = this.indexState;
-        return currentIndexState.mappingVersion == null || requiredVersion.test(currentIndexState.mappingVersion);
-    }
-
     public String aliasName() {
         return aliasName;
     }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.license.TribeTransportTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
 import java.util.Collections;
 import java.util.List;
 
+@TestLogging("org.elasticsearch.xpack.core.XPackPlugin:TRACE,org.elasticsearch.xpack.CompositeTestingXPackPlugin:TRACE")
 public class MonitoringTribeTests extends TribeTransportTestCase {
 
     @Override

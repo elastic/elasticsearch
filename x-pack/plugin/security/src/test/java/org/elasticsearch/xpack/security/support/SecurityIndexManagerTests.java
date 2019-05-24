@@ -394,14 +394,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
         return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), TEMPLATE_VERSION_PATTERN);
     }
 
-    public void testMappingVersionMatching() throws IOException {
-        String templateString = "/" + SECURITY_MAIN_TEMPLATE_7 + ".json";
-        ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);
-        manager.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
-        assertTrue(manager.checkMappingVersion(Version.CURRENT.minimumIndexCompatibilityVersion()::before));
-        assertFalse(manager.checkMappingVersion(Version.CURRENT.minimumIndexCompatibilityVersion()::after));
-    }
-
     public void testMissingVersionMappingThrowsError() throws IOException {
         String templateString = "/missing-version-security-index-template.json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMappingAndTemplate(templateString);

@@ -469,22 +469,26 @@ public class IngestService implements ClusterStateApplier {
     }
 
     void innerUpdatePipelines(IngestMetadata newIngestMetadata) {
-        Map<String, PipelineHolder> pipelines = new HashMap<>(this.pipelines);
-        List<ElasticsearchParseException> exceptions = new ArrayList<>();
+        Map<String, PipelineHolder> existingPipelines = this.pipelines;
+
+        // Lazy initialize these variables in order to favour the most like scenario that there are no pipeline changes:
+        Map<String, PipelineHolder> newPipelines = null;
+        List<ElasticsearchParseException> exceptions = null;
         // Iterate over pipeline configurations in ingest metadata and constructs a new pipeline if there is no pipeline
         // or the pipeline configuration has been modified
-        boolean updated = false;
         for (PipelineConfiguration newConfiguration : newIngestMetadata.getPipelines().values()) {
-            PipelineHolder previous = pipelines.get(newConfiguration.getId());
+            PipelineHolder previous = existingPipelines.get(newConfiguration.getId());
             if (previous != null && previous.configuration.equals(newConfiguration)) {
                 continue;
             }
 
-            updated = true;
+            if (newPipelines == null) {
+                newPipelines = new HashMap<>(existingPipelines);
+            }
             try {
                 Pipeline newPipeline =
                     Pipeline.create(newConfiguration.getId(), newConfiguration.getConfigAsMap(), processorFactories, scriptService);
-                pipelines.put(
+                newPipelines.put(
                     newConfiguration.getId(),
                     new PipelineHolder(newConfiguration, newPipeline)
                 );
@@ -518,24 +522,42 @@ public class IngestService implements ClusterStateApplier {
                 }
             } catch (ElasticsearchParseException e) {
                 Pipeline pipeline = substitutePipeline(newConfiguration.getId(), e);
-                pipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, pipeline));
+                newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, pipeline));
+                if (exceptions == null) {
+                    exceptions = new ArrayList<>();
+                }
                 exceptions.add(e);
             } catch (Exception e) {
                 ElasticsearchParseException parseException = new ElasticsearchParseException(
                     "Error updating pipeline with id [" + newConfiguration.getId() + "]", e);
                 Pipeline pipeline = substitutePipeline(newConfiguration.getId(), parseException);
-                pipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, pipeline));
+                newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, pipeline));
+                if (exceptions == null) {
+                    exceptions = new ArrayList<>();
+                }
                 exceptions.add(parseException);
             }
         }
+
         // Iterate over the current active pipelines and check whether they are missing in the pipeline configuration and
-        // if so delete the pipeline:
-        boolean removed = pipelines.entrySet().removeIf(existing -> newIngestMetadata.getPipelines().get(existing.getKey()) == null);
-        if (updated || removed) {
+        // if so delete the pipeline from new Pipelines map:
+        for (Map.Entry<String, PipelineHolder> entry : existingPipelines.entrySet()) {
+            if (newIngestMetadata.getPipelines().get(entry.getKey()) == null) {
+                if (newPipelines == null) {
+                    newPipelines = new HashMap<>(existingPipelines);
+                }
+                newPipelines.remove(entry.getKey());
+            }
+        }
+
+        if (newPipelines != null) {
             // Update the pipelines:
-            this.pipelines = Map.copyOf(pipelines);
+            this.pipelines = Map.copyOf(newPipelines);
+
             // Rethrow errors that may have occurred during creating new pipeline instances:
-            ExceptionsHelper.rethrowAndSuppress(exceptions);
+            if (exceptions != null) {
+                ExceptionsHelper.rethrowAndSuppress(exceptions);
+            }
         }
     }
 

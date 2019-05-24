@@ -107,6 +107,7 @@ Password to the truststore.
 +{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
 Password to the truststore.
 
+[[pkcs12-files]]
 ===== PKCS#12 Files
 
 {es} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files)
@@ -145,6 +146,7 @@ Password to the PKCS#12 file.
 +{ssl-prefix}.ssl.truststore.secure_password+ (<<secure-settings,Secure>>)::
 Password to the PKCS#12 file.
 
+[[pkcs11-tokens]]
 ===== PKCS#11 Tokens
 
 {es} can be configured to use a PKCS#11 token that contains the private key,

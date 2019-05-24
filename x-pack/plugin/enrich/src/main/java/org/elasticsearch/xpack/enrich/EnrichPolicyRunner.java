@@ -143,7 +143,7 @@ public class EnrichPolicyRunner implements Runnable {
         for (String fieldPart : fieldParts) {
             // Ensure that the current field is of object type only (not a nested type or a non compound field)
             Object type = currentField.get("type");
-            if (type != null) {
+            if (type != null && !"object".equals(type)) {
                 throw new ElasticsearchException(
                     "Could not traverse mapping to field [{}]. The [{}] field must be regular object but was [{}].",
                     fieldName,

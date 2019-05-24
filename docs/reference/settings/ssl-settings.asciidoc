@@ -1,4 +1,5 @@
 
+[[tls-ssl-settings]]
 ==== {component} TLS/SSL Settings
 You can configure the following TLS/SSL settings. If the settings are not configured,
 the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings]
@@ -39,6 +40,7 @@ endif::verifies[]
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to ``.
 
+[[tls-ssl-key-trusted-certificate-settings]]
 ===== {component} TLS/SSL Key and Trusted Certificate Settings
 
 The following settings are used to specify a private key, certificate, and the

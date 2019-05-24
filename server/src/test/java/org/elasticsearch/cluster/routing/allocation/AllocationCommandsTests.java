@@ -713,44 +713,40 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .add(newNode(node1))
             .add(newNode(node2))
         ).build();
-        clusterState = allocation.reroute(clusterState, "reroute");
+        final ClusterState finalClusterState = allocation.reroute(clusterState, "reroute");
 
         logger.info("--> allocating same index primary in multiple commands should fail");
-        try {
-            allocation.reroute(clusterState,
+        assertThat(expectThrows(IllegalArgumentException.class, () -> {
+            allocation.reroute(finalClusterState,
                 new AllocationCommands(
                     new AllocateStalePrimaryAllocationCommand(index1, 0, node1, true),
                     new AllocateStalePrimaryAllocationCommand(index1, 0, node2, true)
-                ), false, false).getClusterState();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("primary [" + index1 + "][0] is already assigned"));
-        }
+                ), false, false);
+        }).getMessage(), containsString("primary [" + index1 + "][0] is already assigned"));
 
-        try {
-            allocation.reroute(clusterState,
+        assertThat(expectThrows(IllegalArgumentException.class, () -> {
+            allocation.reroute(finalClusterState,
                 new AllocationCommands(
                     new AllocateEmptyPrimaryAllocationCommand(index2, 0, node1, true),
                     new AllocateEmptyPrimaryAllocationCommand(index2, 0, node2, true)
-                ), false, false).getClusterState();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("primary [" + index2 + "][0] is already assigned"));
-        }
+                ), false, false);
+        }).getMessage(), containsString("primary [" + index2 + "][0] is already assigned"));
+
 
         clusterState = allocation.reroute(clusterState,
             new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand(index3, 0, node1, true)), false, false).getClusterState();
         clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
-        assertThat(clusterState.getRoutingNodes().node(node1).shardsWithState(STARTED).size(), equalTo(1));
+
+        final ClusterState updatedClusterState = clusterState;
+        assertThat(updatedClusterState.getRoutingNodes().node(node1).shardsWithState(STARTED).size(), equalTo(1));
 
         logger.info("--> subsequent replica allocation fails as all configured replicas have been allocated");
-        try {
-            allocation.reroute(clusterState,
+        assertThat(expectThrows(IllegalArgumentException.class, () -> {
+            allocation.reroute(updatedClusterState,
                 new AllocationCommands(
                     new AllocateReplicaAllocationCommand(index3, 0, node2),
-                    new AllocateReplicaAllocationCommand(index3, 0, node2)),
-                false, false).getClusterState();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                containsString("all copies of [" + index3 + "][0] are already assigned. Use the move allocation command instead"));
-        }
+                    new AllocateReplicaAllocationCommand(index3, 0, node2)
+                ), false, false);
+        }).getMessage(), containsString("all copies of [" + index3 + "][0] are already assigned. Use the move allocation command instead"));
     }
 }

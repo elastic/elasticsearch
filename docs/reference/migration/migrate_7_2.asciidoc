@@ -29,16 +29,3 @@ In earlier versions you could include a range of ports in entries in the
 unexpectedly ignored the rest.  For instance if you set `discovery.seed_hosts:
 "10.11.12.13:9300-9310"` then {es} would only use `10.11.12.13:9300` for
 discovery. Seed host addresses containing port ranges are now rejected.
-
-[[breaking_72_mapping_changes]]
-=== Mapping changes
-
-[float]
-==== Defining multi-fields within multi-fields
-
-Previously, it was possible to define a multi-field within a multi-field.
-Defining chained multi-fields is now deprecated and will no longer be supported
-in 8.0. To resolve the issue, all instances of `fields` that occur within a
-`fields` block should be removed from the mappings, either by flattening the
-chained `fields` blocks into a single level, or by switching to `copy_to` if
-appropriate.

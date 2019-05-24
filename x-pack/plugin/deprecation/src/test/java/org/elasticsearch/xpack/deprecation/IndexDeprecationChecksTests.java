@@ -141,7 +141,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         String mapping = BytesReference.bytes(xContent).utf8ToString();
 
         IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
-            .settings(settings(Version.V_7_2_0))
+            .settings(settings(Version.V_7_3_0))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putMapping("_doc", mapping)

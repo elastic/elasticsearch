@@ -6,6 +6,7 @@
 beta[]
 
 [float]
+[[_nested_fields_in_literal_sys_columns_literal_and_literal_describe_table_literal]]
 === Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE`
 
 {es} has a special type of relationship fields called `nested` fields. In {es-sql} they can be used by referencing their inner
@@ -53,6 +54,7 @@ This is because of the way nested queries work in {es}: the root nested field wi
 pagination taking place on the **root nested document and not on its inner hits**.
 
 [float]
+[[_normalized_literal_keyword_literal_fields]]
 === Normalized `keyword` fields
 
 `keyword` fields in {es} can be normalized by defining a `normalizer`. Such fields are not supported in {es-sql}.

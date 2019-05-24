@@ -222,6 +222,7 @@ sufficient to see that a particular component of a query is slow, and not necess
 the `advance` phase of that query is the cause, for example.
 =======================================
 
+[[_literal_query_literal_section]]
 ==== `query` Section
 
 The `query` section contains detailed timing of the query tree executed by Lucene on a particular shard.

@@ -410,7 +410,6 @@ class ClusterFormationTasks {
             // so we need to bail quicker than the default 30s for the cluster to form in time.
             esConfig['discovery.zen.master_election.wait_for_joins_timeout'] = '5s'
         }
-        esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
         if (node.nodeVersion.onOrAfter('6.7.0')) {
             esConfig['transport.port'] =  node.config.transportPort

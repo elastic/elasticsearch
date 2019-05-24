@@ -67,7 +67,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     public QuerySearchResult(StreamInput in) throws IOException {
-        readFrom(in);
+        super(in);
+        long id = in.readLong();
+        readFromWithId(id, in);
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
@@ -256,19 +258,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return hasScoreDocs || hasSuggestHits();
     }
 
-    public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
-        QuerySearchResult result = new QuerySearchResult();
-        result.readFrom(in);
-        return result;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        long id = in.readLong();
-        readFromWithId(id, in);
-    }
-
     public void readFromWithId(long id, StreamInput in) throws IOException {
         this.requestId = id;
         from = in.readVInt();
@@ -284,7 +273,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         setTopDocs(readTopDocs(in));
         if (hasAggs = in.readBoolean()) {
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
         if (in.getVersion().before(Version.V_7_2_0)) {
             List<SiblingPipelineAggregator> pipelineAggregators = in.readNamedWriteableList(PipelineAggregator.class).stream()

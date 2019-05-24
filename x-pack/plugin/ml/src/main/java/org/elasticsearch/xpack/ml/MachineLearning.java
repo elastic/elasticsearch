@@ -437,7 +437,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         NormalizerProcessFactory normalizerProcessFactory;
         if (MachineLearningField.AUTODETECT_PROCESS.get(settings) && MachineLearningFeatureSet.isRunningOnMlPlatform(true)) {
             try {
-                NativeController nativeController = NativeControllerHolder.getNativeController(environment);
+                NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
                 if (nativeController == null) {
                     // This will only only happen when path.home is not set, which is disallowed in production
                     throw new ElasticsearchException("Failed to create native process controller for Machine Learning");

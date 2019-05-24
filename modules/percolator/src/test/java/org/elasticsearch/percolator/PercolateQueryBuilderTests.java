@@ -153,12 +153,12 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         if (indexedDocumentExists) {
             return new GetResponse(
                     new GetResult(indexedDocumentIndex, MapperService.SINGLE_MAPPING_NAME, indexedDocumentId, 0, 1, 0L, true,
-                            documentSource.iterator().next(), Collections.emptyMap())
+                            documentSource.iterator().next(), Collections.emptyMap(), Collections.emptyMap())
             );
         } else {
             return new GetResponse(
                     new GetResult(indexedDocumentIndex, MapperService.SINGLE_MAPPING_NAME, indexedDocumentId, UNASSIGNED_SEQ_NO, 0, -1,
-                        false, null, Collections.emptyMap())
+                        false, null, Collections.emptyMap(), Collections.emptyMap())
             );
         }
     }

@@ -454,10 +454,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      */
     @Nullable
     public Map<String, Object> userMetadata() {
-        if (userMetadata != null) {
-            return Collections.unmodifiableMap(userMetadata);
-        }
-        return null;
+        return userMetadata;
     }
 
     /**

@@ -395,7 +395,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
 
             Nested nested = null;
-            if (!isUnmapped) {
+            if (isUnmapped == false) {
                 if (nestedSort != null) {
                     if (context.indexVersionCreated().before(Version.V_6_5_0) && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
                         throw new QueryShardException(context,

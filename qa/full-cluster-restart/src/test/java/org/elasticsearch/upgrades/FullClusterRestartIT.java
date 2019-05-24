@@ -1053,9 +1053,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> listSnapshotResponse = entityAsMap(client().performRequest(listSnapshotRequest));
-        assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", listSnapshotResponse));
-        assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", listSnapshotResponse));
-        assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", listSnapshotResponse));
+        assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("responses[0].snapshots.snapshot",
+                listSnapshotResponse));
+        assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("responses[0].snapshots.state", listSnapshotResponse));
+        assertEquals(singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("responses[0].snapshots.version",
+                listSnapshotResponse));
 
         // Remove the routing setting and template so we can test restoring them.
         Request clearRoutingFromSettings = new Request("PUT", "/_cluster/settings");

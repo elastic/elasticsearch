@@ -131,7 +131,18 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
         Map<String, Object> metadata = new HashMap<>();
         long fields = randomLongBetween(0, 25);
         for (int i = 0; i < fields; i++) {
-            metadata.put(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(5, 15));
+            if (randomBoolean()) {
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
+                    randomAlphaOfLengthBetween(5, 15));
+            } else {
+                Map<String, Object> nested = new HashMap<>();
+                long nestedFields = randomLongBetween(0, 25);
+                for (int j = 0; j < nestedFields; j++) {
+                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
+                        randomAlphaOfLengthBetween(5, 15));
+                }
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)), nested);
+            }
         }
         return metadata;
     }

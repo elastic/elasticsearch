@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Semaphore;
 import java.util.function.LongSupplier;
 
 import org.elasticsearch.ElasticsearchException;
@@ -25,6 +27,7 @@ public class EnrichPolicyExecutor {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final LongSupplier nowSupplier;
     private final int fetchSize;
+    private final ConcurrentHashMap<String, Semaphore> policyLocks = new ConcurrentHashMap<>();
 
     EnrichPolicyExecutor(Settings settings,
                          ClusterService clusterService,
@@ -40,6 +43,42 @@ public class EnrichPolicyExecutor {
         this.fetchSize = EnrichPlugin.ENRICH_FETCH_SIZE_SETTING.get(settings);
     }
 
+    private boolean tryLockingPolicy(String policyName) {
+        Semaphore runLock = policyLocks.computeIfAbsent(policyName, (name) -> new Semaphore(1));
+        return runLock.tryAcquire();
+    }
+
+    private void releasePolicy(String policyName) {
+        policyLocks.remove(policyName);
+    }
+
+    private class PolicyUnlockingListener implements ActionListener<PolicyExecutionResult> {
+        private final String policyName;
+        private final ActionListener<PolicyExecutionResult> listener;
+
+        PolicyUnlockingListener(String policyName, ActionListener<PolicyExecutionResult> listener) {
+            this.policyName = policyName;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onResponse(PolicyExecutionResult policyExecutionResult) {
+            releasePolicy(policyName);
+            listener.onResponse(policyExecutionResult);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            releasePolicy(policyName);
+            listener.onFailure(e);
+        }
+    }
+
+    protected Runnable createPolicyRunner(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
+        return new EnrichPolicyRunner(policyName, policy, listener, clusterService, client, indexNameExpressionResolver, nowSupplier,
+            fetchSize);
+    }
+
     public void runPolicy(String policyId, ActionListener<PolicyExecutionResult> listener) {
         // Look up policy in policy store and execute it
         EnrichPolicy policy = EnrichStore.getPolicy(policyId, clusterService.state());
@@ -51,8 +90,17 @@ public class EnrichPolicyExecutor {
     }
 
     public void runPolicy(String policyName, EnrichPolicy policy, ActionListener<PolicyExecutionResult> listener) {
-        EnrichPolicyRunner runnable = new EnrichPolicyRunner(policyName, policy, listener, clusterService, client,
-            indexNameExpressionResolver, nowSupplier, fetchSize);
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
+        if (tryLockingPolicy(policyName)) {
+            try {
+                Runnable runnable = createPolicyRunner(policyName, policy, new PolicyUnlockingListener(policyName, listener));
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(runnable);
+            } catch (Exception e) {
+                // Be sure to unlock if submission failed.
+                releasePolicy(policyName);
+                throw e;
+            }
+        } else {
+            throw new ElasticsearchException("Policy execution failed. Policy execution for [{}] is already in progress.", policyName);
+        }
     }
 }

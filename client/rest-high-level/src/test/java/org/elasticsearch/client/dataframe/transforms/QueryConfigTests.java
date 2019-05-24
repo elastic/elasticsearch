@@ -56,7 +56,7 @@ public class QueryConfigTests extends AbstractXContentTestCase<QueryConfig> {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 }

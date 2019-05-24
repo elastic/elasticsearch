@@ -77,11 +77,9 @@ import java.util.Map;
  * simply returns an {@link org.elasticsearch.action.ActionFuture}, while the second accepts an
  * {@link org.elasticsearch.action.ActionListener}.
  * <p>
- * A client can either be retrieved from a {@link org.elasticsearch.node.Node} started, or connected remotely
- * to one or more nodes using {@link org.elasticsearch.client.transport.TransportClient}.
+ * A client can be retrieved from a started {@link org.elasticsearch.node.Node}.
  *
  * @see org.elasticsearch.node.Node#client()
- * @see org.elasticsearch.client.transport.TransportClient
  */
 public interface Client extends ElasticsearchClient, Releasable {
 

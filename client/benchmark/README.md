@@ -54,9 +54,9 @@ Example invocation:
 
 The parameters are in order:
 
-* Client type: Use either "rest" or "transport"
+* Client type: Always "rest"
 * Benchmark type: Use either "bulk" or "search"
 * Benchmark target host IP (the host where Elasticsearch is running)
 * name of the index
-* a search request body (remember to escape double quotes). The `TransportClientBenchmark` uses `QueryBuilders.wrapperQuery()` internally which automatically adds a root key `query`, so it must not be present in the command line parameter.
+* a search request body (remember to escape double quotes).
 * A comma-separated list of target throughput rates

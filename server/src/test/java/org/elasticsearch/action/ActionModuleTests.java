@@ -112,7 +112,7 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupRestHandlerContainsKnownBuiltin() {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
-        ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(),
+        ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
                 settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
                 null, usageService);
         actionModule.initRestHandlers(null);
@@ -135,7 +135,7 @@ public class ActionModuleTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(),
+            ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
                     singletonList(dupsMainAction), null, null, usageService);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
@@ -167,7 +167,7 @@ public class ActionModuleTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(),
+            ActionModule actionModule = new ActionModule(settings.getSettings(), new IndexNameExpressionResolver(),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
                     singletonList(registersFakeHandler), null, null, usageService);
             actionModule.initRestHandlers(null);

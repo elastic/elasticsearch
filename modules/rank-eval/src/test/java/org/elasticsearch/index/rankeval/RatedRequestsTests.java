@@ -64,7 +64,7 @@ public class RatedRequestsTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         xContentRegistry = new NamedXContentRegistry(
-                Stream.of(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents().stream()).flatMap(Function.identity())
+                Stream.of(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents().stream()).flatMap(Function.identity())
                         .collect(toList()));
     }
 

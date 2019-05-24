@@ -278,21 +278,6 @@ your data! The RPM and Debian distributions do this for you already.
 
 
 [float]
-[[max-local-storage-nodes]]
-=== `node.max_local_storage_nodes`
-
-The <<data-path,data path>> can be shared by multiple nodes, even by nodes from different
-clusters. This is very useful for testing failover and different configurations on your development
-machine. In production, however, it is recommended to run only one node of Elasticsearch per server.
-
-By default, Elasticsearch is configured to prevent more than one node from sharing the same data
-path. To allow for more than one node (e.g., on your development machine), use the setting
-`node.max_local_storage_nodes` and set this to a positive integer larger than one.
-
-WARNING: Never run different node types (i.e. master, data) from the same data directory. This can
-lead to unexpected data loss.
-
-[float]
 == Other node settings
 
 More node settings can be found in <<modules,Modules>>.  Of particular note are

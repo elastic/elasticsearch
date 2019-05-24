@@ -32,8 +32,5 @@ the {kib} server and to connect to {es} via HTTPS. See
 
 . Configure Beats to use encrypted connections. See <<beats>>.
 
-. Configure the Java transport client to use encrypted communications.
-See <<java-clients>>.
-
 . Configure {es} for Apache Hadoop to use secured transport. See
 {hadoop-ref}/security.html[{es} for Apache Hadoop Security].

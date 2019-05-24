@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
@@ -20,7 +19,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
     public void testDummy() {

@@ -52,7 +52,8 @@ public class CloseIndexRequestTests extends ESTestCase {
         {
             final CloseIndexRequest request = randomRequest();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+                out.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
+                    VersionUtils.getPreviousVersion(Version.V_7_2_0)));
                 request.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -75,7 +76,8 @@ public class CloseIndexRequestTests extends ESTestCase {
 
                 final CloseIndexRequest deserializedRequest = new CloseIndexRequest();
                 try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), Version.V_7_2_0));
+                    in.setVersion(VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
+                        VersionUtils.getPreviousVersion(Version.V_7_2_0)));
                     deserializedRequest.readFrom(in);
                 }
                 assertEquals(sample.getParentTask(), deserializedRequest.getParentTask());

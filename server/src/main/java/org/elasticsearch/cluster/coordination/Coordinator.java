@@ -1231,7 +1231,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 @Override
                 public String toString() {
-                    return "scheduled timeout for " + this;
+                    return "scheduled timeout for " + CoordinatorPublication.this;
                 }
             }, publishTimeout, Names.GENERIC);
         }

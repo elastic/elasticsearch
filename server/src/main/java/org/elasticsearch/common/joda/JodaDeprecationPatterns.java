@@ -23,9 +23,10 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.StringJoiner;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class JodaDeprecationPatterns {
@@ -76,16 +77,18 @@ public class JodaDeprecationPatterns {
     public static String formatSuggestion(String pattern) {
         List<String> patterns = DateFormatter.splitCombinedPatterns(pattern);
 
-        StringJoiner joiner = new StringJoiner("; ");
+        Set<String> warnings = new LinkedHashSet<>();
         for (String subPattern : patterns) {
             if (isDeprecatedPattern(subPattern)) {
                 String suggestion = JODA_PATTERNS_DEPRECATIONS.entrySet().stream()
                                                               .filter(s -> subPattern.contains(s.getKey()))
                                                               .map(s -> s.getValue())
                                                               .collect(Collectors.joining("; "));
-                joiner.add(suggestion);
+                warnings.add(suggestion);
             }
         }
-        return joiner.toString();
+        String combinedWarning = warnings.stream()
+                                 .collect(Collectors.joining(";"));
+        return combinedWarning;
     }
 }

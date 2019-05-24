@@ -1,7 +1,12 @@
 [[modules-scripting-groovy]]
 === Groovy Scripting Language
 
+ifdef::asciidoctor[]
+deprecated::[5.0.0,"Groovy will be replaced by the new scripting language <<modules-scripting-painless, `Painless`>>"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[5.0.0,Groovy will be replaced by the new scripting language <<modules-scripting-painless, `Painless`>>]
+endif::[]
 
 Groovy is available in Elasticsearch by default.  Although
 limited by the <<java-security-manager,Java Security Manager>>, it is not a

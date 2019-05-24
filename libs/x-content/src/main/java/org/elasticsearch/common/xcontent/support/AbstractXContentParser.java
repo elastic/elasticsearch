@@ -306,10 +306,6 @@ public abstract class AbstractXContentParser implements XContentParser {
         return readMap(parser, ORDERED_MAP_FACTORY);
     }
 
-    static Map<String, Object> readMap(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
-        return readGenericMap(parser, mapFactory, p -> readValue(p, mapFactory));
-    }
-
     static Map<String, String> readMapStrings(XContentParser parser) throws IOException {
         return readGenericMap(parser, SIMPLE_MAP_STRINGS_FACTORY, XContentParser::text);
     }
@@ -320,6 +316,10 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     static List<Object> readListOrderedMap(XContentParser parser) throws IOException {
         return readList(parser, ORDERED_MAP_FACTORY);
+    }
+
+    static Map<String, Object> readMap(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+        return readGenericMap(parser, mapFactory, p -> readValue(p, mapFactory));
     }
 
     static <T> Map<String, T> readGenericMap(

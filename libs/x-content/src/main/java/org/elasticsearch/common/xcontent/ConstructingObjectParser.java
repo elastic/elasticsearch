@@ -149,7 +149,6 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
     public ConstructingObjectParser(String name, boolean ignoreUnknownFields, BiFunction<Object[], Context, Value> builder) {
         objectParser = new ObjectParser<>(name, ignoreUnknownFields, null);
         this.builder = builder;
-
     }
 
     /**

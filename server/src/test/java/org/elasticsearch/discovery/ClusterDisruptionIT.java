@@ -85,7 +85,7 @@ import static org.hamcrest.Matchers.not;
  * Tests various cluster operations (e.g., indexing) during disruptions.
  */
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
     private enum ConflictMode {

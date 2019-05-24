@@ -36,7 +36,7 @@ $ cat /tmp/elasticsearch-pid && echo
 $ kill -SIGTERM 15516
 --------------------------------------------------
 
-[[fatal-errors]
+[[fatal-errors]]
 [float]
 === Stopping on Fatal Errors
 

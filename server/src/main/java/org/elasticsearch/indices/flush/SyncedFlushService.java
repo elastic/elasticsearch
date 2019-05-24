@@ -22,7 +22,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
@@ -594,18 +593,12 @@ public class SyncedFlushService implements IndexEventListener {
             this.existingSyncId = existingSyncId;
         }
 
-        boolean includeExistingSyncId(Version version) {
-            return version.onOrAfter(Version.V_6_3_0);
-        }
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             commitId = new Engine.CommitId(in);
             numDocs = in.readInt();
-            if (includeExistingSyncId(in.getVersion())) {
-                existingSyncId = in.readOptionalString();
-            }
+            existingSyncId = in.readOptionalString();
         }
 
         @Override
@@ -613,9 +606,7 @@ public class SyncedFlushService implements IndexEventListener {
             super.writeTo(out);
             commitId.writeTo(out);
             out.writeInt(numDocs);
-            if (includeExistingSyncId(out.getVersion())) {
-                out.writeOptionalString(existingSyncId);
-            }
+            out.writeOptionalString(existingSyncId);
         }
     }
 

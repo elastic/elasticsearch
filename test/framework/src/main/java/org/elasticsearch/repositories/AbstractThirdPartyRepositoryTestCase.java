@@ -109,11 +109,26 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             }
         });
         future.actionGet();
-
+        assertTrue(assertCorruptionVisible(repo, genericExec));
         logger.info("--> deleting a snapshot to trigger repository cleanup");
         client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", "test-snap")).actionGet();
 
         assertConsistentRepository(repo, genericExec);
+    }
+
+    protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor executor) throws Exception {
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        executor.execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repo.blobStore();
+                future.onResponse(
+                    blobStore.blobContainer(BlobPath.cleanPath().add("indices")).children().containsKey("foo")
+                        && blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo")).blobExists("bar")
+                );
+            }
+        });
+        return future.actionGet();
     }
 
     protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {

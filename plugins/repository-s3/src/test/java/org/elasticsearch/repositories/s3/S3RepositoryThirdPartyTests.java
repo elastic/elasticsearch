@@ -69,6 +69,14 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     }
 
     @Override
+    protected boolean assertCorruptionVisible(BlobStoreRepository repo, Executor genericExec) throws Exception {
+        // S3 is only eventually consistent for the list operations used by this assertions so we retry for 10 minutes assuming that
+        // listing operations will become consistent within these 10 minutes.
+        assertBusy(() -> assertTrue(super.assertCorruptionVisible(repo, genericExec)), 10L, TimeUnit.MINUTES);
+        return true;
+    }
+
+    @Override
     protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
         // S3 is only eventually consistent for the list operations used by this assertions so we retry for 10 minutes assuming that
         // listing operations will become consistent within these 10 minutes.

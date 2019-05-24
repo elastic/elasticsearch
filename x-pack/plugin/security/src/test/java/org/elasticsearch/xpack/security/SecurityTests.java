@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.DeprecatedLoggingAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -20,7 +20,6 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -272,12 +271,8 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setVersion(streamVersion);
         Set<String> features = new HashSet<>();
-        final boolean transportClient = randomBoolean();
-        if (transportClient) {
-            features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
-        }
         // if a transport client, then it must have the feature otherwise we add the feature randomly
-        if (transportClient || randomBoolean()) {
+        if (randomBoolean()) {
             features.add("test");
         }
         out.setFeatures(features);
@@ -306,7 +301,6 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
         out.setVersion(Version.CURRENT);
         Set<String> features = new HashSet<>();
         features.add("existing");
-        features.add(TransportClient.TRANSPORT_CLIENT_FEATURE);
         out.setFeatures(features);
         tasks.build().writeTo(out);
 

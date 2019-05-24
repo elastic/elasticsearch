@@ -48,6 +48,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLen
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -359,6 +360,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
                 .build());
+            indexDocs(indexName, 0, randomInt(10));
             ensureGreen(indexName);
             closeIndex(indexName);
         }
@@ -369,6 +371,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
+            if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) { // todo: change to 7_X once backported.
+                assertNoFileBasedRecovery(indexName);
+            }
         } else {
             assertClosedIndex(indexName, false);
         }
@@ -479,5 +484,35 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(routingTable, nullValue());
             assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
         }
+    }
+
+    private void assertNoFileBasedRecovery(String indexName) throws IOException {
+        Map<String, Object> recoveries = entityAsMap(client()
+            .performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, ?>> shards = (List<Map<String,?>>) XContentMapValues.extractValue(indexName + ".shards", recoveries);
+        assertNotNull(shards);
+        boolean foundReplica = false;
+        for (Map<String, ?> shard : shards) {
+            if (shard.get("primary") == Boolean.FALSE) {
+                List<?> details = (List<?>) XContentMapValues.extractValue("index.files.details", shard);
+                // once detailed recoveries works, remove this if.
+                if (details == null) {
+                    long totalFiles = ((Number) XContentMapValues.extractValue("index.files.total", shard)).longValue();
+                    long reusedFiles = ((Number) XContentMapValues.extractValue("index.files.reused", shard)).longValue();
+                    assertEquals(totalFiles, reusedFiles);
+                } else {
+                    assertNotNull(details);
+                    assertThat(details, empty());
+                }
+
+                long translogRecovered = ((Number) XContentMapValues.extractValue("translog.recovered", shard)).longValue();
+                assertEquals("must be noop", 0, translogRecovered);
+                foundReplica = true;
+            }
+        }
+
+        assertTrue("must find replica", foundReplica);
     }
 }

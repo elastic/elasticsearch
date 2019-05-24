@@ -20,9 +20,6 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -32,14 +29,12 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -392,50 +387,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // the actual names, its ok if we have a corrupted index here, since we have replicas
         // to recover from in case of a full cluster shutdown just when this code executes...
         multiFileWriter.renameAllTempFiles();
-        final Store store = store();
-        store.incRef();
         try {
-            store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
-            assert globalCheckpoint >= Long.parseLong(sourceMetaData.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO))
-                || indexShard.indexSettings().getIndexVersionCreated().before(Version.V_7_2_0) :
-                "invalid global checkpoint[" + globalCheckpoint + "] source_meta_data [" + sourceMetaData.getCommitUserData() + "]";
-            final String translogUUID = Translog.createEmptyTranslog(
-                indexShard.shardPath().resolveTranslog(), globalCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
-            store.associateIndexWithNewTranslog(translogUUID);
-
-            if (indexShard.getRetentionLeases().leases().isEmpty()) {
-                // if empty, may be a fresh IndexShard, so write an empty leases file to disk
-                indexShard.persistRetentionLeases();
-                assert indexShard.loadRetentionLeases().leases().isEmpty();
-            } else {
-                assert indexShard.assertRetentionLeasesPersisted();
-            }
-
-        } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
-            // this is a fatal exception at this stage.
-            // this means we transferred files from the remote that have not be checksummed and they are
-            // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
-            // source shard since this index might be broken there as well? The Source can handle this and checks
-            // its content on disk if possible.
-            try {
-                try {
-                    store.removeCorruptionMarker();
-                } finally {
-                    Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
-                }
-            } catch (Exception e) {
-                logger.debug("Failed to clean lucene index", e);
-                ex.addSuppressed(e);
-            }
-            RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
-            fail(rfe, true);
-            throw rfe;
+            indexShard.finalizeIndexRecovery(globalCheckpoint, sourceMetaData);
         } catch (Exception ex) {
             RecoveryFailedException rfe = new RecoveryFailedException(state(), "failed to clean after recovery", ex);
             fail(rfe, true);
             throw rfe;
-        } finally {
-            store.decRef();
         }
     }
 

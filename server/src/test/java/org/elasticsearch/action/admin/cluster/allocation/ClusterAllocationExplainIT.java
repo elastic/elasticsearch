@@ -263,7 +263,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             nodes.put(primaryNodeName, AllocationDecision.NO);
             String[] currentNodes = internalCluster().getNodeNames();
             nodes.put(currentNodes[0].equals(primaryNodeName) ? currentNodes[1] : currentNodes[0], AllocationDecision.YES);
-            verifyNodeDecisions(parser, nodes, includeYesDecisions, true);
+            verifyNodeDecisions(parser, nodes, includeYesDecisions, true, true);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -383,7 +383,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             for (String nodeName : internalCluster().getNodeNames()) {
                 nodeDecisions.put(nodeName, AllocationDecision.NO);
             }
-            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, true);
+            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, true, true);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -476,7 +476,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             for (String nodeName : internalCluster().getNodeNames()) {
                 nodeDecisions.put(nodeName, AllocationDecision.NO);
             }
-            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, false);
+            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -584,7 +584,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("move_explanation", parser.currentName());
             parser.nextToken();
             assertEquals("cannot move shard to another node, even though it is not allowed to remain on its current node", parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -696,7 +696,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("rebalancing is not allowed, even though there is at least one node on which the shard can be allocated",
                 parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.YES, true), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.YES, true), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -799,7 +799,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
                 parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.WORSE_BALANCE, true), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.WORSE_BALANCE, true), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -909,7 +909,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             parser.nextToken();
             assertEquals("cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
                 parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, true), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -1006,7 +1006,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("rebalance_explanation", parser.currentName());
             parser.nextToken();
             assertEquals("rebalancing is not allowed", parser.text());
-            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, false), includeYesDecisions, false);
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO, false), includeYesDecisions, false, false);
             assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
@@ -1326,7 +1326,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     }
 
     private void verifyNodeDecisions(XContentParser parser, Map<String, AllocationDecision> expectedNodeDecisions,
-                                     boolean includeYesDecisions, boolean reuseStore) throws IOException {
+                                     boolean includeYesDecisions, boolean reuseStore, boolean synced) throws IOException {
         parser.nextToken();
         assertEquals("node_allocation_decisions", parser.currentName());
         assertEquals(Token.START_ARRAY, parser.nextToken());
@@ -1346,9 +1346,15 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 assertTrue("store info should not be present", reuseStore);
                 assertEquals(Token.START_OBJECT, parser.nextToken());
                 parser.nextToken();
-                assertEquals("matching_size_in_bytes", parser.currentName());
-                parser.nextToken();
-                assertThat(parser.longValue(), greaterThan(0L));
+                if (synced) {
+                    assertEquals("matching_sync_id", parser.currentName());
+                    parser.nextToken();
+                    assertTrue(parser.booleanValue());
+                } else {
+                    assertEquals("matching_size_in_bytes", parser.currentName());
+                    parser.nextToken();
+                    assertThat(parser.longValue(), greaterThan(0L));
+                }
                 assertEquals(Token.END_OBJECT, parser.nextToken());
                 parser.nextToken();
             }

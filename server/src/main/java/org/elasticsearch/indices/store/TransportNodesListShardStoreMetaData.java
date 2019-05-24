@@ -43,6 +43,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -124,7 +125,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
                     exists = true;
-                    return new StoreFilesMetaData(shardId, indexShard.snapshotStoreMetadata());
+                    return new StoreFilesMetaData(shardId, indexShard.snapshotStoreRecoveryMetadata());
                 }
             }
             // try and see if we an list unallocated
@@ -138,20 +139,20 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             }
             if (metaData == null) {
                 logger.trace("{} node doesn't have meta data for the requests index, responding with empty", shardId);
-                return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
+                return new StoreFilesMetaData(shardId, Store.RecoveryMetadataSnapshot.EMPTY);
             }
             final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() :
                 new IndexSettings(metaData, settings);
             final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             if (shardPath == null) {
-                return new StoreFilesMetaData(shardId, Store.MetadataSnapshot.EMPTY);
+                logger.trace("{} node doesn't have shard path for the requested shard, responding with empty", shardId);
+                return new StoreFilesMetaData(shardId, Store.RecoveryMetadataSnapshot.EMPTY);
             }
             // note that this may fail if it can't get access to the shard lock. Since we check above there is an active shard, this means:
             // 1) a shard is being constructed, which means the master will not use a copy of this replica
             // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the master may not
             //    reuse local resources.
-            return new StoreFilesMetaData(shardId, Store.readMetadataSnapshot(shardPath.resolveIndex(), shardId,
-                nodeEnv::shardLock, logger));
+            return new StoreFilesMetaData(shardId, Store.readRecoveryMetadataSnapshot(shardPath, nodeEnv::shardLock, logger));
         } finally {
             TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
             if (exists) {
@@ -164,12 +165,12 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
 
     public static class StoreFilesMetaData implements Iterable<StoreFileMetaData>, Streamable {
         private ShardId shardId;
-        Store.MetadataSnapshot metadataSnapshot;
+        private Store.RecoveryMetadataSnapshot metadataSnapshot;
 
         StoreFilesMetaData() {
         }
 
-        public StoreFilesMetaData(ShardId shardId, Store.MetadataSnapshot metadataSnapshot) {
+        public StoreFilesMetaData(ShardId shardId, Store.RecoveryMetadataSnapshot metadataSnapshot) {
             this.shardId = shardId;
             this.metadataSnapshot = metadataSnapshot;
         }
@@ -179,20 +180,20 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         }
 
         public boolean isEmpty() {
-            return metadataSnapshot.size() == 0;
+            return metadataSnapshot.lastCommit().size() == 0;
         }
 
         @Override
         public Iterator<StoreFileMetaData> iterator() {
-            return metadataSnapshot.iterator();
+            return metadataSnapshot.lastCommit().iterator();
         }
 
         public boolean fileExists(String name) {
-            return metadataSnapshot.asMap().containsKey(name);
+            return metadataSnapshot.lastCommit().asMap().containsKey(name);
         }
 
         public StoreFileMetaData file(String name) {
-            return metadataSnapshot.asMap().get(name);
+            return metadataSnapshot.lastCommit().asMap().get(name);
         }
 
         public static StoreFilesMetaData readStoreFilesMetaData(StreamInput in) throws IOException {
@@ -204,7 +205,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         @Override
         public void readFrom(StreamInput in) throws IOException {
             shardId = ShardId.readShardId(in);
-            this.metadataSnapshot = new Store.MetadataSnapshot(in);
+            this.metadataSnapshot = new Store.RecoveryMetadataSnapshot(in);
         }
 
         @Override
@@ -217,14 +218,38 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
          * @return commit sync id if exists, else null
          */
         public String syncId() {
-            return metadataSnapshot.getSyncId();
+            return metadataSnapshot.lastCommit().getSyncId();
+        }
+
+        public long provideRecoverySeqNo() {
+            return metadataSnapshot.provideRecoverySeqNo();
+        }
+
+        public long requireRecoverySeqNo() {
+            return metadataSnapshot.requireRecoverySeqNo();
+        }
+
+        /**
+         * @return max sequence number or UNASSIGNED_SEQ_NO if not available.
+         */
+        public long maxSeqNo() {
+            return metadataSnapshot.maxSeqNo();
+        }
+
+        public boolean hasSeqNoInfo() {
+            return maxSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
 
         @Override
         public String toString() {
             return "StoreFilesMetaData{" +
                 ", shardId=" + shardId +
-                ", metadataSnapshot{size=" + metadataSnapshot.size() + ", syncId=" + metadataSnapshot.getSyncId() + "}" +
+                ", metadataSnapshot{size=" + metadataSnapshot.lastCommit().size() +
+                ", syncId=" + syncId() +
+                ", requireSeqNo=" + requireRecoverySeqNo() +
+                ", provideSeqNo=" + provideRecoverySeqNo() +
+                ", maxSeqNo=" + maxSeqNo() +
+                "}" +
                 '}';
         }
     }

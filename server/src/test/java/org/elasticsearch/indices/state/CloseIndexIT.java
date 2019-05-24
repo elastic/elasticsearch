@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -421,6 +422,56 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
     }
 
+    /**
+     * Verify that if we have two shard copies around, we prefer one with identical sequence numbers and do
+     * a noop recovery.
+     */
+    public void testClosedIndexRecoversFast() throws Exception {
+        final String indexName = "closed-index-fast-recovery";
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build());
+
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(1, 50))
+            .mapToObj(i -> client().prepareIndex(indexName, "_doc", String.valueOf(i)).setSource("num", i)).collect(toList()));
+        ensureGreen(indexName);
+        if (randomBoolean()) {
+            flush(indexName);
+        }
+
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(1, 50))
+                    .mapToObj(i -> client().prepareIndex(indexName, "_doc", "Extra" + i).setSource("num", i)).collect(toList()));
+                ensureGreen();
+
+                assertAcked(client().admin().indices().prepareClose(indexName).get());
+                ensureGreen();
+
+                // disable replica allocation to ensure ReplicaShardAllocator sees both options at the same time.
+                assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                    .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries")).get());
+                internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+                    @Override
+                    public Settings onNodeStopped(String nodeName) throws Exception {
+                        ensureYellow();
+                        return super.onNodeStopped(nodeName);
+                    }
+                });
+                return super.onNodeStopped(nodeName);
+            }
+        });
+
+        assertThat(client().admin().cluster().prepareHealth(indexName).get().getStatus(), is(ClusterHealthStatus.YELLOW));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String) null)).get());
+        ensureGreen();
+        assertNoFileBasedRecovery(indexName);
+    }
+
     static void assertIndexIsClosed(final String... indices) {
         final ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         for (String index : indices) {
@@ -467,7 +518,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         }
     }
 
-    void assertNoFileBasedRecovery(String indexName) {
+    private void assertNoFileBasedRecovery(String indexName) {
         for (RecoveryState recovery : client().admin().indices().prepareRecoveries(indexName).get().shardRecoveryStates().get(indexName)) {
             if (recovery.getPrimary() == false) {
                 assertThat(recovery.getIndex().fileDetails(), empty());

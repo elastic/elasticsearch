@@ -58,6 +58,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -72,6 +73,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -89,9 +91,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -861,10 +866,11 @@ public class StoreTests extends ESTestCase {
         Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
         TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData =
             new TransportNodesListShardStoreMetaData.StoreFilesMetaData(new ShardId("test", "_na_", 0),
-                metadataSnapshot);
+                new Store.RecoveryMetadataSnapshot(metadataSnapshot, randomLong(), randomLong(), randomLong()));
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-        org.elasticsearch.Version targetNodeVersion = randomVersion(random());
+        org.elasticsearch.Version targetNodeVersion =
+            randomVersionBetween(random(), org.elasticsearch.Version.V_8_0_0, org.elasticsearch.Version.CURRENT);
         out.setVersion(targetNodeVersion);
         outStoreFileMetaData.writeTo(out);
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
@@ -877,6 +883,39 @@ public class StoreTests extends ESTestCase {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
         }
         assertThat(outStoreFileMetaData.syncId(), equalTo(inStoreFileMetaData.syncId()));
+        assertEquals(outStoreFileMetaData.maxSeqNo(), inStoreFileMetaData.maxSeqNo());
+        assertEquals(outStoreFileMetaData.provideRecoverySeqNo(), inStoreFileMetaData.provideRecoverySeqNo());
+        assertEquals(outStoreFileMetaData.requireRecoverySeqNo(), inStoreFileMetaData.requireRecoverySeqNo());
+    }
+
+    public void testStreamCompatibilityForRecoveryMetaDataSnapshot() throws IOException {
+        Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
+        Store.RecoveryMetadataSnapshot recoverySnapshot = new Store.RecoveryMetadataSnapshot(metadataSnapshot, randomLong(), randomLong()
+            , randomLong());
+
+        verifyStreamCompatibility(metadataSnapshot, Function.identity(), in -> new Store.RecoveryMetadataSnapshot(in).lastCommit());
+        verifyStreamCompatibility(recoverySnapshot, Store.RecoveryMetadataSnapshot::lastCommit, Store.MetadataSnapshot::new);
+    }
+
+    private <S extends Writeable, T> void verifyStreamCompatibility(S source,
+                                                                    Function<S, Store.MetadataSnapshot> toMetaData,
+                                                                    Writeable.Reader<Store.MetadataSnapshot> reader) throws IOException {
+        // todo: change to V_7_X once backported.
+        org.elasticsearch.Version targetNodeVersion =
+            randomFrom(VersionUtils.allVersions().stream().filter(org.elasticsearch.Version.V_8_0_0::after).collect(Collectors.toList()));
+        ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
+        OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
+        out.setVersion(targetNodeVersion);
+        source.writeTo(out);
+
+        ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
+        InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
+        in.setVersion(targetNodeVersion);
+
+        Store.MetadataSnapshot inData = reader.read(in);
+        Store.MetadataSnapshot outData = toMetaData.apply(source);
+        assertEquals(outData.asMap().keySet(), inData.asMap().keySet());
+        assertEquals(outData.getCommitUserData(), inData.getCommitUserData());
     }
 
     public void testMarkCorruptedOnTruncatedSegmentsFile() throws IOException {

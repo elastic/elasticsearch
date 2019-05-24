@@ -81,6 +81,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -247,7 +248,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Note that this method requires the caller verify it has the right to access the store and
      * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
      *
-     * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
+     * {@link #readRecoveryMetadataSnapshot(ShardPath, NodeEnvironment.ShardLocker, Logger)} to read meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
      * @param commit the index commit to read the snapshot from or <code>null</code> if the latest snapshot should be read from the
@@ -271,7 +272,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Note that this method requires the caller verify it has the right to access the store and
      * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
      *
-     * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
+     * {@link #readRecoveryMetadataSnapshot(ShardPath, NodeEnvironment.ShardLocker, Logger)} to read meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
      *
@@ -303,6 +304,55 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         } finally {
             lock.unlock();
         }
+    }
+
+    /**
+     * Returns a new RecoveryMetadataSnapshot for the shard store.
+     *
+     * Note that this method requires the caller verify it has the right to access the store and
+     * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
+     *
+     * {@link #readRecoveryMetadataSnapshot(ShardPath, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
+     * {@link IndexShard#snapshotStoreRecoveryMetadata()} to safely read from an existing shard
+     * {@link IndexShard#acquireLastIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
+     * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
+     *                                    unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException if the lucene index is too new to be opened.
+     * @throws FileNotFoundException      if one or more files referenced by a commit are not present.
+     * @throws NoSuchFileException        if one or more files referenced by a commit are not present.
+     * @throws IndexNotFoundException     if the commit point can't be found in this store
+     */
+    public RecoveryMetadataSnapshot getRecoveryMetadata(ShardPath shardPath, boolean lockDirectory) throws IOException {
+        ensureOpen();
+        failIfCorrupted();
+        // if we lock the directory we also acquire the write lock since that makes sure that nobody else tries to lock the IW
+        // on this store at the same time.
+        java.util.concurrent.locks.Lock lock = lockDirectory ? metadataLock.writeLock() : metadataLock.readLock();
+        lock.lock();
+        try (Closeable ignored = lockDirectory ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : () -> {} ) {
+            return readRecoveryMetadataNoLock(shardPath, directory, logger);
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private static RecoveryMetadataSnapshot readRecoveryMetadataNoLock(ShardPath shardPath, Directory directory,
+                                                                       Logger logger) throws IOException {
+        MetadataSnapshot lastCommit = new MetadataSnapshot(null, directory, logger);
+        final String translogUUID = lastCommit.getCommitUserData().get(Translog.TRANSLOG_UUID_KEY);
+        final long globalCheckpoint = Translog.readGlobalCheckpoint(shardPath.resolveTranslog(), translogUUID);
+        final List<IndexCommit> existingCommits = DirectoryReader.listCommits(directory);
+        IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(existingCommits, globalCheckpoint);
+        final SequenceNumbers.CommitInfo seqNoStats = Store.loadSeqNoInfo(safeCommit);
+
+        return new RecoveryMetadataSnapshot(lastCommit,
+            Long.MAX_VALUE, // non-started shard cannot provide anything yet.
+            seqNoStats.localCheckpoint + 1,
+            Math.max(Translog.readMaxSeqNo(shardPath.resolveTranslog(), translogUUID), seqNoStats.maxSeqNo));
     }
 
     /**
@@ -442,24 +492,27 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Reads a MetadataSnapshot from the given index locations or returns an empty snapshot if it can't be read.
+     * Reads a RecoveryMetadataSnapshot from the given index locations or returns an empty snapshot if it can't be read.
      *
      * @throws IOException if the index we try to read is corrupted
      */
-    public static MetadataSnapshot readMetadataSnapshot(Path indexLocation, ShardId shardId, NodeEnvironment.ShardLocker shardLocker,
-                                                        Logger logger) throws IOException {
+    public static RecoveryMetadataSnapshot readRecoveryMetadataSnapshot(ShardPath shardPath,
+                                                                        NodeEnvironment.ShardLocker shardLocker,
+                                                                        Logger logger) throws IOException {
+        ShardId shardId = shardPath.getShardId();
         try (ShardLock lock = shardLocker.lock(shardId, "read metadata snapshot", TimeUnit.SECONDS.toMillis(5));
-             Directory dir = new SimpleFSDirectory(indexLocation)) {
+             Directory dir = new SimpleFSDirectory(shardPath.resolveIndex())) {
             failIfCorrupted(dir, shardId);
-            return new MetadataSnapshot(null, dir, logger);
+            return readRecoveryMetadataNoLock(shardPath, dir, logger);
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
+            logger.trace("{} node reported index not found, responding with empty", shardId);
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot", ex);
         } catch (ShardLockObtainFailedException ex) {
             logger.info(() -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
         }
-        return MetadataSnapshot.EMPTY;
+        return RecoveryMetadataSnapshot.EMPTY;
     }
 
     /**
@@ -1109,6 +1162,77 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public String getSyncId() {
             return commitUserData.get(Engine.SYNC_COMMIT_ID);
+        }
+    }
+
+    /**
+     * Extended meta data snapshot including sequence number information:
+     * <ul>
+     *     <li>provideRecoverySeqNo: the sequence number from which this copy can provide all operations (currently)</li>
+     *     <li>requireRecoverySeqNo: the sequence number from which all operations are required by this copy in order to perform
+     *     operations based recovery</li>
+     *     <li>maxSeqNo: the maximum sequence number this copy knows of</li>
+     * </ul>
+     * @see MetadataSnapshot
+     */
+    public static final class RecoveryMetadataSnapshot implements Writeable {
+        public static final RecoveryMetadataSnapshot EMPTY = new RecoveryMetadataSnapshot();
+        private final MetadataSnapshot lastCommit;
+        private final long provideRecoverySeqNo;
+        private final long requireRecoverySeqNo;
+        private final long maxSeqNo;
+
+        public RecoveryMetadataSnapshot(MetadataSnapshot lastCommit, long provideRecoverySeqNo, long requireRecoverySeqNo, long maxSeqNo) {
+            this.lastCommit = lastCommit;
+            this.provideRecoverySeqNo = provideRecoverySeqNo;
+            this.requireRecoverySeqNo = requireRecoverySeqNo;
+            this.maxSeqNo = maxSeqNo;
+        }
+
+        public RecoveryMetadataSnapshot(StreamInput in) throws IOException {
+            this.lastCommit = new MetadataSnapshot(in);
+            if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_8_0_0)) { // todo: change to 7_X when backported
+                this.provideRecoverySeqNo = in.readLong();
+                this.requireRecoverySeqNo = in.readLong();
+                this.maxSeqNo = in.readLong();
+            } else {
+                this.provideRecoverySeqNo = Long.MAX_VALUE;
+                this.requireRecoverySeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+                this.maxSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            }
+        }
+
+        private RecoveryMetadataSnapshot() {
+            this(MetadataSnapshot.EMPTY, Long.MAX_VALUE, SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.UNASSIGNED_SEQ_NO);
+        }
+
+        public MetadataSnapshot lastCommit() {
+            return lastCommit;
+        }
+
+        public long provideRecoverySeqNo() {
+            return provideRecoverySeqNo;
+        }
+
+        public long requireRecoverySeqNo() {
+            return requireRecoverySeqNo;
+        }
+
+        /**
+         * @return max sequence number or UNASSIGNED_SEQ_NO if not available.
+         */
+        public long maxSeqNo() {
+            return maxSeqNo;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            lastCommit.writeTo(out);
+            if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_8_0_0)) { // todo: change to 7_X when backported
+                out.writeLong(provideRecoverySeqNo);
+                out.writeLong(requireRecoverySeqNo);
+                out.writeLong(maxSeqNo);
+            }
         }
     }
 

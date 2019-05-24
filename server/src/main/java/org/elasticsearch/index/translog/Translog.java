@@ -1797,6 +1797,30 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return checkpoint.globalCheckpoint;
     }
 
+    /**
+     * Reads the maximum sequence number from all active generations of the translog.
+     * Checks that the translogUUID matches
+     *
+     * Notice that trimOperations calls are not taken into account and therefore, the maxSeqNo returned can be higher than the max(seqNo)
+     * of all operations in translog
+     *
+     * @param location the location of the translog
+     * @return the maximum sequence number in translog or -1 if no operations.
+     * @throws IOException                if an I/O exception occurred reading the checkpoint
+     * @throws TranslogCorruptedException if the translog is corrupted or mismatched with the given uuid
+     */
+    public static long readMaxSeqNo(final Path location, final String expectedTranslogUUID) throws IOException {
+        final Checkpoint checkpoint = readCheckpoint(location, expectedTranslogUUID);
+
+        assert checkpoint.minTranslogGeneration >= 0 : "missing minTranslogGeneration";
+        long maxSeqNo = checkpoint.maxSeqNo;
+        for (long i = checkpoint.generation - 1; i >= checkpoint.minTranslogGeneration; i--) {
+            Checkpoint previous = Checkpoint.read(location.resolve(getCommitCheckpointFileName(i)));
+            maxSeqNo = Math.max(maxSeqNo, previous.maxSeqNo);
+        }
+        return maxSeqNo;
+    }
+
     private static Checkpoint readCheckpoint(Path location, String expectedTranslogUUID) throws IOException {
         final Checkpoint checkpoint = readCheckpoint(location);
         // We need to open at least one translog header to validate the translogUUID.
@@ -1835,6 +1859,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Returns the max seq_no of translog operations found in this translog. Since this value is calculated based on the current
      * existing readers, this value is not necessary to be the max seq_no of all operations have been stored in this translog.
+     *
+     * Notice that trimOperations calls are not taken into account and therefore, the maxSeqNo returned can be higher than the max(seqNo)
+     * of all operations in translog
      */
     public long getMaxSeqNo() {
         try (ReleasableLock ignored = readLock.acquire()) {

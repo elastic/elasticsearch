@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,11 +48,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -60,6 +61,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,6 +75,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     private final DiscoveryNode node3 = newNode("node3");
 
     private TestAllocator testAllocator;
+
+    private AtomicLong sequenceGenerator = new AtomicLong();
 
     @Before
     public void buildTestAllocator() {
@@ -139,6 +143,34 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
         testAllocator.addData(node1, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
                 .addData(nodeToMatch, "MATCH", new StoreFileMetaData("file1", 10, "NO_MATCH_CHECKSUM" ,MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.allocateUnassigned(allocation);
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(nodeToMatch.getId()));
+    }
+
+    /**
+     * Verifies that if sequence numbers allow a noop recovery, this is preferred over file match.
+     */
+    public void testSequenceNumberNoopMatch() {
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
+        DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
+        DiscoveryNode nodeNotToMatch = nodeToMatch == node2 ? node3 : node2;
+        long maxSeqNo = randomNonNegativeLong();
+        testAllocator
+            .addData(node1, "MATCH", randomLongBetween(0, maxSeqNo + 1), randomLongBetween(0, maxSeqNo + 1), maxSeqNo,
+                new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
+            .addData(nodeToMatch, "NO_MATCH", randomLongBetween(0, maxSeqNo + 1), maxSeqNo + 1, maxSeqNo,
+                new StoreFileMetaData("file1", 10, "NO_MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        if (randomBoolean()) {
+            testAllocator.addData(nodeNotToMatch, "NO_MATCH", randomLongBetween(0, maxSeqNo + 1), randomLongBetween(0, maxSeqNo), maxSeqNo,
+                new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        } else {
+            testAllocator
+                .addData(nodeNotToMatch, "NO_MATCH",
+                    randomLongBetween(0, maxSeqNo + 1), maxSeqNo + 1, randomLongBetween(maxSeqNo+1, Long.MAX_VALUE),
+                new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        }
         testAllocator.allocateUnassigned(allocation);
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
@@ -298,10 +330,13 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
+        IndexMetaData.State indexState = randomFrom(IndexMetaData.State.values());
+
         ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.STARTED);
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT).put(settings))
                     .numberOfShards(1).numberOfReplicas(1)
+                    .state(indexState)
                     .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
             .build();
         // mark shard as delayed if reason is NODE_LEFT
@@ -369,6 +404,21 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         }
 
         public TestAllocator addData(DiscoveryNode node, String syncId, StoreFileMetaData... files) {
+            long requireSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+            long provideSeqNo = Long.MAX_VALUE;
+            long maxSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+            if (randomBoolean()) {
+                // generate unique sequence numbers, validating that if replica.requireSeqNo != primary.maxSeqNo + 1, it has no effect.
+                long seqNo = sequenceGenerator.incrementAndGet();
+                requireSeqNo = seqNo + 1;
+                provideSeqNo = seqNo + 1;
+                maxSeqNo = seqNo;
+            }
+            return addData(node, syncId, provideSeqNo, requireSeqNo, maxSeqNo, files);
+        }
+
+        public TestAllocator addData(DiscoveryNode node, String syncId, long provideSeqNo, long requireSeqNo, long maxSeqNo,
+                                     StoreFileMetaData... files) {
             if (data == null) {
                 data = new HashMap<>();
             }
@@ -381,7 +431,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 commitData.put(Engine.SYNC_COMMIT_ID, syncId);
             }
             data.put(node, new TransportNodesListShardStoreMetaData.StoreFilesMetaData(shardId,
-                    new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt())));
+                    new Store.RecoveryMetadataSnapshot(new Store.MetadataSnapshot(unmodifiableMap(filesAsMap),
+                        unmodifiableMap(commitData), randomInt()), provideSeqNo, requireSeqNo, maxSeqNo)));
             return this;
         }
 

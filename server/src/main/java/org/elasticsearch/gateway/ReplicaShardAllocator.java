@@ -49,7 +49,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
@@ -101,17 +100,16 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     DiscoveryNode currentNode = allocation.nodes().get(shard.currentNodeId());
                     DiscoveryNode nodeWithHighestMatch = matchingNodes.getNodeWithHighestMatch();
                     // current node will not be in matchingNodes as it is filtered away by SameShardAllocationDecider
-                    final String currentSyncId;
+                    final TransportNodesListShardStoreMetaData.StoreFilesMetaData currentStore;
                     if (shardStores.getData().containsKey(currentNode)) {
-                        currentSyncId = shardStores.getData().get(currentNode).storeFilesMetaData().syncId();
+                        currentStore = shardStores.getData().get(currentNode).storeFilesMetaData();
                     } else {
-                        currentSyncId = null;
+                        currentStore = null;
                     }
                     if (currentNode.equals(nodeWithHighestMatch) == false
-                            && Objects.equals(currentSyncId, primaryStore.syncId()) == false
-                            && matchingNodes.isNodeMatchBySyncID(nodeWithHighestMatch)) {
-                        // we found a better match that has a full sync id match, the existing allocation is not fully synced
-                        // so we found a better one, cancel this one
+                            && isNoopRecovery(primaryStore, currentStore) == false
+                            && matchingNodes.isNoopRecovery(nodeWithHighestMatch)) {
+                        // we found a better match that can do a fast recovery, cancel current recovery
                         logger.debug("cancelling allocation of replica on [{}], sync id match found on node [{}]",
                                 currentNode, nodeWithHighestMatch);
                         UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
@@ -363,10 +361,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
 
     private static long computeMatchingBytes(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
                                              TransportNodesListShardStoreMetaData.StoreFilesMetaData storeFilesMetaData) {
-        String primarySyncId = primaryStore.syncId();
-        String replicaSyncId = storeFilesMetaData.syncId();
-        // see if we have a sync id we can make use of
-        if (replicaSyncId != null && replicaSyncId.equals(primarySyncId)) {
+        if (isNoopRecovery(primaryStore, storeFilesMetaData)) {
             return Long.MAX_VALUE;
         } else {
             long sizeMatched = 0;
@@ -378,6 +373,34 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             }
             return sizeMatched;
         }
+    }
+
+    /**
+     * Is a "noop recovery", which means expecting no operations to recover (though with sync-id, we could in principle still
+     * have a few).
+     */
+    private static boolean isNoopRecovery(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
+                                          TransportNodesListShardStoreMetaData.StoreFilesMetaData candidateStore) {
+        // keeping syncIdMatch for 7.x to remain backwards compatible with pre-7.2 versions, but will remove for 8.0.
+        return syncIdMatch(primaryStore, candidateStore)
+            || noopMatch(primaryStore, candidateStore);
+    }
+
+    private static boolean syncIdMatch(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
+                                       TransportNodesListShardStoreMetaData.StoreFilesMetaData candidateStore) {
+        String primarySyncId = primaryStore.syncId();
+        String replicaSyncId = candidateStore.syncId();
+        return (replicaSyncId != null && replicaSyncId.equals(primarySyncId));
+    }
+
+    private static boolean noopMatch(TransportNodesListShardStoreMetaData.StoreFilesMetaData primaryStore,
+                                     TransportNodesListShardStoreMetaData.StoreFilesMetaData candidateStore) {
+        // We need the maxSeqNo conditions until we support non-noop recovery for closed indices (and preferably also have
+        // retention leases in place to ensure ops based recovery will actually be performed).
+        return primaryStore.hasSeqNoInfo()
+            && primaryStore.maxSeqNo() == candidateStore.maxSeqNo()
+            && primaryStore.provideRecoverySeqNo() <= candidateStore.requireRecoverySeqNo()
+            && candidateStore.requireRecoverySeqNo() == primaryStore.maxSeqNo() + 1;
     }
 
     protected abstract AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation);
@@ -418,7 +441,10 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             return this.nodeWithHighestMatch;
         }
 
-        public boolean isNodeMatchBySyncID(DiscoveryNode node) {
+        /**
+         * Is supplied node a no-operations recovery, either sync-id match or sequence number match.
+         */
+        public boolean isNoopRecovery(DiscoveryNode node) {
             return nodesToSize.get(node) == Long.MAX_VALUE;
         }
 

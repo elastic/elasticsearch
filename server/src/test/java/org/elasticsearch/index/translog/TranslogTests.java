@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
@@ -3137,6 +3136,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testMaxSeqNo() throws Exception {
+        final String translogUUID = translog.getTranslogUUID();
         Map<Long, Long> maxSeqNoPerGeneration = new HashMap<>();
         for (int iterations = between(1, 10), i = 0; i < iterations; i++) {
             long startSeqNo = randomLongBetween(0, Integer.MAX_VALUE);
@@ -3152,13 +3152,21 @@ public class TranslogTests extends ESTestCase {
             translog.rollGeneration();
         }
         translog.sync();
-        assertThat(translog.getMaxSeqNo(),
-            equalTo(maxSeqNoPerGeneration.isEmpty() ? SequenceNumbers.NO_OPS_PERFORMED : Collections.max(maxSeqNoPerGeneration.values())));
+
+        long expectedMaxSeqNo = maxSeqNoPerGeneration.isEmpty()
+            ? SequenceNumbers.NO_OPS_PERFORMED
+            : Collections.max(maxSeqNoPerGeneration.values());
+        assertThat(translog.getMaxSeqNo(), equalTo(expectedMaxSeqNo));
+        assertThat(Translog.readMaxSeqNo(translogDir, translogUUID), equalTo(expectedMaxSeqNo));
+
         long minRetainedGen = commit(translog, randomLongBetween(1, translog.currentFileGeneration()), translog.currentFileGeneration());
-        long expectedMaxSeqNo = maxSeqNoPerGeneration.entrySet().stream()
+        expectedMaxSeqNo = maxSeqNoPerGeneration.entrySet().stream()
             .filter(e -> e.getKey() >= minRetainedGen).mapToLong(e -> e.getValue())
             .max().orElse(SequenceNumbers.NO_OPS_PERFORMED);
         assertThat(translog.getMaxSeqNo(), equalTo(expectedMaxSeqNo));
+
+        assertThat(Translog.readMaxSeqNo(translogDir, translogUUID), equalTo(expectedMaxSeqNo));
+        expectThrows(TranslogCorruptedException.class, () -> Translog.readMaxSeqNo(translogDir, UUIDs.randomBase64UUID()));
     }
 
     static class SortedSnapshot implements Translog.Snapshot {

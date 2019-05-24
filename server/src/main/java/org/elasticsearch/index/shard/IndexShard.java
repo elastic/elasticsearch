@@ -23,7 +23,10 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
@@ -51,6 +54,7 @@ import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -222,6 +226,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private RecoveryState recoveryState;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
+
+    /**
+     * The store recovery metadata to use for snapshotStoreRecoveryMetadata requests until engine is opened.
+     *
+     * This protects us from the destructive nature of recovery and allows us to serve this information without risk of getting file
+     * errors due to concurrent writes.
+     */
+    private volatile CheckedSupplier<Store.RecoveryMetadataSnapshot, IOException> noEngineStoreRecoveryMetadata;
+
     private final MeanMetric refreshMetric = new MeanMetric();
     private final MeanMetric externalRefreshMetric = new MeanMetric();
     private final MeanMetric flushMetric = new MeanMetric();
@@ -352,6 +365,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         searcherWrapper = indexSearcherWrapper;
         refreshListeners = buildRefreshListeners();
         lastSearcherAccess.set(threadPool.relativeTimeInMillis());
+        this.noEngineStoreRecoveryMetadata = calculateNoEngineRecoveryMetadata(store, path);
         persistMetadata(path, indexSettings, shardRouting, null, logger);
     }
 
@@ -1205,6 +1219,47 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Similar to snapshotStoreMetadata, but extended with additional info about sequence numbers for recovery.
+     *
+     * @see #snapshotStoreMetadata() for info on lifecycle and exceptions.
+     */
+    public Store.RecoveryMetadataSnapshot snapshotStoreRecoveryMetadata() throws IOException {
+        Engine engine;
+        // We primarily take mutex to avoid seeing the interim ReadOnlyEngine used during resetEngineToGlobalCheckpoint.
+        synchronized (mutex) {
+            engine = getEngineOrNull();
+            if (engine == null) {
+                return noEngineStoreRecoveryMetadata.get();
+            }
+        }
+        // safe towards concurrent engine close.
+        return snapshotStoreRecoveryMetadataFromEngine(engine);
+    }
+
+    private Store.RecoveryMetadataSnapshot snapshotStoreRecoveryMetadataFromEngine(Engine engine) throws IOException {
+        try (Engine.IndexCommitRef indexCommit = engine.acquireLastIndexCommit(false)) {
+            SeqNoStats seqNoStats = engine.getSeqNoStats(-1);
+            MetadataSnapshot metadata = store.getMetadata(indexCommit.getIndexCommit());
+            // before shard is started, we cannot provide anything so use Long.MAX_VALUE
+            long provideSeqNo = state() == IndexShardState.POST_RECOVERY || state() == IndexShardState.STARTED
+                ? seqNoStats.getLocalCheckpoint() + 1
+                : Long.MAX_VALUE;
+            return new Store.RecoveryMetadataSnapshot(metadata, provideSeqNo, seqNoStats.getLocalCheckpoint() + 1,
+                seqNoStats.getMaxSeqNo());
+        }
+    }
+
+    private static CheckedSupplier<Store.RecoveryMetadataSnapshot, IOException> calculateNoEngineRecoveryMetadata(Store store,
+                                                                                                                  ShardPath shardPath) {
+        try {
+            Store.RecoveryMetadataSnapshot recoveryMetadata = store.getRecoveryMetadata(shardPath, true);
+            return () -> recoveryMetadata;
+        } catch (IOException | RuntimeException e) {
+            return () -> { throw e; };
+        }
+    }
+
+    /**
      * Fails the shard and marks the shard store as corrupted if
      * <code>e</code> is caused by index corruption
      */
@@ -1248,6 +1303,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 changeState(IndexShardState.CLOSED, reason);
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
+                if (engine != null) {
+                    noEngineStoreRecoveryMetadata = () -> snapshotStoreRecoveryMetadataFromEngine(engine);
+                }
                 try {
                     if (engine != null && flushEngine) {
                         engine.flushAndClose();
@@ -1290,6 +1348,64 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         assert currentEngineReference.get() == null;
+    }
+
+    /**
+     * Finalize index recovery, called after copied files are in place. Cleans up old files, generates new empty translog and does other
+     * housekeeping for retention leases and maintaining the metadata to use for replica shard allocation.
+     */
+    public void finalizeIndexRecovery(long globalCheckpoint, MetadataSnapshot sourceMetaData) throws IOException {
+        assert getEngineOrNull() == null;
+
+        final Store store = store();
+        store.incRef();
+        try {
+            store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+            assert globalCheckpoint >= Long.parseLong(sourceMetaData.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO))
+                || indexSettings().getIndexVersionCreated().before(Version.V_7_2_0) :
+                "invalid global checkpoint[" + globalCheckpoint + "] source_meta_data [" + sourceMetaData.getCommitUserData() + "]";
+            final String translogUUID = Translog.createEmptyTranslog(
+                shardPath().resolveTranslog(), globalCheckpoint, shardId, this.getPendingPrimaryTerm());
+            store.associateIndexWithNewTranslog(translogUUID);
+
+            if (getRetentionLeases().leases().isEmpty()) {
+                // if empty, may be a fresh IndexShard, so write an empty leases file to disk
+                persistRetentionLeases();
+                assert loadRetentionLeases().leases().isEmpty();
+            } else {
+                assert assertRetentionLeasesPersisted();
+            }
+
+            SequenceNumbers.CommitInfo commitInfo =
+                SequenceNumbers.loadSeqNoInfoFromLuceneCommit(sourceMetaData.getCommitUserData().entrySet());
+            // we know this is a replica under recovery so we cannot provide anything, therefore use provideSeqNo MAX_VALUE
+            Store.RecoveryMetadataSnapshot newRecoveryMetadata = new Store.RecoveryMetadataSnapshot(sourceMetaData,
+                Long.MAX_VALUE, commitInfo.localCheckpoint + 1, commitInfo.maxSeqNo);
+            this.noEngineStoreRecoveryMetadata = () -> newRecoveryMetadata;
+        } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
+            // this is a fatal exception at this stage.
+            // this means we transferred files from the remote that have not be checksummed and they are
+            // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
+            // source shard since this index might be broken there as well? The Source can handle this and checks
+            // its content on disk if possible.
+            try {
+                try {
+                    store.removeCorruptionMarker();
+                } finally {
+                    Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                }
+            } catch (Exception e) {
+                logger.debug("Failed to clean lucene index", e);
+                ex.addSuppressed(e);
+            }
+            this.noEngineStoreRecoveryMetadata = () -> { throw ex; };
+            throw ex;
+        } catch (RuntimeException | IOException e) {
+            this.noEngineStoreRecoveryMetadata = () -> { throw e; };
+            throw e;
+        } finally {
+            store.decRef();
+        }
     }
 
     public void trimOperationOfPreviousPrimaryTerms(long aboveSeqNo) {
@@ -1455,6 +1571,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // We set active because we are now writing operations to the engine; this way,
             // if we go idle after some time and become inactive, we still give sync'd flush a chance to run.
             active.set(true);
+            noEngineStoreRecoveryMetadata = null;
         }
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
@@ -2026,7 +2143,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         replicationTracker.persistRetentionLeases(path.getShardStatePath());
     }
 
-    public boolean assertRetentionLeasesPersisted() throws IOException {
+    private boolean assertRetentionLeasesPersisted() throws IOException {
         return replicationTracker.assertRetentionLeasesPersisted(path.getShardStatePath());
     }
 

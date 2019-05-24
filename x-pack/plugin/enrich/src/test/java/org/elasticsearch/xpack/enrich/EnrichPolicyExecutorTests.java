@@ -108,10 +108,17 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         // Launch a second fake run that should fail immediately because the lock is obtained.
         Exception expected = null;
         try {
-            testExecutor.testRunPolicy(testPolicyName, testPolicy, noOpListener);
+            CountDownLatch countDownLatch = testExecutor.testRunPolicy(testPolicyName, testPolicy, noOpListener);
+            // Should throw exception on the previous statement, but if it doesn't, be a
+            // good citizen and conclude the fake run.
+            countDownLatch.countDown();
         } catch (Exception e) {
             expected = e;
         }
+
+        // Conclude the first mock run
+        firstTaskBlock.countDown();
+        firstTaskComplete.await();
 
         // Validate exception from second run
         if (expected != null) {
@@ -121,10 +128,6 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         } else {
             fail("Expected exception but nothing was thrown");
         }
-
-        // Conclude the first mock run
-        firstTaskBlock.countDown();
-        firstTaskComplete.await();
 
         // Ensure that the lock from the previous run has been cleared
         CountDownLatch secondTaskComplete = new CountDownLatch(1);

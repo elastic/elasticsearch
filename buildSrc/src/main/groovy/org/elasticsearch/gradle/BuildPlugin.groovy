@@ -129,6 +129,7 @@ class BuildPlugin implements Plugin<Project> {
         setupSeed(project)
         configureRepositories(project)
         project.extensions.getByType(ExtraPropertiesExtension).set('versions', VersionProperties.versions)
+        configureInputNormalization(project)
         configureSourceSets(project)
         configureCompile(project)
         configureJavadoc(project)
@@ -578,6 +579,13 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
+    }
+
+    /**
+     * Apply runtime classpath input normalization so that changes in JAR manifests don't break build cacheability
+     */
+    static void configureInputNormalization(Project project) {
+        project.normalization.runtimeClasspath.ignore('META-INF/MANIFEST.MF')
     }
 
     /** Adds compiler settings to the project */

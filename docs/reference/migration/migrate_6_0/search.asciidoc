@@ -35,7 +35,7 @@ been removed. Also the deprecated `min_word_len` (a synonym for `min_word_length
 
 * The `query_string` query now correctly parses the maximum number of
   states allowed when
-  "https://en.wikipedia.org/wiki/Powerset_construction#Complexity[determinizing]"
+  https://en.wikipedia.org/wiki/Powerset_construction#Complexity[determinizing]
   a regex as `max_determinized_states` instead of the typo
   `max_determined_states`.
 

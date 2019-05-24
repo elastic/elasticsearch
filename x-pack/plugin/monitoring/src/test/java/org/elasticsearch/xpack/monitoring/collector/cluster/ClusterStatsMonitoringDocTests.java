@@ -85,7 +85,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         return false;
     }
 
-
     @Override
     @Before
     public void setUp() throws Exception {

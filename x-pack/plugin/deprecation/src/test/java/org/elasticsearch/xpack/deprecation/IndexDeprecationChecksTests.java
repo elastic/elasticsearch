@@ -449,7 +449,8 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field_Y, format: dd-CC||MM-YYYY, " +
-                "suggestion: 'C' century of era is no longer supported.;"+
+                "suggestion: 'C' century of era is no longer supported." +
+                "; "+
                 "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
                 "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));

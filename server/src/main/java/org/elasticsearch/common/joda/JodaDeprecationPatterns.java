@@ -88,7 +88,7 @@ public class JodaDeprecationPatterns {
             }
         }
         String combinedWarning = warnings.stream()
-                                 .collect(Collectors.joining(";"));
+                                 .collect(Collectors.joining("; "));
         return combinedWarning;
     }
 }

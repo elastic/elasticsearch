@@ -51,7 +51,12 @@ By default, times are stored as UTC milliseconds since the epoch. Thus, all comp
 done on UTC. It is possible to provide a time zone value, which will cause all computations to take the relevant zone
 into account. The time returned for each bucket/entry is milliseconds since the epoch of the provided time zone.
 
+ifdef::asciidoctor[]
+deprecated::[1.5.0, "`pre_zone`, `post_zone` are replaced by `time_zone`"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[1.5.0, `pre_zone`, `post_zone` are replaced by `time_zone`]
+endif::[]
 
 The parameters are `pre_zone` (pre rounding based on interval) and `post_zone` (post rounding based on interval). The
 `time_zone` parameter simply sets the `pre_zone` parameter. By default, those are set to `UTC`.

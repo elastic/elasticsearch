@@ -1,8 +1,8 @@
 ---
 "Help":
   - skip:
-    version: " - 7.9.99"
-    reason: Repository field added in 8.0
+      version: " - 7.9.99"
+      reason: Repository field added in 8.0
 
   - do:
       cat.snapshots:

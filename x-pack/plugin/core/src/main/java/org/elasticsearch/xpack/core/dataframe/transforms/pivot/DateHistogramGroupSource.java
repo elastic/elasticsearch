@@ -27,6 +27,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 
 public class DateHistogramGroupSource extends SingleGroupSource {
 
+    private static final int CALENDAR_INTERVAL_ID = 1;
+    private static final int FIXED_INTERVAL_ID = 0;
+
     /**
      * Interval can be specified in 2 ways:
      *
@@ -65,7 +68,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         @Override
         public byte getIntervalTypeId() {
-            return 0;
+            return FIXED_INTERVAL_ID;
         }
 
         @Override
@@ -128,7 +131,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         @Override
         public byte getIntervalTypeId() {
-            return 1;
+            return CALENDAR_INTERVAL_ID;
         }
 
         @Override
@@ -166,9 +169,9 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     private Interval readInterval(StreamInput in) throws IOException {
         byte id = in.readByte();
         switch (id) {
-        case 0:
+        case FIXED_INTERVAL_ID:
             return new FixedInterval(in);
-        case 1:
+        case CALENDAR_INTERVAL_ID:
             return new CalendarInterval(in);
         default:
             throw new IllegalArgumentException("unknown interval type [" + id + "]");

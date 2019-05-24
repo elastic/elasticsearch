@@ -99,7 +99,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         nodeId = in.readOptionalString();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         super.shardId = shardId.getId();
         index = shardId.getIndexName();
         reason = in.readString();

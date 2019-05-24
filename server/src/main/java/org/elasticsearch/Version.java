@@ -142,7 +142,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_7_1_1 = new Version(V_7_1_1_ID, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final int V_7_2_0_ID = 7020099;
     public static final Version V_7_2_0 = new Version(V_7_2_0_ID, org.apache.lucene.util.Version.LUCENE_8_0_0);
-    public static final Version CURRENT = V_7_2_0;
+    public static final int V_7_3_0_ID = 7030099;
+    public static final Version V_7_3_0 = new Version(V_7_3_0_ID, org.apache.lucene.util.Version.LUCENE_8_1_0);
+    public static final Version CURRENT = V_7_3_0;
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -155,6 +157,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_7_3_0_ID:
+                return V_7_3_0;
             case V_7_2_0_ID:
                 return V_7_2_0;
             case V_7_1_1_ID:
@@ -344,7 +348,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 if (buildStr.startsWith("alpha")) {
                     assert rawMajor >= 5 : "major must be >= 5 but was " + major;
                     build = Integer.parseInt(buildStr.substring(5));
-                    assert build < 25 : "expected a beta build but " + build + " >= 25";
+                    assert build < 25 : "expected a alpha build but " + build + " >= 25";
                 } else if (buildStr.startsWith("Beta") || buildStr.startsWith("beta")) {
                     build = betaOffset + Integer.parseInt(buildStr.substring(4));
                     assert build < 50 : "expected a beta build but " + build + " >= 50";

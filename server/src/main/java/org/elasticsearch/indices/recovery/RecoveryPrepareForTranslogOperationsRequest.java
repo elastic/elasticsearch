@@ -45,7 +45,7 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
     RecoveryPrepareForTranslogOperationsRequest(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
-        shardId = ShardId.readShardId(in);
+        shardId = new ShardId(in);
         totalTranslogOps = in.readVInt();
         if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readLong(); // maxUnsafeAutoIdTimestamp

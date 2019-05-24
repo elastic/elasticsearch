@@ -14,7 +14,7 @@ into a frozen state. Once an index is frozen, all of its transient shard memory 
 is moved to persistent storage. This allows for a much higher disk to heap storage ratio on individual nodes. Once an index is
 frozen, it is made read-only and drops its transient data structures from memory.  These data structures will need to be reloaded on demand (and subsequently dropped) for each search request that targets the frozen index.  A search request that hits
 one or more frozen shards will be executed on a throttled threadpool that ensures that we never search more than
-`N` (`1` by default) searches concurrently (see <<search-throttled>>). This protects nodes from exceeding the available memory due to incoming search requests.
+`N` (`1` by default) searches concurrently (see <<search-throttled,`search-throttled`>>). This protects nodes from exceeding the available memory due to incoming search requests.
 
 In contrast to ordinary open indices, frozen indices are expected to execute slowly and are not designed for high query load. Parallelism is
 gained only on a per-node level and loading data-structures on demand is expected to be one or more orders of a magnitude slower than query

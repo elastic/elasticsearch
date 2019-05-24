@@ -151,12 +151,6 @@ public class AzureRepository extends BlobStoreRepository {
         super.initializeSnapshot(snapshotId, indices, clusterMetadata);
     }
 
-    // // only use for testing
-    @Override
-    protected BlobStore blobStore() {
-        return super.blobStore();
-    }
-
     @Override
     public boolean isReadOnly() {
         return readonly;

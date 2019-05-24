@@ -18,33 +18,20 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
-import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 
-import java.io.ByteArrayInputStream;
 import java.util.Collection;
-import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 
-public class S3RepositoryThirdPartyTests extends ESSingleNodeTestCase {
+public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -52,7 +39,7 @@ public class S3RepositoryThirdPartyTests extends ESSingleNodeTestCase {
     }
 
     @Override
-    protected Settings nodeSettings() {
+    protected SecureSettings credentials() {
         assertThat(System.getProperty("test.s3.account"), not(blankOrNullString()));
         assertThat(System.getProperty("test.s3.key"), not(blankOrNullString()));
         assertThat(System.getProperty("test.s3.bucket"), not(blankOrNullString()));
@@ -60,15 +47,11 @@ public class S3RepositoryThirdPartyTests extends ESSingleNodeTestCase {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.access_key", System.getProperty("test.s3.account"));
         secureSettings.setString("s3.client.default.secret_key", System.getProperty("test.s3.key"));
-        return Settings.builder()
-            .put(super.nodeSettings())
-            .setSecureSettings(secureSettings)
-            .build();
+        return secureSettings;
     }
 
-    public void testCleanup() {
-        Client client = client();
-
+    @Override
+    protected void createRepository(String repoName) {
         Settings.Builder settings = Settings.builder()
             .put("bucket", System.getProperty("test.s3.bucket"))
             .put("base_path", System.getProperty("test.s3.base", "/"));
@@ -76,74 +59,9 @@ public class S3RepositoryThirdPartyTests extends ESSingleNodeTestCase {
         if (endpoint != null) {
             settings = settings.put("endpoint", endpoint);
         }
-        AcknowledgedResponse putRepositoryResponse = client.admin().cluster().preparePutRepository("test-repo")
+        AcknowledgedResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
             .setType("s3")
             .setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
-
-        createIndex("test-idx-1");
-        createIndex("test-idx-2");
-        createIndex("test-idx-3");
-        ensureGreen();
-
-        logger.info("--> indexing some data");
-        for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test-idx-1", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-2", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-            client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
-        }
-        client().admin().indices().prepareRefresh().get();
-        assertThat(count(client, "test-idx-1"), equalTo(100L));
-        assertThat(count(client, "test-idx-2"), equalTo(100L));
-        assertThat(count(client, "test-idx-3"), equalTo(100L));
-
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
-            .setWaitForCompletion(true)
-            .setIndices("test-idx-*", "-test-idx-3")
-            .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        assertThat(client.admin()
-                .cluster()
-                .prepareGetSnapshots("test-repo")
-                .setSnapshots("test-snap")
-                .get()
-                .getSnapshots()
-                .get(0)
-                .state(),
-            equalTo(SnapshotState.SUCCESS));
-
-        logger.info("--> creating a dangling index folder");
-        final S3Repository repo =
-            (S3Repository) getInstanceFromNode(RepositoriesService.class).repository("test-repo");
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        final Executor genericExec = repo.threadPool().executor(ThreadPool.Names.GENERIC);
-        genericExec.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() throws Exception {
-                final BlobStore blobStore = repo.blobStore();
-                blobStore.blobContainer(BlobPath.cleanPath().add("indices").add("foo"))
-                    .writeBlob("bar", new ByteArrayInputStream(new byte[0]), 0, false);
-                future.onResponse(null);
-            }
-        });
-        future.actionGet();
-
-        logger.info("--> deleting a snapshot to trigger repository cleanup");
-        client.admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", "test-snap")).actionGet();
-
-        // TODO: On S3 this might not be 100% stable because assertConsistency uses LIST operations to find stale blobs.
-        //       For now I'm assuming this to be ok because we make the same assumptions about correctness for listing the index-N blobs
-        //       and haven't seen a test failure from that so far.
-        BlobStoreTestUtil.assertConsistency(repo, genericExec);
-    }
-
-    private long count(Client client, String index) {
-        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
     }
 }

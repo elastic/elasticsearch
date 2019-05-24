@@ -28,8 +28,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
-import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
-import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -83,6 +81,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -133,7 +132,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
-import org.hamcrest.Matchers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -157,6 +155,7 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -302,14 +301,6 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
             assertThat(segments.get(0).isCompound(), equalTo(true));
             assertThat(segments.get(0).ramTree, nullValue());
-            assertThat(segments.get(0).getAttributes().keySet(),
-                Matchers.contains(
-                    // TODO: Lucene50PostingsFormat#MODE_KEY should be public ?
-                    Lucene50PostingsFormat.class.getSimpleName() + ".fstMode",
-                    Lucene50StoredFieldsFormat.MODE_KEY
-                )
-            );
-
             engine.flush();
 
             segments = engine.segments(false);
@@ -5646,5 +5637,45 @@ public class InternalEngineTests extends EngineTestCase {
         indexing.join();
         rollTranslog.join();
         assertMaxSeqNoInCommitUserData(engine);
+    }
+
+    @AwaitsFix(bugUrl = "https://issues.apache.org/jira/browse/LUCENE-8809")
+    public void testRefreshAndFailEngineConcurrently() throws Exception {
+        AtomicBoolean stopped = new AtomicBoolean();
+        Semaphore indexedDocs = new Semaphore(0);
+        Thread indexer = new Thread(() -> {
+            while (stopped.get() == false) {
+                String id = Integer.toString(randomIntBetween(1, 100));
+                try {
+                    engine.index(indexForDoc(createParsedDoc(id, null)));
+                    indexedDocs.release();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                } catch (AlreadyClosedException e) {
+                    return;
+                }
+            }
+        });
+
+        Thread refresher = new Thread(() -> {
+            while (stopped.get() == false) {
+                try {
+                    engine.refresh("test", randomFrom(Engine.SearcherScope.values()), randomBoolean());
+                } catch (AlreadyClosedException e) {
+                    return;
+                }
+            }
+        });
+        indexer.start();
+        refresher.start();
+        indexedDocs.acquire(randomIntBetween(1, 100));
+        try {
+            engine.failEngine("test", new IOException("simulated error"));
+        } finally {
+            stopped.set(true);
+            indexer.join();
+            refresher.join();
+        }
+        assertThat(engine.config().getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING).getUsed(), equalTo(0L));
     }
 }

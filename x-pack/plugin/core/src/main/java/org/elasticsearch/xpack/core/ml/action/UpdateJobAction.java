@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -93,9 +92,6 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             jobId = in.readString();
             update = new JobUpdate(in);
             isInternal = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.getVersion().before(Version.V_7_0_0)) {
-                in.readBoolean(); // was waitForAck
-            }
         }
 
         @Override
@@ -104,9 +100,6 @@ public class UpdateJobAction extends Action<PutJobAction.Response> {
             out.writeString(jobId);
             update.writeTo(out);
             out.writeBoolean(isInternal);
-            if (out.getVersion().onOrAfter(Version.V_6_3_0) && out.getVersion().before(Version.V_7_0_0)) {
-                out.writeBoolean(false); // was waitForAck
-            }
         }
 
         @Override

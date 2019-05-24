@@ -336,7 +336,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
         // Stored snapshot documents created prior to 6.3.0 will have no
         // value for min_version.
-        private Version minVersion = Version.V_6_3_0;
+        private Version minVersion = Version.fromString("6.3.0");
 
         private Date timestamp;
         private String description;

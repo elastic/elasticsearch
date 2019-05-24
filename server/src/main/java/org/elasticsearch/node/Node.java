@@ -99,7 +99,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -413,10 +412,10 @@ public class Node implements Closeable {
                     .collect(Collectors.toList());
 
 
-            final Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories =
+            final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories =
                     pluginsService.filterPlugins(IndexStorePlugin.class)
                             .stream()
-                            .map(IndexStorePlugin::getIndexStoreFactories)
+                            .map(IndexStorePlugin::getDirectoryFactories)
                             .flatMap(m -> m.entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 

@@ -431,9 +431,9 @@ public class JobNodeSelectorTests extends ESTestCase {
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                nodeAttr, Collections.emptySet(), Version.V_6_2_0))
+                nodeAttr, Collections.emptySet(), Version.fromString("6.2.0")))
             .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                nodeAttr, Collections.emptySet(), Version.V_6_1_0))
+                nodeAttr, Collections.emptySet(), Version.fromString("6.1.0")))
             .build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
@@ -464,9 +464,9 @@ public class JobNodeSelectorTests extends ESTestCase {
         nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
         DiscoveryNodes nodes = DiscoveryNodes.builder()
             .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                nodeAttr, Collections.emptySet(), Version.V_6_2_0))
+                nodeAttr, Collections.emptySet(), Version.fromString("6.2.0")))
             .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
-                nodeAttr, Collections.emptySet(), Version.V_6_4_0))
+                nodeAttr, Collections.emptySet(), Version.fromString("6.4.0")))
             .build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();

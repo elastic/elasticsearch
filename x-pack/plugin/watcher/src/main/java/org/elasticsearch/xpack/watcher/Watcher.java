@@ -226,16 +226,14 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     private BulkProcessor bulkProcessor;
 
     protected final Settings settings;
-    protected final boolean transportClient;
     protected final boolean enabled;
     protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
-        this.transportClient = XPackPlugin.transportClientMode(settings);
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
 
-        if (enabled && transportClient == false) {
+        if (enabled) {
             validAutoCreateIndex(settings, logger);
         }
     }
@@ -433,7 +431,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         modules.add(b -> b.bind(Clock.class).toInstance(getClock())); //currently assuming the only place clock is bound
         modules.add(b -> {
             XPackPlugin.bindFeatureSet(b, WatcherFeatureSet.class);
-            if (transportClient || enabled == false) {
+            if (enabled == false) {
                 b.bind(WatcherService.class).toProvider(Providers.of(null));
             }
         });
@@ -567,7 +565,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public void onIndexModule(IndexModule module) {
-        if (enabled == false || transportClient) {
+        if (enabled == false) {
             return;
         }
 
@@ -676,7 +674,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
      */
     @Override
     public void reload(Settings settings) {
-        if (enabled == false || transportClient) {
+        if (enabled == false) {
             return;
         }
         reloadableServices.forEach(s -> s.reload(settings));

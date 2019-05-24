@@ -210,7 +210,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             throw new ElasticsearchException("boom", ex);
         }
         return new GetResponse(new GetResult(getRequest.index(), getRequest.type(), getRequest.id(), 0, 1, 0, true,
-            new BytesArray(json), null));
+            new BytesArray(json), null, null));
     }
 
     public void testNumeric() throws IOException {

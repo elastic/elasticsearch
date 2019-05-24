@@ -21,6 +21,7 @@ package org.elasticsearch.client;
 import org.elasticsearch.common.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -28,9 +29,25 @@ import java.util.List;
  */
 public class ValidationException extends IllegalArgumentException {
 
-    public static ValidationException withError(String error) {
+    /**
+     * Creates {@link ValidationException} instance initialized with given error messages.
+     * @param error the errors to add
+     * @return {@link ValidationException} instance
+     */
+    public static ValidationException withError(String... error) {
+        return withErrors(Arrays.asList(error));
+    }
+
+    /**
+     * Creates {@link ValidationException} instance initialized with given error messages.
+     * @param errors the list of errors to add
+     * @return {@link ValidationException} instance
+     */
+    public static ValidationException withErrors(List<String> errors) {
         ValidationException e = new ValidationException();
-        e.addValidationError(error);
+        for (String error : errors) {
+            e.addValidationError(error);
+        }
         return e;
     }
 

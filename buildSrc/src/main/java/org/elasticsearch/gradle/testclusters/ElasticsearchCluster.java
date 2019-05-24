@@ -22,27 +22,27 @@ import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.net.HttpURLConnection;
 import java.net.URI;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.security.GeneralSecurityException;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -71,10 +71,12 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
-                path, clusterName + "-1",
+                path, clusterName + "-0",
                 services, artifactsExtractDir, workingDirBase
             )
         );
+
+        addWaitForClusterHealth();
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
@@ -90,7 +92,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
             );
         }
 
-        for (int i = nodes.size() + 1 ; i <= numberOfNodes; i++) {
+        for (int i = nodes.size() ; i < numberOfNodes; i++) {
             this.nodes.add(new ElasticsearchNode(
                 path, clusterName + "-" + i, services, artifactsExtractDir, workingDirBase
             ));
@@ -98,7 +100,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     private ElasticsearchNode getFirstNode() {
-        return nodes.getAt(clusterName + "-1");
+        return nodes.getAt(clusterName + "-0");
     }
 
     public int getNumberOfNodes() {
@@ -219,6 +221,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         nodes.all(node -> node.extraConfigFile(destination, from));
     }
 
+    @Override
+    public void user(Map<String, String> userSpec) {
+        nodes.all(node -> node.user(userSpec));
+    }
+
     private void writeUnicastHostsFiles() {
         String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
         nodes.forEach(node -> {
@@ -262,15 +269,17 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");
-        addWaitForUri(
-            "cluster health yellow", "/_cluster/health?wait_for_nodes=>=" + nodes.size()  + "&wait_for_status=yellow"
-        );
         waitForConditions(waitConditions, startedAt, CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
     }
 
     @Override
     public void stop(boolean tailLogs) {
         nodes.forEach(each -> each.stop(tailLogs));
+    }
+
+    @Override
+    public void setNameCustomization(Function<String, String> nameCustomization) {
+        nodes.all(each -> each.setNameCustomization(nameCustomization));
     }
 
     @Override
@@ -293,21 +302,25 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         return getFirstNode();
     }
 
-    private void addWaitForUri(String description, String uri) {
-        waitConditions.put(description, (node) -> {
+    private void addWaitForClusterHealth() {
+        waitConditions.put("cluster health yellow", (node) -> {
             try {
-                URL url = new URL("http://" + getFirstNode().getHttpSocketURI() + uri);
-                HttpURLConnection con = (HttpURLConnection) url.openConnection();
-                con.setRequestMethod("GET");
-                con.setConnectTimeout(500);
-                con.setReadTimeout(500);
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(con.getInputStream()))) {
-                    String response = reader.lines().collect(Collectors.joining("\n"));
-                    LOGGER.info("{} -> {} ->\n{}", this, uri, response);
+                WaitForHttpResource wait = new WaitForHttpResource(
+                    "http", getFirstNode().getHttpSocketURI(), nodes.size()
+                );
+                List<Map<String, String>> credentials = getFirstNode().getCredentials();
+                if (getFirstNode().getCredentials().isEmpty() == false) {
+                    wait.setUsername(credentials.get(0).get("useradd"));
+                    wait.setPassword(credentials.get(0).get("-p"));
                 }
-                return true;
+                return wait.wait(500);
             } catch (IOException e) {
                 throw new IllegalStateException("Connection attempt to " + this + " failed", e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new TestClustersException("Interrupted while waiting for " + this, e);
+            } catch (GeneralSecurityException e) {
+                throw new RuntimeException("security exception", e);
             }
         });
     }

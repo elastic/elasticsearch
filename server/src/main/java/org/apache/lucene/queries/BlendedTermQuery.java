@@ -118,7 +118,9 @@ public abstract class BlendedTermQuery extends Query {
                 // otherwise the statistics don't match
                 minSumTTF = Math.min(minSumTTF, reader.getSumTotalTermFreq(terms[i].field()));
             }
-
+        }
+        if (maxDoc > minSumTTF) {
+            maxDoc = (int)minSumTTF;
         }
         if (max == 0) {
             return; // we are done that term doesn't exist at all

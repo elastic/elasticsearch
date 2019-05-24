@@ -27,7 +27,9 @@ import java.io.File;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -72,6 +74,8 @@ public interface TestClusterConfiguration {
 
     void extraConfigFile(String destination, File from);
 
+    void user(Map<String, String> userSpec);
+
     String getHttpSocketURI();
 
     String getTransportPortURI();
@@ -81,6 +85,8 @@ public interface TestClusterConfiguration {
     List<String> getAllTransportPortURI();
 
     void stop(boolean tailLogs);
+
+    void setNameCustomization(Function<String, String> nameSupplier);
 
     default void waitForConditions(
         LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,
@@ -108,19 +114,13 @@ public interface TestClusterConfiguration {
                         break;
                     }
                 } catch (TestClustersException e) {
-                    throw new TestClustersException(e);
+                    throw e;
                 } catch (Exception e) {
                     if (lastException == null) {
                         lastException = e;
                     } else {
                         lastException = e;
                     }
-                }
-                try {
-                    Thread.sleep(500);
-                }
-                catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
                 }
             }
             if (conditionMet == false) {

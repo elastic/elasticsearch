@@ -24,7 +24,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpoint;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.AggregationConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.GroupConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.dataframe.notifications.DataFrameAuditor;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
@@ -40,7 +42,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.dataframe.transforms.DestConfigTests.randomDestConfig;
+import static org.elasticsearch.xpack.core.dataframe.transforms.SourceConfigTests.randomSourceConfig;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -175,9 +180,16 @@ public class DataFrameIndexerTests extends ESTestCase {
     }
 
     public void testPageSizeAdapt() throws InterruptedException {
-        DataFrameTransformConfig config = DataFrameTransformConfigTests.randomDataFrameTransformConfig();
+        Integer pageSize = randomBoolean() ? null : randomIntBetween(500, 10_000);
+        DataFrameTransformConfig config = new DataFrameTransformConfig(randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            null,
+            new PivotConfig(GroupConfigTests.randomGroupConfig(), AggregationConfigTests.randomAggregationConfig(), pageSize),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000));
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-
+        final long initialPageSize = pageSize == null ? Pivot.DEFAULT_INITIAL_PAGE_SIZE : pageSize;
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
             throw new SearchPhaseExecutionException("query", "Partial shards failure", new ShardSearchFailure[] {
                     new ShardSearchFailure(new CircuitBreakingException("to much memory", 110, 100, Durability.TRANSIENT)) });
@@ -185,9 +197,7 @@ public class DataFrameIndexerTests extends ESTestCase {
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        Consumer<Exception> failureConsumer = e -> {
-            fail("expected circuit breaker exception to be handled, got " + e);
-        };
+        Consumer<Exception> failureConsumer = e -> fail("expected circuit breaker exception to be handled");
 
         final ExecutorService executor = Executors.newFixedThreadPool(1);
         try {
@@ -203,8 +213,8 @@ public class DataFrameIndexerTests extends ESTestCase {
             latch.countDown();
             awaitBusy(() -> indexer.getState() == IndexerState.STOPPED);
             long pageSizeAfterFirstReduction = indexer.getPageSize();
-            assertTrue(Pivot.DEFAULT_INITIAL_PAGE_SIZE > pageSizeAfterFirstReduction);
-            assertTrue(pageSizeAfterFirstReduction > DataFrameIndexer.MINIMUM_PAGE_SIZE);
+            assertThat(initialPageSize, greaterThan(pageSizeAfterFirstReduction));
+            assertThat(pageSizeAfterFirstReduction, greaterThan((long)DataFrameIndexer.MINIMUM_PAGE_SIZE));
 
             // run indexer a 2nd time
             final CountDownLatch secondRunLatch = indexer.newLatch(1);
@@ -217,8 +227,8 @@ public class DataFrameIndexerTests extends ESTestCase {
             awaitBusy(() -> indexer.getState() == IndexerState.STOPPED);
 
             // assert that page size has been reduced again
-            assertTrue(pageSizeAfterFirstReduction > indexer.getPageSize());
-            assertTrue(pageSizeAfterFirstReduction > DataFrameIndexer.MINIMUM_PAGE_SIZE);
+            assertThat(pageSizeAfterFirstReduction, greaterThan((long)indexer.getPageSize()));
+            assertThat(pageSizeAfterFirstReduction, greaterThan((long)DataFrameIndexer.MINIMUM_PAGE_SIZE));
 
         } finally {
             executor.shutdownNow();

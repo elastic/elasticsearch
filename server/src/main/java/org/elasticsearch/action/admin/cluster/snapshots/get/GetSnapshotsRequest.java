@@ -89,6 +89,10 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (out.getVersion().onOrAfter(MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             out.writeStringArray(repositories);
         } else {
+            if (repositories.length != 1) {
+                throw new IllegalArgumentException("Requesting snapshots from multiple repositories is not supported in versions prior " +
+                        "to " + MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString());
+            }
             out.writeString(repositories[0]);
         }
         out.writeStringArray(snapshots);

@@ -208,7 +208,8 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             }
         } else {
             if (successfulResponses.size() + failedResponses.size() != 1) {
-                throw new IllegalArgumentException("snapshots from more than one repository are requested");
+                throw new IllegalArgumentException("Requesting snapshots from multiple repositories is not supported in versions prior " +
+                        "to " + GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString());
             }
 
             if (successfulResponses.size() == 1) {

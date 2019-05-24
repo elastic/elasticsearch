@@ -8,6 +8,11 @@
 
 You do not need to configure any settings to use {ml}. It is enabled by default.
 
+IMPORTANT: {ml-cap} uses SSE4.2 instructions, so will only work on machines whose
+CPUs https://en.wikipedia.org/wiki/SSE4#Supporting_CPUs[support] SSE4.2. If you
+run {es} on older hardware you must disable {ml} (by setting `xpack.ml.enabled`
+to `false`).
+
 All of these settings can be added to the `elasticsearch.yml` configuration file. 
 The dynamic settings can also be updated across a cluster with the 
 <<cluster-update-settings,cluster update settings API>>.

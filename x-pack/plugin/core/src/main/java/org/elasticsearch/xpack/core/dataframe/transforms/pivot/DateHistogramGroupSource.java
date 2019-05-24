@@ -38,6 +38,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     public interface Interval extends Writeable, ToXContentFragment {
         String getName();
         DateHistogramInterval getInterval();
+        byte getIntervalTypeId();
     }
 
     public static class FixedInterval implements Interval {
@@ -63,6 +64,11 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         }
 
         @Override
+        public byte getIntervalTypeId() {
+            return 0;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(NAME);
             interval.toXContent(builder, params);
@@ -71,7 +77,6 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.write((byte) 0);
             interval.writeTo(out);
         }
 
@@ -122,6 +127,11 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         }
 
         @Override
+        public byte getIntervalTypeId() {
+            return 1;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(NAME);
             interval.toXContent(builder, params);
@@ -130,7 +140,6 @@ public class DateHistogramGroupSource extends SingleGroupSource {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.write((byte) 1);
             interval.writeTo(out);
         }
 
@@ -164,6 +173,11 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         default:
             throw new IllegalArgumentException("unknown interval");
         }
+    }
+
+    private void writeInterval(Interval interval, StreamOutput out) throws IOException {
+        out.write(interval.getIntervalTypeId());
+        interval.writeTo(out);
     }
 
     private static final String NAME = "data_frame_date_histogram_group";
@@ -259,7 +273,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(field);
-        interval.writeTo(out);
+        writeInterval(interval, out);
         out.writeOptionalZoneId(timeZone);
         out.writeOptionalString(format);
     }

@@ -278,9 +278,9 @@ public class DateHistogramGroupSource extends SingleGroupSource implements ToXCo
         final DateHistogramGroupSource that = (DateHistogramGroupSource) other;
 
         return Objects.equals(this.field, that.field) &&
-                Objects.equals(interval, that.interval) &&
-                Objects.equals(timeZone, that.timeZone) &&
-                Objects.equals(format, that.format);
+                Objects.equals(this.interval, that.interval) &&
+                Objects.equals(this.timeZone, that.timeZone) &&
+                Objects.equals(this.format, that.format);
     }
 
     @Override

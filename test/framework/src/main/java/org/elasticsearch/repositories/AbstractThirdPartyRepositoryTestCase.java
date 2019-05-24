@@ -54,7 +54,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     protected abstract void createRepository(String repoName);
 
 
-    public void testCleanup() {
+    public void testCleanup() throws Exception {
         createRepository("test-repo");
 
         createIndex("test-idx-1");
@@ -113,10 +113,11 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         logger.info("--> deleting a snapshot to trigger repository cleanup");
         client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", "test-snap")).actionGet();
 
-        // TODO: On S3 this might not be 100% stable because assertConsistency uses LIST operations to find stale blobs.
-        //       For now I'm assuming this to be ok because we make the same assumptions about correctness for listing the index-N blobs
-        //       and haven't seen a test failure from that so far.
-        BlobStoreTestUtil.assertConsistency(repo, genericExec);
+        assertConsistentRepository(repo, genericExec);
+    }
+
+    protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
+        BlobStoreTestUtil.assertConsistency(repo, executor);
     }
 
     private long count(Client client, String index) {

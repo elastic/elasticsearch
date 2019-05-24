@@ -24,8 +24,11 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.Collection;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,4 +67,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             .setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
+
+    @Override
+    protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
+        // S3 is only eventually consistent for the list operations used by this assertions so we retry for 10 minutes assuming that
+        // listing operations will become consistent within these 10 minutes.
+        assertBusy(() -> super.assertConsistentRepository(repo, executor), 10L, TimeUnit.MINUTES);
+    }
+
 }

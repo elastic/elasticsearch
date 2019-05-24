@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
@@ -22,7 +21,6 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFramePivotRestIT extends DataFrameRestTestCase {
 
     private static final String TEST_USER_NAME = "df_admin_plus_data";
@@ -218,7 +216,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "   \"group_by\": {"
             + "     \"by_hr\": {"
             + "       \"date_histogram\": {"
-            + "         \"interval\": \"1h\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD_HH\""
+            + "         \"fixed_interval\": \"1h\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd_HH\""
             + " } } },"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
@@ -228,14 +226,11 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
-        createDataframeTransformRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
-            "use [fixed_interval] or [calendar_interval] in the future."));
 
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS,
-            "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
         assertTrue(indexExists(dataFrameIndex));
 
         Map<String, Object> indexStats = getAsMap(dataFrameIndex + "/_stats");
@@ -255,7 +250,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         config += " \"pivot\": {"
             + "   \"group_by\": {"
             + "     \"reviewer\": {\"terms\": { \"field\": \"user_id\" }},"
-            + "     \"by_day\": {\"date_histogram\": {\"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"}}},"
+            + "     \"by_day\": {\"date_histogram\": {\"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"}}},"
             + "   \"aggregations\": {"
             + "     \"avg_rating\": {"
             + "       \"avg\": {"
@@ -263,8 +258,6 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + " } } } }"
             + "}";
         createPreviewRequest.setJsonEntity(config);
-        createPreviewRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
-            "use [fixed_interval] or [calendar_interval] in the future."));
 
         Map<String, Object> previewDataframeResponse = entityAsMap(client().performRequest(createPreviewRequest));
         List<Map<String, Object>> preview = (List<Map<String, Object>>)previewDataframeResponse.get("preview");
@@ -292,7 +285,7 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
         config +="    \"pivot\": { \n" +
             "        \"group_by\": {\n" +
             "            \"by_day\": {\"date_histogram\": {\n" +
-            "                \"interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-DD\"\n" +
+            "                \"fixed_interval\": \"1d\",\"field\":\"timestamp\",\"format\":\"yyyy-MM-dd\"\n" +
             "            }}\n" +
             "        },\n" +
             "    \n" +
@@ -307,13 +300,11 @@ public class DataFramePivotRestIT extends DataFrameRestTestCase {
             + "}";
 
         createDataframeTransformRequest.setJsonEntity(config);
-        createDataframeTransformRequest.setOptions(expectWarnings("[interval] on [date_histogram] is deprecated, " +
-            "use [fixed_interval] or [calendar_interval] in the future."));
+
         Map<String, Object> createDataframeTransformResponse = entityAsMap(client().performRequest(createDataframeTransformRequest));
         assertThat(createDataframeTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
 
-        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS,
-            "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        startAndWaitForTransform(transformId, dataFrameIndex, BASIC_AUTH_VALUE_DATA_FRAME_ADMIN_WITH_SOME_DATA_ACCESS);
         assertTrue(indexExists(dataFrameIndex));
 
         // we expect 21 documents as there shall be 21 days worth of docs

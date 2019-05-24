@@ -74,7 +74,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
     }
 
     public void testModifyingViaApiClearsCache() throws Exception {
-        Client client = internalCluster().transportClient();
+        Client client = client();
         SecurityClient securityClient = securityClient(client);
 
         int modifiedRolesCount = randomIntBetween(1, roles.length);

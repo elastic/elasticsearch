@@ -67,12 +67,7 @@ setup:
 
 ---
 "Test preview transform":
-  - skip:
-      reason:  date histo interval is deprecated
-      features: "warnings"
   - do:
-      warnings:
-        - "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future."
       data_frame.preview_data_frame_transform:
         body: >
           {
@@ -80,7 +75,7 @@ setup:
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
-                "by-hour": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-dd HH"}}},
               "aggs": {
                 "avg_response": {"avg": {"field": "responsetime"}},
                 "time.max": {"max": {"field": "time"}},
@@ -89,17 +84,17 @@ setup:
             }
           }
   - match: { preview.0.airline: foo }
-  - match: { preview.0.by-hour: "2017-02-49 00" }
+  - match: { preview.0.by-hour: "2017-02-18 00" }
   - match: { preview.0.avg_response: 1.0 }
   - match: { preview.0.time.max: "2017-02-18T00:30:00.000Z" }
   - match: { preview.0.time.min: "2017-02-18T00:00:00.000Z" }
   - match: { preview.1.airline: bar }
-  - match: { preview.1.by-hour: "2017-02-49 01" }
+  - match: { preview.1.by-hour: "2017-02-18 01" }
   - match: { preview.1.avg_response: 42.0 }
   - match: { preview.1.time.max: "2017-02-18T01:00:00.000Z" }
   - match: { preview.1.time.min: "2017-02-18T01:00:00.000Z" }
   - match: { preview.2.airline: foo }
-  - match: { preview.2.by-hour: "2017-02-49 01" }
+  - match: { preview.2.by-hour: "2017-02-18 01" }
   - match: { preview.2.avg_response: 42.0 }
   - match: { preview.2.time.max: "2017-02-18T01:01:00.000Z" }
   - match: { preview.2.time.min: "2017-02-18T01:01:00.000Z" }
@@ -128,7 +123,7 @@ setup:
             "pivot": {
               "group_by": {
                 "airline": {"terms": {"field": "airline"}},
-                "by-hour": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+                "by-hour": {"date_histogram": {"fixed_interval": "1h", "field": "time", "format": "yyyy-MM-dd HH"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }

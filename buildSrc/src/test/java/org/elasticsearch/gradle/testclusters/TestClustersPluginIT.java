@@ -27,6 +27,7 @@ import org.junit.Ignore;
 
 import java.util.Arrays;
 
+@Ignore("https://github.com/elastic/elasticsearch/issues/42453")
 public class TestClustersPluginIT extends GradleIntegrationTestCase {
 
     private GradleRunner runner;

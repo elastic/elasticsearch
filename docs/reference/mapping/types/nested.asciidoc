@@ -193,7 +193,7 @@ phase.  Instead, highlighting needs to be performed via
 
 =============================================
 
-
+[[limit-number-nested-fields]]
 ==== Limiting the number of `nested` fields
 
 Indexing a document with 100 nested fields actually indexes 101 documents as each nested

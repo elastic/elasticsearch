@@ -44,7 +44,7 @@ GET /_xpack/migration/deprecations
 Example response:
 
 
-["source","js",subs="attributes,callouts,macros"]
+["source","js",subs="attributes,callouts"]
 --------------------------------------------------
 {
   "cluster_settings" : [

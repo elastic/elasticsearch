@@ -23,6 +23,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
 import org.apache.commons.io.IOUtils
+import org.apache.tools.ant.taskdefs.Java
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RepositoryBuilder
 import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin
@@ -822,6 +823,10 @@ class BuildPlugin implements Plugin<Project> {
                         nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}FIPS")
                     } else {
                         nonInputProperties.systemProperty('runtime.java', "${-> (ext.get('runtimeJavaVersion') as JavaVersion).getMajorVersion()}")
+                    }
+
+                    if ((ext.get('runtimeJavaVersion') as JavaVersion) >= JavaVersion.VERSION_1_9) {
+                        test.jvmArgs '--illegal-access=warn'
                     }
                 }
 

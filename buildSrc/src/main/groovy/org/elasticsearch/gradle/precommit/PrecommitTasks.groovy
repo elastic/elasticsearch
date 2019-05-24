@@ -136,12 +136,10 @@ class PrecommitTasks {
                 // we need to defer this configuration since we don't know the runtime java version until execution time
                 targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
                 if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
-                    doLast {
-                        project.logger.info(
-                                "Forbidden APIs does not support java version past 11. Will use the signatures from 11 for ",
-                                project.runtimeJavaVersion
-                        )
-                    }
+                    project.logger.info(
+                            "Forbidden APIs does not support java version past 11. Will use the signatures from 11 for ",
+                            project.runtimeJavaVersion
+                    )
                     targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
                 }
             }

@@ -11,6 +11,14 @@ experience for Windows. You can continue using the `.zip` approach if you prefer
 
 include::license.asciidoc[]
 
+NOTE: On Windows the Elasticsearch {ml} feature requires the Microsoft Universal
+C Runtime library. This is built into Windows 10, Windows Server 2016 and more
+recent versions of Windows. For older versions of Windows it can be installed
+via Windows Update, or from a
+https://support.microsoft.com/en-us/help/2999226/update-for-universal-c-runtime-in-windows[separate download].
+If you cannot install the Microsoft Universal C Runtime library you can still
+use the rest of Elasticsearch if you disable the {ml} feature.
+
 The latest stable version of Elasticsearch can be found on the
 link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the

@@ -171,7 +171,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         case 1:
             return new CalendarInterval(in);
         default:
-            throw new IllegalArgumentException("unknown interval");
+            throw new IllegalArgumentException("unknown interval type [" + id + "]");
         }
     }
 

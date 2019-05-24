@@ -44,7 +44,7 @@ public class GeometryParserTests extends ESTestCase {
 
         try (XContentParser parser = createParser(pointGeoJson)) {
             parser.nextToken();
-            assertEquals(new Point(0, 100), GeometryParser.parse(parser, true, randomBoolean(), randomBoolean()));
+            assertEquals(new Point(0, 100), new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
         }
 
         XContentBuilder pointGeoJsonWithZ = XContentFactory.jsonBuilder()
@@ -55,13 +55,13 @@ public class GeometryParserTests extends ESTestCase {
 
         try (XContentParser parser = createParser(pointGeoJsonWithZ)) {
             parser.nextToken();
-            assertEquals(new Point(0, 100, 10.0), GeometryParser.parse(parser, true, randomBoolean(), true));
+            assertEquals(new Point(0, 100, 10.0), new GeometryParser(true, randomBoolean(), true).parse(parser));
         }
 
 
         try (XContentParser parser = createParser(pointGeoJsonWithZ)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> GeometryParser.parse(parser, true, randomBoolean(), false));
+            expectThrows(XContentParseException.class, () -> new GeometryParser(true, randomBoolean(), false).parse(parser));
         }
 
         XContentBuilder polygonGeoJson = XContentFactory.jsonBuilder()
@@ -81,13 +81,13 @@ public class GeometryParserTests extends ESTestCase {
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
             // Coerce should automatically close the polygon
-            assertEquals(p, GeometryParser.parse(parser, true, true, randomBoolean()));
+            assertEquals(p, new GeometryParser(true, true, randomBoolean()).parse(parser));
         }
 
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
             // No coerce - the polygon parsing should fail
-            expectThrows(XContentParseException.class, () -> GeometryParser.parse(parser, true, false, randomBoolean()));
+            expectThrows(XContentParseException.class, () -> new GeometryParser(true, false, randomBoolean()).parse(parser));
         }
     }
 
@@ -101,7 +101,7 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            assertEquals(new Point(0, 100), GeometryParser.parse(parser, true, randomBoolean(), randomBoolean()));
+            assertEquals(new Point(0, 100), new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
         }
     }
 
@@ -115,7 +115,7 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            assertNull(GeometryParser.parse(parser, true, randomBoolean(), randomBoolean()));
+            assertNull(new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
         }
     }
 
@@ -130,7 +130,7 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
             ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
-                () -> GeometryParser.parse(parser, true, randomBoolean(), randomBoolean()));
+                () -> new GeometryParser(true, randomBoolean(), randomBoolean()).parse(parser));
             assertEquals("shape must be an object consisting of type and coordinates", ex.getMessage());
         }
     }

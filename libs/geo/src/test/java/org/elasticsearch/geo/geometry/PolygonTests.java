@@ -32,18 +32,19 @@ public class PolygonTests extends BaseGeometryTestCase<Polygon> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
+        WellKnownText wkt = new WellKnownText();
         assertEquals("polygon ((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0))",
-            WellKnownText.toWKT(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}))));
+            wkt.toWKT(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}))));
         assertEquals(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3})),
-            WellKnownText.fromWKT("polygon ((3 1, 4 2, 5 3, 3 1))"));
+            wkt.fromWKT("polygon ((3 1, 4 2, 5 3, 3 1))"));
 
         assertEquals("polygon ((3.0 1.0 5.0, 4.0 2.0 4.0, 5.0 3.0 3.0, 3.0 1.0 5.0))",
-            WellKnownText.toWKT(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{5, 4, 3, 5}))));
+            wkt.toWKT(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{5, 4, 3, 5}))));
         assertEquals(new Polygon(new LinearRing(new double[]{1, 2, 3, 1}, new double[]{3, 4, 5, 3}, new double[]{5, 4, 3, 5})),
-            WellKnownText.fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3, 3 1 5))"));
+            wkt.fromWKT("polygon ((3 1 5, 4 2 4, 5 3 3, 3 1 5))"));
 
-        assertEquals("polygon EMPTY", WellKnownText.toWKT(Polygon.EMPTY));
-        assertEquals(Polygon.EMPTY, WellKnownText.fromWKT("polygon EMPTY)"));
+        assertEquals("polygon EMPTY", wkt.toWKT(Polygon.EMPTY));
+        assertEquals(Polygon.EMPTY, wkt.fromWKT("polygon EMPTY)"));
     }
 
     public void testInitValidation() {

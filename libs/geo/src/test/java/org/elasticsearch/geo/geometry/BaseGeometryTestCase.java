@@ -53,9 +53,10 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
     @SuppressWarnings("unchecked")
     @Override
     protected T copyInstance(T instance, Version version) throws IOException {
-        String text = WellKnownText.toWKT(instance);
+        WellKnownText wkt = new WellKnownText();
+        String text = wkt.toWKT(instance);
         try {
-            return (T) WellKnownText.fromWKT(text);
+            return (T) wkt.fromWKT(text);
         } catch (ParseException e) {
             throw new ElasticsearchException(e);
         }

@@ -117,9 +117,14 @@ The following parameters are accepted by `geo_point` fields:
 
 <<geohash,`geohash`>>::
 
-    Should the geo-point also be indexed as a geohash in the `.geohash`
-    sub-field? Defaults to `false`, unless `geohash_prefix` is `true`.
-    deprecated[2.4]
+Should the geo-point also be indexed as a geohash in the `.geohash`
+sub-field? Defaults to `false`, unless `geohash_prefix` is `true`.
+ifdef::asciidoctor[]
+deprecated:[2.4]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[2.4]
+endif::[]
 
 <<geohash-precision,`geohash_precision`>>::
 

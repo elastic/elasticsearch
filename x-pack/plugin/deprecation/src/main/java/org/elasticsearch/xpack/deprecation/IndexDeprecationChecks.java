@@ -115,6 +115,32 @@ public class IndexDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue chainedMultiFieldsCheck(IndexMetaData indexMetaData) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> issues.addAll(
+            findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap, IndexDeprecationChecks::containsChainedMultiFields))));
+        if (issues.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Multi-fields within multi-fields",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+                    "#_defining_multi_fields_within_multi_fields",
+                "The names of fields that contain chained multi-fields: " + issues.toString());
+        }
+        return null;
+    }
+
+    private static boolean containsChainedMultiFields(Map<?, ?> property) {
+        if (property.containsKey("fields")) {
+            Map<?, ?> fields = (Map<?, ?>) property.get("fields");
+            for (Object rawSubField: fields.values()) {
+                Map<?, ?> subField = (Map<?, ?>) rawSubField;
+                if (subField.containsKey("fields")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     private static final Set<String> TYPES_THAT_DONT_COUNT;
     static {

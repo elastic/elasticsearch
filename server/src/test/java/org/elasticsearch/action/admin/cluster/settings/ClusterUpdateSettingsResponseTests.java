@@ -96,4 +96,5 @@ public class ClusterUpdateSettingsResponseTests extends AbstractStreamableXConte
     protected ClusterUpdateSettingsResponse createBlankInstance() {
         return new ClusterUpdateSettingsResponse();
     }
+
 }

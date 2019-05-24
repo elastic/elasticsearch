@@ -76,10 +76,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -90,15 +88,10 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public static final String NAME = "data_frame";
     public static final String TASK_THREAD_POOL_NAME = "data_frame_indexing";
 
-    // list of headers that will be stored when a transform is created
-    public static final Set<String> HEADER_FILTERS = new HashSet<>(
-            Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
-
-    private static final Logger logger = LogManager.getLogger(XPackPlugin.class);
+    private static final Logger logger = LogManager.getLogger(DataFrame.class);
 
     private final boolean enabled;
     private final Settings settings;
-    private final boolean transportClientMode;
     private final SetOnce<DataFrameTransformsConfigManager> dataFrameTransformsConfigManager = new SetOnce<>();
     private final SetOnce<DataFrameAuditor> dataFrameAuditor = new SetOnce<>();
     private final SetOnce<DataFrameTransformsCheckpointService> dataFrameTransformsCheckpointService = new SetOnce<>();
@@ -106,19 +99,12 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     public DataFrame(Settings settings) {
         this.settings = settings;
-
         this.enabled = XPackSettings.DATA_FRAME_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     @Override
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-
-        if (transportClientMode) {
-            return modules;
-        }
-
         modules.add(b -> XPackPlugin.bindFeatureSet(b, DataFrameFeatureSet.class));
         return modules;
     }
@@ -165,7 +151,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || transportClientMode) {
+        if (false == enabled) {
             return emptyList();
         }
 
@@ -179,7 +165,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return emptyList();
         }
         dataFrameAuditor.set(new DataFrameAuditor(client, clusterService.getNodeName()));
@@ -209,7 +195,7 @@ public class DataFrame extends Plugin implements ActionPlugin, PersistentTaskPlu
     @Override
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
             Client client, SettingsModule settingsModule) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return emptyList();
         }
 

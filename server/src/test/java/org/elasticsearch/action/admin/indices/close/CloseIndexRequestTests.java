@@ -28,8 +28,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-
 public class CloseIndexRequestTests extends ESTestCase {
 
     public void testSerialization() throws Exception {

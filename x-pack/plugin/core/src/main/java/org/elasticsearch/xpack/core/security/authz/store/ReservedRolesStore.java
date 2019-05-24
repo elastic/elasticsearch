@@ -109,7 +109,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         null))
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME,
                         new String[] {
-                            "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token"
+                            "monitor", "manage_index_templates", MonitoringBulkAction.NAME, "manage_saml", "manage_token", "manage_oidc"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
@@ -118,8 +118,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".management-beats").privileges("create_index", "read", "write").build(),
+                                // .code_internal-* is for Code's internal worker queue index creation.
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".code-*").privileges("all").build(),
+                                        .indices(".code-*", ".code_internal-*").privileges("all").build(),
                         },
                         null,
                         new ConditionalClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

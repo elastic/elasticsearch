@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 public class CreateTokenResponseTests extends ESTestCase {
 
@@ -34,25 +32,6 @@ public class CreateTokenResponseTests extends ESTestCase {
                 CreateTokenResponse serialized = new CreateTokenResponse();
                 serialized.readFrom(input);
                 assertEquals(response, serialized);
-            }
-        }
-    }
-
-    public void testSerializationToPre62Version() throws Exception {
-        CreateTokenResponse response = new CreateTokenResponse(randomAlphaOfLengthBetween(1, 10), TimeValue.timeValueMinutes(20L),
-            randomBoolean() ? null : "FULL", randomBoolean() ? null : randomAlphaOfLengthBetween(1, 10));
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_1_4);
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
-            response.writeTo(output);
-            try (StreamInput input = output.bytes().streamInput()) {
-                input.setVersion(version);
-                CreateTokenResponse serialized = new CreateTokenResponse();
-                serialized.readFrom(input);
-                assertNull(serialized.getRefreshToken());
-                assertEquals(response.getTokenString(), serialized.getTokenString());
-                assertEquals(response.getExpiresIn(), serialized.getExpiresIn());
-                assertEquals(response.getScope(), serialized.getScope());
             }
         }
     }

@@ -62,6 +62,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         project.getTasks().create("buildResources", ExportElasticsearchBuildResourcesTask)
         BuildPlugin.configureRepositories(project)
         BuildPlugin.configureTestTasks(project)
+        BuildPlugin.configureInputNormalization(project)
 
         ExtraPropertiesExtension ext = project.extensions.getByType(ExtraPropertiesExtension)
         project.extensions.getByType(JavaPluginExtension).sourceCompatibility = ext.get('minimumRuntimeVersion') as JavaVersion

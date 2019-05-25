@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunctionAttribute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
@@ -32,15 +35,51 @@ abstract class NamedDateTimeFunction extends BaseDateTimeFunction {
         this.nameExtractor = nameExtractor;
     }
 
+    private ScriptTemplate wrapWithNameExtractor(ScriptTemplate nested){
+        return new ScriptTemplate(
+            formatTemplate(format(Locale.ROOT, "{sql}.%s(%s, {})",
+                StringUtils.underscoreToLowerCamelCase(nameExtractor.name()),
+                nested.template()
+            )),
+            paramsBuilder()
+                .script(nested.params())
+                .variable(zoneId().getId()).build(),
+            dataType());
+    }
+
+    @Override
+    public ScriptTemplate scriptWithFoldable(Expression foldable) {
+        ScriptTemplate nested = super.scriptWithFoldable(foldable);
+
+        return wrapWithNameExtractor(nested);
+    }
+
+    @Override
+    public ScriptTemplate scriptWithScalar(ScalarFunctionAttribute scalar) {
+        ScriptTemplate nested = super.scriptWithScalar(scalar);
+
+        return wrapWithNameExtractor(nested);
+    }
+
+    @Override
+    public ScriptTemplate scriptWithAggregate(AggregateFunctionAttribute aggregate) {
+        ScriptTemplate nested = super.scriptWithAggregate(aggregate);
+
+        return wrapWithNameExtractor(nested);
+    }
+
+    @Override
+    public ScriptTemplate scriptWithGrouping(GroupingFunctionAttribute grouping) {
+        ScriptTemplate nested = super.scriptWithGrouping(grouping);
+
+        return wrapWithNameExtractor(nested);
+    }
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(
-                formatTemplate(format(Locale.ROOT, "{sql}.%s(doc[{}].value, {})",
-                        StringUtils.underscoreToLowerCamelCase(nameExtractor.name()))),
-                paramsBuilder()
-                  .variable(field.name())
-                  .variable(zoneId().getId()).build(),
-                dataType());
+        ScriptTemplate nested = super.scriptWithField(field);
+
+        return wrapWithNameExtractor(nested);
     }
 
     @Override

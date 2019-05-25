@@ -236,7 +236,6 @@ class PrecommitTasks {
                 "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}")
         return project.tasks.create('loggerUsageCheck', LoggerUsageTask.class) {
             classpath = project.configurations.loggerUsagePlugin
-            javaHome = project.runtimeJavaHome
         }
     }
 }

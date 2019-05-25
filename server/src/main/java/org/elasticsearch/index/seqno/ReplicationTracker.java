@@ -227,6 +227,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         }
         final Collection<RetentionLease> nonExpiredLeases =
                 partitionByExpiration.get(false) != null ? partitionByExpiration.get(false) : Collections.emptyList();
+        if (logger.isDebugEnabled()) {
+            logger.debug("has expired retention leases: current leases [{}]; non-expired leases [{}]", retentionLeases, nonExpiredLeases);
+        }
         retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
         return Tuple.tuple(true, retentionLeases);
     }
@@ -255,6 +258,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 throw new RetentionLeaseAlreadyExistsException(id);
             }
             retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
+            if (logger.isDebugEnabled()) {
+                logger.debug("add new retention lease [{}]; current retention leases [{}]", retentionLease, retentionLeases);
+            }
             retentionLeases = new RetentionLeases(
                     operationPrimaryTerm,
                     retentionLeases.version() + 1,
@@ -311,6 +317,9 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             assert primaryMode;
             if (retentionLeases.contains(id) == false) {
                 throw new RetentionLeaseNotFoundException(id);
+            }
+            if (logger.isDebugEnabled()) {
+                logger.debug("remove retention lease [{}]; current retention leases [{}]", id, retentionLeases);
             }
             retentionLeases = new RetentionLeases(
                     operationPrimaryTerm,

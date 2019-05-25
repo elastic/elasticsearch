@@ -17,13 +17,15 @@ public class DateHistogramGroupSourceTests extends AbstractSerializingTestCase<D
 
     public static DateHistogramGroupSource randomDateHistogramGroupSource() {
         String field = randomAlphaOfLengthBetween(1, 20);
-        DateHistogramGroupSource dateHistogramGroupSource = new DateHistogramGroupSource(field);
+        DateHistogramGroupSource dateHistogramGroupSource;
         if (randomBoolean()) {
-            dateHistogramGroupSource.setInterval(randomLongBetween(1, 10_000));
+            dateHistogramGroupSource = new DateHistogramGroupSource(field, new DateHistogramGroupSource.FixedInterval(
+                    new DateHistogramInterval(randomPositiveTimeValue())));
         } else {
-            dateHistogramGroupSource.setDateHistogramInterval(randomFrom(DateHistogramInterval.days(10),
-                DateHistogramInterval.minutes(1), DateHistogramInterval.weeks(1)));
+            dateHistogramGroupSource = new DateHistogramGroupSource(field, new DateHistogramGroupSource.CalendarInterval(
+                    new DateHistogramInterval(randomTimeValue(1, 1, "m", "h", "d", "w"))));
         }
+
         if (randomBoolean()) {
             dateHistogramGroupSource.setTimeZone(randomZone());
         }

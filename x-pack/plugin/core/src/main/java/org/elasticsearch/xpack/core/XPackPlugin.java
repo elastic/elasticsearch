@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -194,11 +193,7 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
         // check that all nodes would be capable of deserializing newly added x-pack metadata
         final List<DiscoveryNode> notReadyNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false).filter(node -> {
             final String xpackInstalledAttr = node.getAttributes().getOrDefault(XPACK_INSTALLED_NODE_ATTR, "false");
-
-            // The node attribute XPACK_INSTALLED_NODE_ATTR was only introduced in 6.3.0, so when
-            // we have an older node in this mixed-version cluster without any x-pack metadata,
-            // we want to prevent x-pack from adding custom metadata
-            return node.getVersion().before(Version.V_6_3_0) || Booleans.parseBoolean(xpackInstalledAttr) == false;
+            return Booleans.parseBoolean(xpackInstalledAttr) == false;
         }).collect(Collectors.toList());
 
         return notReadyNodes;

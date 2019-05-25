@@ -66,7 +66,7 @@ import static org.hamcrest.Matchers.equalTo;
  * not detect a master failure too quickly.
  */
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE")
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class StableMasterDisruptionIT extends ESIntegTestCase {
 
     @Override

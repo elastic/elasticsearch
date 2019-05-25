@@ -56,8 +56,10 @@ if (!isEclipse && !isIdea) {
   }
 
   forbiddenApisJava12 {
-    if (project.runtimeJavaVersion < JavaVersion.VERSION_12) {
-      targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()
+    doFirst {
+      if (project.runtimeJavaVersion < JavaVersion.VERSION_12) {
+        targetCompatibility = JavaVersion.VERSION_12.getMajorVersion()
+      }
     }
   }
 

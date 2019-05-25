@@ -359,25 +359,10 @@ public class RecoverySourceHandler {
                             recoverySourceMetadata.asMap().size() + " files", name);
                 }
             }
-            // Generate a "diff" of all the identical, different, and missing
-            // segment files on the target node, using the existing files on
-            // the source node
-            String recoverySourceSyncId = recoverySourceMetadata.getSyncId();
-            String recoveryTargetSyncId = request.metadataSnapshot().getSyncId();
-            final boolean recoverWithSyncId = recoverySourceSyncId != null &&
-                    recoverySourceSyncId.equals(recoveryTargetSyncId);
-            if (recoverWithSyncId) {
-                final long numDocsTarget = request.metadataSnapshot().getNumDocs();
-                final long numDocsSource = recoverySourceMetadata.getNumDocs();
-                if (numDocsTarget != numDocsSource) {
-                    throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number " +
-                            "of docs differ: " + numDocsSource + " (" + request.sourceNode().getName() + ", primary) vs " + numDocsTarget
-                            + "(" + request.targetNode().getName() + ")");
-                }
-                // we shortcut recovery here because we have nothing to copy. but we must still start the engine on the target.
-                // so we don't return here
-                logger.trace("skipping [phase1]- identical sync id [{}] found on both source and target", recoverySourceSyncId);
-            } else {
+            if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
+                // Generate a "diff" of all the identical, different, and missing
+                // segment files on the target node, using the existing files on
+                // the source node
                 final Store.RecoveryDiff diff = recoverySourceMetadata.recoveryDiff(request.metadataSnapshot());
                 for (StoreFileMetaData md : diff.identical) {
                     phase1ExistingFileNames.add(md.name());
@@ -458,6 +443,9 @@ public class RecoverySourceHandler {
                         throw targetException;
                     }
                 }
+            } else {
+                logger.trace("skipping [phase1]- identical sync id [{}] found on both source and target",
+                    recoverySourceMetadata.getSyncId());
             }
             final TimeValue took = stopWatch.totalTime();
             logger.trace("recovery [phase1]: took [{}]", took);
@@ -468,6 +456,26 @@ public class RecoverySourceHandler {
         } finally {
             store.decRef();
         }
+    }
+
+    boolean canSkipPhase1(Store.MetadataSnapshot source, Store.MetadataSnapshot target) {
+        if (source.getSyncId() == null || source.getSyncId().equals(target.getSyncId()) == false) {
+            return false;
+        }
+        if (source.getNumDocs() != target.getNumDocs()) {
+            throw new IllegalStateException("try to recover " + request.shardId() + " from primary shard with sync id but number " +
+                "of docs differ: " + source.getNumDocs() + " (" + request.sourceNode().getName() + ", primary) vs " + target.getNumDocs()
+                + "(" + request.targetNode().getName() + ")");
+        }
+        SequenceNumbers.CommitInfo sourceSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(source.getCommitUserData().entrySet());
+        SequenceNumbers.CommitInfo targetSeqNos = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(target.getCommitUserData().entrySet());
+        if (sourceSeqNos.localCheckpoint != targetSeqNos.localCheckpoint || targetSeqNos.maxSeqNo != sourceSeqNos.maxSeqNo) {
+            final String message = "try to recover " + request.shardId() + " with sync id but " +
+                "seq_no stats are mismatched: [" + source.getCommitUserData() + "] vs [" + target.getCommitUserData() + "]";
+            assert false : message;
+            throw new IllegalStateException(message);
+        }
+        return true;
     }
 
     void prepareTargetForTranslog(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<TimeValue> listener) {

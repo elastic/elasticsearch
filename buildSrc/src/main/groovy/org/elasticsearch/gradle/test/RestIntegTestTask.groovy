@@ -86,52 +86,25 @@ class RestIntegTestTask extends DefaultTask {
         runner.include('**/*IT.class')
         runner.systemProperty('tests.rest.load_packaged', 'false')
 
-        /*
-         * We use lazy-evaluated strings in order to configure system properties whose value will not be known until
-         * execution time (e.g. cluster port numbers). Adding these via the normal DSL doesn't work as these get treated
-         * as task inputs and therefore Gradle attempts to snapshot them before/after task execution. This fails due
-         * to the GStrings containing references to non-serializable objects.
-         *
-         * We bypass this by instead passing this system properties vi a CommandLineArgumentProvider. This has the added
-         * side-effect that these properties are NOT treated as inputs, therefore they don't influence things like the
-         * build cache key or up to date checking.
-         */
-        def nonInputProperties = new CommandLineArgumentProvider() {
-            private final Map<String, Object> systemProperties = [:]
-
-            void systemProperty(String key, Object value) {
-                systemProperties.put(key, value)
-            }
-
-            @Override
-            Iterable<String> asArguments() {
-                return systemProperties.collect { key, value ->
-                    "-D${key}=${value.toString()}".toString()
-                }
-            }
-        }
-        runner.jvmArgumentProviders.add(nonInputProperties)
-        runner.ext.nonInputProperties = nonInputProperties
-
         if (System.getProperty("tests.rest.cluster") == null) {
             if (System.getProperty("tests.cluster") != null || System.getProperty("tests.clustername") != null) {
                 throw new IllegalArgumentException("tests.rest.cluster, tests.cluster, and tests.clustername must all be null or non-null")
             }
             if (usesTestclusters == true) {
                 ElasticsearchCluster cluster = project.testClusters."${name}"
-                nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",") }")
-                nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI }")
-                nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName() }")
+                runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> cluster.allHttpSocketURI.join(",") }")
+                runner.nonInputProperties.systemProperty('tests.cluster', "${-> cluster.transportPortURI }")
+                runner.nonInputProperties.systemProperty('tests.clustername', "${-> cluster.getName() }")
             } else {
                 // we pass all nodes to the rest cluster to allow the clients to round-robin between them
                 // this is more realistic than just talking to a single node
-                nonInputProperties.systemProperty('tests.rest.cluster', "${-> nodes.collect { it.httpUri() }.join(",")}")
-                nonInputProperties.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
+                runner.nonInputProperties.systemProperty('tests.rest.cluster', "${-> nodes.collect { it.httpUri() }.join(",")}")
+                runner.nonInputProperties.systemProperty('tests.config.dir', "${-> nodes[0].pathConf}")
                 // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
                 // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
                 // both as separate sysprops
-                nonInputProperties.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
-                nonInputProperties.systemProperty('tests.clustername', "${-> nodes[0].clusterName}")
+                runner.nonInputProperties.systemProperty('tests.cluster', "${-> nodes[0].transportUri()}")
+                runner.nonInputProperties.systemProperty('tests.clustername', "${-> nodes[0].clusterName}")
 
                 // dump errors and warnings from cluster log on failure
                 TaskExecutionAdapter logDumpListener = new TaskExecutionAdapter() {

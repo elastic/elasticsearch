@@ -36,7 +36,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -356,7 +355,6 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
         assertFalse("retention leases background sync must be a noop if soft deletes is disabled", backgroundSyncRequestSent.get());
     }
 
-    @TestLogging(value = "org.elasticsearch.index:debug,org.elasticsearch.indices.recovery:trace")
     public void testRetentionLeasesSyncOnRecovery() throws Exception {
         final int numberOfReplicas = 2 - scaledRandomIntBetween(0, 2);
         internalCluster().ensureAtLeastNumDataNodes(1 + numberOfReplicas);
@@ -393,7 +391,6 @@ public class RetentionLeaseIT extends ESIntegTestCase  {
             final ActionListener<ReplicationResponse> listener = countDownLatchListener(latch);
             currentRetentionLeases.put(id, primary.addRetentionLease(id, retainingSequenceNumber, source, listener));
             latch.await();
-            currentRetentionLeases.put(id, primary.renewRetentionLease(id, retainingSequenceNumber, source));
         }
         logger.info("finished adding [{}] retention leases", length);
 

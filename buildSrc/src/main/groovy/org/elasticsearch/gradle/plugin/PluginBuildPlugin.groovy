@@ -28,6 +28,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.gradle.api.InvalidUserDataException
+import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.publish.maven.MavenPublication
@@ -43,13 +44,13 @@ import java.util.regex.Pattern
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
  */
-class PluginBuildPlugin extends BuildPlugin {
+class PluginBuildPlugin implements Plugin<Project> {
 
     public static final String PLUGIN_EXTENSION_NAME = 'esplugin'
 
     @Override
     void apply(Project project) {
-        super.apply(project)
+        project.pluginManager.apply(BuildPlugin)
 
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)

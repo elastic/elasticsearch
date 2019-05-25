@@ -107,14 +107,12 @@ class PrecommitTasks {
     }
 
     private static Task configureJarHell(Project project) {
-        Task task = project.tasks.create('jarHell', JarHellTask.class)
-        task.classpath = project.sourceSets.test.runtimeClasspath
-        if (project.plugins.hasPlugin(ShadowPlugin)) {
-            task.classpath += project.configurations.bundle
+        return project.tasks.create('jarHell', JarHellTask) { task ->
+            task.classpath = project.sourceSets.test.runtimeClasspath
+            if (project.plugins.hasPlugin(ShadowPlugin)) {
+                task.classpath += project.configurations.bundle
+            }
         }
-        task.dependsOn(project.sourceSets.test.classesTaskName)
-        task.javaHome = project.runtimeJavaHome
-        return task
     }
 
     private static Task configureThirdPartyAudit(Project project) {

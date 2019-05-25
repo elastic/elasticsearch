@@ -283,7 +283,7 @@ public class IndexDeprecationChecks {
 
         if (fields.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "Date time field format likely contain deprecated pattern",
+                "Date field format uses patterns which may change meaning in 7.0",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
                 "This index has date fields with deprecated formats: " + fields + ". "+JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
         }

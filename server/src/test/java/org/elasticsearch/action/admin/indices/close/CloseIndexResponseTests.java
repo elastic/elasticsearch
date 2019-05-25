@@ -100,7 +100,7 @@ public class CloseIndexResponseTests extends ESTestCase {
                 }
                 assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
                 assertThat(deserializedResponse.isShardsAcknowledged(), equalTo(response.isShardsAcknowledged()));
-                if (version.onOrAfter(Version.V_8_0_0)) {
+                if (version.onOrAfter(Version.V_7_3_0)) {
                     assertThat(deserializedResponse.getIndices(), hasSize(response.getIndices().size()));
                 } else {
                     assertThat(deserializedResponse.getIndices(), empty());

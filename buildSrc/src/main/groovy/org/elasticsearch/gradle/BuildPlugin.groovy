@@ -108,6 +108,7 @@ class BuildPlugin implements Plugin<Project> {
         globalBuildInfo(project)
         configureRepositories(project)
         project.ext.versions = VersionProperties.versions
+        configureInputNormalization(project)
         configureSourceSets(project)
         configureCompile(project)
         configureJavadoc(project)
@@ -118,7 +119,7 @@ class BuildPlugin implements Plugin<Project> {
         configureDependenciesInfo(project)
 
         // Common config when running with a FIPS-140 runtime JVM
-        // Need to do it here to support external plugins 
+        // Need to do it here to support external plugins
         if (project.ext.inFipsJvm) {
             project.tasks.withType(Test) {
                 systemProperty 'javax.net.ssl.trustStorePassword', 'password'
@@ -781,6 +782,13 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
+    }
+
+    /**
+     * Apply runtime classpath input normalization so that changes in JAR manifests don't break build cacheability
+     */
+    static void configureInputNormalization(Project project) {
+        project.normalization.runtimeClasspath.ignore('META-INF/MANIFEST.MF')
     }
 
     /** Adds compiler settings to the project */

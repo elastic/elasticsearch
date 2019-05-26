@@ -41,10 +41,10 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -83,13 +83,11 @@ public class NativePrivilegeStore {
 
     private final Settings settings;
     private final Client client;
-    private final SecurityClient securityClient;
     private final SecurityIndexManager securityIndexManager;
 
     public NativePrivilegeStore(Settings settings, Client client, SecurityIndexManager securityIndexManager) {
         this.settings = settings;
         this.client = client;
-        this.securityClient = new SecurityClient(client);
         this.securityIndexManager = securityIndexManager;
     }
 
@@ -295,8 +293,8 @@ public class NativePrivilegeStore {
     private <T> void clearRolesCache(ActionListener<T> listener, T value) {
         // This currently clears _all_ roles, but could be improved to clear only those roles that reference the affected application
         ClearRolesCacheRequest request = new ClearRolesCacheRequest();
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-            new ActionListener<ClearRolesCacheResponse>() {
+        executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRolesCacheAction.INSTANCE, request,
+            new ActionListener<>() {
                 @Override
                 public void onResponse(ClearRolesCacheResponse nodes) {
                     listener.onResponse(value);
@@ -308,7 +306,7 @@ public class NativePrivilegeStore {
                     listener.onFailure(
                         new ElasticsearchException("clearing the role cache failed. please clear the role cache manually", e));
                 }
-            }, securityClient::clearRolesCache);
+            });
     }
 
     private ApplicationPrivilegeDescriptor buildPrivilege(String docId, BytesReference source) {

@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -36,7 +36,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -72,7 +71,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@TestLogging("org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore:TRACE")
 public class NativePrivilegeStoreTests extends ESTestCase {
 
     private NativePrivilegeStore store;
@@ -87,7 +85,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         client = new NoOpClient(getTestName()) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(Action<Response> action, Request request, ActionListener<Response> listener) {
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
                 NativePrivilegeStoreTests.this.requests.add(request);
                 NativePrivilegeStoreTests.this.listener.set(listener);
             }

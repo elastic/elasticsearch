@@ -38,7 +38,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -1318,9 +1317,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
      */
-    protected boolean indexExists(String index) {
-        IndicesExistsResponse actionGet = client().admin().indices().prepareExists(index).execute().actionGet();
-        return actionGet.isExists();
+    protected static boolean indexExists(String index) {
+        return indexExists(index, client());
+    }
+
+    /**
+     * Returns <code>true</code> iff the given index exists otherwise <code>false</code>
+     */
+    public static boolean indexExists(String index, Client client) {
+        GetIndexResponse getIndexResponse = client.admin().indices().prepareGetIndex().setIndices(index)
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED).execute().actionGet();
+        return getIndexResponse.getIndices().length > 0;
     }
 
     /**
@@ -1608,9 +1615,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         boolean supportsDedicatedMasters() default true;
 
         /**
-         * The cluster automatically manages the bootstrap voting configuration. Set this to false to manage the setting manually.
+         * Indicates whether the cluster automatically manages cluster bootstrapping and the removal of any master-eligible nodes. If
+         * set to {@code false} then the tests must manage these processes explicitly.
          */
-        boolean autoMinMasterNodes() default true;
+        boolean autoManageMasterNodes() default true;
 
         /**
          * Returns the number of client nodes in the cluster. Default is {@link InternalTestCluster#DEFAULT_NUM_CLIENT_NODES}, a
@@ -1698,9 +1706,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return annotation == null ? true : annotation.supportsDedicatedMasters();
     }
 
-    private boolean getAutoMinMasterNodes() {
+    private boolean getAutoManageMasterNodes() {
         ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
-        return annotation == null ? true : annotation.autoMinMasterNodes();
+        return annotation == null ? true : annotation.autoManageMasterNodes();
     }
 
     private int getNumDataNodes() {
@@ -1838,7 +1846,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             mockPlugins = mocks;
         }
-        return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, getAutoMinMasterNodes(),
+        return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, getAutoManageMasterNodes(),
             minNumDataNodes, maxNumDataNodes,
             InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
             nodePrefix, mockPlugins, getClientWrapper(), forbidPrivateIndexSettings());
@@ -1846,10 +1854,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     protected NodeConfigurationSource getNodeConfigSource() {
         Settings.Builder initialNodeSettings = Settings.builder();
-        Settings.Builder initialTransportClientSettings = Settings.builder();
         if (addMockTransportService()) {
-            initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
-            initialTransportClientSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());
+            initialNodeSettings.put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType());;
         }
         return new NodeConfigurationSource() {
             @Override
@@ -1886,6 +1892,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Returns {@code true} if this test cluster can use a mock internal engine. Defaults to true.
+     */
+    protected boolean addMockInternalEngine() {
+        return true;
+    }
+
+    /**
      * Returns a function that allows to wrap / filter all clients that are exposed by the test cluster. This is useful
      * for debugging or request / response pre and post processing. It also allows to intercept all calls done by the test
      * framework. By default this method returns an identity function {@link Function#identity()}.
@@ -1907,7 +1920,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (randomBoolean()) {
                 mocks.add(NodeMocksPlugin.class);
             }
-            if (randomBoolean()) {
+            if (addMockInternalEngine() && randomBoolean()) {
                 mocks.add(MockEngineFactoryPlugin.class);
             }
             if (randomBoolean()) {

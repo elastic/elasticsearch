@@ -26,6 +26,7 @@ import java.util.stream.Stream
  */
 
 apply plugin: 'war'
+apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 
@@ -70,9 +71,9 @@ dependencies {
     compile "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
     compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
     compile "org.apache.logging.log4j:log4j-core:${versions.log4j}"
-    compile project(path: ':client:rest-high-level')
+    compile project(':client:rest-high-level')
     wildfly "org.jboss:wildfly:${wildflyVersion}@zip"
-    testCompile "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}"
+    testCompile project(':test:framework')
 }
 
 task unzipWildfly(type: Sync) {
@@ -88,12 +89,13 @@ task deploy(type: Copy) {
 
 task writeElasticsearchProperties {
     onlyIf { !Os.isFamily(Os.FAMILY_WINDOWS) }
-    dependsOn 'integTestCluster#wait', deploy
+    useCluster testClusters.integTest
+    dependsOn deploy
     doLast {
         final File elasticsearchProperties = file("${wildflyInstall}/standalone/configuration/elasticsearch.properties")
         elasticsearchProperties.write(
                 [
-                        "http.uri=${-> integTest.getNodes().get(0).httpUri()}"
+                        "http.uri=${-> testClusters.integTest.getAllHttpSocketURI().get(0)}"
                 ].join("\n"))
     }
 }
@@ -210,6 +212,7 @@ if (!Os.isFamily(Os.FAMILY_WINDOWS)) {
     integTestRunner.finalizedBy(stopWildfly)
 } else {
     integTest.enabled = false
+    testingConventions.enabled = false
 }
 
 check.dependsOn(integTest)

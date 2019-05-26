@@ -39,6 +39,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.test.store.MockFSIndexStore;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -169,7 +170,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                 int docToQuery = between(0, numDocs - 1);
                 int expectedResults = added[docToQuery] ? 1 : 0;
                 logger.info("Searching for [test:{}]", English.intToEnglish(docToQuery));
-                SearchResponse searchResponse = client().prepareSearch().setTypes("type")
+                SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(QueryBuilders.matchQuery("test", English.intToEnglish(docToQuery)))
                     .setSize(expectedResults).get();
                 logger.info("Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(), numShards.numPrimaries);
@@ -177,7 +178,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                     assertResultsAndLogOnFailure(expectedResults, searchResponse);
                 }
                 // check match all
-                searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchAllQuery())
+                searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery())
                     .setSize(numCreated + numInitialDocs).addSort("_uid", SortOrder.ASC).get();
                 logger.info("Match all Successful shards: [{}]  numShards: [{}]", searchResponse.getSuccessfulShards(),
                         numShards.numPrimaries);
@@ -202,7 +203,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
                 .put(MockFSDirectoryFactory.RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING.getKey(), 0));
             client().admin().indices().prepareOpen("test").execute().get();
             ensureGreen();
-            SearchResponse searchResponse = client().prepareSearch().setTypes("type")
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(QueryBuilders.matchQuery("test", "init")).get();
             assertNoFailures(searchResponse);
             assertHitCount(searchResponse, numInitialDocs);

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.UnknownHostException;
@@ -37,6 +38,9 @@ import static org.elasticsearch.index.reindex.TransportReindexAction.checkRemote
  * Tests the reindex-from-remote whitelist of remotes.
  */
 public class ReindexFromRemoteWhitelistTests extends ESTestCase {
+
+    private final BytesReference query = new BytesArray("{ \"foo\" : \"bar\" }");
+
     public void testLocalRequestWithoutWhitelist() {
         checkRemoteWhitelist(buildRemoteWhitelist(emptyList()), null);
     }
@@ -49,7 +53,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
      * Build a {@link RemoteInfo}, defaulting values that we don't care about in this test to values that don't hurt anything.
      */
     private RemoteInfo newRemoteInfo(String host, int port) {
-        return new RemoteInfo(randomAlphaOfLength(5), host, port, null, new BytesArray("test"), null, null, emptyMap(),
+        return new RemoteInfo(randomAlphaOfLength(5), host, port, null, query, null, null, emptyMap(),
                 RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
     }
 
@@ -63,7 +67,7 @@ public class ReindexFromRemoteWhitelistTests extends ESTestCase {
 
     public void testWhitelistedByPrefix() {
         checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
-                new RemoteInfo(randomAlphaOfLength(5), "es.example.com", 9200, null, new BytesArray("test"), null, null, emptyMap(),
+                new RemoteInfo(randomAlphaOfLength(5), "es.example.com", 9200, null, query, null, null, emptyMap(),
                         RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         checkRemoteWhitelist(buildRemoteWhitelist(singletonList("*.example.com:9200")),
                 newRemoteInfo("6e134134a1.us-east-1.aws.example.com", 9200));

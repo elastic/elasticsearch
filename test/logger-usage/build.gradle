@@ -22,7 +22,7 @@ dependencies {
   compile 'org.ow2.asm:asm-tree:7.1'
   compile 'org.ow2.asm:asm-analysis:7.1'
   compile "org.apache.logging.log4j:log4j-api:${versions.log4j}"
-  testCompile "org.elasticsearch.test:framework:${version}"
+  testCompile project(":test:framework")
 }
 
 loggerUsageCheck.enabled = false

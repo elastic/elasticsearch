@@ -20,13 +20,36 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
 
     private FileStructureFinderFactory factory = new TextLogFileStructureFinderFactory();
 
+    public void testCreateConfigsGivenLowLineMergeSizeLimit() {
+
+        String sample = "2019-05-16 16:56:14 line 1 abcdefghijklmnopqrstuvwxyz\n" +
+            "2019-05-16 16:56:14 line 2 abcdefghijklmnopqrstuvwxyz\n" +
+            "continuation line 2.1\n" +
+            "continuation line 2.2\n" +
+            "continuation line 2.3\n" +
+            "continuation line 2.4\n" +
+            "2019-05-16 16:56:14 line 3 abcdefghijklmnopqrstuvwxyz\n";
+
+        assertTrue(factory.canCreateFromSample(explanation, sample));
+
+        String charset = randomFrom(POSSIBLE_CHARSETS);
+        Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> factory.createFromSample(explanation, sample, charset, hasByteOrderMarker, 100,
+                FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER));
+
+        assertEquals("Merging lines into messages resulted in an unacceptably long message. Merged message would have [4] lines and "
+            + "[119] characters (limit [100]). If you have messages this big please increase the value of [line_merge_size_limit]. "
+            + "Otherwise it probably means the timestamp has been incorrectly detected, so try overriding that.", e.getMessage());
+    }
+
     public void testCreateConfigsGivenElasticsearchLog() throws Exception {
         assertTrue(factory.canCreateFromSample(explanation, TEXT_SAMPLE));
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
         FileStructureFinder structureFinder = factory.createFromSample(explanation, TEXT_SAMPLE, charset, hasByteOrderMarker,
-            FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -66,8 +89,8 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker, overrides,
-            NOOP_TIMEOUT_CHECKER);
+        FileStructureFinder structureFinder = factory.createFromSample(explanation, sample, charset, hasByteOrderMarker,
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -102,8 +125,8 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(explanation, TEXT_SAMPLE, charset, hasByteOrderMarker, overrides,
-            NOOP_TIMEOUT_CHECKER);
+        FileStructureFinder structureFinder = factory.createFromSample(explanation, TEXT_SAMPLE, charset, hasByteOrderMarker,
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -139,8 +162,8 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
-        FileStructureFinder structureFinder = factory.createFromSample(explanation, TEXT_SAMPLE, charset, hasByteOrderMarker, overrides,
-            NOOP_TIMEOUT_CHECKER);
+        FileStructureFinder structureFinder = factory.createFromSample(explanation, TEXT_SAMPLE, charset, hasByteOrderMarker,
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER);
 
         FileStructure structure = structureFinder.getStructure();
 
@@ -181,7 +204,8 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> factory.createFromSample(explanation, TEXT_SAMPLE, charset, hasByteOrderMarker, overrides, NOOP_TIMEOUT_CHECKER));
+            () -> factory.createFromSample(explanation, TEXT_SAMPLE, charset, hasByteOrderMarker,
+                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER));
 
         assertEquals("Supplied Grok pattern [\\[%{LOGLEVEL:loglevel} *\\]\\[%{HOSTNAME:node}\\]\\[%{TIMESTAMP_ISO8601:timestamp}\\] " +
             "\\[%{JAVACLASS:class} *\\] %{JAVALOGMESSAGE:message}] does not match sample messages", e.getMessage());
@@ -200,8 +224,8 @@ public class TextLogFileStructureFinderTests extends FileStructureTestCase {
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> factory.createFromSample(explanation, sample, charset, hasByteOrderMarker, FileStructureOverrides.EMPTY_OVERRIDES,
-                NOOP_TIMEOUT_CHECKER));
+            () -> factory.createFromSample(explanation, sample, charset, hasByteOrderMarker,
+                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, FileStructureOverrides.EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER));
 
         assertEquals("Failed to create more than one message from the sample lines provided. (The last is discarded in "
             + "case the sample is incomplete.) If your sample does contain multiple messages the problem is probably that "

@@ -236,8 +236,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL xpackSecurityPluginQueryURL = queryXPackSecurityFeatureConfigURL(url);
 
         Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, true, true, null));
+        featureSets.add(new FeatureSet("logstash", true, true));
+        featureSets.add(new FeatureSet("security", true, true));
         FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
         XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
         String securityPluginQueryResponseBody = null;
@@ -267,8 +267,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponse);
 
         Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, false, false, null));
+        featureSets.add(new FeatureSet("logstash", true, true));
+        featureSets.add(new FeatureSet("security", false, false));
         FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
         XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
         String securityPluginQueryResponseBody = null;
@@ -298,8 +298,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponse);
 
         Set<FeatureSet> featureSets = new HashSet<>();
-        featureSets.add(new FeatureSet("logstash", null, true, true, null));
-        featureSets.add(new FeatureSet("security", null, true, false, null));
+        featureSets.add(new FeatureSet("logstash", true, true));
+        featureSets.add(new FeatureSet("security", true, false));
         FeatureSetsInfo featureInfos = new FeatureSetsInfo(featureSets);
         XPackInfoResponse xpackInfo = new XPackInfoResponse(null, null, featureInfos);
         String securityPluginQueryResponseBody = null;
@@ -416,7 +416,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             while (failCount-- > 0) {
                 String password1 = randomAlphaOfLength(randomIntBetween(3, 10));
                 terminal.addSecretInput(password1);
-                Validation.Error err = Validation.Users.validatePassword(password1.toCharArray());
+                Validation.Error err = Validation.Users.validatePassword(new SecureString(password1.toCharArray()));
                 if (err == null) {
                     // passes strength validation, fail by mismatch
                     terminal.addSecretInput(password1 + "typo");

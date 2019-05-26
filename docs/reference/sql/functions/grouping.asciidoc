@@ -44,14 +44,14 @@ NOTE:: The histogram in SQL does *NOT* return empty buckets for missing interval
 `Histogram` can be applied on either numeric fields:
 
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[histogramNumeric]
 ----
 
 or date/time fields:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[histogramDateTime]
 ----
@@ -59,14 +59,14 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[histogramDateTime]
 Expressions inside the histogram are also supported as long as the
 return type is numeric:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[histogramNumericExpression]
 ----
 
 Do note that histograms (and grouping functions in general) allow custom expressions but cannot have any functions applied to them in the `GROUP BY`. In other words, the following statement is *NOT* allowed:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[expressionOnHistogramNotAllowed]
 ----
@@ -75,7 +75,7 @@ as it requires two groupings (one for histogram followed by a second for applyin
 
 Instead one can rewrite the query to move the expression on the histogram _inside_ of it:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[histogramDateTimeExpression]
 ----

@@ -72,5 +72,4 @@
     - match:  { detail.tokenizer.tokens.0.token: foo }
     - match:  { detail.tokenizer.tokens.1.token: bar }
     - match:  { detail.tokenizer.tokens.2.token: buzz }
-    - match:  { detail.tokenfilters.0.name: "_anonymous_tokenfilter" }
     - match:  { detail.tokenfilters.0.tokens.0.token: bar }

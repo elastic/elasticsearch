@@ -21,6 +21,7 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions;
 import org.locationtech.jts.geom.Geometry;
@@ -70,7 +71,7 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
     protected void assertGeometryEquals(org.elasticsearch.geo.geometry.Geometry expected, XContentBuilder geoJson) throws IOException {
         try (XContentParser parser = createParser(geoJson)) {
             parser.nextToken();
-            assertEquals(expected, GeoJson.fromXContent(parser, true, false, false));
+            assertEquals(expected, new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
         }
     }
 

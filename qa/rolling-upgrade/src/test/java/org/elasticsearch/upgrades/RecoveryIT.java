@@ -356,7 +356,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // before timing out
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
-            if (getNodeId(v -> v.onOrAfter(Version.V_6_5_0)) != null && randomBoolean()) {
+            if (randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
             }
             createIndex(index, settings.build());
@@ -566,5 +566,23 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     assertThat(shardStats.toString(), globalCheckpoint, equalTo(maxSeqNo));
                 });
         }, 60, TimeUnit.SECONDS);
+    }
+
+    /** Ensure that we can always execute update requests regardless of the version of cluster */
+    public void testUpdateDoc() throws Exception {
+        final String index = "test_update_doc";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+            createIndex(index, settings.build());
+        }
+        ensureGreen(index);
+        indexDocs(index, 0, 10);
+        for (int i = 0; i < 10; i++) {
+            Request update = new Request("POST", index + "/_update/" + i);
+            update.setJsonEntity("{\"doc\": {\"f\": " + randomNonNegativeLong() + "}}");
+            client().performRequest(update);
+        }
     }
 }

@@ -61,7 +61,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             bucket.setInterim(randomBoolean());
         }
         if (randomBoolean()) {
-            bucket.setProcessingTimeMs(randomLong());
+            bucket.setProcessingTimeMs(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             int size = randomInt(10);

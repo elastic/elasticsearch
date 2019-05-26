@@ -35,7 +35,7 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
-  compile project(':libs:core')
+  compile project(':libs:elasticsearch-core')
 
   // pulls in the jar built by this project and its dependencies
   packagingTest project(path: project.path, configuration: 'runtime')

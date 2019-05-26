@@ -193,7 +193,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         boolean valid;
         String explanation = null;
         String error = null;
-        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(), request.types(),
+        ShardSearchLocalRequest shardSearchLocalRequest = new ShardSearchLocalRequest(request.shardId(),
             request.nowInMillis(), request.filteringAliases());
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         try {

@@ -1,3 +1,5 @@
+[role="xpack"]
+[testenv="basic"]
 [[sparse-vector]]
 === Sparse vector datatype
 

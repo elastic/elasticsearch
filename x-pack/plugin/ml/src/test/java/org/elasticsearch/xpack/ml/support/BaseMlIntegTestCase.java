@@ -23,23 +23,28 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -189,6 +194,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         logger.info("[{}#{}]: Cleaning up datafeeds and jobs after test", getTestClass().getSimpleName(), getTestName());
         deleteAllDatafeeds(logger, client());
         deleteAllJobs(logger, client());
+        deleteAllDataFrameAnalytics(client());
         assertBusy(() -> {
             RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries()
                     .setActiveOnly(true)
@@ -255,9 +261,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void deleteAllDatafeeds(Logger logger, Client client) throws Exception {
-        final MachineLearningClient mlClient = new MachineLearningClient(client);
         final QueryPage<DatafeedConfig> datafeeds =
-                mlClient.getDatafeeds(new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)).actionGet().getResponse();
+            client.execute(GetDatafeedsAction.INSTANCE, new GetDatafeedsAction.Request(GetDatafeedsAction.ALL)).actionGet().getResponse();
         try {
             logger.info("Closing all datafeeds (using _all)");
             StopDatafeedAction.Response stopResponse = client
@@ -295,8 +300,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void deleteAllJobs(Logger logger, Client client) throws Exception {
-        final MachineLearningClient mlClient = new MachineLearningClient(client);
-        final QueryPage<Job> jobs = mlClient.getJobs(new GetJobsAction.Request(MetaData.ALL)).actionGet().getResponse();
+        final QueryPage<Job> jobs =
+            client.execute(GetJobsAction.INSTANCE, new GetJobsAction.Request(MetaData.ALL)).actionGet().getResponse();
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
@@ -332,7 +337,33 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    public static void deleteAllDataFrameAnalytics(Client client) throws Exception {
+        final QueryPage<DataFrameAnalyticsConfig> analytics =
+            client.execute(GetDataFrameAnalyticsAction.INSTANCE,
+                new GetDataFrameAnalyticsAction.Request("_all")).get().getResources();
+
+        assertBusy(() -> {
+            GetDataFrameAnalyticsStatsAction.Response statsResponse =
+                client().execute(GetDataFrameAnalyticsStatsAction.INSTANCE, new GetDataFrameAnalyticsStatsAction.Request("_all")).get();
+            assertTrue(statsResponse.getResponse().results().stream().allMatch(s -> s.getState().equals(DataFrameAnalyticsState.STOPPED)));
+        });
+        for (final DataFrameAnalyticsConfig config : analytics.results()) {
+            client.execute(DeleteDataFrameAnalyticsAction.INSTANCE, new DeleteDataFrameAnalyticsAction.Request(config.getId())).actionGet();
+        }
+    }
+
     protected String awaitJobOpenedAndAssigned(String jobId, String queryNode) throws Exception {
+
+        PersistentTasksClusterService persistentTasksClusterService =
+            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName(queryNode));
+        // Speed up rechecks to a rate that is quicker than what settings would allow.
+        // The check would work eventually without doing this, but the assertBusy() below
+        // would need to wait 30 seconds, which would make the test run very slowly.
+        // The 1 second refresh puts a greater burden on the master node to recheck
+        // persistent tasks, but it will cope in these tests as it's not doing much
+        // else.
+        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueSeconds(1));
+
         AtomicReference<String> jobNode = new AtomicReference<>();
         assertBusy(() -> {
             GetJobsStatsAction.Response statsResponse =

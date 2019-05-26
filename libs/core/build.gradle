@@ -21,30 +21,20 @@ apply plugin: 'nebula.optional-base'
 apply plugin: 'nebula.maven-base-publish'
 apply plugin: 'nebula.maven-scm'
 
-archivesBaseName = 'elasticsearch-core'
-
-publishing {
-    publications {
-        nebula {
-            artifactId = archivesBaseName
-        }
-    }
-}
-
 dependencies {
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
     testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
-    if (isEclipse == false || project.path == ":libs:core-tests") {
-        testCompile("org.elasticsearch.test:framework:${version}") {
+    if (isEclipse == false || project.path == ":libs:elasticsearch-core-tests") {
+        testCompile(project(":test:framework")) {
             exclude group: 'org.elasticsearch', module: 'elasticsearch-core'
         }
     }
 }
 
 forbiddenApisMain {
-    // :libs:core does not depend on server
+    // :libs:elasticsearch-core does not depend on server
     // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server
     replaceSignatureFiles 'jdk-signatures'
 }
@@ -52,7 +42,7 @@ forbiddenApisMain {
 if (isEclipse) {
     // in eclipse the project is under a fake root, we need to change around the source sets
     sourceSets {
-        if (project.path == ":libs:core") {
+        if (project.path == ":libs:elasticsearch-core") {
             main.java.srcDirs = ['java']
             main.resources.srcDirs = ['resources']
         } else {

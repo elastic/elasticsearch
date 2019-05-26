@@ -76,6 +76,8 @@ to be the most efficient by using the internal mechanisms.
 --------------------------------------------------
 // NOTCONSOLE
 
+[role="xpack"]
+[testenv="basic"]
 [[vector-functions]]
 ===== Functions for vector fields
 
@@ -197,8 +199,7 @@ a vector function is executed, 0 is returned as a result
 for this document.
 
 NOTE: If a document's dense vector field has a number of dimensions
-different from the query's vector, 0 is used for missing dimensions
-in the calculations of vector functions.
+different from the query's vector, an error will be thrown.
 
 
 [[random-score-function]]

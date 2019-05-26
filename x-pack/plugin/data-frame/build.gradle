@@ -9,7 +9,7 @@ esplugin {
 }
 
 dependencies {
-    compileOnly "org.elasticsearch:elasticsearch:${version}"
+    compileOnly project(":server")
 
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')

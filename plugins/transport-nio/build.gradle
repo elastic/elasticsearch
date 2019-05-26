@@ -21,11 +21,10 @@ apply plugin: "nebula.maven-scm"
 esplugin {
     description 'The nio transport.'
     classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
-    hasClientJar = true
 }
 
 dependencies {
-    compile "org.elasticsearch:elasticsearch-nio:${version}"
+    compile project(':libs:elasticsearch-nio')
 
     // network stack
     compile "io.netty:netty-buffer:${versions.netty}"
@@ -52,6 +51,10 @@ thirdPartyAudit {
         // from io.netty.logging.CommonsLoggerFactory (netty)
         'org.apache.commons.logging.Log',
         'org.apache.commons.logging.LogFactory',
+
+        // from Log4j (deliberate, Netty will fallback to Log4j 2)
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
 
         // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
         'org.bouncycastle.cert.X509v3CertificateBuilder',

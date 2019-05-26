@@ -36,10 +36,7 @@ import java.util.function.Supplier;
 
 public class InternalSettingsPreparer {
 
-    /**
-     * Prepares settings for the transport client by gathering all
-     * elasticsearch system properties and setting defaults.
-     */
+    // TODO: refactor this method out, it used to exist for the transport client
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, Collections.emptyMap());

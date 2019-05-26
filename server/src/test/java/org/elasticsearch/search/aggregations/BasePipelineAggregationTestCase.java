@@ -77,7 +77,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        SearchModule searchModule = new SearchModule(settings, false, emptyList());
+        SearchModule searchModule = new SearchModule(settings, emptyList());
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());

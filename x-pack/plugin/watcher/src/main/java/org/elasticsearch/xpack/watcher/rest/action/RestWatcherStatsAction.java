@@ -6,17 +6,18 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.DeprecationLogger;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
-import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -24,7 +25,7 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestWatcherStatsAction extends WatcherRestHandler {
+public class RestWatcherStatsAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestWatcherStatsAction.class);
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
@@ -33,10 +34,10 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
             GET, "/_watcher/stats", this,
-            GET, URI_BASE + "/watcher/stats", deprecationLogger);
+            GET, "/_xpack/watcher/stats", deprecationLogger);
         controller.registerWithDeprecatedHandler(
             GET, "/_watcher/stats/{metric}", this,
-            GET, URI_BASE + "/watcher/stats/{metric}", deprecationLogger);
+            GET, "/_xpack/watcher/stats/{metric}", deprecationLogger);
     }
 
     @Override
@@ -45,7 +46,7 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer doPrepareRequest(final RestRequest restRequest, WatcherClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(final RestRequest restRequest, NodeClient client) throws IOException {
         Set<String> metrics = Strings.tokenizeByCommaToSet(restRequest.param("metric", ""));
 
         WatcherStatsRequest request = new WatcherStatsRequest();
@@ -62,7 +63,7 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
         }
 
 
-        return channel -> client.watcherStats(request, new RestActions.NodesResponseRestListener<>(channel));
+        return channel -> client.execute(WatcherStatsAction.INSTANCE, request, new RestActions.NodesResponseRestListener<>(channel));
     }
 
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton("emit_stacktraces");

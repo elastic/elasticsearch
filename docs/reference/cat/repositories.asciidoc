@@ -19,6 +19,6 @@ id    type
 repo1   fs
 repo2   s3
 --------------------------------------------------
-// TESTRESPONSE[s/\nrepo2   s3// _cat]
+// TESTRESPONSE[s/\nrepo2   s3// non_json]
 
 We can quickly see which repositories are registered and their type.

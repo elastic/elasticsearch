@@ -291,7 +291,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertMultiGetResponse(highLevelClient().mget(multiGetRequest, RequestOptions.DEFAULT), testDocs);
     }
 
-    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndSingleRequest() throws Exception {
         createIndexWithMultipleShards("test");
 
@@ -326,7 +325,6 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         assertThat(blogs, everyItem(hasProperty(fieldFromSource("fieldNameXYZ"), equalTo("valueXYZ"))));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGlobalParametersAndBulkProcessor() throws Exception {
         createIndexWithMultipleShards("test");
 

@@ -23,9 +23,7 @@ dependencyLicenses {
 }
 
 dependencies {
-    compileOnly "org.elasticsearch:elasticsearch:${version}"
-
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+    compileOnly project(':server')
     compileOnly project(path: xpackModule('core'), configuration: 'default')
     compileOnly project(path: ':modules:transport-netty4', configuration: 'runtime')
     compileOnly project(path: ':plugins:transport-nio', configuration: 'runtime')
@@ -34,7 +32,7 @@ dependencies {
     if (isEclipse) {
       testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
     }
-    testCompile "org.elasticsearch.plugin:x-pack-ilm:${version}"
+    testCompile project(xpackModule('ilm'))
 
     // watcher deps
     compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'

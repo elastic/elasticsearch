@@ -277,7 +277,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/xpack/restart/" + watch);
     }
 
-    @SuppressWarnings("unchecked")
     private void assertOldTemplatesAreDeleted() throws IOException {
         Map<String, Object> templates = entityAsMap(client().performRequest(new Request("GET", "/_template")));
         assertThat(templates.keySet(), not(hasItems(is("watches"), startsWith("watch-history"), is("triggered_watches"))));

@@ -18,15 +18,17 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.GradleServicesAdapter;
 import org.elasticsearch.gradle.Distribution;
 import org.elasticsearch.gradle.FileSupplier;
+import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.http.WaitForHttpResource;
+import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.tasks.Nested;
 
 import java.io.File;
 import java.io.IOException;
@@ -47,7 +49,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-public class ElasticsearchCluster implements TestClusterConfiguration {
+public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
     private static final int CLUSTER_UP_TIMEOUT = 40;
@@ -60,21 +62,23 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     private final File workingDirBase;
     private final File artifactsExtractDir;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final GradleServicesAdapter services;
+    private final Project project;
 
     public ElasticsearchCluster(String path, String clusterName, Project project, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
         this.clusterName = clusterName;
+        this.project = project;
         this.workingDirBase = workingDirBase;
         this.artifactsExtractDir = artifactsExtractDir;
-        this.services = GradleServicesAdapter.getInstance(project);
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
                 path, clusterName + "-0",
-                services, artifactsExtractDir, workingDirBase
+                project, artifactsExtractDir, workingDirBase
             )
         );
+        // configure the cluster name eagerly so nodes know about it
+        this.nodes.all((node) -> node.defaultConfig.put("cluster.name", safeName(clusterName)));
 
         addWaitForClusterHealth();
     }
@@ -94,7 +98,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
         for (int i = nodes.size() ; i < numberOfNodes; i++) {
             this.nodes.add(new ElasticsearchNode(
-                path, clusterName + "-" + i, services, artifactsExtractDir, workingDirBase
+                path, clusterName + "-" + i, project, artifactsExtractDir, workingDirBase
             ));
         }
     }
@@ -152,6 +156,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
+    public void keystore(String key, File value, PropertyNormalization normalization) {
+        nodes.all(each -> each.keystore(key, value, normalization));
+    }
+
+    @Override
     public void keystore(String key, FileSupplier valueSupplier) {
         nodes.all(each -> each.keystore(key, valueSupplier));
     }
@@ -162,8 +171,18 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
+    public void setting(String key, String value, PropertyNormalization normalization) {
+        nodes.all(each -> each.setting(key, value, normalization));
+    }
+
+    @Override
     public void setting(String key, Supplier<CharSequence> valueSupplier) {
         nodes.all(each -> each.setting(key, valueSupplier));
+    }
+
+    @Override
+    public void setting(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
+        nodes.all(each -> each.setting(key, valueSupplier, normalization));
     }
 
     @Override
@@ -177,6 +196,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
+    public void systemProperty(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
+        nodes.all(each -> each.systemProperty(key, valueSupplier, normalization));
+    }
+
+    @Override
     public void environment(String key, String value) {
         nodes.all(each -> each.environment(key, value));
     }
@@ -184,6 +208,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     @Override
     public void environment(String key, Supplier<CharSequence> valueSupplier) {
         nodes.all(each -> each.environment(key, valueSupplier));
+    }
+
+    @Override
+    public void environment(String key, Supplier<CharSequence> valueSupplier, PropertyNormalization normalization) {
+        nodes.all(each -> each.environment(key, valueSupplier, normalization));
+    }
+
+    @Override
+    public void jvmArgs(String... values) {
+        nodes.all(each -> each.jvmArgs(values));
     }
 
     @Override
@@ -205,20 +239,38 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
 
     @Override
     public void start() {
-        String nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
+        final String nodeNames;
+        if (nodes.stream().map(ElasticsearchNode::getName).anyMatch( name -> name == null)) {
+            nodeNames = null;
+        } else {
+            nodeNames = nodes.stream().map(ElasticsearchNode::getName).collect(Collectors.joining(","));
+        };
         for (ElasticsearchNode node : nodes) {
-            node.defaultConfig.put("cluster.name", safeName(clusterName));
-            if (Version.fromString(node.getVersion()).getMajor() >= 7) {
-                node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
-                node.defaultConfig.put("discovery.seed_providers", "file");
+            if (nodeNames != null) {
+                // Can only configure master nodes if we have node names defined
+                if (Version.fromString(node.getVersion()).getMajor() >= 7) {
+                    node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                    node.defaultConfig.put("discovery.seed_providers", "file");
+                    node.defaultConfig.put("discovery.seed_hosts", "[]");
+                }
             }
             node.start();
         }
     }
 
     @Override
+    public void restart() {
+        nodes.forEach(ElasticsearchNode::restart);
+    }
+
+    @Override
     public void extraConfigFile(String destination, File from) {
         nodes.all(node -> node.extraConfigFile(destination, from));
+    }
+
+    @Override
+    public void extraConfigFile(String destination, File from, PropertyNormalization normalization) {
+        nodes.all(node -> node.extraConfigFile(destination, from, normalization));
     }
 
     @Override
@@ -262,14 +314,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     public void waitForAllConditions() {
-        long startedAt = System.currentTimeMillis();
         LOGGER.info("Waiting for nodes");
         nodes.forEach(ElasticsearchNode::waitForAllConditions);
 
         writeUnicastHostsFiles();
 
         LOGGER.info("Starting to wait for cluster to form");
-        waitForConditions(waitConditions, startedAt, CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
+        waitForConditions(waitConditions, System.currentTimeMillis(), CLUSTER_UP_TIMEOUT, CLUSTER_UP_TIMEOUT_UNIT, this);
     }
 
     @Override
@@ -305,9 +356,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     private void addWaitForClusterHealth() {
         waitConditions.put("cluster health yellow", (node) -> {
             try {
+                boolean httpSslEnabled = getFirstNode().isHttpSslEnabled();
                 WaitForHttpResource wait = new WaitForHttpResource(
-                    "http", getFirstNode().getHttpSocketURI(), nodes.size()
+                    httpSslEnabled ? "https" : "http",
+                    getFirstNode().getHttpSocketURI(),
+                    nodes.size()
                 );
+                if (httpSslEnabled) {
+
+                    getFirstNode().configureHttpWait(wait);
+                }
                 List<Map<String, String>> credentials = getFirstNode().getCredentials();
                 if (getFirstNode().getCredentials().isEmpty() == false) {
                     wait.setUsername(credentials.get(0).get("useradd"));
@@ -315,7 +373,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 }
                 return wait.wait(500);
             } catch (IOException e) {
-                throw new IllegalStateException("Connection attempt to " + this + " failed", e);
+                throw new UncheckedIOException("IO error while waiting cluster", e);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new TestClustersException("Interrupted while waiting for " + this, e);
@@ -323,6 +381,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
                 throw new RuntimeException("security exception", e);
             }
         });
+    }
+
+    @Nested
+    public NamedDomainObjectContainer<ElasticsearchNode> getNodes() {
+        return nodes;
     }
 
     @Override

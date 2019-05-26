@@ -17,9 +17,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -52,23 +52,24 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final String[] names = request.paramAsStringArrayOrEmptyIfAll("name");
-        return channel -> new SecurityClient(client).prepareGetRoleMappings(names)
-                .execute(new RestBuilderListener<GetRoleMappingsResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetRoleMappingsResponse response, XContentBuilder builder) throws Exception {
-                        builder.startObject();
-                        for (ExpressionRoleMapping mapping : response.mappings()) {
-                            builder.field(mapping.getName(), mapping);
-                        }
-                        builder.endObject();
-
-                        // if the request specified mapping names, but nothing was found then return a 404 result
-                        if (names.length != 0 && response.mappings().length == 0) {
-                            return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
-                        } else {
-                            return new BytesRestResponse(RestStatus.OK, builder);
-                        }
+        return channel -> new GetRoleMappingsRequestBuilder(client)
+            .names(names)
+            .execute(new RestBuilderListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(GetRoleMappingsResponse response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    for (ExpressionRoleMapping mapping : response.mappings()) {
+                        builder.field(mapping.getName(), mapping);
                     }
-                });
+                    builder.endObject();
+
+                    // if the request specified mapping names, but nothing was found then return a 404 result
+                    if (names.length != 0 && response.mappings().length == 0) {
+                        return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    } else {
+                        return new BytesRestResponse(RestStatus.OK, builder);
+                    }
+                }
+            });
     }
 }

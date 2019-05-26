@@ -134,7 +134,7 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
      * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
      */
     private static String getProtocol() {
-        String version = AccessController.doPrivileged((PrivilegedAction<String>) () -> System.getProperty("java.version"));
+        String version = AccessController.doPrivileged((PrivilegedAction<String>) () -> System.getProperty("java.specification.version"));
         String[] components = version.split("\\.");
         if (components.length > 0) {
             final int major = Integer.valueOf(components[0]);

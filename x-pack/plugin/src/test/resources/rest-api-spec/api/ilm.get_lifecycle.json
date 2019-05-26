@@ -1,9 +1,9 @@
 {
   "ilm.get_lifecycle": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-get-lifecycle.html",
+    "stability": "stable",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ilm/policy/{policy}",
       "paths": ["/_ilm/policy/{policy}", "/_ilm/policy"],
       "parts": {
         "policy": {

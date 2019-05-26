@@ -34,6 +34,7 @@ import org.elasticsearch.geo.geometry.MultiPolygon;
 import org.elasticsearch.geo.geometry.Point;
 import org.elasticsearch.geo.geometry.Polygon;
 import org.elasticsearch.geo.geometry.Rectangle;
+import org.elasticsearch.geo.utils.GeographyValidator;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -49,6 +50,7 @@ public class GeoJsonSerializationTests extends ESTestCase {
     private static class GeometryWrapper implements ToXContentObject {
 
         private Geometry geometry;
+        private static GeoJson PARSER = new GeoJson(true, false, new GeographyValidator(true));
 
         GeometryWrapper(Geometry geometry) {
             this.geometry = geometry;
@@ -61,7 +63,7 @@ public class GeoJsonSerializationTests extends ESTestCase {
 
         public static GeometryWrapper fromXContent(XContentParser parser) throws IOException {
             parser.nextToken();
-            return new GeometryWrapper(GeoJson.fromXContent(parser, true, false, true));
+            return new GeometryWrapper(PARSER.fromXContent(parser));
         }
 
         @Override

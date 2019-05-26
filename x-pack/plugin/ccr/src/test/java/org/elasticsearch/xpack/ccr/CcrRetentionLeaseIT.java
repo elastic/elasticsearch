@@ -88,7 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
-@TestLogging(value = "org.elasticsearch.xpack.ccr:trace,org.elasticsearch.indices.recovery:trace")
+@TestLogging(value = "org.elasticsearch.xpack.ccr:trace,org.elasticsearch.indices.recovery:trace,org.elasticsearch.index.seqno:debug")
 public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     public static final class RetentionLeaseRenewIntervalSettingPlugin extends Plugin {

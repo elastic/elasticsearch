@@ -114,7 +114,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
                 "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
                 "Prefix your date format with '8' to use the new specifier.");
         } else {
-            assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
+            assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
                 "Prefix your date format with '8' to use the new specifier.");
         }
     }

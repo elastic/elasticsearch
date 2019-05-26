@@ -34,11 +34,6 @@ import java.util.Collections;
 import java.util.HashSet;
 
 public class LegacyMapperServiceTests extends ESSingleNodeTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     @Override
     protected boolean forbidPrivateIndexSettings() {

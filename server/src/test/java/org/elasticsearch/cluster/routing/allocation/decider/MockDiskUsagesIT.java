@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +43,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MockDiskUsagesIT extends ESIntegTestCase {
@@ -131,4 +135,95 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             assertThat("node3 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(2)), greaterThanOrEqualTo(3));
         });
     }
+
+    public void testAutomaticReleaseOfIndexBlock() throws Exception {
+        List<String> nodes = internalCluster().startNodes(3);
+
+        // Wait for all 3 nodes to be up
+        assertBusy(() -> {
+            NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
+            assertThat(resp.getNodes().size(), equalTo(3));
+        });
+
+        // Start with all nodes at 50% usage
+        final MockInternalClusterInfoService cis = (MockInternalClusterInfoService)
+            internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        cis.setUpdateFrequency(TimeValue.timeValueMillis(100));
+        cis.onMaster();
+        cis.setN1Usage(nodes.get(0), new DiskUsage(nodes.get(0), "n1", "/dev/null", 100, 50));
+        cis.setN2Usage(nodes.get(1), new DiskUsage(nodes.get(1), "n2", "/dev/null", 100, 50));
+        cis.setN3Usage(nodes.get(2), new DiskUsage(nodes.get(2), "n3", "/dev/null", 100, 50));
+
+        final boolean watermarkBytes = randomBoolean(); // we have to consistently use bytes or percentage for the disk watermark settings
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "15b" : "85%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), watermarkBytes ? "10b" : "90%")
+            .put(
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
+                watermarkBytes ? "5b" : "95%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "150ms")).get();
+        // Create an index with 10 shards so we can check allocation for it
+        prepareCreate("test").setSettings(Settings.builder()
+            .put("number_of_shards", 6)
+            .put("number_of_replicas", 0)
+            .put("index.routing.allocation.exclude._name", "")).get();
+        ensureGreen("test");
+
+        // Block until the "fake" cluster info is retrieved at least once
+        assertBusy(() -> {
+            ClusterInfo info = cis.getClusterInfo();
+            logger.info("--> got: {} nodes", info.getNodeLeastAvailableDiskUsages().size());
+            assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThan(0));
+        });
+
+        final List<String> realNodeNames = new ArrayList<>();
+        ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+        Iterator<RoutingNode> iter = resp.getState().getRoutingNodes().iterator();
+        while (iter.hasNext()) {
+            RoutingNode node = iter.next();
+            realNodeNames.add(node.nodeId());
+            logger.info("--> node {} has {} shards",
+                node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
+        }
+
+        client().prepareIndex().setIndex("test").setType("doc").setId("1").setSource("foo", "bar").get();
+        refresh();
+        assertSearchHits(client().prepareSearch().get(), "1");
+
+        // Block all nodes so that re-balancing does not occur (BalancedShardsAllocator)
+        cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", "_na_", 100, 3));
+        cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 3));
+        cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 3));
+
+        refresh();
+        // Wait until index "test" is blocked
+        assertBusy(() -> {
+            assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("2").setSource("foo", "bar"),
+                IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        });
+
+        // Cannot add further documents
+        assertBlocked(client().prepareIndex().setIndex("test").setType("doc").setId("3").setSource("foo", "bar"),
+            IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+        refresh();
+        assertSearchHits(client().prepareSearch().get(), "1", "2");
+
+        // Update the disk usages so all nodes are back under the high and flood watermarks
+        cis.setN1Usage(realNodeNames.get(0), new DiskUsage(nodes.get(0), "n1", "_na_", 100, 11));
+        cis.setN2Usage(realNodeNames.get(1), new DiskUsage(nodes.get(1), "n2", "_na_", 100, 11));
+        cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 11));
+
+        refresh();
+        // Attempt to create a new document until DiskUsageMonitor unblocks the index
+        assertBusy(() -> {
+            try {
+                client().prepareIndex().setIndex("test").setType("doc").setId("3").setSource("foo", "bar").get();
+            } catch (ClusterBlockException e) {
+                fail();
+            }
+        });
+        refresh();
+        assertSearchHits(client().prepareSearch().get(), "1", "2", "3");
+    }
+
 }

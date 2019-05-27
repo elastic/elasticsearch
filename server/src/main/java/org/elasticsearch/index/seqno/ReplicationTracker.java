@@ -21,7 +21,6 @@ package org.elasticsearch.index.seqno;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
@@ -182,6 +181,18 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private RetentionLeases retentionLeases = RetentionLeases.EMPTY;
 
     /**
+     * The primary term of the most-recently persisted retention leases. This is used to check if we need to persist the current retention
+     * leases.
+     */
+    private long persistedRetentionLeasesPrimaryTerm;
+
+    /**
+     * The version of the most-recently persisted retention leases. This is used to check if we need to persist the current retention
+     * leases.
+     */
+    private long persistedRetentionLeasesVersion;
+
+    /**
      * Get all retention leases tracked on this shard.
      *
      * @return the retention leases
@@ -210,12 +221,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 .leases()
                 .stream()
                 .collect(Collectors.groupingBy(lease -> currentTimeMillis - lease.timestamp() > retentionLeaseMillis));
-        if (partitionByExpiration.get(true) == null) {
+        final Collection<RetentionLease> expiredLeases = partitionByExpiration.get(true);
+        if (expiredLeases == null) {
             // early out as no retention leases have expired
+            logger.debug("no retention leases are expired from current retention leases [{}]", retentionLeases);
             return Tuple.tuple(false, retentionLeases);
         }
         final Collection<RetentionLease> nonExpiredLeases =
                 partitionByExpiration.get(false) != null ? partitionByExpiration.get(false) : Collections.emptyList();
+        logger.debug("expiring retention leases [{}] from current retention leases [{}]", expiredLeases, retentionLeases);
         retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
         return Tuple.tuple(true, retentionLeases);
     }
@@ -244,6 +258,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 throw new RetentionLeaseAlreadyExistsException(id);
             }
             retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
+            logger.debug("adding new retention lease [{}] to current retention leases [{}]", retentionLease, retentionLeases);
             retentionLeases = new RetentionLeases(
                     operationPrimaryTerm,
                     retentionLeases.version() + 1,
@@ -301,6 +316,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             if (retentionLeases.contains(id) == false) {
                 throw new RetentionLeaseNotFoundException(id);
             }
+            logger.debug("removing retention lease [{}] from current retention leases [{}]", id, retentionLeases);
             retentionLeases = new RetentionLeases(
                     operationPrimaryTerm,
                     retentionLeases.version() + 1,
@@ -343,7 +359,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private final Object retentionLeasePersistenceLock = new Object();
 
     /**
-     * Persists the current retention leases to their dedicated state file.
+     * Persists the current retention leases to their dedicated state file. If this version of the retention leases are already persisted
+     * then persistence is skipped.
      *
      * @param path the path to the directory containing the state file
      * @throws WriteStateException if an exception occurs writing the state file
@@ -352,10 +369,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         synchronized (retentionLeasePersistenceLock) {
             final RetentionLeases currentRetentionLeases;
             synchronized (this) {
+                if (retentionLeases.supersedes(persistedRetentionLeasesPrimaryTerm, persistedRetentionLeasesVersion) == false) {
+                    logger.trace("skipping persisting retention leases [{}], already persisted", retentionLeases);
+                    return;
+                }
                 currentRetentionLeases = retentionLeases;
             }
             logger.trace("persisting retention leases [{}]", currentRetentionLeases);
             RetentionLeases.FORMAT.writeAndCleanup(currentRetentionLeases, path);
+            persistedRetentionLeasesPrimaryTerm = currentRetentionLeases.primaryTerm();
+            persistedRetentionLeasesVersion = currentRetentionLeases.version();
         }
     }
 

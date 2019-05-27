@@ -20,8 +20,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
@@ -64,14 +62,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings())
-//                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                .build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
         plugins.remove(MockTransportService.TestPlugin.class); // security has its own transport service
@@ -82,12 +72,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateMonitoring.class, MockPainlessScriptEngine.TestPlugin.class,
-                MockIngestPlugin.class, CommonAnalysisPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, MockPainlessScriptEngine.TestPlugin.class,
                 MockIngestPlugin.class, CommonAnalysisPlugin.class);
     }
 

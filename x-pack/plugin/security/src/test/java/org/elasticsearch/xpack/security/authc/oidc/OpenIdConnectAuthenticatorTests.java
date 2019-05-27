@@ -37,6 +37,8 @@ import com.nimbusds.openid.connect.sdk.Nonce;
 import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.InvalidHashException;
+import net.minidev.json.JSONArray;
+import net.minidev.json.JSONObject;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -72,6 +74,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import static java.time.Instant.now;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -96,7 +99,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     @After
     public void cleanup() {
-        authenticator.close();
+        if (authenticator != null) {
+            authenticator.close();
+        }
     }
 
     private OpenIdConnectAuthenticator buildAuthenticator() throws URISyntaxException {
@@ -630,6 +635,140 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse or validate the ID Token"));
         assertThat(e.getCause(), instanceOf(BadJWTException.class));
         assertThat(e.getCause().getMessage(), containsString("Signed ID token expected"));
+    }
+
+    public void testJsonObjectMerging() throws Exception {
+        final Nonce nonce = new Nonce();
+        final String subject = "janedoe";
+        final Tuple<Key, JWKSet> keyMaterial = getRandomJwkForType(randomFrom("ES", "RS"));
+        final JWK jwk = keyMaterial.v2().getKeys().get(0);
+        RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
+        OpenIdConnectProviderConfiguration opConfig = getOpConfig();
+        JSONObject address = new JWTClaimsSet.Builder()
+            .claim("street_name", "12, Test St.")
+            .claim("locality", "New York")
+            .claim("region", "NY")
+            .claim("country", "USA")
+            .build()
+            .toJSONObject();
+        JSONObject idTokenObject = new JWTClaimsSet.Builder()
+            .jwtID(randomAlphaOfLength(8))
+            .audience(rpConfig.getClientId().getValue())
+            .expirationTime(Date.from(now().plusSeconds(3600)))
+            .issuer(opConfig.getIssuer().getValue())
+            .issueTime(Date.from(now().minusSeconds(200)))
+            .notBeforeTime(Date.from(now().minusSeconds(200)))
+            .claim("nonce", nonce)
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", "Doe")
+            .claim("profile", "https://test-profiles.com/jane.doe")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@example.com")
+            .claim("roles", new JSONArray().appendElement("role1").appendElement("role2").appendElement("role3"))
+            .claim("address", address)
+            .subject(subject)
+            .build()
+            .toJSONObject();
+
+        JSONObject userinfoObject = new JWTClaimsSet.Builder()
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", "Doe")
+            .claim("profile", "https://test-profiles.com/jane.doe")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@example.com")
+            .subject(subject)
+            .build()
+            .toJSONObject();
+
+        OpenIdConnectAuthenticator.mergeObjects(idTokenObject, userinfoObject);
+        assertTrue(idTokenObject.containsKey("given_name"));
+        assertTrue(idTokenObject.containsKey("family_name"));
+        assertTrue(idTokenObject.containsKey("profile"));
+        assertTrue(idTokenObject.containsKey("name"));
+        assertTrue(idTokenObject.containsKey("email"));
+        assertTrue(idTokenObject.containsKey("address"));
+        assertTrue(idTokenObject.containsKey("roles"));
+        assertTrue(idTokenObject.containsKey("nonce"));
+        assertTrue(idTokenObject.containsKey("sub"));
+        assertTrue(idTokenObject.containsKey("jti"));
+        assertTrue(idTokenObject.containsKey("aud"));
+        assertTrue(idTokenObject.containsKey("exp"));
+        assertTrue(idTokenObject.containsKey("iss"));
+        assertTrue(idTokenObject.containsKey("iat"));
+        assertTrue(idTokenObject.containsKey("email"));
+
+        // Claims with different types throw an error
+        JSONObject wrongTypeInfo = new JWTClaimsSet.Builder()
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", 123334434)
+            .claim("profile", "https://test-profiles.com/jane.doe")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@example.com")
+            .subject(subject)
+            .build()
+            .toJSONObject();
+
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
+            OpenIdConnectAuthenticator.mergeObjects(idTokenObject, wrongTypeInfo);
+        });
+
+        // Userinfo Claims overwrite ID Token claims
+        JSONObject overwriteUserInfo = new JWTClaimsSet.Builder()
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", "Doe")
+            .claim("profile", "https://test-profiles.com/jane.doe2")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@mail.com")
+            .subject(subject)
+            .build()
+            .toJSONObject();
+
+        OpenIdConnectAuthenticator.mergeObjects(idTokenObject, overwriteUserInfo);
+        assertThat(idTokenObject.getAsString("email"), equalTo("jane.doe@example.com"));
+        assertThat(idTokenObject.getAsString("profile"), equalTo("https://test-profiles.com/jane.doe"));
+
+        // Merging Arrays
+        JSONObject userInfoWithRoles = new JWTClaimsSet.Builder()
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", "Doe")
+            .claim("profile", "https://test-profiles.com/jane.doe")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@example.com")
+            .claim("roles", new JSONArray().appendElement("role4").appendElement("role5"))
+            .subject(subject)
+            .build()
+            .toJSONObject();
+
+        OpenIdConnectAuthenticator.mergeObjects(idTokenObject, userInfoWithRoles);
+        assertThat((JSONArray) idTokenObject.get("roles"), containsInAnyOrder("role1", "role2", "role3", "role4", "role5"));
+
+        // Merging nested objects
+        JSONObject addressUserInfo = new JWTClaimsSet.Builder()
+            .claim("street_name", "12, Test St.")
+            .claim("locality", "New York")
+            .claim("postal_code", "10024")
+            .build()
+            .toJSONObject();
+        JSONObject userInfoWithAddress = new JWTClaimsSet.Builder()
+            .claim("given_name", "Jane Doe")
+            .claim("family_name", "Doe")
+            .claim("profile", "https://test-profiles.com/jane.doe")
+            .claim("name", "Jane")
+            .claim("email", "jane.doe@example.com")
+            .claim("roles", new JSONArray().appendElement("role4").appendElement("role5"))
+            .claim("address", addressUserInfo)
+            .subject(subject)
+            .build()
+            .toJSONObject();
+        OpenIdConnectAuthenticator.mergeObjects(idTokenObject, userInfoWithAddress);
+        assertTrue(idTokenObject.containsKey("address"));
+        JSONObject combinedAddress = (JSONObject) idTokenObject.get("address");
+        assertTrue(combinedAddress.containsKey("street_name"));
+        assertTrue(combinedAddress.containsKey("locality"));
+        assertTrue(combinedAddress.containsKey("street_name"));
+        assertTrue(combinedAddress.containsKey("postal_code"));
+        assertTrue(combinedAddress.containsKey("region"));
+        assertTrue(combinedAddress.containsKey("country"));
     }
 
     private OpenIdConnectProviderConfiguration getOpConfig() throws URISyntaxException {

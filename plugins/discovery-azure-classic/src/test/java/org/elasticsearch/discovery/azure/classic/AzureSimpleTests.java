@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST,
     numDataNodes = 0,
-    transportClientRatio = 0.0,
     numClientNodes = 0)
 public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
 

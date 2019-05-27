@@ -14,12 +14,17 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheck
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformCheckpointTests;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfigTests;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStatsTests;
 import org.elasticsearch.xpack.dataframe.DataFrameSingleNodeTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -216,5 +221,41 @@ public class DataFrameTransformsConfigManagerTests extends DataFrameSingleNodeTe
                     equalTo(DataFrameMessages.getMessage(DataFrameMessages.REST_DATA_FRAME_UNKNOWN_TRANSFORM, "unknown,unknown2")));
             });
 
+    }
+
+    public void testStateAndStats() throws InterruptedException {
+        String transformId = "transform_test_stats_create_read_update";
+
+        DataFrameTransformStateAndStats stateAndStats =
+                DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(transformId);
+
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStats(stateAndStats, listener), Boolean.TRUE, null, null);
+        assertAsync(listener -> transformsConfigManager.getTransformStats(transformId, listener), stateAndStats, null, null);
+
+        DataFrameTransformStateAndStats updated =
+                DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(transformId);
+        assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStats(updated, listener), Boolean.TRUE, null, null);
+        assertAsync(listener -> transformsConfigManager.getTransformStats(transformId, listener), updated, null, null);
+    }
+
+    public void testGetStateAndStatsMultiple() throws InterruptedException {
+        int numStats = randomInt(5);
+        List<DataFrameTransformStateAndStats> expectedStats = new ArrayList<>();
+        for (int i=0; i<numStats; i++) {
+            DataFrameTransformStateAndStats stat =
+                    DataFrameTransformStateAndStatsTests.randomDataFrameTransformStateAndStats(randomAlphaOfLength(6));
+            expectedStats.add(stat);
+            assertAsync(listener -> transformsConfigManager.putOrUpdateTransformStats(stat, listener), Boolean.TRUE, null, null);
+        }
+
+        // remove one of the put stats so we don't retrieve all
+        if (expectedStats.size() > 1) {
+            expectedStats.remove(expectedStats.size() -1);
+        }
+        List<String> ids = expectedStats.stream().map(DataFrameTransformStateAndStats::getId).collect(Collectors.toList());
+
+        // get stats will be ordered by id
+        expectedStats.sort(Comparator.comparing(DataFrameTransformStateAndStats::getId));
+        assertAsync(listener -> transformsConfigManager.getTransformStats(ids, listener), expectedStats, null, null);
     }
 }

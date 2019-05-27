@@ -372,7 +372,7 @@ public class MockNioTransport extends TcpTransport {
                 }
             }
             if (stopped == false) {
-                threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
+                threadPool.scheduleUnlessShuttingDown(CHECK_INTERVAL, ThreadPool.Names.GENERIC, this::logLongRunningExecutions);
             }
         }
 

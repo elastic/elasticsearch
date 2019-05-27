@@ -305,7 +305,6 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     private final Settings settings;
     private final Environment env;
     private final boolean enabled;
-    private final boolean transportClientMode;
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
@@ -314,8 +313,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
     public MachineLearning(Settings settings, Path configPath) {
         this.settings = settings;
         this.enabled = XPackSettings.MACHINE_LEARNING_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.env = transportClientMode ? null : new Environment(settings, configPath);
+        this.env = new Environment(settings, configPath);
     }
 
     protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
@@ -349,7 +347,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
         String maxOpenJobsPerNodeNodeAttrName = "node.attr." + MAX_OPEN_JOBS_NODE_ATTR;
         String machineMemoryAttrName = "node.attr." + MACHINE_MEMORY_NODE_ATTR;
 
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
             return Settings.EMPTY;
         }
@@ -405,7 +403,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager, empty if ML is disabled
             return Collections.singletonList(new JobManagerHolder());
         }
@@ -506,7 +504,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
                                                                        ThreadPool threadPool,
                                                                        Client client,
                                                                        SettingsModule settingsModule) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return emptyList();
         }
 
@@ -519,15 +517,9 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-
-        if (transportClientMode) {
-            return modules;
-        }
-
         modules.add(b -> {
             XPackPlugin.bindFeatureSet(b, MachineLearningFeatureSet.class);
         });
-
         return modules;
     }
 
@@ -650,7 +642,7 @@ public class MachineLearning extends Plugin implements ActionPlugin, AnalysisPlu
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled || transportClientMode) {
+        if (false == enabled) {
             return emptyList();
         }
 

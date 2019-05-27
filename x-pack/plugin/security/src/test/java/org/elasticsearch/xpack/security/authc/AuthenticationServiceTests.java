@@ -1249,11 +1249,12 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
                 GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
-                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
+                    BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap(), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
                 listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null, Collections.emptyMap())));
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null,
+                    Collections.emptyMap(), Collections.emptyMap())));
             }
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
@@ -1288,11 +1289,12 @@ public class AuthenticationServiceTests extends ESTestCase {
                 creatorMap.put("realm", "auth realm");
                 source.put("creator", creatorMap);
                 GetResponse getResponse = new GetResponse(new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
-                        BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap()));
+                        BytesReference.bytes(JsonXContent.contentBuilder().map(source)), Collections.emptyMap(), Collections.emptyMap()));
                 listener.onResponse(getResponse);
             } else {
                 listener.onResponse(new GetResponse(new GetResult(request.index(), request.type(), request.id(),
-                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null, Collections.emptyMap())));
+                        SequenceNumbers.UNASSIGNED_SEQ_NO, 1, -1L, false, null,
+                    Collections.emptyMap(), Collections.emptyMap())));
             }
             return Void.TYPE;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));

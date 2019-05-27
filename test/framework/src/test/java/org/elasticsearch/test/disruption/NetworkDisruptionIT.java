@@ -19,14 +19,22 @@
 
 package org.elasticsearch.test.disruption;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -34,6 +42,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -102,4 +112,56 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
         }
     }
 
+    public void testTransportRespondsEventually() throws InterruptedException {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(3, 5));
+        final NetworkDisruption.DisruptedLinks disruptedLinks;
+        if (randomBoolean()) {
+            disruptedLinks = TwoPartitions.random(random(), internalCluster().getNodeNames());
+        } else {
+            disruptedLinks = NetworkDisruption.Bridge.random(random(), internalCluster().getNodeNames());
+        }
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(disruptedLinks, randomFrom(new NetworkDisruption.NetworkUnresponsive(),
+            new NetworkDisruption.NetworkDisconnect(), NetworkDisruption.NetworkDelay.random(random())));
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        networkDisruption.startDisrupting();
+
+        CountDownLatch latch = new CountDownLatch(100);
+        for (int i = 0; i < 100; ++i) {
+            TransportService transportService = internalCluster().getInstance(TransportService.class);
+            TransportService target = internalCluster().getInstance(TransportService.class);
+
+            transportService.sendRequest(target.getLocalNode(), ClusterHealthAction.NAME, new ClusterHealthRequest(),
+                new TransportResponseHandler<>() {
+                @Override
+                public void handleResponse(TransportResponse response) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    latch.countDown();
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public TransportResponse read(StreamInput in) throws IOException {
+                    return ClusterHealthResponse.readResponseFrom(in);
+                }
+            });
+        }
+
+        // give a bit of time to send something under disruption.
+        latch.await(500, TimeUnit.MILLISECONDS);
+        networkDisruption.stopDisrupting();
+
+        latch.await(30, TimeUnit.SECONDS);
+        assertEquals("All requests must respond", 0, latch.getCount());
+    }
 }

@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
@@ -318,14 +319,8 @@ public class TransportNodesListGatewayStartedShards extends
 
             NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
-            if (primary != that.primary) {
-                return false;
-            }
-            if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) {
-                return false;
-            }
-            return storeException != null ? storeException.equals(that.storeException) : that.storeException == null;
-
+            return primary == that.primary && Objects.equals(allocationId, that.allocationId)
+                && Objects.equals(storeException, that.storeException);
         }
 
         @Override

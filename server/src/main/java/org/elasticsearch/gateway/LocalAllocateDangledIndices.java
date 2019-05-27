@@ -23,6 +23,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -76,7 +77,7 @@ public class LocalAllocateDangledIndices {
             new AllocateDangledRequestHandler());
     }
 
-    public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
+    public void allocateDangled(Collection<IndexMetaData> indices, ActionListener<AllocateDangledResponse> listener) {
         ClusterState clusterState = clusterService.state();
         DiscoveryNode masterNode = clusterState.nodes().getMasterNode();
         if (masterNode == null) {
@@ -108,12 +109,6 @@ public class LocalAllocateDangledIndices {
                 return ThreadPool.Names.SAME;
             }
         });
-    }
-
-    public interface Listener {
-        void onResponse(AllocateDangledResponse response);
-
-        void onFailure(Throwable e);
     }
 
     class AllocateDangledRequestHandler implements TransportRequestHandler<AllocateDangledRequest> {
@@ -255,10 +250,6 @@ public class LocalAllocateDangledIndices {
 
         AllocateDangledResponse(boolean ack) {
             this.ack = ack;
-        }
-
-        public boolean ack() {
-            return ack;
         }
 
         @Override

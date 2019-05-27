@@ -74,10 +74,6 @@ public class OutlierDetection implements DataFrameAnalysis {
      * @param minScoreToWriteFeatureInfluence The min outlier score required to calculate feature influence. Defaults to 0.1.
      */
     private OutlierDetection(@Nullable Integer nNeighbors, @Nullable Method method, @Nullable Double minScoreToWriteFeatureInfluence) {
-        if (nNeighbors != null && nNeighbors <= 0) {
-            throw new IllegalArgumentException("[" + N_NEIGHBORS.getPreferredName() + "] must be a positive integer");
-        }
-
         this.nNeighbors = nNeighbors;
         this.method = method;
         this.minScoreToWriteFeatureInfluence = minScoreToWriteFeatureInfluence;

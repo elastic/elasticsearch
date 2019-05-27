@@ -68,6 +68,6 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
                 .build();
         assertThat(outlierDetection.getNNeighbors(), equalTo(42));
         assertThat(outlierDetection.getMethod(), equalTo(OutlierDetection.Method.LDOF));
-        assertThat(outlierDetection.getMinScoreToWriteFeatureInfluence(), closeTo(0.5, 0.000001));
+        assertThat(outlierDetection.getMinScoreToWriteFeatureInfluence(), closeTo(0.5, 1E-9));
     }
 }

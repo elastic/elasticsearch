@@ -143,10 +143,13 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, QueryShardContext context) throws IOException {
         List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
+        boolean[] optimized = new boolean[sortBuilders.size()];
+        int i = 0;
         for (SortBuilder<?> builder : sortBuilders) {
             SortFieldAndFormat sf = builder.build(context);
             sortFields.add(sf.field);
             sortFormats.add(sf.format);
+            optimized[i++] = sf.optimized;
         }
         if (!sortFields.isEmpty()) {
             // optimize if we just sort on score non reversed, we don't really
@@ -165,7 +168,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
             if (sort) {
                 return Optional.of(new SortAndFormats(
                         new Sort(sortFields.toArray(new SortField[sortFields.size()])),
-                        sortFormats.toArray(new DocValueFormat[sortFormats.size()])));
+                        sortFormats.toArray(new DocValueFormat[sortFormats.size()]),
+                        optimized));
             }
         }
         return Optional.empty();

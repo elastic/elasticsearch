@@ -673,7 +673,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
         sortFieldLong.setMissingValue(Long.MAX_VALUE);
         final Sort longSort = new Sort(sortFieldLong);
-        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+        boolean[] optimized = new boolean[]{true};
+        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW}, optimized);
         searchContext.sort(sortAndFormats);
         searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         searchContext.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));
@@ -685,7 +686,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final SortField sortFieldDate = new SortField(fieldNameDate, SortField.Type.LONG);
         DocValueFormat dateFormat = fieldTypeDate.docValueFormat(null, null);
         final Sort longDateSort = new Sort(sortFieldLong, sortFieldDate);
-        sortAndFormats = new SortAndFormats(longDateSort, new DocValueFormat[]{DocValueFormat.RAW, dateFormat});
+        optimized = new boolean[]{true, false};
+        sortAndFormats = new SortAndFormats(longDateSort, new DocValueFormat[]{DocValueFormat.RAW, dateFormat}, optimized);
         searchContext.sort(sortAndFormats);
         QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
         assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
@@ -693,14 +695,16 @@ public class QueryPhaseTests extends IndexShardTestCase {
         // 3. Test a sort on date field
         sortFieldDate.setMissingValue(Long.MAX_VALUE);
         final Sort dateSort = new Sort(sortFieldDate);
-        sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat});
+        optimized = new boolean[]{true};
+        sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat}, optimized);
         searchContext.sort(sortAndFormats);
         QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
         assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, false);
 
         // 4. Test a sort on date field + long field
         final Sort dateLongSort = new Sort(sortFieldDate, sortFieldLong);
-        sortAndFormats = new SortAndFormats(dateLongSort, new DocValueFormat[]{dateFormat, DocValueFormat.RAW});
+        optimized = new boolean[]{true, false};
+        sortAndFormats = new SortAndFormats(dateLongSort, new DocValueFormat[]{dateFormat, DocValueFormat.RAW}, optimized);
         searchContext.sort(sortAndFormats);
         QueryPhase.execute(searchContext, searcher, checkCancelled -> {});
         assertSortResults(searchContext.queryResult().topDocs().topDocs, (long) numDocs, true);
@@ -785,7 +789,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
         sortFieldLong.setMissingValue(Long.MAX_VALUE);
         final Sort longSort = new Sort(sortFieldLong);
-        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW});
+        boolean[] optimized = new boolean[]{true};
+        SortAndFormats sortAndFormats = new SortAndFormats(longSort, new DocValueFormat[]{DocValueFormat.RAW}, optimized);
         searchContext.sort(sortAndFormats);
         searchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         searchContext.setTask(new SearchTask(123L, "", "", "", null, Collections.emptyMap()));

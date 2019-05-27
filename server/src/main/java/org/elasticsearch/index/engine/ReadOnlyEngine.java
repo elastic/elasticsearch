@@ -457,8 +457,8 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    protected void processReaders(IndexReader reader, IndexReader previousReader) {
-        searcherFactory.processReaders(reader, previousReader);
+    protected void processReader(IndexReader reader) {
+        searcherFactory.processReaders(reader, null);
     }
 
     @Override

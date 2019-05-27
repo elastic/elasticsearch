@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesService;
 
 import java.util.Arrays;
 import java.util.function.Function;
@@ -45,12 +44,9 @@ public class Gateway {
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
 
     private final int minimumMasterNodes;
-    private final IndicesService indicesService;
 
     public Gateway(final Settings settings, final ClusterService clusterService,
-                   final TransportNodesListGatewayMetaState listGatewayMetaState,
-                   final IndicesService indicesService) {
-        this.indicesService = indicesService;
+                   final TransportNodesListGatewayMetaState listGatewayMetaState) {
         this.clusterService = clusterService;
         this.listGatewayMetaState = listGatewayMetaState;
         this.minimumMasterNodes = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.get(settings);

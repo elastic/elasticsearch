@@ -25,6 +25,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -109,6 +109,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -133,11 +134,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
-     * to the cancellation request faster. However, since it will produce more cancellation checks it might slow the search performance
-     * down.
+     * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not 
+     * noticeably slow down searches.
      */
     public static final Setting<Boolean> LOW_LEVEL_CANCELLATION_SETTING =
-        Setting.boolSetting("search.low_level_cancellation", false, Property.Dynamic, Property.NodeScope);
+        Setting.boolSetting("search.low_level_cancellation", true, Property.Dynamic, Property.NodeScope);
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
     public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING =
@@ -301,21 +302,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeDfsPhase(ShardSearchRequest request, SearchTask task, ActionListener<SearchPhaseResult> listener) {
-        rewriteShardRequest(request, new ActionListener<ShardSearchRequest>() {
-            @Override
-            public void onResponse(ShardSearchRequest request) {
-                try {
-                    listener.onResponse(executeDfsPhase(request, task));
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        rewriteShardRequest(request, ActionListener.map(listener, r -> executeDfsPhase(r, task)));
     }
 
     private DfsSearchResult executeDfsPhase(ShardSearchRequest request, SearchTask task) throws IOException {
@@ -350,30 +337,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, SearchTask task, ActionListener<SearchPhaseResult> listener) {
-        rewriteShardRequest(request, new ActionListener<ShardSearchRequest>() {
-            @Override
-            public void onResponse(ShardSearchRequest request) {
-                try {
-                    listener.onResponse(executeQueryPhase(request, task));
-                } catch (Exception e) {
-                    onFailure(e);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        rewriteShardRequest(request, ActionListener.map(listener, r -> executeQueryPhase(r, task)));
     }
 
     private <T> void runAsync(long id, Supplier<T> executable, ActionListener<T> listener) {
-        getExecutor(id).execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
+        getExecutor(id).execute(new ActionRunnable<T>(listener) {
             @Override
             protected void doRun() {
                 listener.onResponse(executable.get());
@@ -1004,8 +972,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
-        return indicesService.buildAliasFilter(state, index, expressions);
+    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
+        return indicesService.buildAliasFilter(state, index, resolvedExpressions);
     }
 
     /**
@@ -1057,12 +1025,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r ->
             // now we need to check if there is a pending refresh and register
             shard.awaitShardSearchActive(b ->
-                executor.execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-
+                executor.execute(new ActionRunnable<ShardSearchRequest>(listener) {
                     @Override
                     protected void doRun() {
                         listener.onResponse(request);
@@ -1092,20 +1055,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public static final class CanMatchResponse extends SearchPhaseResult {
-        private boolean canMatch;
+        private final boolean canMatch;
 
         public CanMatchResponse(StreamInput in) throws IOException {
+            super(in);
             this.canMatch = in.readBoolean();
         }
 
         public CanMatchResponse(boolean canMatch) {
             this.canMatch = canMatch;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            canMatch = in.readBoolean();
         }
 
         @Override

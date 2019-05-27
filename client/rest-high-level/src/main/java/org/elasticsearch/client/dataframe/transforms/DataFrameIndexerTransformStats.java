@@ -29,25 +29,25 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 public class DataFrameIndexerTransformStats extends IndexerJobStats {
 
-    public static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataFrameIndexerTransformStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
             NAME, true, args -> new DataFrameIndexerTransformStats((long) args[0], (long) args[1], (long) args[2],
             (long) args[3], (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9]));
 
     static {
-        PARSER.declareLong(constructorArg(), NUM_PAGES);
-        PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
-        PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
-        PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
-        PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
-        PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
-        PARSER.declareLong(constructorArg(), INDEX_TOTAL);
-        PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
-        PARSER.declareLong(constructorArg(), INDEX_FAILURES);
-        PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
+        LENIENT_PARSER.declareLong(constructorArg(), NUM_PAGES);
+        LENIENT_PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
+        LENIENT_PARSER.declareLong(constructorArg(), NUM_OUTPUT_DOCUMENTS);
+        LENIENT_PARSER.declareLong(constructorArg(), NUM_INVOCATIONS);
+        LENIENT_PARSER.declareLong(constructorArg(), INDEX_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TIME_IN_MS);
+        LENIENT_PARSER.declareLong(constructorArg(), INDEX_TOTAL);
+        LENIENT_PARSER.declareLong(constructorArg(), SEARCH_TOTAL);
+        LENIENT_PARSER.declareLong(constructorArg(), INDEX_FAILURES);
+        LENIENT_PARSER.declareLong(constructorArg(), SEARCH_FAILURES);
     }
 
     public static DataFrameIndexerTransformStats fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        return LENIENT_PARSER.parse(parser, null);
     }
 
     public DataFrameIndexerTransformStats(long numPages, long numInputDocuments, long numOuputDocuments,

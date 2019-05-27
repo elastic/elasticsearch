@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.cluster;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -201,7 +202,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                                                                 transportAddress,
                                                                 singletonMap("attr", "value"),
                                                                 singleton(DiscoveryNode.Role.MASTER),
-                                                                Version.V_6_0_0_beta1);
+                                                                Version.CURRENT);
 
         final ClusterState clusterState = ClusterState.builder(clusterName)
                                                         .metaData(MetaData.builder()
@@ -232,7 +233,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, true, false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
-        when(mockNodeInfo.getVersion()).thenReturn(Version.V_6_0_0_alpha2);
+        Version mockNodeVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
+        when(mockNodeInfo.getVersion()).thenReturn(mockNodeVersion);
         when(mockNodeInfo.getNode()).thenReturn(discoveryNode);
 
         final TransportInfo mockTransportInfo = mock(TransportInfo.class);
@@ -267,6 +269,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
         when(mockJvmInfo.getBundledJdk()).thenReturn(true);
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
+
+        final Build mockBuild = mock(Build.class);
+        when(mockBuild.flavor()).thenReturn(Build.Flavor.DEFAULT);
+        when(mockBuild.type()).thenReturn(Build.Type.DOCKER);
+        when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
 
         final NodeStats mockNodeStats = mock(NodeStats.class);
         when(mockNodeStats.getTimestamp()).thenReturn(0L);
@@ -440,7 +447,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         + "\"ingest\":0"
                       + "},"
                       + "\"versions\":["
-                        + "\"6.0.0-alpha2\""
+                        + "\"" + mockNodeVersion + "\""
                       + "],"
                       + "\"os\":{"
                         + "\"available_processors\":32,"
@@ -521,7 +528,14 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                       + "},"
                       + "\"discovery_types\":{"
                         + "\"_disco\":1"
-                      + "}"
+                      + "},"
+                      + "\"packaging_types\":["
+                        + "{"
+                          + "\"flavor\":\"default\","
+                          + "\"type\":\"docker\","
+                          + "\"count\":1"
+                        + "}"
+                      + "]"
                     + "}"
                   + "},"
                   + "\"cluster_state\":{"

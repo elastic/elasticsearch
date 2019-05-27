@@ -19,6 +19,7 @@ import java.io.IOException;
 public class MlLifeCycleService {
 
     private final Environment environment;
+    private final ClusterService clusterService;
     private final DatafeedManager datafeedManager;
     private final AutodetectProcessManager autodetectProcessManager;
     private final MlMemoryTracker memoryTracker;
@@ -26,6 +27,7 @@ public class MlLifeCycleService {
     public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedManager datafeedManager,
                               AutodetectProcessManager autodetectProcessManager, MlMemoryTracker memoryTracker) {
         this.environment = environment;
+        this.clusterService = clusterService;
         this.datafeedManager = datafeedManager;
         this.autodetectProcessManager = autodetectProcessManager;
         this.memoryTracker = memoryTracker;
@@ -46,7 +48,7 @@ public class MlLifeCycleService {
                 if (datafeedManager != null) {
                     datafeedManager.isolateAllDatafeedsOnThisNodeBeforeShutdown();
                 }
-                NativeController nativeController = NativeControllerHolder.getNativeController(environment);
+                NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
                 if (nativeController != null) {
                     // This kills autodetect processes WITHOUT closing the jobs, so they get reallocated.
                     if (autodetectProcessManager != null) {

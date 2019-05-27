@@ -118,9 +118,8 @@ public final class ShardPath {
     public static ShardPath loadShardPath(Logger logger, NodeEnvironment env,
                                                 ShardId shardId, IndexSettings indexSettings) throws IOException {
         final Path[] paths = env.availableShardPaths(shardId);
-        final int nodeLockId = env.getNodeLockId();
         final Path sharedDataPath = env.sharedDataPath();
-        return loadShardPath(logger, shardId, indexSettings, paths, nodeLockId, sharedDataPath);
+        return loadShardPath(logger, shardId, indexSettings, paths, sharedDataPath);
     }
 
     /**
@@ -129,7 +128,7 @@ public final class ShardPath {
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
     public static ShardPath loadShardPath(Logger logger, ShardId shardId, IndexSettings indexSettings, Path[] availableShardPaths,
-                                           int nodeLockId, Path sharedDataPath) throws IOException {
+                                          Path sharedDataPath) throws IOException {
         final String indexUUID = indexSettings.getUUID();
         Path loadedPath = null;
         for (Path path : availableShardPaths) {
@@ -157,7 +156,7 @@ public final class ShardPath {
             final Path dataPath;
             final Path statePath = loadedPath;
             if (indexSettings.hasCustomDataPath()) {
-                dataPath = NodeEnvironment.resolveCustomLocation(indexSettings, shardId, sharedDataPath, nodeLockId);
+                dataPath = NodeEnvironment.resolveCustomLocation(indexSettings, shardId, sharedDataPath);
             } else {
                 dataPath = statePath;
             }

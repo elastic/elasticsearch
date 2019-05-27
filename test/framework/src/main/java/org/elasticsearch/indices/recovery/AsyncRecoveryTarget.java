@@ -63,9 +63,9 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     @Override
     public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
                                         long maxSeenAutoIdTimestampOnPrimary, long maxSeqNoOfDeletesOrUpdatesOnPrimary,
-                                        RetentionLeases retentionLeases, ActionListener<Long> listener) {
-        executor.execute(() -> target.indexTranslogOperations(
-            operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary, maxSeqNoOfDeletesOrUpdatesOnPrimary, retentionLeases, listener));
+                                        RetentionLeases retentionLeases, long mappingVersionOnPrimary, ActionListener<Long> listener) {
+        executor.execute(() -> target.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary,
+            maxSeqNoOfDeletesOrUpdatesOnPrimary, retentionLeases, mappingVersionOnPrimary, listener));
     }
 
     @Override
@@ -75,8 +75,8 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) throws IOException {
-        target.cleanFiles(totalTranslogOps, sourceMetaData);
+    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) throws IOException {
+        target.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetaData);
     }
 
     @Override

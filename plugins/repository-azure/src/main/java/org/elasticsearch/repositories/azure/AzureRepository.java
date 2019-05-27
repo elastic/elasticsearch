@@ -38,6 +38,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.net.URISyntaxException;
 import java.util.List;
@@ -84,8 +85,8 @@ public class AzureRepository extends BlobStoreRepository {
     private final boolean readonly;
 
     public AzureRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
-            AzureStorageService storageService) {
-        super(metadata, environment.settings(), namedXContentRegistry);
+            AzureStorageService storageService, ThreadPool threadPool) {
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool);
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
 
@@ -111,20 +112,16 @@ public class AzureRepository extends BlobStoreRepository {
         }
     }
 
-    // only use for testing
     @Override
     protected BlobStore getBlobStore() {
         return super.getBlobStore();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    protected AzureBlobStore createBlobStore() throws URISyntaxException, StorageException {
+    protected AzureBlobStore createBlobStore() {
         final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService);
 
-        logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+        logger.debug(() -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
             blobStore, chunkSize, isCompress(), basePath));
         return blobStore;
@@ -135,9 +132,6 @@ public class AzureRepository extends BlobStoreRepository {
         return basePath;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;

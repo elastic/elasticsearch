@@ -68,10 +68,6 @@ dependencies {
   compile "org.apache.james:apache-mime4j-dom:${versions.mime4j}"
 }
 
-// TODO: stop using LanguageIdentifier...
-compileJava.options.compilerArgs << "-Xlint:-deprecation"
-
-
 dependencyLicenses {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
 }
@@ -88,8 +84,8 @@ thirdPartyAudit{
     ignoreMissingClasses()
 }
 
-if (project.inFipsJvm) {
-    // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
-    // rather than provide a long list of exclusions, disable the check on FIPS.
-    thirdPartyAudit.enabled = false
+thirdPartyAudit.onlyIf {
+  // FIPS JVM includes manny classes from bouncycastle which count as jar hell for the third party audit,
+  // rather than provide a long list of exclusions, disable the check on FIPS.
+  project.inFipsJvm == false
 }

@@ -478,7 +478,6 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         });
     }
 
-
     private void processJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         final Optional<Join> optionalJoin = joinRequest.getOptionalJoin();
         synchronized (mutex) {
@@ -648,7 +647,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             coordinationState.set(new CoordinationState(settings, getLocalNode(), persistedState));
             peerFinder.setCurrentTerm(getCurrentTerm());
             configuredHostsResolver.start();
-            VotingConfiguration votingConfiguration = coordinationState.get().getLastAcceptedState().getLastCommittedConfiguration();
+            final ClusterState lastAcceptedState = coordinationState.get().getLastAcceptedState();
+            if (lastAcceptedState.metaData().clusterUUIDCommitted()) {
+                logger.info("cluster UUID [{}]", lastAcceptedState.metaData().clusterUUID());
+            }
+            final VotingConfiguration votingConfiguration = lastAcceptedState.getLastCommittedConfiguration();
             if (singleNodeDiscovery &&
                 votingConfiguration.isEmpty() == false &&
                 votingConfiguration.hasQuorum(Collections.singleton(getLocalNode().getId())) == false) {
@@ -997,9 +1000,10 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert getLocalNode().equals(clusterState.getNodes().get(getLocalNode().getId())) :
                     getLocalNode() + " should be in published " + clusterState;
 
-                final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final PublicationTransportHandler.PublicationContext publicationContext =
                     publicationHandler.newPublicationContext(clusterChangedEvent);
+
+                final PublishRequest publishRequest = coordinationState.get().handleClientValue(clusterState);
                 final CoordinatorPublication publication = new CoordinatorPublication(publishRequest, publicationContext,
                     new ListenableFuture<>(), ackListener, publishListener);
                 currentPublication = Optional.of(publication);
@@ -1227,7 +1231,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
                 @Override
                 public String toString() {
-                    return "scheduled timeout for " + this;
+                    return "scheduled timeout for " + CoordinatorPublication.this;
                 }
             }, publishTimeout, Names.GENERIC);
         }

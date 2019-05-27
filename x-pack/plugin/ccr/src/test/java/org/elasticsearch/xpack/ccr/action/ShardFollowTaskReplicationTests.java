@@ -447,8 +447,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 primary.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
                 primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
-                    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version,
-                                             IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+                    public void restoreShard(Store store, SnapshotId snapshotId,
+                                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
                         try {
                             IndexShard leader = leaderGroup.getPrimary();
                             Lucene.cleanLuceneIndex(primary.store().directory());
@@ -643,20 +643,22 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         }
 
         @Override
-        protected PrimaryResult performOnPrimary(IndexShard primary, BulkShardOperationsRequest request) throws Exception {
-            final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
-            primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
-            final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
-            try (Releasable ignored = permitFuture.get()) {
-                ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
-                    request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
-            }
-            return new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful) {
-                @Override
-                public void respond(ActionListener<BulkShardOperationsResponse> listener) {
-                    ccrResult.respond(listener);
+        protected void performOnPrimary(IndexShard primary, BulkShardOperationsRequest request, ActionListener<PrimaryResult> listener) {
+            ActionListener.completeWith(listener, () -> {
+                final PlainActionFuture<Releasable> permitFuture = new PlainActionFuture<>();
+                primary.acquirePrimaryOperationPermit(permitFuture, ThreadPool.Names.SAME, request);
+                final TransportWriteAction.WritePrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse> ccrResult;
+                try (Releasable ignored = permitFuture.get()) {
+                    ccrResult = TransportBulkShardOperationsAction.shardOperationOnPrimary(primary.shardId(), request.getHistoryUUID(),
+                        request.getOperations(), request.getMaxSeqNoOfUpdatesOrDeletes(), primary, logger);
                 }
-            };
+                return new PrimaryResult(ccrResult.replicaRequest(), ccrResult.finalResponseIfSuccessful) {
+                    @Override
+                    public void respond(ActionListener<BulkShardOperationsResponse> listener) {
+                        ccrResult.respond(listener);
+                    }
+                };
+            });
         }
 
         @Override

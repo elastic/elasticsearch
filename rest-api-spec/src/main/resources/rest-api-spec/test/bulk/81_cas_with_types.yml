@@ -1,10 +1,6 @@
 ---
 "Compare And Swap Sequence Numbers":
 
- - skip:
-      version: " - 6.6.99"
-      reason:  cas operations with sequence numbers was added in 6.7
-
  - do:
       index:
           index:  test_1

@@ -35,13 +35,13 @@ followClusterTestCluster {
 
 followClusterTestRunner {
     systemProperty 'tests.target_cluster', 'follow'
-    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
 }
 
 task followClusterRestartTest(type: RestIntegTestTask) {}
 
 followClusterRestartTestCluster {
-    dependsOn followClusterTestRunner
+    dependsOn followClusterTestRunner, 'followClusterTestCluster#stop'
     numNodes = 1
     clusterName = 'follow-cluster'
     dataDir = { nodeNumber -> followClusterTest.nodes[0].dataDir }
@@ -53,9 +53,9 @@ followClusterRestartTestCluster {
 
 followClusterRestartTestRunner {
     systemProperty 'tests.target_cluster', 'follow-restart'
-    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    nonInputProperties.systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
     finalizedBy 'leaderClusterTestCluster#stop'
 }
 
 check.dependsOn followClusterRestartTest
-unitTest.enabled = false
+test.enabled = false

@@ -1,21 +1,83 @@
 [[node-tool]]
 == elasticsearch-node
 
-The `elasticsearch-node` command enables you to perform unsafe operations that
-risk data loss but which may help to recover some data in a disaster.
+The `elasticsearch-node` command enables you to perform certain unsafe
+operations on a node that are only possible while it is shut down. This command
+allows you to adjust the <<modules-node,role>> of a node and may be able to
+recover some data after a disaster or start a node even if it is incompatible
+with the data on disk.
 
 [float]
 === Synopsis
 
 [source,shell]
 --------------------------------------------------
-bin/elasticsearch-node unsafe-bootstrap|detach-cluster
-  [--ordinal <Integer>] [-E <KeyValuePair>]
+bin/elasticsearch-node repurpose|unsafe-bootstrap|detach-cluster|override-version
+  [-E <KeyValuePair>]
   [-h, --help] ([-s, --silent] | [-v, --verbose])
 --------------------------------------------------
 
 [float]
 === Description
+
+This tool has four modes:
+
+* `elasticsearch-node repurpose` can be used to delete unwanted data from a
+  node if it used to be a <<data-node,data node>> or a
+  <<master-node,master-eligible node>> but has been repurposed not to have one
+  or other of these roles.
+
+* `elasticsearch-node unsafe-bootstrap` can be used to perform _unsafe cluster
+  bootstrapping_.  It forces one of the nodes to form a brand-new cluster on
+  its own, using its local copy of the cluster metadata.
+
+* `elasticsearch-node detach-cluster` enables you to move nodes from one
+  cluster to another.  This can be used to move nodes into a new cluster
+  created with the `elasticsearch-node unsafe-bootstap` command. If unsafe
+  cluster bootstrapping was not possible, it also enables you to move nodes
+  into a brand-new cluster.
+
+* `elasticsearch-node override-version` enables you to start up a node
+  even if the data in the data path was written by an incompatible version of
+  {es}. This may sometimes allow you to downgrade to an earlier version of
+  {es}.
+
+[[node-tool-repurpose]]
+[float]
+==== Changing the role of a node
+
+There may be situations where you want to repurpose a node without following
+the <<change-node-role,proper repurposing processes>>. The `elasticsearch-node
+repurpose` tool allows you to delete any excess on-disk data and start a node
+after repurposing it.
+
+The intended use is:
+
+* Stop the node
+* Update `elasticsearch.yml` by setting `node.master` and `node.data` as
+  desired.
+* Run `elasticsearch-node repurpose` on the node
+* Start the node
+
+If you run `elasticsearch-node repurpose` on a node with `node.data: false` and
+`node.master: true` then it will delete any remaining shard data on that node,
+but it will leave the index and cluster metadata alone. If you run
+`elasticsearch-node repurpose` on a node with `node.data: false` and
+`node.master: false` then it will delete any remaining shard data and index
+metadata, but it will leave the cluster metadata alone.
+
+[WARNING]
+Running this command can lead to data loss for the indices mentioned if the
+data contained is not available on other nodes in the cluster. Only run this
+tool if you understand and accept the possible consequences, and only after
+determining that the node cannot be repurposed cleanly.
+
+The tool provides a summary of the data to be deleted and asks for confirmation
+before making any changes. You can get detailed information about the affected
+indices and shards by passing the verbose (`-v`) option.
+
+[float]
+==== Recovering data after a disaster
 
 Sometimes {es} nodes are temporarily stopped, perhaps because of the need to
 perform some maintenance activity or perhaps because of a hardware failure.
@@ -53,22 +115,29 @@ way forward that does not risk data loss, but it may be possible to use the
 `elasticsearch-node` tool to construct a new cluster that contains some of the
 data from the failed cluster.
 
-This tool has two modes:
+[[node-tool-override-version]]
+[float]
+==== Bypassing version checks
 
-* `elastisearch-node unsafe-bootstap` can be used if there is at least one
-  remaining master-eligible node. It forces one of the remaining nodes to form
-  a brand-new cluster on its own, using its local copy of the cluster metadata.
-  This is known as _unsafe cluster bootstrapping_.
+The data that {es} writes to disk is designed to be read by the current version
+and a limited set of future versions. It cannot generally be read by older
+versions, nor by versions that are more than one major version newer. The data
+stored on disk includes the version of the node that wrote it, and {es} checks
+that it is compatible with this version when starting up.
 
-* `elastisearch-node detach-cluster` enables you to move nodes from one cluster
-  to another. This can be used to move nodes into the new cluster created with
-  the `elastisearch-node unsafe-bootstap` command. If unsafe cluster bootstrapping was not
-  possible, it also enables you to
-  move nodes into a brand-new cluster.
+In rare circumstances it may be desirable to bypass this check and start up an
+{es} node using data that was written by an incompatible version. This may not
+work if the format of the stored data has changed, and it is a risky process
+because it is possible for the format to change in ways that {es} may
+misinterpret, silently leading to data loss.
+
+To bypass this check, you can use the `elasticsearch-node override-version`
+tool to overwrite the version number stored in the data path with the current
+version, causing {es} to believe that it is compatible with the on-disk data.
 
 [[node-tool-unsafe-bootstrap]]
 [float]
-==== Unsafe cluster bootstrapping
+===== Unsafe cluster bootstrapping
 
 If there is at least one remaining master-eligible node, but it is not possible
 to restart a majority of them, then the `elasticsearch-node unsafe-bootstrap`
@@ -143,7 +212,7 @@ job.
 
 [[node-tool-detach-cluster]]
 [float]
-==== Detaching nodes from their cluster
+===== Detaching nodes from their cluster
 
 It is unsafe for nodes to move between clusters, because different clusters
 have completely different cluster metadata. There is no way to safely merge the
@@ -206,8 +275,11 @@ The message `Node was successfully detached from the cluster` does not mean
 that there has been no data loss, it just means that tool was able to complete
 its job.
 
+
 [float]
 === Parameters
+
+`repurpose`:: Delete excess data when a node's roles are changed.
 
 `unsafe-bootstrap`:: Specifies to unsafely bootstrap this node as a new
 one-node cluster.
@@ -215,9 +287,8 @@ one-node cluster.
 `detach-cluster`:: Specifies to unsafely detach this node from its cluster so
 it can join a different cluster.
 
-`--ordinal <Integer>`:: If there is <<max-local-storage-nodes,more than one
-node sharing a data path>> then this specifies which node to target. Defaults
-to `0`, meaning to use the first node in the data path.
+`override-version`:: Overwrites the version number stored in the data path so
+that a node can start despite being incompatible with the on-disk data.
 
 `-E <KeyValuePair>`:: Configures a setting.
 
@@ -229,6 +300,51 @@ to `0`, meaning to use the first node in the data path.
 
 [float]
 === Examples
+
+[float]
+==== Repurposing a node as a dedicated master node (master: true, data: false)
+
+In this example, a former data node is repurposed as a dedicated master node.
+First update the node's settings to `node.master: true` and `node.data: false`
+in its `elasticsearch.yml` config file. Then run the `elasticsearch-node
+repurpose` command to find and remove excess shard data:
+
+[source,txt]
+----
+node$ ./bin/elasticsearch-node repurpose
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+Found 2 shards in 2 indices to clean up
+Use -v to see list of paths and indices affected
+Node is being re-purposed as master and no-data. Clean-up of shard data will be performed.
+Do you want to proceed?
+Confirm [y/N] y
+Node successfully repurposed to master and no-data.
+----
+
+[float]
+==== Repurposing a node as a coordinating-only node (master: false, data: false)
+
+In this example, a node that previously held data is repurposed as a
+coordinating-only node. First update the node's settings to `node.master:
+false` and `node.data: false` in its `elasticsearch.yml` config file. Then run
+the `elasticsearch-node repurpose` command to find and remove excess shard data
+and index metadata:
+
+[source,txt]
+----
+node$./bin/elasticsearch-node repurpose
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+Found 2 indices (2 shards and 2 index meta data) to clean up
+Use -v to see list of paths and indices affected
+Node is being re-purposed as no-master and no-data. Clean-up of index data will be performed.
+Do you want to proceed?
+Confirm [y/N] y
+Node successfully repurposed to no-master and no-data.
+----
 
 [float]
 ==== Unsafe cluster bootstrapping
@@ -332,3 +448,31 @@ Confirm [y/N] y
 Node was successfully detached from the cluster
 ----
 
+[float]
+==== Bypassing version checks
+
+Run the `elasticsearch-node override-version` command to overwrite the version
+stored in the data path so that a node can start despite being incompatible
+with the data stored in the data path:
+
+[source, txt]
+----
+node$ ./bin/elasticsearch-node override-version
+
+    WARNING: Elasticsearch MUST be stopped before running this tool.
+
+This data path was last written by Elasticsearch version [x.x.x] and may no
+longer be compatible with Elasticsearch version [y.y.y]. This tool will bypass
+this compatibility check, allowing a version [y.y.y] node to start on this data
+path, but a version [y.y.y] node may not be able to read this data or may read
+it incorrectly leading to data loss.
+
+You should not use this tool. Instead, continue to use a version [x.x.x] node
+on this data path. If necessary, you can use reindex-from-remote to copy the
+data from here into an older cluster.
+
+Do you want to proceed?
+
+Confirm [y/N] y
+Successfully overwrote this node's metadata to bypass its version compatibility checks.
+----

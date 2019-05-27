@@ -33,6 +33,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -115,12 +116,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 FilesInfoRequestHandler());
         transportService.registerRequestHandler(Actions.FILE_CHUNK, RecoveryFileChunkRequest::new, ThreadPool.Names.GENERIC, new
                 FileChunkTransportRequestHandler());
-        transportService.registerRequestHandler(Actions.CLEAN_FILES, RecoveryCleanFilesRequest::new, ThreadPool.Names.GENERIC, new
-                CleanFilesRequestHandler());
+        transportService.registerRequestHandler(Actions.CLEAN_FILES, ThreadPool.Names.GENERIC,
+            RecoveryCleanFilesRequest::new, new CleanFilesRequestHandler());
         transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, ThreadPool.Names.GENERIC,
                 RecoveryPrepareForTranslogOperationsRequest::new, new PrepareForTranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest::new, ThreadPool.Names.GENERIC,
-                new TranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, ThreadPool.Names.GENERIC, RecoveryTranslogOperationsRequest::new,
+            new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
                 FinalizeRecoveryRequestHandler());
         transportService.registerRequestHandler(
@@ -355,7 +356,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
         } else {
             logger.trace(
-                "{} preparing for sequence-number-based recovery starting at local checkpoint [{}] from [{}]",
+                "{} preparing for sequence-number-based recovery starting at sequence number [{}] from [{}]",
                 recoveryTarget.shardId(),
                 startingSeqNo,
                 recoveryTarget.sourceNode());
@@ -501,16 +502,21 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         }
                     });
                 };
+                final IndexMetaData indexMetaData = clusterService.state().metaData().index(request.shardId().getIndex());
+                final long mappingVersionOnTarget = indexMetaData != null ? indexMetaData.getMappingVersion() : 0L;
                 recoveryTarget.indexTranslogOperations(
                         request.operations(),
                         request.totalTranslogOps(),
                         request.maxSeenAutoIdTimestampOnPrimary(),
                         request.maxSeqNoOfUpdatesOrDeletesOnPrimary(),
                         request.retentionLeases(),
+                        request.mappingVersionOnPrimary(),
                         ActionListener.wrap(
                                 checkpoint -> listener.onResponse(new RecoveryTranslogOperationsResponse(checkpoint)),
                                 e -> {
-                                    if (e instanceof MapperException) {
+                                    // do not retry if the mapping on replica is at least as recent as the mapping
+                                    // that the primary used to index the operations in the request.
+                                    if (mappingVersionOnTarget < request.mappingVersionOnPrimary() && e instanceof MapperException) {
                                         retryOnMappingException.accept(e);
                                     } else {
                                         listener.onFailure(e);
@@ -540,7 +546,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel, Task task) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.sourceMetaSnapshot());
+                recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot());
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
         }

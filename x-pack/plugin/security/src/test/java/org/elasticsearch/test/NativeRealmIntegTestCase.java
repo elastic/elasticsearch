@@ -46,7 +46,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
         if (getCurrentClusterScope() == Scope.SUITE) {
             // Clear the realm cache for all realms since we use a SUITE scoped cluster
-            SecurityClient client = securityClient(internalCluster().transportClient());
+            SecurityClient client = securityClient(client());
             client.prepareClearRealmCache().get();
         }
     }
@@ -59,7 +59,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     @Override
     public Set<String> excludeTemplates() {
         Set<String> templates = Sets.newHashSet(super.excludeTemplates());
-        templates.add(SecurityIndexManager.SECURITY_TEMPLATE_NAME); // don't remove the security index template
+        templates.add(SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7); // don't remove the security index template
         return templates;
     }
 

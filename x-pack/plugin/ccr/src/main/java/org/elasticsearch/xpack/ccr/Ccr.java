@@ -132,9 +132,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final CcrLicenseChecker ccrLicenseChecker;
     private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
     private final SetOnce<CcrSettings> ccrSettings = new SetOnce<>();
-    private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private Client client;
-    private final boolean transportClientMode;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -156,7 +154,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         this.settings = settings;
         this.enabled = CCR_ENABLED_SETTING.get(settings);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     @Override
@@ -177,7 +174,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
         CcrSettings ccrSettings = new CcrSettings(settings, clusterService.getClusterSettings());
         this.ccrSettings.set(ccrSettings);
-        this.threadPool.set(threadPool);
         CcrRestoreSourceService restoreSourceService = new CcrRestoreSourceService(threadPool, ccrSettings);
         this.restoreSourceService.set(restoreSourceService);
         return Arrays.asList(
@@ -326,9 +322,10 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     @Override
-    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                                   ThreadPool threadPool) {
         Repository.Factory repositoryFactory =
-            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get(), threadPool.get());
+            (metadata) -> new CcrRepository(metadata, client, ccrLicenseChecker, settings, ccrSettings.get(), threadPool);
         return Collections.singletonMap(CcrRepository.TYPE, repositoryFactory);
     }
 
@@ -341,10 +338,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Collection<Module> createGuiceModules() {
-        if (transportClientMode) {
-            return Collections.emptyList();
-        }
-
         return Collections.singleton(b -> XPackPlugin.bindFeatureSet(b, CCRFeatureSet.class));
     }
 

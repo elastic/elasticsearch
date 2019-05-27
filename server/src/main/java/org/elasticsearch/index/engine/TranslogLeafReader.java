@@ -35,7 +35,6 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -61,11 +60,9 @@ final class TranslogLeafReader extends LeafReader {
     private static final FieldInfo FAKE_ID_FIELD
         = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
         0, 0, 0, false);
-    private final Version indexVersionCreated;
 
-    TranslogLeafReader(Translog.Index operation, Version indexVersionCreated) {
+    TranslogLeafReader(Translog.Index operation) {
         this.operation = operation;
-        this.indexVersionCreated = indexVersionCreated;
     }
     @Override
     public CacheHelper getCoreCacheHelper() {
@@ -161,14 +158,9 @@ final class TranslogLeafReader extends LeafReader {
             visitor.stringField(FAKE_ROUTING_FIELD, operation.routing().getBytes(StandardCharsets.UTF_8));
         }
         if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
-            final byte[] id;
-            if (indexVersionCreated.onOrAfter(Version.V_6_0_0)) {
-                BytesRef bytesRef = Uid.encodeId(operation.id());
-                id = new byte[bytesRef.length];
-                System.arraycopy(bytesRef.bytes, bytesRef.offset, id, 0, bytesRef.length);
-            } else { // TODO this can go away in 7.0 after backport
-                id = operation.id().getBytes(StandardCharsets.UTF_8);
-            }
+            BytesRef bytesRef = Uid.encodeId(operation.id());
+            final byte[] id = new byte[bytesRef.length];
+            System.arraycopy(bytesRef.bytes, bytesRef.offset, id, 0, bytesRef.length);
             visitor.stringField(FAKE_ID_FIELD, id);
         }
     }

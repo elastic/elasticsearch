@@ -7,24 +7,15 @@ import java.nio.charset.StandardCharsets
 // Apply the java plugin to this project so the sources can be edited in an IDE
 apply plugin: 'elasticsearch.standalone-test'
 
-unitTest.enabled = false
+test.enabled = false
 
 dependencies {
-    // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
-    testCompile project(path: xpackModule('core'), configuration: 'default')
-    testCompile (project(path: xpackModule('security'), configuration: 'runtime')) {
-        // Need to drop the guava dependency here or we get a conflict with watcher's guava dependency.
-        // This is total #$%, but the solution is to get the SAML realm (which uses guava) out of security proper
-        exclude group: "com.google.guava", module: "guava"
-    }
-    testCompile project(path: xpackModule('watcher'), configuration: 'runtime')
-
+    // TODO: Remove core dependency and change tests to not use builders that are part of xpack-core.
+    // Currently needed for ml tests are using the building for datafeed and job config)
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
-    testCompile (project(path: xpackModule('security'), configuration: 'testArtifacts')) {
-        // Need to drop the guava dependency here or we get a conflict with watcher's guava dependency.
-        // This is total #$%, but the solution is to get the SAML realm (which uses guava) out of security proper
-        exclude group: "com.google.guava", module: "guava"
-    }
+
+    testCompile project(path: ':qa:full-cluster-restart', configuration: 'testArtifacts')
+    testCompile project(':x-pack:qa')
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
@@ -68,15 +59,6 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
         logger.error("final attempt of calling cluster health failed", lastException)
     }
     return tmpFile.exists()
-}
-
-String coreFullClusterRestartPath = project(':qa:full-cluster-restart').projectDir.toPath().resolve('src/test/java').toString()
-sourceSets {
-    test {
-        java {
-            srcDirs += [coreFullClusterRestartPath]
-        }
-    }
 }
 
 licenseHeaders {
@@ -134,13 +116,15 @@ for (Version version : bwcVersions.indexCompatible) {
 
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
-        if (project.inFipsJvm) {
-            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-            keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-        } else {
-            setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-            setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+        rootProject.globalInfo.ready {
+            if (project.inFipsJvm) {
+                setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+                setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+                keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+            } else {
+                setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+                setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+            }
         }
         setting 'xpack.license.self_generated.type', 'trial'
         dependsOn copyTestNodeKeyMaterial
@@ -178,13 +162,15 @@ for (Version version : bwcVersions.indexCompatible) {
         // some tests rely on the translog not being flushed
         setting 'indices.memory.shard_inactive_time', '20m'
         setting 'xpack.security.enabled', 'true'
-        if (project.inFipsJvm) {
-            setting 'xpack.security.transport.ssl.key', 'testnode.pem'
-            setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-            keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-        } else {
-            setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
-            setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+        rootProject.globalInfo.ready {
+            if (project.inFipsJvm) {
+                setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+                setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+                keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+            } else {
+                setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+                setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+            }
         }
         setting 'xpack.license.self_generated.type', 'trial'
         dependsOn copyTestNodeKeyMaterial
@@ -233,11 +219,4 @@ task copyXPackRestSpec(type: Copy) {
     include 'rest-api-spec/api/**'
     into project.sourceSets.test.output.resourcesDir
 }
-
-task copyXPackPluginProps(type: Copy) {
-    dependsOn(copyXPackRestSpec)
-    from project(xpackModule('core')).file('src/main/plugin-metadata')
-    from project(xpackModule('core')).tasks.pluginProperties
-    into outputDir
-}
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
+project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackRestSpec)

@@ -60,13 +60,9 @@ The queries in this group are:
     http://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance[Levenshtein edit distance]
     of 1 or 2.
 
-<<query-dsl-type-query,`type` query>>::
-
-    Find documents of the specified type.
-
 <<query-dsl-ids-query,`ids` query>>::
 
-    Find documents with the specified type and IDs.
+    Find documents with the specified IDs.
 
 
 include::term-query.asciidoc[]
@@ -86,7 +82,5 @@ include::wildcard-query.asciidoc[]
 include::regexp-query.asciidoc[]
 
 include::fuzzy-query.asciidoc[]
-
-include::type-query.asciidoc[]
 
 include::ids-query.asciidoc[]

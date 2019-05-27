@@ -961,7 +961,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * This test creates an index in the old cluster and then closes it. When the cluster is fully restarted in a newer version,
      * it verifies that the index exists and is replicated if the old version supports replication.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39576")
     public void testClosedIndices() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createIndex(index, Settings.builder()
@@ -988,7 +987,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             closeIndex(index);
         }
 
-        if (getOldClusterVersion().onOrAfter(Version.V_7_1_0)) {
+        if (getOldClusterVersion().onOrAfter(Version.V_7_2_0)) {
             ensureGreenLongWait(index);
             assertClosedIndex(index, true);
         } else {

@@ -57,7 +57,7 @@ public class Build {
             return displayName;
         }
 
-        public static Flavor fromDisplayName(final String displayName) {
+        public static Flavor fromDisplayName(final String displayName, final boolean strict) {
             switch (displayName) {
                 case "default":
                     return Flavor.DEFAULT;
@@ -66,7 +66,12 @@ public class Build {
                 case "unknown":
                     return Flavor.UNKNOWN;
                 default:
-                    throw new IllegalStateException("unexpected distribution flavor [" + displayName + "]; your distribution is broken");
+                    if (strict) {
+                        final String message = "unexpected distribution flavor [" + displayName + "]; your distribution is broken";
+                        throw new IllegalStateException(message);
+                    } else {
+                        return Flavor.UNKNOWN;
+                    }
             }
         }
 
@@ -91,7 +96,7 @@ public class Build {
             this.displayName = displayName;
         }
 
-        public static Type fromDisplayName(final String displayName) {
+        public static Type fromDisplayName(final String displayName, final boolean strict) {
             switch (displayName) {
                 case "deb":
                     return Type.DEB;
@@ -106,9 +111,14 @@ public class Build {
                 case "unknown":
                     return Type.UNKNOWN;
                 default:
-                    throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
+                    if (strict) {
+                        throw new IllegalStateException("unexpected distribution type [" + displayName + "]; your distribution is broken");
+                    } else {
+                        return Type.UNKNOWN;
+                    }
             }
         }
+
     }
 
     static {
@@ -119,8 +129,9 @@ public class Build {
         final boolean isSnapshot;
         final String version;
 
-        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"));
-        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"));
+        // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
+        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"), true);
+        type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
         final URL url = getElasticsearchCodeSourceLocation();
@@ -213,42 +224,26 @@ public class Build {
     public static Build readBuild(StreamInput in) throws IOException {
         final Flavor flavor;
         final Type type;
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            flavor = Flavor.fromDisplayName(in.readString());
-        } else {
-            flavor = Flavor.OSS;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0)) {
-            type = Type.fromDisplayName(in.readString());
-        } else {
-            type = Type.UNKNOWN;
-        }
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        flavor = Flavor.fromDisplayName(in.readString(), false);
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
         String date = in.readString();
         boolean snapshot = in.readBoolean();
 
         final String version;
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            version = in.readString();
-        } else {
-            version = in.getVersion().toString();
-        }
+        version = in.readString();
         return new Build(flavor, type, hash, date, snapshot, version);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeString(build.flavor().displayName());
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            out.writeString(build.type().displayName());
-        }
+        out.writeString(build.flavor().displayName());
+        out.writeString(build.type().displayName());
         out.writeString(build.shortHash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeString(build.getQualifiedVersion());
-        }
+        out.writeString(build.getQualifiedVersion());
     }
 
     /**

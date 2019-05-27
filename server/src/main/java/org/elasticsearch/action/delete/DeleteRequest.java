@@ -288,7 +288,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         } else if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
             assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
             throw new IllegalStateException(
-                "sequence number based compare and write is not supported until all nodes are on version 7.0 or higher. " +
+                "sequence number based compare and write is not supported until all nodes are on version 6.6.0 or higher. " +
                     "Stream version [" + out.getVersion() + "]");
         }
     }

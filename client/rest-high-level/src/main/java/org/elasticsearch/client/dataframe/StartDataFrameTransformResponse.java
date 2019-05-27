@@ -33,7 +33,8 @@ public class StartDataFrameTransformResponse extends AcknowledgedTasksResponse {
     private static final String ACKNOWLEDGED = "acknowledged";
 
     private static final ConstructingObjectParser<StartDataFrameTransformResponse, Void> PARSER =
-            AcknowledgedTasksResponse.generateParser("start_data_frame_transform_response", StartDataFrameTransformResponse::new, ACKNOWLEDGED);
+            AcknowledgedTasksResponse.generateParser("start_data_frame_transform_response", StartDataFrameTransformResponse::new,
+                    ACKNOWLEDGED);
 
     public static StartDataFrameTransformResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);

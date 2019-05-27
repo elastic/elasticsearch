@@ -32,8 +32,8 @@ public class StopDataFrameTransformResponse extends AcknowledgedTasksResponse {
 
     private static final String ACKNOWLEDGED = "acknowledged";
 
-    private static final ConstructingObjectParser<StopDataFrameTransformResponse, Void> PARSER =
-            AcknowledgedTasksResponse.generateParser("stop_data_frame_transform_response", StopDataFrameTransformResponse::new, ACKNOWLEDGED);
+    private static final ConstructingObjectParser<StopDataFrameTransformResponse, Void> PARSER = AcknowledgedTasksResponse
+            .generateParser("stop_data_frame_transform_response", StopDataFrameTransformResponse::new, ACKNOWLEDGED);
 
     public static StopDataFrameTransformResponse fromXContent(final XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);

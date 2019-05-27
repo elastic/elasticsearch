@@ -42,7 +42,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
 ---
 "Test start missing transform":
@@ -56,7 +56,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       catch: /Unable to start data frame transform \[airline-transform-start-stop\] as it is in state \[STARTED\]/
@@ -68,7 +68,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
   - do:
       indices.get_mapping:
         index: airline-data-by-airline-start-stop
@@ -83,7 +83,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
   - do:
       indices.get_mapping:
         index: airline-data-by-airline-start-stop
@@ -93,7 +93,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:
@@ -107,7 +107,7 @@ teardown:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
         wait_for_completion: true
-  - match: { stopped: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:
@@ -120,7 +120,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:
@@ -142,7 +142,7 @@ teardown:
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { stopped: true }
+  - match: { acknowledged: true }
 
 ---
 "Test start/stop only starts/stops specified transform":
@@ -161,7 +161,7 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:
@@ -182,12 +182,12 @@ teardown:
   - do:
       data_frame.start_data_frame_transform:
         transform_id: "airline-transform-start-later"
-  - match: { started: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
-  - match: { stopped: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.get_data_frame_transform_stats:
@@ -201,7 +201,7 @@ teardown:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-later"
         wait_for_completion: true
-  - match: { stopped: true }
+  - match: { acknowledged: true }
 
   - do:
       data_frame.delete_data_frame_transform:

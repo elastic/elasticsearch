@@ -179,7 +179,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 "      \"date\": {\n" +
                 "        \"field\": \"createdTime\",\n" +
                 "        \"formats\": [\n" +
-                "         \"yyyy-w\", \"date_time\",\"date_time_no_millis\", \"date_hour_minute_second_millis\", \"date_hour_minute_second_fraction\"\n" +
+                "         \"yyyy-w\", \"date_time\",\"date_time_no_millis\", \"date_hour_minute_second_fraction\"\n" +
                 "        ]\n" +
                 "      },\n" +
                 "      \"date_index_name\": {\n" +

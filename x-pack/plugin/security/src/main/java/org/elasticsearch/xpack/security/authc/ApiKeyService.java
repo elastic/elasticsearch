@@ -96,7 +96,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -248,7 +247,7 @@ public class ApiKeyService {
         try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication, roleDescriptorSet, created, expiration,
             request.getRoleDescriptors(), version)) {
             final IndexRequest indexRequest =
-                client.prepareIndex(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME)
+                client.prepareIndex(SECURITY_INDEX_NAME, "doc")
                     .setSource(builder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();

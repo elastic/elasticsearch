@@ -11,17 +11,30 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
+import org.mockito.Mockito;
 
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_INDEX_NAME;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
@@ -91,5 +104,25 @@ public final class SecurityMocks {
 
             return null;
         }).when(client).get(any(GetRequest.class), any(ActionListener.class));
+    }
+
+    public static void mockSearchHits(Client client, SearchHit[] hits) {
+        mockSearchHits(client, ".security", null, hits);
+    }
+
+    public static void mockSearchHits(Client client, String index, @Nullable String type, SearchHit[] hits) {
+        Mockito.doAnswer(invocationOnMock -> {
+            Assert.assertThat(invocationOnMock.getArguments()[1], Matchers.instanceOf(SearchRequest.class));
+            SearchRequest request = (SearchRequest) invocationOnMock.getArguments()[1];
+            Assert.assertThat(request.indices(), arrayContaining(index));
+            Assert.assertThat(request.types(), type == null ? emptyArray() : arrayContaining(type));
+
+            Assert.assertThat(invocationOnMock.getArguments()[2], Matchers.instanceOf(ActionListener.class));
+            ActionListener<SearchResponse> listener = (ActionListener) invocationOnMock.getArguments()[2];
+            final SearchResponseSections inner = new SearchResponseSections(new SearchHits(hits, hits.length, 0.0f),
+                null, null, false, false, null, 0);
+            listener.onResponse(new SearchResponse(inner, null, 0, 0, 0, randomLongBetween(1, 500), new ShardSearchFailure[0], null));
+            return null;
+        }).when(client).execute(Mockito.same(SearchAction.INSTANCE), any(SearchRequest.class), any(ActionListener.class));
     }
 }

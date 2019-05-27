@@ -42,12 +42,12 @@ version (e.g. 6.7 can communicate with 7.0, as well as any 7.x node, while
 
 [cols="^,^,^,^,^,^"]
 |====
-| Compatibility | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 7.x
-| 5.0->5.5      |    Yes   | Yes |    No    | No  | No
-| 5.6           |    Yes   | Yes |    Yes   | Yes | No
-| 6.0->6.6      |    No    | Yes |    Yes   | Yes | No
-| 6.7           |    No    | Yes |    Yes   | Yes | Yes
-| 7.x           |    No    | No  |    No    | Yes | Yes
+| Compatibility | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7->6.8 | 7.x
+| 5.0->5.5      |    Yes   | Yes |    No    | No       | No
+| 5.6           |    Yes   | Yes |    Yes   | Yes      | No
+| 6.0->6.6      |    No    | Yes |    Yes   | Yes      | No
+| 6.7->6.8      |    No    | Yes |    Yes   | Yes      | Yes
+| 7.x           |    No    | No  |    No    | Yes      | Yes
 |====
 
 - *role*: Dedicated master nodes never get selected.

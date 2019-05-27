@@ -66,34 +66,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         String jodaZoneId = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSz").print(dateTime);
         assertThat(javaZoneId, equalTo("2019-01-01T01:01:01.001Z"));
         assertThat(jodaZoneId, equalTo("2019-01-01T01:01:01.001UTC"));
-
-        // for some zones it will fail, but mostly passes. This is due to different reference data being used in java vs joda.
-        // for instance
-        //Expected :2018-12-31T18:01:01.001∅∅∅
-        //Actual   :2018-12-31T18:01:01.001GMT-07:00
-        //        ZoneId zoneId = randomZone();
-        //        if (zoneId != ZoneOffset.UTC) {
-        //            parse = ZonedDateTime.from(parse)
-        //                                 .withZoneSameInstant(zoneId);
-        //            javaZoneId = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSz")
-        //                                          .format(parse);
-        //
-        //            dateTime = dateTime.withZone(DateTimeZone.forID(zoneId.getId()));
-        //            jodaZoneId = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss.SSSz").print(dateTime);
-        //            assertThat(javaZoneId, equalTo(jodaZoneId));
-        //        }
-
-        //week year 'x' in joda becomes 'Y' in java.time. Parsing fails at the moment
-        // assertSameMillis("2019-01", "xxxx-ww", "8YYYY-ww");
-        //java.lang.IllegalArgumentException: temporal accessor [
-        // {WeekOfWeekBasedYear[WeekFields[SUNDAY,1]]=1, WeekBasedYear[WeekFields[SUNDAY,1]]=2019},ISO]
-        // cannot be converted to zoned date time
-
-        //but formatting works except for 2019-05-27T01:31:08.328402+08:00[Asia/Singapore] 2019-21 (ok joda) vs 2019-22 (java)
-//        ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-//        DateFormatter jodaFormatter = Joda.forPattern("xxxx-ww").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
-//        DateFormatter javaFormatter = DateFormatter.forPattern("8YYYY-ww").withLocale(Locale.ROOT).withZone(ZoneOffset.UTC);
-//        assertThat(jodaFormatter.format(now), equalTo(javaFormatter.format(now)));
     }
 
     private void assertSameMillis(String input, String jodaFormat, String javaFormat) {

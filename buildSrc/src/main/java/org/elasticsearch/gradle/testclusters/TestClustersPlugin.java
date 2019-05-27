@@ -39,13 +39,7 @@ import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.TaskState;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -196,7 +190,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 public void beforeActions(Task task) {
                     // we only start the cluster before the actions, so we'll not start it if the task is up-to-date
                     usedClusters.getOrDefault(task, Collections.emptyList()).stream()
-                        .filter(each -> runningClusters.contains(each) == false)
+                        .filter(cluster -> runningClusters.contains(cluster) == false)
                         .forEach(elasticsearchCluster -> {
                             elasticsearchCluster.start();
                             runningClusters.add(elasticsearchCluster);
@@ -222,18 +216,18 @@ public class TestClustersPlugin implements Plugin<Project> {
                     if (state.getFailure() != null) {
                         // If the task fails, and other tasks use this cluster, the other task will likely never be
                         // executed at all, so we will never get to un-claim and terminate it.
-                        clustersUsedByTask.forEach(each -> stopCluster(each, true));
+                        clustersUsedByTask.forEach(cluster -> stopCluster(cluster, true));
                     } else {
                         clustersUsedByTask.forEach(
-                            each -> claimsInventory.put(each, claimsInventory.getOrDefault(each, 0) - 1)
+                            cluster -> claimsInventory.put(cluster, claimsInventory.getOrDefault(cluster, 0) - 1)
                         );
                         claimsInventory.entrySet().stream()
                             .filter(entry -> entry.getValue() == 0)
                             .filter(entry -> runningClusters.contains(entry.getKey()))
                             .map(Map.Entry::getKey)
-                            .forEach(each -> {
-                                stopCluster(each, false);
-                                runningClusters.remove(each);
+                            .forEach(cluster -> {
+                                stopCluster(cluster, false);
+                                runningClusters.remove(cluster);
                             });
                     }
                 }
@@ -243,7 +237,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private void stopCluster(ElasticsearchCluster each, boolean taskFailed) {
+    private void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
         if (allowClusterToSurvive) {
             logger.info("Not stopping clusters, disabled by property");
             if (taskFailed) {
@@ -251,7 +245,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 for (int i=1 ; ; i += i) {
                     logger.lifecycle(
                         "No more test clusters left to run, going to sleep because {} was set," +
-                            " interrupt to stop clusters.", TESTCLUSTERS_INSPECT_FAILURE
+                            " interrupt (^C) to stop clusters.", TESTCLUSTERS_INSPECT_FAILURE
                     );
                     try {
                         Thread.sleep(1000 * i);
@@ -262,7 +256,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 }
             }
         }
-        each.stop(taskFailed);
+        cluster.stop(taskFailed);
     }
 
     /**
@@ -454,13 +448,13 @@ public class TestClustersPlugin implements Plugin<Project> {
             if (runningClusters.isEmpty()) {
                 return;
             }
-            Set<ElasticsearchCluster> running = new HashSet<>(runningClusters);
-            running.forEach(each -> {
-                runningClusters.remove(each);
-                each.stop(false);
-            });
+            Iterator<ElasticsearchCluster> iterator = runningClusters.iterator();
+            while (iterator.hasNext()) {
+                ElasticsearchCluster next = iterator.next();
+                iterator.remove();
+                next.stop(false);
+            }
         }
     }
-
 
 }

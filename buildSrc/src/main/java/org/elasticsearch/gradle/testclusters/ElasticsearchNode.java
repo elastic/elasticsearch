@@ -248,9 +248,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void checkSuppliers(String name, Collection<Supplier<CharSequence>> collector) {
-        collector.forEach(value ->
+        collector.forEach(suplier ->
             requireNonNull(
-                value.toString(),
+                suplier.get().toString(),
                 name + " supplied value was null when configuring test cluster `" + this + "`"
             )
         );
@@ -505,7 +505,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     requireNonNull(argument, "Jvm argument supplier returned null while configuring " + this);
                     if (argument.toString().startsWith("-D")) {
                         throw new TestClustersException("Invalid jvm argument `" + argument +
-                            "` configure as systemPropery instead for " + this
+                            "` configure as systemProperty instead for " + this
                         );
                     }
                 })
@@ -576,7 +576,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     public File getServerLog() {
-        return confPathLogs.resolve(getName().replaceAll("-[0-9]+$", "") + "_server.json").toFile();
+        return confPathLogs.resolve(safeName(getName()).replaceAll("-[0-9]+$", "") + "_server.json").toFile();
     }
 
     @Override

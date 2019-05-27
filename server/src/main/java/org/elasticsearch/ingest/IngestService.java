@@ -287,7 +287,7 @@ public class IngestService implements ClusterStateApplier {
         return processorMetrics;
     }
 
-    static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {
+    public static ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {
         IngestMetadata currentIngestMetadata = currentState.metaData().custom(IngestMetadata.TYPE);
         Map<String, PipelineConfiguration> pipelines;
         if (currentIngestMetadata != null) {

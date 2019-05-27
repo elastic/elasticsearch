@@ -36,7 +36,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
             (EnrichProcessorFactory) ingestService.getProcessorFactories().get(EnrichProcessorFactory.TYPE);
 
         EnrichPolicy instance1 =
-            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("index"), "key1", List.of("field1"), "");
+            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("index"), "key1", List.of("field1"));
         PutEnrichPolicyAction.Request putPolicyRequest = new PutEnrichPolicyAction.Request("my_policy", instance1);
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
         assertThat(enrichProcessorFactory.policies.get("my_policy"), equalTo(instance1));
@@ -48,7 +48,7 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         assertThat(pipelineInstance1.getProcessors().get(0), instanceOf(ExactMatchProcessor.class));
 
         EnrichPolicy instance2 =
-            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("index"), "key2", List.of("field2"), "");
+            new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("index"), "key2", List.of("field2"));
         putPolicyRequest = new PutEnrichPolicyAction.Request("my_policy", instance2);
         assertAcked(client().execute(PutEnrichPolicyAction.INSTANCE, putPolicyRequest).actionGet());
         assertThat(enrichProcessorFactory.policies.get("my_policy"), equalTo(instance2));

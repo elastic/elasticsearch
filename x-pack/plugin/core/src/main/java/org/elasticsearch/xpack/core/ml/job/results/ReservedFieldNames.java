@@ -277,6 +277,7 @@ public final class ReservedFieldNames {
             OutlierDetection.NAME.getPreferredName(),
             OutlierDetection.N_NEIGHBORS.getPreferredName(),
             OutlierDetection.METHOD.getPreferredName(),
+            OutlierDetection.MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName(),
 
             ElasticsearchMappings.CONFIG_TYPE,
 

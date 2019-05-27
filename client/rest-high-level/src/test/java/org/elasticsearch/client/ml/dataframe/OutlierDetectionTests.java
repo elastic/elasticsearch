@@ -24,6 +24,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetection> {
@@ -32,6 +33,7 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
         return OutlierDetection.builder()
             .setNNeighbors(randomBoolean() ? null : randomIntBetween(1, 20))
             .setMethod(randomBoolean() ? null : randomFrom(OutlierDetection.Method.values()))
+            .setMinScoreToWriteFeatureInfluence(randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, true))
             .build();
     }
 
@@ -54,6 +56,7 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
         OutlierDetection outlierDetection = OutlierDetection.createDefault();
         assertNull(outlierDetection.getNNeighbors());
         assertNull(outlierDetection.getMethod());
+        assertNull(outlierDetection.getMinScoreToWriteFeatureInfluence());
     }
 
     public void testGetParams_GivenExplicitValues() {
@@ -61,8 +64,10 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
             OutlierDetection.builder()
                 .setNNeighbors(42)
                 .setMethod(OutlierDetection.Method.LDOF)
+                .setMinScoreToWriteFeatureInfluence(0.5)
                 .build();
         assertThat(outlierDetection.getNNeighbors(), equalTo(42));
         assertThat(outlierDetection.getMethod(), equalTo(OutlierDetection.Method.LDOF));
+        assertThat(outlierDetection.getMinScoreToWriteFeatureInfluence(), closeTo(0.5, 1E-9));
     }
 }

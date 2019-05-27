@@ -12,6 +12,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -30,7 +31,8 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
     public static OutlierDetection createRandom() {
         Integer numberNeighbors = randomBoolean() ? null : randomIntBetween(1, 20);
         OutlierDetection.Method method = randomBoolean() ? null : randomFrom(OutlierDetection.Method.values());
-        return new OutlierDetection(numberNeighbors, method);
+        Double minScoreToWriteFeatureInfluence = randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, true);
+        return new OutlierDetection(numberNeighbors, method, minScoreToWriteFeatureInfluence);
     }
 
     @Override
@@ -44,12 +46,14 @@ public class OutlierDetectionTests extends AbstractSerializingTestCase<OutlierDe
     }
 
     public void testGetParams_GivenExplicitValues() {
-        OutlierDetection outlierDetection = new OutlierDetection(42, OutlierDetection.Method.LDOF);
+        OutlierDetection outlierDetection = new OutlierDetection(42, OutlierDetection.Method.LDOF, 0.42);
 
         Map<String, Object> params = outlierDetection.getParams();
 
-        assertThat(params.size(), equalTo(2));
+        assertThat(params.size(), equalTo(3));
         assertThat(params.get(OutlierDetection.N_NEIGHBORS.getPreferredName()), equalTo(42));
         assertThat(params.get(OutlierDetection.METHOD.getPreferredName()), equalTo(OutlierDetection.Method.LDOF));
+        assertThat((Double) params.get(OutlierDetection.MINIMUM_SCORE_TO_WRITE_FEATURE_INFLUENCE.getPreferredName()),
+            is(closeTo(0.42, 1E-9)));
     }
 }

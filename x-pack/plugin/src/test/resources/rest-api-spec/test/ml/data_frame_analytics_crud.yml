@@ -92,6 +92,36 @@
   - match: { analysis: {"outlier_detection":{}} }
 
 ---
+"Test put valid config with custom outlier detection":
+
+  - do:
+      ml.put_data_frame_analytics:
+        id: "custom-outlier-detection"
+        body: >
+          {
+            "source": {
+              "index": "index-source"
+            },
+            "dest": {
+              "index": "index-dest"
+            },
+            "analysis": {
+              "outlier_detection":{
+                "n_neighbors": 5,
+                "method": "lof",
+                "minimum_score_to_write_feature_influence": 0.0
+              }
+            }
+          }
+  - match: { id: "custom-outlier-detection" }
+  - match: { source.index: "index-source" }
+  - match: { source.query: {"match_all" : {} } }
+  - match: { dest.index: "index-dest" }
+  - match: { analysis.outlier_detection.n_neighbors: 5 }
+  - match: { analysis.outlier_detection.method: "lof" }
+  - match: { analysis.outlier_detection.minimum_score_to_write_feature_influence: 0.0 }
+
+---
 "Test put config with inconsistent body/param ids":
 
   - do:

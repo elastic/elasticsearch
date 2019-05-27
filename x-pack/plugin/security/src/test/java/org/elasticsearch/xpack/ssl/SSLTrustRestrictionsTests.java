@@ -150,15 +150,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        Settings parentSettings = super.transportClientSettings();
-        Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
-                .put(nodeSSL);
-        return builder.build();
-    }
-
-    @Override
     protected boolean transportSSLEnabled() {
         return true;
     }

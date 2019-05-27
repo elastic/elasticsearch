@@ -84,6 +84,10 @@ public class FakeThreadPoolMasterService extends MasterService {
         };
     }
 
+    public int getFakeMasterServicePendingTaskCount() {
+        return pendingTasks.size();
+    }
+
     private void scheduleNextTaskIfNecessary() {
         if (taskInProgress == false && pendingTasks.isEmpty() == false && scheduledNextTask == false) {
             scheduledNextTask = true;

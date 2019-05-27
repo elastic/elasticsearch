@@ -99,14 +99,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
         return source * x == target;
     }
 
-    public void testNumberOfShards() {
-        {
-            final Version versionCreated = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
-            final Settings.Builder indexSettingsBuilder = Settings.builder().put(SETTING_VERSION_CREATED, versionCreated);
-            assertThat(MetaDataCreateIndexService.IndexCreationTask.getNumberOfShards(indexSettingsBuilder), equalTo(1));
-        }
-    }
-
     public void testValidateShrinkIndex() {
         int numShards = randomIntBetween(2, 42);
         ClusterState state = createClusterState("source", numShards, randomIntBetween(0, 10),

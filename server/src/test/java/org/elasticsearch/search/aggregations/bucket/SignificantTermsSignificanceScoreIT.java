@@ -94,11 +94,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         return Arrays.asList(CustomSignificanceHeuristicPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(CustomSignificanceHeuristicPlugin.class);
-    }
-
     public String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
     }

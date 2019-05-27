@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -149,7 +150,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 AutoFollowMetadata autoFollowMetadata = metaData[0].custom(AutoFollowMetadata.TYPE);
                 assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), hasSize((int) expectedVal1));
                 assertThat(autoFollowStats[0].getNumberOfSuccessfulFollowIndices(), equalTo(expectedVal1));
-            });
+            }, 30, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
@@ -168,7 +169,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 AutoFollowMetadata autoFollowMetadata = metaData[0].custom(AutoFollowMetadata.TYPE);
                 assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern"), nullValue());
                 assertThat(autoFollowStats[0].getAutoFollowedClusters().size(), equalTo(0));
-            });
+            }, 30, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));
@@ -199,7 +200,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
                 // Ensure that there are no auto follow errors:
                 // (added specifically to see that there are no leader indices auto followed multiple times)
                 assertThat(autoFollowStats[0].getRecentAutoFollowErrors().size(), equalTo(0));
-            });
+            }, 30, TimeUnit.SECONDS);
         } catch (AssertionError ae) {
             logger.warn("indices={}", Arrays.toString(metaData[0].indices().keys().toArray(String.class)));
             logger.warn("auto follow stats={}", Strings.toString(autoFollowStats[0]));

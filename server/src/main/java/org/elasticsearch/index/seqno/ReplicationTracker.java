@@ -221,12 +221,15 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 .leases()
                 .stream()
                 .collect(Collectors.groupingBy(lease -> currentTimeMillis - lease.timestamp() > retentionLeaseMillis));
-        if (partitionByExpiration.get(true) == null) {
+        final Collection<RetentionLease> expiredLeases = partitionByExpiration.get(true);
+        if (expiredLeases == null) {
             // early out as no retention leases have expired
+            logger.debug("no retention leases are expired from current retention leases [{}]", retentionLeases);
             return Tuple.tuple(false, retentionLeases);
         }
         final Collection<RetentionLease> nonExpiredLeases =
                 partitionByExpiration.get(false) != null ? partitionByExpiration.get(false) : Collections.emptyList();
+        logger.debug("expiring retention leases [{}] from current retention leases [{}]", expiredLeases, retentionLeases);
         retentionLeases = new RetentionLeases(operationPrimaryTerm, retentionLeases.version() + 1, nonExpiredLeases);
         return Tuple.tuple(true, retentionLeases);
     }
@@ -255,6 +258,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                 throw new RetentionLeaseAlreadyExistsException(id);
             }
             retentionLease = new RetentionLease(id, retainingSequenceNumber, currentTimeMillisSupplier.getAsLong(), source);
+            logger.debug("adding new retention lease [{}] to current retention leases [{}]", retentionLease, retentionLeases);
             retentionLeases = new RetentionLeases(
                     operationPrimaryTerm,
                     retentionLeases.version() + 1,
@@ -312,6 +316,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             if (retentionLeases.contains(id) == false) {
                 throw new RetentionLeaseNotFoundException(id);
             }
+            logger.debug("removing retention lease [{}] from current retention leases [{}]", id, retentionLeases);
             retentionLeases = new RetentionLeases(
                     operationPrimaryTerm,
                     retentionLeases.version() + 1,

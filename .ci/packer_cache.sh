@@ -22,3 +22,4 @@ export JAVA8_HOME="${HOME}"/.java/java8
 export JAVA11_HOME="${HOME}"/.java/java11
 export JAVA12_HOME="${HOME}"/.java/openjdk12
 ./gradlew --parallel clean --scan -Porg.elasticsearch.acceptScanTOS=true -s resolveAllDependencies
+

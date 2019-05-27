@@ -95,6 +95,10 @@ forbiddenPatterns {
     exclude '**/*.zip'
 }
 
+forbiddenApisMain {
+    signaturesFiles += files('forbidden/hasher-signatures.txt')
+}
+
 if (isEclipse) {
     // in eclipse the project is under a fake root, we need to change around the source sets
     sourceSets {

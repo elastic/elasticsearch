@@ -25,4 +25,9 @@ to see if there is data in the old location, and automatically move it
 to the new location. This automatic migration only works if `$nodeOrdinal`
 is 0, i.e., multiple node instances have not previously run on the same
 data path, which required for `node.max_local_storage_nodes` to explicitly
-be configured.
+be configured. In case where the automatic migration cannot be done due to
+ambiguity of `$nodeOrdinal` subfolders, the data path (i.e. `path.data`
+setting) can either be adjusted for each node instance to one of the
+`$nodeOrdinal` subfolders, or preferably the contents of the `$nodeOrdinal`
+subfolders can be manually moved into separate new folders, with `path.data`
+then set to one of these folders for each node instance.

@@ -35,6 +35,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -285,7 +287,7 @@ public final class NodeEnvironment  implements Closeable {
                 ensureAtomicMoveSupported(nodePaths);
             }
 
-            if (upgradeLegacyNodeFolders(logger, environment, nodeLock)) {
+            if (upgradeLegacyNodeFolders(logger, settings, environment, nodeLock)) {
                 assertCanWrite();
             }
 
@@ -311,7 +313,8 @@ public final class NodeEnvironment  implements Closeable {
      * Upgrades all data paths that have been written to by an older ES version to the 8.0+ compatible folder layout,
      * removing the "nodes/${lockId}" folder prefix
      */
-    private static boolean upgradeLegacyNodeFolders(Logger logger, Environment environment, NodeLock nodeLock) throws IOException {
+    private static boolean upgradeLegacyNodeFolders(Logger logger, Settings settings, Environment environment,
+                                                    NodeLock nodeLock) throws IOException {
         boolean upgradeNeeded = false;
 
         // check if we can do an auto-upgrade
@@ -334,8 +337,10 @@ public final class NodeEnvironment  implements Closeable {
                     upgradeNeeded = true;
 
                     if (nodeLockIds.equals(Arrays.asList(0)) == false) {
-                        throw new IllegalStateException("Cannot upgrade multiple path with multiple lock ids or lock id different to 0 " +
-                            "(path: " + nodesFolderPath + " ids: " + nodeLockIds + ")");
+                        throw new IllegalStateException("data path " + nodesFolderPath + " cannot be upgraded automatically because it " +
+                            "contains data from nodes with ordinals " + nodeLockIds + ", due to previous use of the now obsolete " +
+                            "[node.max_local_storage_nodes] setting. Please check the breaking changes docs for the current version of " +
+                            "Elasticsearch to find an upgrade path");
                     }
                 }
             }
@@ -364,6 +369,7 @@ public final class NodeEnvironment  implements Closeable {
         // move contents from legacy path to new path
         assert nodeLock.getNodePaths().length == legacyNodeLock.getNodePaths().length;
         try {
+            final List<CheckedRunnable<IOException>> upgradeActions = new ArrayList<>();
             for (int i = 0; i < legacyNodeLock.getNodePaths().length; i++) {
                 final NodePath legacyNodePath = legacyNodeLock.getNodePaths()[i];
                 final NodePath nodePath = nodeLock.getNodePaths()[i];
@@ -396,14 +402,24 @@ public final class NodeEnvironment  implements Closeable {
                     }
                 }
 
-                // now do the actual move
-                for (String folderName : folderNames) {
-                    final Path sourceSubFolderPath = legacyNodePath.path.resolve(folderName);
-                    final Path targetSubFolderPath = nodePath.path.resolve(folderName);
-                    Files.move(sourceSubFolderPath, targetSubFolderPath, StandardCopyOption.ATOMIC_MOVE);
-                    logger.info("data folder upgrade: moved from [{}] to [{}]", sourceSubFolderPath, targetSubFolderPath);
-                }
-                IOUtils.fsync(nodePath.path, true);
+                assert Sets.difference(Sets.newHashSet(INDICES_FOLDER, MetaDataStateFormat.STATE_DIR_NAME), folderNames).isEmpty() :
+                    "expected indices and/or state dir folder but was " + folderNames;
+
+                upgradeActions.add(() -> {
+                    for (String folderName : folderNames) {
+                        final Path sourceSubFolderPath = legacyNodePath.path.resolve(folderName);
+                        final Path targetSubFolderPath = nodePath.path.resolve(folderName);
+                        Files.move(sourceSubFolderPath, targetSubFolderPath, StandardCopyOption.ATOMIC_MOVE);
+                        logger.info("data folder upgrade: moved from [{}] to [{}]", sourceSubFolderPath, targetSubFolderPath);
+                    }
+                    IOUtils.fsync(nodePath.path, true);
+                });
+            }
+            // now do the actual upgrade. start by upgrading the node metadata file before moving anything, since a downgrade in an
+            // intermediate state would be pretty disastrous
+            loadOrCreateNodeMetaData(settings, logger, legacyNodeLock.getNodePaths());
+            for (CheckedRunnable<IOException> upgradeAction : upgradeActions) {
+                upgradeAction.run();
             }
         } finally {
             legacyNodeLock.close();

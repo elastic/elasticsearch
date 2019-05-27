@@ -88,7 +88,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
-@TestLogging(value = "org.elasticsearch.xpack.ccr:trace")
+@TestLogging(value = "org.elasticsearch.xpack.ccr:trace,org.elasticsearch.indices.recovery:trace,org.elasticsearch.index.seqno:debug")
 public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
     public static final class RetentionLeaseRenewIntervalSettingPlugin extends Plugin {
@@ -192,7 +192,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, leaderIndex)));
@@ -315,7 +315,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
                         followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
@@ -353,7 +353,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     continue;
                 }
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
                         followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
@@ -391,7 +391,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
         final List<ShardStats> shardsStats = getShardsStats(stats);
         for (final ShardStats shardStats : shardsStats) {
-            assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
+            assertThat(Strings.toString(shardStats), shardStats.getRetentionLeaseStats().retentionLeases().leases(), hasSize(1));
             assertThat(
                     shardStats.getRetentionLeaseStats().retentionLeases().leases().iterator().next().id(),
                     equalTo(retentionLeaseId));
@@ -453,7 +453,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             final List<ShardStats> afterUnfollowShardsStats = getShardsStats(afterUnfollowStats);
             for (final ShardStats shardStats : afterUnfollowShardsStats) {
-                assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
+                assertThat(Strings.toString(shardStats), shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
             }
         } finally {
             for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
@@ -604,7 +604,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, leaderIndex)));
@@ -667,7 +667,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
                         followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
@@ -705,7 +705,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     continue;
                 }
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState =
                         followerClient().admin().cluster().prepareState().clear().setMetaData(true).setIndices(followerIndex).get();
                 final String followerUUID = followerIndexClusterState.getState().metaData().index(followerIndex).getIndexUUID();
@@ -911,7 +911,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
             final List<ShardStats> afterUnfollowShardsStats = getShardsStats(afterUnfollowStats);
             for (final ShardStats shardStats : afterUnfollowShardsStats) {
-                assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
+                assertThat(Strings.toString(shardStats), shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
             }
         } finally {
             for (final ObjectCursor<DiscoveryNode> senderNode : followerClusterState.getState().nodes().getDataNodes().values()) {
@@ -961,7 +961,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 leaderClient().admin().indices().stats(new IndicesStatsRequest().clear().indices(leaderIndex)).actionGet();
         final List<ShardStats> afterForgetFollowerShardsStats = getShardsStats(afterForgetFollowerStats);
         for (final ShardStats shardStats : afterForgetFollowerShardsStats) {
-            assertThat(shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
+            assertThat(Strings.toString(shardStats), shardStats.getRetentionLeaseStats().retentionLeases().leases(), empty());
         }
     }
 
@@ -981,7 +981,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, leaderIndex)));
@@ -998,7 +998,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             final List<ShardStats> shardsStats = getShardsStats(stats);
             for (int i = 0; i < numberOfShards * (1 + numberOfReplicas); i++) {
                 final RetentionLeases currentRetentionLeases = shardsStats.get(i).getRetentionLeaseStats().retentionLeases();
-                assertThat(currentRetentionLeases.leases(), hasSize(1));
+                assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.leases(), hasSize(1));
                 final RetentionLease retentionLease =
                         currentRetentionLeases.leases().iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, leaderIndex)));

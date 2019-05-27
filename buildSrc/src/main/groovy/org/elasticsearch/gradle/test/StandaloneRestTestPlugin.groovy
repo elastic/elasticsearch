@@ -60,6 +60,7 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         BuildPlugin.globalBuildInfo(project)
         BuildPlugin.configureRepositories(project)
         BuildPlugin.configureTestTasks(project)
+        BuildPlugin.configureInputNormalization(project)
 
         // only setup tests to build
         SourceSetContainer sourceSets = project.extensions.getByType(SourceSetContainer)

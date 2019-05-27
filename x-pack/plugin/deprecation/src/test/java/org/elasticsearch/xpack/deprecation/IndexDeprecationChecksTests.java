@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -108,6 +110,51 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> withDefaultFieldIssues =
             DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(tooManyFieldsOk));
         assertEquals(0, withDefaultFieldIssues.size());
+    }
+
+    public void testChainedMultiFields() throws IOException {
+        XContentBuilder xContent = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("invalid-field")
+                    .field("type", "keyword")
+                    .startObject("fields")
+                        .startObject("sub-field")
+                            .field("type", "keyword")
+                            .startObject("fields")
+                                .startObject("sub-sub-field")
+                                    .field("type", "keyword")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject("valid-field")
+                    .field("type", "keyword")
+                    .startObject("fields")
+                        .startObject("sub-field")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject()
+        .endObject();
+        String mapping = BytesReference.bytes(xContent).utf8ToString();
+
+        IndexMetaData simpleIndex = IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.V_7_3_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping("_doc", mapping)
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
+        assertEquals(1, issues.size());
+
+        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Multi-fields within multi-fields",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
+                "#_defining_multi_fields_within_multi_fields",
+            "The names of fields that contain chained multi-fields: [[type: _doc, field: invalid-field]]");
+        assertEquals(singletonList(expected), issues);
     }
 
     static void addRandomFields(final int fieldLimit,

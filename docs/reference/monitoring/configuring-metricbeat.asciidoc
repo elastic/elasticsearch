@@ -99,8 +99,7 @@ For more information, see
 +
 --
 // tag::configure-es-module[]
-You must specify the following settings in the
-`modules.d/elasticsearch-xpack.yml` file:
+The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
 
 [source,yaml]
 ----------------------------------
@@ -115,19 +114,17 @@ You must specify the following settings in the
       - node_stats
       - shard
     period: 10s
-    hosts: ["ELASTICSEARCH_URL"] <1>
+    hosts: ["http://localhost:9200"]
     #username: "user"
     #password: "secret"
-    xpack.enabled: true <2>
+    xpack.enabled: true
 ----------------------------------
-<1> Replace `ELASTICSEARCH_URL` with the appropriate host and port number that
-you use to access {es}. The default value is `http://localhost:9200`.
-<2> This setting ensures that {es} can read the monitoring data successfully. 
-That is to say, it's stored in the same location and format as monitoring data 
-that is sent by {ref}/es-monitoring-exporters.html[exporters].
 
-If you configured {es} to use encrypted communications, you must access it via
-HTTPS. For example, use a `hosts` setting like `https://localhost:9200`.
+By default, the module collects {es} monitoring metrics from
+`http://localhost:9200`. If that host and port number are not correct, you must
+update the `hosts` setting. If you configured {es} to use encrypted
+communications, you must access it via HTTPS. For example, use a `hosts` setting
+like `https://localhost:9200`.
 // end::configure-es-module[]
 
 // tag::remote-monitoring-user[]

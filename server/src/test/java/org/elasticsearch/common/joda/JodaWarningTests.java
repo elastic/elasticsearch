@@ -29,6 +29,11 @@ import static org.hamcrest.Matchers.is;
 
 public class JodaWarningTests extends ESTestCase {
 
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
+
     public void testDeprecatedFormatSpecifiers() {
         Joda.forPattern("CC");
         assertWarnings("'C' century of era is no longer supported. Prefix your date format with '8' to use the new specifier.");

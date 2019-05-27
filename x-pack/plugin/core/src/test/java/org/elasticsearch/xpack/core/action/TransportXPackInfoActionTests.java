@@ -40,11 +40,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportXPackInfoActionTests extends ESTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     public void testDoExecute() throws Exception {
 

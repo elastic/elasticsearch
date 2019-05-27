@@ -16,12 +16,6 @@ import java.util.Arrays;
 
 public class DatafeedParamsTests extends AbstractSerializingTestCase<StartDatafeedAction.DatafeedParams> {
     @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
-
-    @Override
     protected StartDatafeedAction.DatafeedParams doParseInstance(XContentParser parser) throws IOException {
         return StartDatafeedAction.DatafeedParams.parseRequest(null, parser);
     }

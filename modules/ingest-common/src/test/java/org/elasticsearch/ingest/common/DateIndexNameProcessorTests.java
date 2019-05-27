@@ -34,6 +34,10 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DateIndexNameProcessorTests extends ESTestCase {
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
 
     public void testJodaPattern() throws Exception {
         Function<String, DateTime> function = DateFormat.Java.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZ", DateTimeZone.UTC, Locale.ROOT);

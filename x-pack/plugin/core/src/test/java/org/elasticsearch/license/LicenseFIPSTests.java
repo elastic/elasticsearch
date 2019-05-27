@@ -18,12 +18,6 @@ import static org.mockito.Mockito.verify;
 
 public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
 
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
-
     public void testFIPSCheckWithAllowedLicense() throws Exception {
         License newLicense = TestUtils.generateSignedLicense(randomFrom("trial", "platinum"), TimeValue.timeValueHours(24L));
         PutLicenseRequest request = new PutLicenseRequest();

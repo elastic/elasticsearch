@@ -36,6 +36,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DateFormatTests extends ESTestCase {
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
 
     public void testParseJoda() {
         Function<String, DateTime> jodaFunction = DateFormat.Java.getFunction("MMM dd HH:mm:ss Z",

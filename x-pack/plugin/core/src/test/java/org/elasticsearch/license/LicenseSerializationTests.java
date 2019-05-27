@@ -24,13 +24,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 public class LicenseSerializationTests extends ESTestCase {
-
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
-
     public void testSimpleIssueExpiryDate() throws Exception {
         long now = System.currentTimeMillis();
         String issueDate = TestUtils.dateMathString("now", now);

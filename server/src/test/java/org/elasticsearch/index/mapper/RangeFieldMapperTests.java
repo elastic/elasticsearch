@@ -48,6 +48,10 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 
 public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

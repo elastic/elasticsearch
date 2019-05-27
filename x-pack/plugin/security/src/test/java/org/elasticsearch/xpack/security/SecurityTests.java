@@ -319,7 +319,6 @@ public class SecurityTests extends ESTestCase {
             }
             validator.accept(node, ClusterState.builder(ClusterName.DEFAULT).metaData(MetaData.builder().build()).build());
         }
-        resetDeprecationLogger(true);
     }
 
     public void testJoinValidatorForLicenseDeserialization() throws Exception {
@@ -333,7 +332,6 @@ public class SecurityTests extends ESTestCase {
         IllegalStateException e = expectThrows(IllegalStateException.class,
             () -> new Security.ValidateLicenseCanBeDeserialized().accept(node, state));
         assertThat(e.getMessage(), containsString("cannot deserialize the license format"));
-        resetDeprecationLogger(true);
     }
 
     public void testJoinValidatorForFIPSLicense() throws Exception {
@@ -354,7 +352,6 @@ public class SecurityTests extends ESTestCase {
                 () -> new Security.ValidateLicenseForFIPS(true).accept(node, state));
             assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
         }
-        resetDeprecationLogger(true);
     }
 
     public void testIndexJoinValidator_Old_And_Rolling() throws Exception {

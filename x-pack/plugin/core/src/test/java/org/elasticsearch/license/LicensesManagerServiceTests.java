@@ -27,11 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

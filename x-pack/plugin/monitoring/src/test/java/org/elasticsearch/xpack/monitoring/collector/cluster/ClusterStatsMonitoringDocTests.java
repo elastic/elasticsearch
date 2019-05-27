@@ -80,12 +80,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     private final boolean apmIndicesExist = randomBoolean();
 
     @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
-
-    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();

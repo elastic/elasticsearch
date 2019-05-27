@@ -24,11 +24,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 
 public class SelfGeneratedLicenseTests extends ESTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     public void testBasic() throws Exception {
         long issueDate = System.currentTimeMillis();

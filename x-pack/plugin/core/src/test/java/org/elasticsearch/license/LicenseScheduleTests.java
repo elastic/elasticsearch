@@ -16,11 +16,6 @@ public class LicenseScheduleTests extends ESTestCase {
 
     private License license;
     private SchedulerEngine.Schedule schedule;
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     @Before
     public void setuo() throws Exception {

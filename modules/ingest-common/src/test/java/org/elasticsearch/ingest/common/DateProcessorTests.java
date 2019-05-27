@@ -39,6 +39,10 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DateProcessorTests extends ESTestCase {
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
 
     private TemplateScript.Factory templatize(Locale locale) {
         return new TestTemplateService.MockTemplateScript.Factory(locale.getLanguage());

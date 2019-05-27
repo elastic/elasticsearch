@@ -64,6 +64,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -355,6 +356,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return true;
     }
 
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return false;
+    }
+
     @After
     public final void after() throws Exception {
         checkStaticState(false);
@@ -385,7 +390,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            assertNull("unexpected warning headers", warnings);
+            if (warnings != null && enableJodaDeprecationWarningsCheck() == false) {
+                List<String> filteredWarnings = warnings.stream()
+                                               .filter(m -> m.contains(JodaDeprecationPatterns.USE_PREFIX_8_WARNING) == false)
+                                               .collect(Collectors.toList());
+                assertThat( filteredWarnings, empty());
+
+            } else {
+                assertNull("unexpected warning headers", warnings);
+            }
         } finally {
             resetDeprecationLogger(false);
         }

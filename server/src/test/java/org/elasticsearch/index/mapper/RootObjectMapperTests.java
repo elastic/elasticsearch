@@ -28,11 +28,6 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.util.Arrays;
 
 public class RootObjectMapperTests extends ESSingleNodeTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     public void testNumericDetection() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder()

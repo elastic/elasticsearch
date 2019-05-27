@@ -41,8 +41,5 @@ public class FIPS140LicenseBootstrapCheckTests extends AbstractBootstrapCheckTes
                 new FIPS140LicenseBootstrapCheck().check(createTestContext(
                     Settings.builder().put("xpack.security.fips_mode.enabled", true).build(), metaData)).getMessage());
         }
-
-        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era. " +
-            "Prefix your date format with '8' to use the new specifier.");
     }
 }

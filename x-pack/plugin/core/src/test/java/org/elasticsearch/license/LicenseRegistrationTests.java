@@ -21,11 +21,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     public void testSelfGeneratedTrialLicense() throws Exception {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);

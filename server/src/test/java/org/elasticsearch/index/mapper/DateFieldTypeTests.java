@@ -49,6 +49,11 @@ import java.util.Locale;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
     @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
+
+    @Override
     protected MappedFieldType createDefaultFieldType() {
         return new DateFieldMapper.DateFieldType();
     }

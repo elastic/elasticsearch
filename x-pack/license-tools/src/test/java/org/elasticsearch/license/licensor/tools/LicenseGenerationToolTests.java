@@ -31,12 +31,6 @@ public class LicenseGenerationToolTests extends CommandTestCase {
     }
 
     @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
-
-    @Override
     protected Command newCommand() {
         return new LicenseGeneratorTool();
     }

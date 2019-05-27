@@ -34,11 +34,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class JodaDateMathParserTests extends ESTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     DateFormatter formatter = DateFormatter.forPattern("dateOptionalTime||epoch_millis");
     DateMathParser parser = formatter.toDateMathParser();

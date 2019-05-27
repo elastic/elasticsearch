@@ -42,11 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SimpleJodaTests extends ESTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     public void testMultiParsers() {
         DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder();

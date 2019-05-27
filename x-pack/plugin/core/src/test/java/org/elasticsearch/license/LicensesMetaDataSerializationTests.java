@@ -30,11 +30,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LicensesMetaDataSerializationTests extends ESTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     public void testXContentSerializationOneSignedLicense() throws Exception {
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));

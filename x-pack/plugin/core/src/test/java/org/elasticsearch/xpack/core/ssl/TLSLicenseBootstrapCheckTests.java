@@ -16,12 +16,6 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 
 public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
-
     public void testBootstrapCheckOnEmptyMetadata() {
         assertTrue(new TLSLicenseBootstrapCheck().check(emptyContext).isSuccess());
         assertTrue(new TLSLicenseBootstrapCheck().check(createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled"

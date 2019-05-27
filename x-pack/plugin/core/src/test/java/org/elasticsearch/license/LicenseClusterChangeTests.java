@@ -30,11 +30,6 @@ import static org.mockito.Mockito.when;
 public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
 
     private TestUtils.AssertingLicenseState licenseState;
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     @Before
     public void setup() {

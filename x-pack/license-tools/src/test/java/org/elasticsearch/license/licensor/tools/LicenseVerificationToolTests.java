@@ -22,12 +22,6 @@ public class LicenseVerificationToolTests extends CommandTestCase {
     protected Path pubKeyPath = null;
     protected Path priKeyPath = null;
 
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
-
     @Before
     public void setup() throws Exception {
         logger.error("project.basedir [{}]", System.getProperty("project.basedir"));

@@ -21,11 +21,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class LicenseOperationModeUpdateTests extends ESTestCase {
-    @Override
-    protected boolean enableWarningsCheck() {
-        // disable warning checks as deprecated time patterns are used. These are covered in JodaWarningTests.
-        return false;
-    }
 
     private OperationModeFileWatcher operationModeFileWatcher;
     private Path licenseModeFile;

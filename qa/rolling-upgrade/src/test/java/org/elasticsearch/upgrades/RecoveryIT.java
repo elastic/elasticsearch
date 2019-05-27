@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.action.document.RestIndexAction;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
@@ -333,5 +334,24 @@ public class RecoveryIT extends AbstractRollingTestCase {
             }
         }
         ensureGreen(index);
+    }
+
+    /** Ensure that we can always execute update requests regardless of the version of cluster */
+    public void testUpdateDoc() throws Exception {
+        final String index = "test_update_doc";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            Settings.Builder settings = Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+            createIndex(index, settings.build());
+        }
+        ensureGreen(index);
+        indexDocs(index, 0, 10);
+        for (int i = 0; i < 10; i++) {
+            Request update = new Request("POST", index + "/test/" + i + "/_update/");
+            update.setOptions(expectWarnings(RestUpdateAction.TYPES_DEPRECATION_MESSAGE));
+            update.setJsonEntity("{\"doc\": {\"f\": " + randomNonNegativeLong() + "}}");
+            client().performRequest(update);
+        }
     }
 }

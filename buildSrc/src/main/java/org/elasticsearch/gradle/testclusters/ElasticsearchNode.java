@@ -107,6 +107,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private File javaHome;
     private volatile Process esProcess;
     private Function<String, String> nameCustomization = Function.identity();
+    private boolean isWorkingDirConfigured = false;
 
     ElasticsearchNode(String path, String name, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
@@ -307,7 +308,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
 
         try {
-            createWorkingDir(distroArtifact);
+            if (isWorkingDirConfigured == false) {
+                // Only configure working dir once so we don't loose data on restarts
+                isWorkingDirConfigured = true;
+                createWorkingDir(distroArtifact);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }

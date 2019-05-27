@@ -187,11 +187,8 @@ public final class FileStructureUtils {
 
         for (String fieldName : uniqueFieldNames) {
 
-            List<Object> fieldValues = sampleRecords.stream().flatMap(record -> {
-                    Object fieldValue = record.get(fieldName);
-                    return (fieldValue == null) ? Stream.empty() : Stream.of(fieldValue);
-                }
-            ).collect(Collectors.toList());
+            List<Object> fieldValues = sampleRecords.stream().map(record -> record.get(fieldName)).filter(fieldValue -> fieldValue != null)
+                .collect(Collectors.toList());
 
             Tuple<Map<String, String>, FieldStats> mappingAndFieldStats =
                 guessMappingAndCalculateFieldStats(explanation, fieldName, fieldValues, timeoutChecker);

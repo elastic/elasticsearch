@@ -89,7 +89,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -647,6 +649,43 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertThat("no more chunks should be sent", sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks)));
         sender.join();
         store.close();
+    }
+
+    public void testVerifySeqNoStatsWhenRecoverWithSyncId() throws Exception {
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.state()).thenReturn(IndexShardState.STARTED);
+        RecoverySourceHandler handler = new RecoverySourceHandler(
+            shard, new TestRecoveryTargetHandler(), getStartRecoveryRequest(), between(1, 16), between(1, 4));
+
+        String syncId = UUIDs.randomBase64UUID();
+        int numDocs = between(0, 1000);
+        long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        assertTrue(handler.canSkipPhase1(
+            newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
+            newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)));
+
+        AssertionError error = expectThrows(AssertionError.class, () -> {
+            long localCheckpointOnTarget = randomValueOtherThan(localCheckpoint,
+                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE));
+            long maxSeqNoOnTarget = randomValueOtherThan(maxSeqNo,
+                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE));
+            handler.canSkipPhase1(newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
+                newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs));
+        });
+        assertThat(error.getMessage(), containsString("try to recover [index][1] with sync id but seq_no stats are mismatched:"));
+    }
+
+    private Store.MetadataSnapshot newMetadataSnapshot(String syncId, String localCheckpoint, String maxSeqNo, int numDocs) {
+        Map<String, String> userData = new HashMap<>();
+        userData.put(Engine.SYNC_COMMIT_ID, syncId);
+        if (localCheckpoint != null) {
+            userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
+        }
+        if (maxSeqNo != null) {
+            userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, maxSeqNo);
+        }
+        return new Store.MetadataSnapshot(Collections.emptyMap(), userData, numDocs);
     }
 
     private Store newStore(Path path) throws IOException {

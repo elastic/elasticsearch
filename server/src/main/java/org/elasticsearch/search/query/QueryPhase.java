@@ -373,7 +373,7 @@ public class QueryPhase implements SearchPhase {
         // check that all sorts are actual document fields or _doc
         for (int i = 1; i < sort.getSort().length; i++) {
             SortField sField = sort.getSort()[i];
-            String sFieldName = sortField.getField();
+            String sFieldName = sField.getField();
             if (sFieldName == null) {
                 if (SortField.FIELD_DOC.equals(sField) == false) return null;
             } else {

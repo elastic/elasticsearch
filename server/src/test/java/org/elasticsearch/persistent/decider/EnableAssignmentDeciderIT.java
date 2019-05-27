@@ -49,11 +49,6 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    @Override
     protected boolean ignoreExternalCluster() {
         return true;
     }

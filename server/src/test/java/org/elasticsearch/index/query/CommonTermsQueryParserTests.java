@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.After;
 
 /**
  * @deprecated See {@link CommonTermsQueryBuilder}

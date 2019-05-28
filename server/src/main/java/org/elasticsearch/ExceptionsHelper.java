@@ -176,7 +176,7 @@ public final class ExceptionsHelper {
     }
 
     private static final List<Class<? extends IOException>> CORRUPTION_EXCEPTIONS =
-        List.of(CorruptIndexException.class, IndexFormatTooOldException.class, IndexFormatTooNewException.class);
+        Arrays.asList(CorruptIndexException.class, IndexFormatTooOldException.class, IndexFormatTooNewException.class);
 
     /**
      * Looks at the given Throwable's and its cause(s) as well as any suppressed exceptions on the Throwable as well as its causes

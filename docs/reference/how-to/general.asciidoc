@@ -120,6 +120,7 @@ problems due to sparsity as described above. If your types do not have very
 similar mappings, you might want to consider moving them to a dedicated index.
 
 [float]
+[[_disable_literal_norms_literal_and_literal_doc_values_literal_on_sparse_fields]]
 ==== Disable `norms` and `doc_values` on sparse fields
 
 If none of the above recommendations apply in your case, you might want to

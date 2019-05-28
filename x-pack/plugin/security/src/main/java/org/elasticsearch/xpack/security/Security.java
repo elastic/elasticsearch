@@ -270,7 +270,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final Settings settings;
     private final Environment env;
     private final boolean enabled;
-    private final boolean transportClientMode;
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
      * an instance of TransportInterceptor way earlier before createComponents is called. */
@@ -293,10 +292,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     Security(Settings settings, final Path configPath, List<SecurityExtension> extensions) {
         this.settings = settings;
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.env = transportClientMode ? null : new Environment(settings, configPath);
+        this.env = new Environment(settings, configPath);
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        if (enabled && transportClientMode == false) {
+        if (enabled) {
             runStartupChecks(settings);
             // we load them all here otherwise we can't access secure settings since they are closed once the checks are
             // fetched
@@ -327,23 +325,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     @Override
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             modules.add(b -> b.bind(IPFilter.class).toProvider(Providers.of(null)));
         }
-
-        if (transportClientMode) {
-            if (enabled == false) {
-                return modules;
-            }
-            modules.add(b -> {
-                // for transport client we still must inject these ssl classes with guice
-                b.bind(SSLService.class).toInstance(getSslService());
-            });
-
-            return modules;
-        }
         modules.add(b -> XPackPlugin.bindFeatureSet(b, SecurityFeatureSet.class));
-
 
         if (enabled == false) {
             modules.add(b -> {
@@ -568,12 +553,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public Settings additionalSettings() {
-        return additionalSettings(settings, enabled, transportClientMode);
+        return additionalSettings(settings, enabled);
     }
 
     // visible for tests
-    static Settings additionalSettings(final Settings settings, final boolean enabled, final boolean transportClientMode) {
-        if (enabled && transportClientMode == false) {
+    static Settings additionalSettings(final Settings settings, final boolean enabled) {
+        if (enabled) {
             final Settings.Builder builder = Settings.builder();
 
             builder.put(SecuritySettings.addTransportSettings(settings));
@@ -606,18 +591,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<Setting<?>> getSettings() {
-        return getSettings(transportClientMode, securityExtensions);
+        return getSettings(securityExtensions);
     }
 
         /**
          * Get the {@link Setting setting configuration} for all security components, including those defined in extensions.
          */
-    public static List<Setting<?>> getSettings(boolean transportClientMode, List<SecurityExtension> securityExtensions) {
+    public static List<Setting<?>> getSettings(List<SecurityExtension> securityExtensions) {
         List<Setting<?>> settingsList = new ArrayList<>();
-
-        if (transportClientMode) {
-            return settingsList;
-        }
 
         // The following just apply in node mode
         settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
@@ -657,9 +638,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public Collection<String> getRestHeaders() {
-        if (transportClientMode) {
-            return Collections.emptyList();
-        }
         Set<String> headers = new HashSet<>();
         headers.add(UsernamePasswordToken.BASIC_AUTH_HEADER);
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
@@ -773,11 +751,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (enabled == false) {
             return emptyList();
         }
-        // registering the security filter only for nodes
-        if (transportClientMode == false) {
-            return singletonList(securityActionFilter.get());
-        }
-        return emptyList();
+        return singletonList(securityActionFilter.get());
     }
 
     @Override
@@ -865,7 +839,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
-        if (transportClientMode || enabled == false) { // don't register anything if we are not enabled
+        if (enabled == false) { // don't register anything if we are not enabled
             // interceptors are not installed if we are running on the transport client
             return Collections.emptyList();
         }
@@ -890,7 +864,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        if (transportClientMode || enabled == false) { // don't register anything if we are not enabled, or in transport client mode
+        if (enabled == false) { // don't register anything if we are not enabled, or in transport client mode
             return Collections.emptyMap();
         }
 
@@ -944,7 +918,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return null;
         }
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
@@ -955,7 +929,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
-        if (enabled && transportClientMode == false) {
+        if (enabled) {
             return Collections.singletonList(
                     new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool"));
         }

@@ -41,7 +41,7 @@ followClusterTestRunner {
 task followClusterRestartTest(type: RestIntegTestTask) {}
 
 followClusterRestartTestCluster {
-    dependsOn followClusterTestRunner
+    dependsOn followClusterTestRunner, 'followClusterTestCluster#stop'
     numNodes = 1
     clusterName = 'follow-cluster'
     dataDir = { nodeNumber -> followClusterTest.nodes[0].dataDir }

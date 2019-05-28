@@ -133,7 +133,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     private final SetOnce<CcrRestoreSourceService> restoreSourceService = new SetOnce<>();
     private final SetOnce<CcrSettings> ccrSettings = new SetOnce<>();
     private Client client;
-    private final boolean transportClientMode;
 
     /**
      * Construct an instance of the CCR container with the specified settings.
@@ -155,7 +154,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         this.settings = settings;
         this.enabled = CCR_ENABLED_SETTING.get(settings);
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     @Override
@@ -340,10 +338,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     @Override
     public Collection<Module> createGuiceModules() {
-        if (transportClientMode) {
-            return Collections.emptyList();
-        }
-
         return Collections.singleton(b -> XPackPlugin.bindFeatureSet(b, CCRFeatureSet.class));
     }
 

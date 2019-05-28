@@ -125,7 +125,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
@@ -2300,8 +2300,8 @@ public class IndexShardTests extends IndexShardTestCase {
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
-            public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                                     RecoveryState recoveryState) {
+            public void restoreShard(Store store, SnapshotId snapshotId,
+                                     Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
@@ -3819,7 +3819,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 readyToCloseLatch.await();
                 shard.close("testing", false);
                 // in integration tests, this is done as a listener on IndexService.
-                MockFSDirectoryService.checkIndex(logger, shard.store(), shard.shardId);
+                MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
             } catch (InterruptedException | IOException e) {
                 throw new AssertionError(e);
             } finally {

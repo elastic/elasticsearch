@@ -31,14 +31,6 @@ public class SqlDisabledIT extends AbstractSqlIntegTestCase {
                 .build();
     }
 
-    @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder()
-                .put(super.transportClientSettings())
-                .put(XPackSettings.SQL_ENABLED.getKey(), randomBoolean())
-                .build();
-    }
-
     public void testSqlAction() {
         Throwable throwable = expectThrows(Throwable.class,
                 () -> new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query("SHOW tables").get());

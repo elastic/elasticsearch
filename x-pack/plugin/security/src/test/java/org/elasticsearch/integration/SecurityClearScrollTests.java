@@ -93,7 +93,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         Map<String, String> headers = new HashMap<>();
         headers.put(SecurityField.USER_SETTING.getKey(), user);
         headers.put(BASIC_AUTH_HEADER, basicAuth);
-        ClearScrollResponse clearScrollResponse = internalCluster().transportClient().filterWithHeader(headers)
+        ClearScrollResponse clearScrollResponse = client().filterWithHeader(headers)
             .prepareClearScroll()
             .addScrollId("_all").get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
@@ -107,7 +107,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         Map<String, String> headers = new HashMap<>();
         headers.put(SecurityField.USER_SETTING.getKey(), user);
         headers.put(BASIC_AUTH_HEADER, basicAuth);
-        assertThrows(internalCluster().transportClient().filterWithHeader(headers)
+        assertThrows(client().filterWithHeader(headers)
                 .prepareClearScroll()
                 .addScrollId("_all"), ElasticsearchSecurityException.class,
                 "action [cluster:admin/indices/scroll/clear_all] is unauthorized for user [denied_user]");

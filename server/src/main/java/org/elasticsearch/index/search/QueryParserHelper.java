@@ -55,6 +55,10 @@ public final class QueryParserHelper {
             } else {
                 fieldName = field;
             }
+            // handle duplicates
+            if (fieldsAndWeights.containsKey(field)) {
+                boost *= fieldsAndWeights.get(field);
+            }
             fieldsAndWeights.put(fieldName, boost);
         }
         return fieldsAndWeights;
@@ -84,7 +88,13 @@ public final class QueryParserHelper {
             float weight = fieldEntry.getValue() == null ? 1.0f : fieldEntry.getValue();
             Map<String, Float> fieldMap = resolveMappingField(context, fieldEntry.getKey(), weight,
                 !multiField, !allField, fieldSuffix);
-            resolvedFields.putAll(fieldMap);
+            for (Map.Entry<String, Float> field : fieldMap.entrySet()) {
+                float boost = field.getValue();
+                if (resolvedFields.containsKey(field.getKey())) {
+                    boost *= resolvedFields.get(field.getKey());
+                }
+                resolvedFields.put(field.getKey(), boost);
+            }
         }
         checkForTooManyFields(resolvedFields, context);
         return resolvedFields;

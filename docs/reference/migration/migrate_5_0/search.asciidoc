@@ -1,8 +1,10 @@
 [[breaking_50_search_changes]]
 === Search and Query DSL changes
 
+[[_literal_search_type_literal]]
 ==== `search_type`
 
+[[_literal_search_type_count_literal_removed]]
 ===== `search_type=count` removed
 
 The `count` search type was deprecated since version 2.0.0 and is now removed.
@@ -42,6 +44,7 @@ GET /my_index/_search
 }
 ---------------
 
+[[_literal_search_type_scan_literal_removed]]
 ===== `search_type=scan` removed
 
 The `scan` search type was deprecated since version 2.1.0 and is now removed.
@@ -72,12 +75,14 @@ larger shards. In case you would like to bypass this limit, which is
 discouraged, you can update the `action.search.shard_count.limit` cluster
 setting to a greater value.
 
+[[_literal_fields_literal_parameter]]
 ==== `fields` parameter
 
 The `fields` parameter has been replaced by `stored_fields`.
 The `stored_fields` parameter will only return stored fields
 -- it will no longer extract values from the `_source`.
 
+[[_literal_fielddata_fields_literal_parameter]]
 ==== `fielddata_fields` parameter
 
 The `fielddata_fields` has been deprecated, use parameter `docvalue_fields` instead.
@@ -162,6 +167,7 @@ This parameter was undocumented and silently ignored before for these types of `
 
 * The `geo_distance_range` query is deprecated and should be replaced by either the `geo_distance` bucket aggregation, or geo_distance sort.
 
+[[_top_level_literal_filter_literal_parameter]]
 ==== Top level `filter` parameter
 
 Removed support for the deprecated top level `filter` in the search api,

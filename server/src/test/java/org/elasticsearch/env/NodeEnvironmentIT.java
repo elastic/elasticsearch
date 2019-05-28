@@ -162,8 +162,6 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                             }
                         }
                     }
-                    IOUtils.fsync(targetPath, true);
-                    IOUtils.fsync(path, true);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -173,14 +171,24 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
 
         // create extra file/folder, and check that upgrade fails
         if (dataPaths.isEmpty() == false) {
-            final Path badFile = Files.createTempFile(randomFrom(dataPaths).resolve("nodes").resolve("0"), "bad", "file");
+            final Path badFileInNodesDir = Files.createTempFile(randomFrom(dataPaths).resolve("nodes"), "bad", "file");
             IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
+            assertThat(ise.getMessage(), containsString("unexpected file/folder encountered during data folder upgrade"));
+            Files.delete(badFileInNodesDir);
+
+            final Path badFolderInNodesDir = Files.createDirectories(randomFrom(dataPaths).resolve("nodes").resolve("bad-folder"));
+            ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
+            assertThat(ise.getMessage(), containsString("unexpected file/folder encountered during data folder upgrade"));
+            Files.delete(badFolderInNodesDir);
+
+            final Path badFile = Files.createTempFile(randomFrom(dataPaths).resolve("nodes").resolve("0"), "bad", "file");
+            ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
             assertThat(ise.getMessage(), containsString("unexpected file/folder encountered during data folder upgrade"));
             Files.delete(badFile);
 
             final Path badFolder = Files.createDirectories(randomFrom(dataPaths).resolve("nodes").resolve("0").resolve("bad-folder"));
             ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
-            assertThat(ise.getMessage(), containsString("unexpected folder encountered during data folder upgrad"));
+            assertThat(ise.getMessage(), containsString("unexpected folder encountered during data folder upgrade"));
             Files.delete(badFolder);
 
             final Path conflictingFolder = randomFrom(dataPaths).resolve("indices");

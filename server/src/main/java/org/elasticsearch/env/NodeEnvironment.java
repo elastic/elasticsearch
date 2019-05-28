@@ -329,6 +329,9 @@ public final class NodeEnvironment  implements Closeable {
                         if (Files.isDirectory(nodeLockIdPath) && fileName.chars().allMatch(Character::isDigit)) {
                             int nodeLockId = Integer.parseInt(fileName);
                             nodeLockIds.add(nodeLockId);
+                        } else if (FileSystemUtils.isDesktopServicesStore(nodeLockIdPath) == false) {
+                            throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
+                                nodeLockIdPath);
                         }
                     }
                 }

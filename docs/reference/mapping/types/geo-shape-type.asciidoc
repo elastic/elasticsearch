@@ -222,8 +222,8 @@ differs from many Geospatial APIs (e.g., Google Maps) that generally
 use the colloquial latitude, longitude (Y, X).
 =============================================
 
-[[point]]
 [float]
+[[_ulink_url_http_geojson_org_geojson_spec_html_id2_point_ulink]]
 ===== http://geojson.org/geojson-spec.html#id2[Point]
 
 A point is a single geographic coordinate, such as the location of a
@@ -241,6 +241,7 @@ API.
 --------------------------------------------------
 
 [float]
+[[_ulink_url_http_geojson_org_geojson_spec_html_id3_linestring_ulink]]
 ===== http://geojson.org/geojson-spec.html#id3[LineString]
 
 A `linestring` defined by an array of two or more positions. By
@@ -261,6 +262,7 @@ The above `linestring` would draw a straight line starting at the White
 House to the US Capitol Building.
 
 [float]
+[[_ulink_url_http_www_geojson_org_geojson_spec_html_id4_polygon_ulink]]
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
@@ -344,6 +346,7 @@ overriding the orientation on a document:
 --------------------------------------------------
 
 [float]
+[[_ulink_url_http_www_geojson_org_geojson_spec_html_id5_multipoint_ulink]]
 ===== http://www.geojson.org/geojson-spec.html#id5[MultiPoint]
 
 A list of geojson points.
@@ -361,6 +364,7 @@ A list of geojson points.
 --------------------------------------------------
 
 [float]
+[[_ulink_url_http_www_geojson_org_geojson_spec_html_id6_multilinestring_ulink]]
 ===== http://www.geojson.org/geojson-spec.html#id6[MultiLineString]
 
 A list of geojson linestrings.
@@ -380,6 +384,7 @@ A list of geojson linestrings.
 --------------------------------------------------
 
 [float]
+[[_ulink_url_http_www_geojson_org_geojson_spec_html_id7_multipolygon_ulink]]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 A list of geojson polygons.
@@ -400,6 +405,7 @@ A list of geojson polygons.
 --------------------------------------------------
 
 [float]
+[[_ulink_url_http_geojson_org_geojson_spec_html_geometrycollection_geometry_collection_ulink]]
 ===== http://geojson.org/geojson-spec.html#geometrycollection[Geometry Collection]
 
 A collection of geojson geometry objects.

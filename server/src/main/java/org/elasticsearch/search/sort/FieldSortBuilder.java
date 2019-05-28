@@ -373,8 +373,10 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 return SORT_DOC;
             }
         } else {
+            boolean isUnmapped = false;
             MappedFieldType fieldType = context.fieldMapper(fieldName);
             if (fieldType == null) {
+                isUnmapped = true;
                 if (unmappedType != null) {
                     fieldType = context.getMapperService().unmappedFieldType(unmappedType);
                 } else {
@@ -394,7 +396,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
             final Nested nested;
             if (nestedSort != null) {
-                if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE)  {
+                if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
                     throw new QueryShardException(context,
                         "max_children is only supported on last level of nested sort");
                 }

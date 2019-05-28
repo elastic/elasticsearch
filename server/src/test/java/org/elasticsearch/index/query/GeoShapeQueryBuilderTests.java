@@ -151,7 +151,7 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             throw new ElasticsearchException("boom", ex);
         }
         return new GetResponse(new GetResult(indexedShapeIndex, indexedType, indexedShapeId, 0, 1, 0, true, new BytesArray(json),
-            null));
+            null, null));
     }
 
     @After

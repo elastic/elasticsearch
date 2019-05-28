@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -135,12 +134,8 @@ public class Bucket implements ToXContentObject, Writeable {
         bucketInfluencers = in.readList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
         in.readList(Bucket::readOldPerPartitionNormalization);
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            scheduledEvents = in.readStringList();
-            if (scheduledEvents.isEmpty()) {
-                scheduledEvents = Collections.emptyList();
-            }
-        } else {
+        scheduledEvents = in.readStringList();
+        if (scheduledEvents.isEmpty()) {
             scheduledEvents = Collections.emptyList();
         }
     }
@@ -157,10 +152,7 @@ public class Bucket implements ToXContentObject, Writeable {
         out.writeBoolean(isInterim);
         out.writeList(bucketInfluencers);
         out.writeLong(processingTimeMs);
-        out.writeList(Collections.emptyList());
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeStringCollection(scheduledEvents);
-        }
+        out.writeStringCollection(scheduledEvents);
     }
 
     @Override

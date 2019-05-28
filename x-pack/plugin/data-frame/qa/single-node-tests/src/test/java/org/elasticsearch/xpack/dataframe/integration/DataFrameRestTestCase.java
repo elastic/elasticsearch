@@ -292,7 +292,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         wipeIndices();
     }
 
-    public void wipeDataFrameTransforms() throws IOException, InterruptedException {
+    public void wipeDataFrameTransforms() throws IOException {
         List<Map<String, Object>> transformConfigs = getDataFrameTransforms();
         for (Map<String, Object> transformConfig : transformConfigs) {
             String transformId = (String) transformConfig.get("id");
@@ -301,10 +301,12 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             request.addParameter("timeout", "10s");
             request.addParameter("ignore", "404");
             adminClient().performRequest(request);
+        }
+
+        for (Map<String, Object> transformConfig : transformConfigs) {
+            String transformId = (String) transformConfig.get("id");
             String state = getDataFrameIndexerState(transformId);
-            if (state != null) {
-                assertEquals("stopped", getDataFrameIndexerState(transformId));
-            }
+            assertEquals("Transform [" + transformId + "] indexer is not in the stopped state", "stopped", state);
         }
 
         for (Map<String, Object> transformConfig : transformConfigs) {

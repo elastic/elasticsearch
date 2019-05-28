@@ -333,12 +333,6 @@ public class QueryAnalyzerTests extends ESTestCase {
         assertThat(result.verified, is(false));
         assertThat(result.minimumShouldMatch, equalTo(0));
         assertTermsEqual(result.extractions);
-
-        result = analyze(booleanQuery, Version.CURRENT);
-        assertThat(result.matchAllDocs, is(true));
-        assertThat(result.verified, is(false));
-        assertThat(result.minimumShouldMatch, equalTo(0));
-        assertTermsEqual(result.extractions);
     }
 
     public void testExactMatch_booleanQuery() {

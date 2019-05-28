@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.single.shard;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -40,7 +41,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -107,12 +107,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
     protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
-        threadPool.executor(getExecutor(request, shardId)).execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-
+        threadPool.executor(getExecutor(request, shardId)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() throws Exception {
                 listener.onResponse(shardOperation(request, shardId));

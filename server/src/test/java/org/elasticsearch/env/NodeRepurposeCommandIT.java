@@ -37,8 +37,8 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         final String indexName = "test-repurpose";
 
         logger.info("--> starting two nodes");
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
 
         logger.info("--> creating index");
         prepareCreate(indexName, Settings.builder()
@@ -54,9 +54,22 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
 
         assertTrue(client().prepareGet(indexName, "type1", "1").get().isExists());
 
+        final Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
+        final Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
+
         final Settings noMasterNoDataSettings = Settings.builder()
             .put(Node.NODE_DATA_SETTING.getKey(), false)
             .put(Node.NODE_MASTER_SETTING.getKey(), false)
+            .build();
+
+        final Settings noMasterNoDataSettingsForMasterNode = Settings.builder()
+            .put(noMasterNoDataSettings)
+            .put(masterNodeDataPathSettings)
+            .build();
+
+        final Settings noMasterNoDataSettingsForDataNode = Settings.builder()
+            .put(noMasterNoDataSettings)
+            .put(dataNodeDataPathSettings)
             .build();
 
         internalCluster().stopRandomDataNode();
@@ -65,20 +78,20 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         logger.info("--> restarting node with node.data=false and node.master=false");
         IllegalStateException ex = expectThrows(IllegalStateException.class,
             "Node started with node.data=false and node.master=false while having existing index metadata must fail",
-            () -> internalCluster().startCoordinatingOnlyNode(Settings.EMPTY)
+            () -> internalCluster().startCoordinatingOnlyNode(dataNodeDataPathSettings)
         );
 
         logger.info("--> Repurposing node 1");
-        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 1, 1);
+        executeRepurposeCommand(noMasterNoDataSettingsForDataNode, indexUUID, 1);
 
         ElasticsearchException lockedException = expectThrows(ElasticsearchException.class,
-            () -> executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 0, 1)
+            () -> executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, indexUUID, 1)
         );
 
         assertThat(lockedException.getMessage(), containsString(NodeRepurposeCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG));
 
         logger.info("--> Starting node after repurpose");
-        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        internalCluster().startCoordinatingOnlyNode(dataNodeDataPathSettings);
 
         assertTrue(indexExists(indexName));
         expectThrows(NoShardAvailableActionException.class, () -> client().prepareGet(indexName, "type1", "1").get());
@@ -88,12 +101,12 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(s -> true);
         internalCluster().stopRandomNode(s -> true);
 
-        executeRepurposeCommandForOrdinal(noMasterNoDataSettings, indexUUID, 0, 0);
+        executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, indexUUID, 0);
 
         // by restarting as master and data node, we can check that the index definition was really deleted and also that the tool
         // does not mess things up so much that the nodes cannot boot as master or data node any longer.
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
+        internalCluster().startMasterOnlyNode(masterNodeDataPathSettings);
+        internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
 
         ensureGreen();
 
@@ -101,8 +114,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         assertFalse(indexExists(indexName));
     }
 
-    private void executeRepurposeCommandForOrdinal(Settings settings, String indexUUID, int ordinal,
-                                                   int expectedShardCount) throws Exception {
+    private void executeRepurposeCommand(Settings settings, String indexUUID, int expectedShardCount) throws Exception {
         boolean verbose = randomBoolean();
         Settings settingsWithPath = Settings.builder().put(internalCluster().getDefaultSettings()).put(settings).build();
         int expectedIndexCount = TestEnvironment.newEnvironment(settingsWithPath).dataFiles().length;
@@ -111,6 +123,6 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
             not(contains(NodeRepurposeCommand.PRE_V7_MESSAGE)),
             NodeRepurposeCommandTests.conditionalNot(containsString(indexUUID), verbose == false));
         NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher,
-            verbose, ordinal);
+            verbose);
     }
 }

@@ -165,7 +165,8 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
             .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
-                Arrays.asList("scope1", "scope2"));
+                Arrays.asList("scope1", "scope2"))
+            .setSecureSettings(getSecureSettings());
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build(), threadContext), null,
             null);
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null, null);
@@ -187,7 +188,8 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
             .putList(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REQUESTED_SCOPES),
-                Arrays.asList("openid", "scope1", "scope2"));
+                Arrays.asList("openid", "scope1", "scope2"))
+            .setSecureSettings(getSecureSettings());
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build(), threadContext), null,
             null);
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null, null);
@@ -207,7 +209,9 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+            .setSecureSettings(getSecureSettings());
+        ;
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build(), threadContext), null,
             null);
         final OpenIdConnectPrepareAuthenticationResponse response = realm.buildAuthenticationRequestUri(null, null, null);
@@ -237,7 +241,9 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+            .setSecureSettings(getSecureSettings());
+        ;
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build(), threadContext), null,
             null);
         final String state = new State().getValue();
@@ -257,7 +263,9 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_REDIRECT_URI), "https://rp.my.com/cb")
             .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_CLIENT_ID), "rp-my")
-            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code");
+            .put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.RP_RESPONSE_TYPE), "code")
+            .setSecureSettings(getSecureSettings());
+        ;
         final OpenIdConnectRealm realm = new OpenIdConnectRealm(buildConfig(settingsBuilder.build(), threadContext), null,
             null);
         final String state = new State().getValue();

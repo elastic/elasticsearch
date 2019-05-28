@@ -79,28 +79,15 @@ public class AzureRepository extends BlobStoreRepository {
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting("readonly", false, Property.NodeScope);
     }
 
-    private final BlobPath basePath;
     private final ByteSizeValue chunkSize;
     private final AzureStorageService storageService;
     private final boolean readonly;
 
     public AzureRepository(RepositoryMetaData metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
             AzureStorageService storageService, ThreadPool threadPool) {
-        super(metadata, environment.settings(), namedXContentRegistry, threadPool);
+        super(metadata, environment.settings(), namedXContentRegistry, threadPool, buildBasePath(metadata));
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
-
-        final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
-        if (Strings.hasLength(basePath)) {
-            // Remove starting / if any
-            BlobPath path = new BlobPath();
-            for(final String elem : basePath.split("/")) {
-                path = path.add(elem);
-            }
-            this.basePath = path;
-        } else {
-            this.basePath = BlobPath.cleanPath();
-        }
 
         // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
         // For secondary_only setting, the repository should be read only
@@ -112,33 +99,35 @@ public class AzureRepository extends BlobStoreRepository {
         }
     }
 
-    // only use for testing
+    private static BlobPath buildBasePath(RepositoryMetaData metadata) {
+        final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
+        if (Strings.hasLength(basePath)) {
+            // Remove starting / if any
+            BlobPath path = new BlobPath();
+            for(final String elem : basePath.split("/")) {
+                path = path.add(elem);
+            }
+            return path;
+        } else {
+            return BlobPath.cleanPath();
+        }
+    }
+
     @Override
     protected BlobStore getBlobStore() {
         return super.getBlobStore();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    protected AzureBlobStore createBlobStore() throws URISyntaxException, StorageException {
+    protected AzureBlobStore createBlobStore() {
         final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService);
 
-        logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+        logger.debug(() -> new ParameterizedMessage(
             "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
-            blobStore, chunkSize, isCompress(), basePath));
+            blobStore, chunkSize, isCompress(), basePath()));
         return blobStore;
     }
 
-    @Override
-    protected BlobPath basePath() {
-        return basePath;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;

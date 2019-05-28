@@ -70,7 +70,6 @@ public class ReservedRealmTests extends ESTestCase {
         usersStore = mock(NativeUsersStore.class);
         securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
-        when(securityIndex.checkMappingVersion(any())).thenReturn(true);
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.HashSet;
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,6 +39,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -699,13 +698,14 @@ public class NestedObjectMapperTests extends ESSingleNodeTestCase {
         return false;
     }
 
-    public void testReorderParentBWC() throws IOException {
+    public void testReorderParent() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("nested1").field("type", "nested").endObject()
             .endObject().endObject().endObject());
 
         DocumentMapper docMapper = createIndex("test",
-            Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT).build())
+            Settings.builder().put(IndexMetaData.SETTING_INDEX_VERSION_CREATED.getKey(),
+                VersionUtils.randomIndexCompatibleVersion(random())).build())
             .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         assertThat(docMapper.hasNestedObjects(), equalTo(true));

@@ -106,12 +106,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
 
     public JobUpdate(StreamInput in) throws IOException {
         jobId = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            String[] groupsArray = in.readOptionalStringArray();
-            groups = groupsArray == null ? null : Arrays.asList(groupsArray);
-        } else {
-            groups = null;
-        }
+        String[] groupsArray = in.readOptionalStringArray();
+        groups = groupsArray == null ? null : Arrays.asList(groupsArray);
         description = in.readOptionalString();
         if (in.readBoolean()) {
             detectorUpdates = in.readList(DetectorUpdate::new);
@@ -131,11 +127,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
-        // was establishedModelMemory
-        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalLong();
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_3_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             jobVersion = Version.readVersion(in);
         } else {
             jobVersion = null;
@@ -151,10 +143,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            String[] groupsArray = groups == null ? null : groups.toArray(new String[groups.size()]);
-            out.writeOptionalStringArray(groupsArray);
-        }
+        String[] groupsArray = groups == null ? null : groups.toArray(new String[groups.size()]);
+        out.writeOptionalStringArray(groupsArray);
         out.writeOptionalString(description);
         out.writeBoolean(detectorUpdates != null);
         if (detectorUpdates != null) {
@@ -172,17 +162,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
-        // was establishedModelMemory
-        if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalLong(null);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_3_0)) {
-            if (jobVersion != null) {
-                out.writeBoolean(true);
-                Version.writeVersion(jobVersion, out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (jobVersion != null) {
+            out.writeBoolean(true);
+            Version.writeVersion(jobVersion, out);
+        } else {
+            out.writeBoolean(false);
         }
         out.writeOptionalBoolean(clearJobFinishTime);
         if (out.getVersion().onOrAfter(Version.V_7_0_0)) {

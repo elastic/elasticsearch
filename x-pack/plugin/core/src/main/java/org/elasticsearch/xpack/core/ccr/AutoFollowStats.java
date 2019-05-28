@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.AbstractMap;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -116,15 +114,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         numberOfFailedFollowIndices = in.readVLong();
         numberOfFailedRemoteClusterStateRequests = in.readVLong();
         numberOfSuccessfulFollowIndices = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            // note: the casts to the following Writeable.Reader<T> instances are needed by some IDEs (e.g. Eclipse 4.8) as a compiler help
-            recentAutoFollowErrors = new TreeMap<>(in.readMap((Writeable.Reader<String>) StreamInput::readString,
-                    (Writeable.Reader<Tuple<Long, ElasticsearchException>>) in1 -> new Tuple<>(in1.readZLong(), in1.readException())));
-        } else {
-            // note: the casts to the following Writeable.Reader<T> instances are needed by some IDEs (e.g. Eclipse 4.8) as a compiler help
-            recentAutoFollowErrors = new TreeMap<>(in.readMap((Writeable.Reader<String>) StreamInput::readString,
-                    (Writeable.Reader<Tuple<Long, ElasticsearchException>>) in1 -> new Tuple<>(-1L, in1.readException())));
-        }
+        recentAutoFollowErrors = new TreeMap<>(in.readMap(StreamInput::readString,
+            in1 -> new Tuple<>(in1.readZLong(), in1.readException())));
         autoFollowedClusters = new TreeMap<>(in.readMap(StreamInput::readString, AutoFollowedCluster::new));
     }
 
@@ -133,14 +124,10 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         out.writeVLong(numberOfFailedFollowIndices);
         out.writeVLong(numberOfFailedRemoteClusterStateRequests);
         out.writeVLong(numberOfSuccessfulFollowIndices);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeMap(recentAutoFollowErrors, StreamOutput::writeString, (out1, value) -> {
-                out1.writeZLong(value.v1());
-                out1.writeException(value.v2());
-            });
-        } else {
-            out.writeMap(recentAutoFollowErrors, StreamOutput::writeString, (out1, value) -> out1.writeException(value.v2()));
-        }
+        out.writeMap(recentAutoFollowErrors, StreamOutput::writeString, (out1, value) -> {
+            out1.writeZLong(value.v1());
+            out1.writeException(value.v2());
+        });
         out.writeMap(autoFollowedClusters, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
     }
 

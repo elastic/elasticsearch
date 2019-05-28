@@ -62,7 +62,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37117")
     public void testFailOver() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);
@@ -90,7 +89,8 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         ensureStableClusterOnAllNodes(2);
         run("lose-dedicated-master-node-job", () -> {
             logger.info("Stopping dedicated master node");
-            internalCluster().stopRandomNode(settings -> settings.getAsBoolean("node.master", false));
+            Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
+            internalCluster().stopCurrentMasterNode();
             assertBusy(() -> {
                 ClusterState state = client(mlAndDataNode).admin().cluster().prepareState()
                         .setLocal(true).get().getState();
@@ -98,6 +98,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             });
             logger.info("Restarting dedicated master node");
             internalCluster().startNode(Settings.builder()
+                    .put(masterDataPathSettings)
                     .put("node.master", true)
                     .put("node.data", false)
                     .put("node.ml", false)
@@ -106,7 +107,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37117")
     public void testFullClusterRestart() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableClusterOnAllNodes(3);

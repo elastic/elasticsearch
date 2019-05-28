@@ -50,6 +50,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -103,6 +104,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String version;
     private File javaHome;
     private volatile Process esProcess;
+    private Function<String, String> nameCustomization = Function.identity();
 
     ElasticsearchNode(String path, String name, GradleServicesAdapter services, File artifactsExtractDir, File workingDirBase) {
         this.path = path;
@@ -123,7 +125,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     public String getName() {
-        return name;
+        return nameCustomization.apply(name);
     }
 
     public String getVersion() {
@@ -536,6 +538,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         esProcess = null;
     }
 
+    @Override
+    public void setNameCustomization(Function<String, String> nameCustomizer) {
+        this.nameCustomization = nameCustomizer;
+    }
+
     private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
         // Stop all children first, ES could actually be a child when there's some wrapper process like on Windows.
         if (processHandle.isAlive() == false) {
@@ -656,7 +663,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void createConfiguration()  {
-        defaultConfig.put("node.name", safeName(name));
+        defaultConfig.put("node.name", nameCustomization.apply(safeName(name)));
         defaultConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         defaultConfig.put("path.data", confPathData.toAbsolutePath().toString());
         defaultConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());

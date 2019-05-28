@@ -26,8 +26,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RateLimiter;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -71,7 +69,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
@@ -121,45 +119,9 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * <p>
  * This repository works with any {@link BlobStore} implementation. The blobStore could be (and preferred) lazy initialized in
  * {@link #createBlobStore()}.
- * <p>
- * BlobStoreRepository maintains the following structure in the blob store
- * <pre>
- * {@code
- *   STORE_ROOT
- *   |- index-N           - JSON serialized {@link RepositoryData} containing a list of all snapshot ids and the indices belonging to
- *   |                      each snapshot, N is the generation of the file
- *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
- *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
- *   |- snap-20131010.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131010"
- *   |- meta-20131010.dat - SMILE serialized {@link MetaData} for snapshot "20131010" (includes only global metadata)
- *   |- snap-20131011.dat - SMILE serialized {@link SnapshotInfo} for snapshot "20131011"
- *   |- meta-20131011.dat - SMILE serialized {@link MetaData} for snapshot "20131011"
- *   .....
- *   |- indices/ - data for all indices
- *      |- Ac1342-B_x/ - data for index "foo" which was assigned the unique id of Ac1342-B_x in the repository
- *      |  |- meta-20131010.dat - JSON Serialized {@link IndexMetaData} for index "foo"
- *      |  |- 0/ - data for shard "0" of index "foo"
- *      |  |  |- __1                      \  (files with numeric names were created by older ES versions)
- *      |  |  |- __2                      |
- *      |  |  |- __VPO5oDMVT5y4Akv8T_AO_A |- files from different segments see snap-* for their mappings to real segment files
- *      |  |  |- __1gbJy18wS_2kv1qI7FgKuQ |
- *      |  |  |- __R8JvZAHlSMyMXyZc2SS8Zg /
- *      |  |  .....
- *      |  |  |- snap-20131010.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131010"
- *      |  |  |- snap-20131011.dat - SMILE serialized {@link BlobStoreIndexShardSnapshot} for snapshot "20131011"
- *      |  |  |- index-123 - SMILE serialized {@link BlobStoreIndexShardSnapshots} for the shard
- *      |  |
- *      |  |- 1/ - data for shard "1" of index "foo"
- *      |  |  |- __1
- *      |  |  .....
- *      |  |
- *      |  |-2/
- *      |  ......
- *      |
- *      |- 1xB0D8_B3y/ - data for index "bar" which was assigned the unique id of 1xB0D8_B3y in the repository
- *      ......
- * }
- * </pre>
+ * </p>
+ * For in depth documentation on how exactly implementations of this class interact with the snapshot functionality please refer to the
+ * documentation of the package {@link org.elasticsearch.repositories.blobstore}.
  */
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
@@ -235,6 +197,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final SetOnce<BlobStore> blobStore = new SetOnce<>();
 
+    private final BlobPath basePath;
+
     /**
      * Constructs new BlobStoreRepository
      * @param metadata   The metadata for this repository including name and settings
@@ -242,7 +206,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param threadPool Threadpool to run long running repository manipulations on asynchronously
      */
     protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry,
-                                  ThreadPool threadPool) {
+                                  ThreadPool threadPool, BlobPath basePath) {
         this.settings = settings;
         this.metadata = metadata;
         this.threadPool = threadPool;
@@ -250,6 +214,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         readOnly = metadata.settings().getAsBoolean("readonly", false);
+        this.basePath = basePath;
 
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
             BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, compress);
@@ -355,8 +320,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * Returns base path of the repository
+     * Public for testing.
      */
-    protected abstract BlobPath basePath();
+    public BlobPath basePath() {
+        return basePath;
+    }
 
     /**
      * Returns true if metadata and snapshot files should be compressed
@@ -829,8 +797,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                              IndexShardSnapshotStatus snapshotStatus) {
+    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
         SnapshotContext snapshotContext = new SnapshotContext(store, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
         try {
             snapshotContext.snapshot(snapshotIndexCommit);
@@ -845,18 +813,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                             RecoveryState recoveryState) {
-        final Context context = new Context(snapshotId, indexId, shard.shardId(), snapshotShardId);
+    public void restoreShard(Store store, SnapshotId snapshotId,
+                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        ShardId shardId = store.shardId();
+        final Context context = new Context(snapshotId, indexId, shardId, snapshotShardId);
         BlobPath path = basePath().add("indices").add(indexId.getId()).add(Integer.toString(snapshotShardId.getId()));
         BlobContainer blobContainer = blobStore().blobContainer(path);
-        final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, recoveryState, blobContainer);
+        final RestoreContext snapshotContext = new RestoreContext(shardId, snapshotId, recoveryState, blobContainer);
         try {
             BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
             SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-            snapshotContext.restore(snapshotFiles);
+            snapshotContext.restore(snapshotFiles, store);
         } catch (Exception e) {
-            throw new IndexShardRestoreFailedException(shard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
+            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
         }
     }
 
@@ -989,8 +958,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 final Map<String, BlobMetaData> blobs,
                                 final String reason) {
             final String indexGeneration = Integer.toString(fileListGeneration);
-            final String currentIndexGen = indexShardSnapshotsFormat.blobName(indexGeneration);
-
             final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(snapshots);
             try {
                 // Delete temporary index files first, as we might otherwise fail in the next step creating the new index file if an earlier
@@ -1033,7 +1000,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotId, shardId), e);
                 }
             } catch (IOException e) {
-                String message = "Failed to finalize " + reason + " with shard index [" + currentIndexGen + "]";
+                String message =
+                    "Failed to finalize " + reason + " with shard index [" + indexShardSnapshotsFormat.blobName(indexGeneration) + "]";
                 throw new IndexShardSnapshotFailedException(shardId, message, e);
             }
         }
@@ -1170,16 +1138,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     List<BlobStoreIndexShardSnapshot.FileInfo> filesInfo = snapshots.findPhysicalIndexFiles(fileName);
                     if (filesInfo != null) {
                         for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : filesInfo) {
-                            try {
-                                // in 1.3.3 we added additional hashes for .si / segments_N files
-                                // to ensure we don't double the space in the repo since old snapshots
-                                // don't have this hash we try to read that hash from the blob store
-                                // in a bwc compatible way.
-                                maybeRecalculateMetadataHash(blobContainer, fileInfo, metadata);
-                            } catch (Exception e) {
-                                logger.warn(() -> new ParameterizedMessage("{} Can't calculate hash from blob for file [{}] [{}]",
-                                    shardId, fileInfo.physicalName(), fileInfo.metadata()), e);
-                            }
                             if (fileInfo.isSame(md) && snapshotFileExistsInBlobs(fileInfo, blobs)) {
                                 // a commit point file with the same name, size and checksum was already copied to repository
                                 // we will reuse it for this snapshot
@@ -1350,32 +1308,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    /**
-     * This is a BWC layer to ensure we update the snapshots metadata with the corresponding hashes before we compare them.
-     * The new logic for StoreFileMetaData reads the entire {@code .si} and {@code segments.n} files to strengthen the
-     * comparison of the files on a per-segment / per-commit level.
-     */
-    private static void maybeRecalculateMetadataHash(final BlobContainer blobContainer, final BlobStoreIndexShardSnapshot.FileInfo fileInfo,
-                                                     Store.MetadataSnapshot snapshot) throws Exception {
-        final StoreFileMetaData metadata;
-        if (fileInfo != null && (metadata = snapshot.get(fileInfo.physicalName())) != null) {
-            if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
-                // we have a hash - check if our repo has a hash too otherwise we have
-                // to calculate it.
-                // we might have multiple parts even though the file is small... make sure we read all of it.
-                try (InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
-                    BytesRefBuilder builder = new BytesRefBuilder();
-                    Store.MetadataSnapshot.hashFile(builder, stream, fileInfo.length());
-                    BytesRef hash = fileInfo.metadata().hash(); // reset the file infos metadata hash
-                    assert hash.length == 0;
-                    hash.bytes = builder.bytes();
-                    hash.offset = 0;
-                    hash.length = builder.length();
-                }
-            }
-        }
-    }
-
     private static final class PartSliceStream extends SlicedInputStream {
 
         private final BlobContainer container;
@@ -1402,13 +1334,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         /**
          * Constructs new restore context
-         * @param indexShard    shard to restore into
+         * @param shardId    shard id to restore into
          * @param snapshotId    snapshot id
          * @param recoveryState recovery state to report progress
          * @param blobContainer the blob container to read the files from
          */
-        RestoreContext(IndexShard indexShard, SnapshotId snapshotId, RecoveryState recoveryState, BlobContainer blobContainer) {
-            super(metadata.name(), indexShard, snapshotId, recoveryState, BUFFER_SIZE);
+        RestoreContext(ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState, BlobContainer blobContainer) {
+            super(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE);
             this.blobContainer = blobContainer;
         }
 

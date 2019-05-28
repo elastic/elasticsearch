@@ -260,6 +260,7 @@ docker build --tag=elasticsearch-custom .
 docker run -ti -v /usr/share/elasticsearch/data elasticsearch-custom
 --------------------------------------------
 
+[[_d_override_the_image_8217_s_default_ulink_url_https_docs_docker_com_engine_reference_run_cmd_default_command_or_options_cmd_ulink]]
 ===== D. Override the image's default https://docs.docker.com/engine/reference/run/#cmd-default-command-or-options[CMD]
 
 Options can be passed as command-line options to the Elasticsearch process by

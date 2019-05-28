@@ -27,7 +27,6 @@ clause contains the actual query (the specified 'type' defines what
 query this will be). Each query clause is basically a `should` clause.
 
 [float]
-[float]
 ==== Options
 
 All options that apply on the `match` query also apply on the

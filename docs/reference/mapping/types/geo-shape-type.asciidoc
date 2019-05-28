@@ -176,6 +176,7 @@ for upper left and lower right points of the shape:
 --------------------------------------------------
 
 [float]
+[[_ulink_url_http_www_geojson_org_geojson_spec_html_id4_polygon_ulink]]
 ===== http://www.geojson.org/geojson-spec.html#id4[Polygon]
 
 A polygon is defined by a list of a list of points. The first and last
@@ -210,6 +211,7 @@ arrays represent the interior shapes ("holes"):
 --------------------------------------------------
 
 [float]
+[[_ulink_url_http_www_geojson_org_geojson_spec_html_id7_multipolygon_ulink]]
 ===== http://www.geojson.org/geojson-spec.html#id7[MultiPolygon]
 
 A list of geojson polygons.

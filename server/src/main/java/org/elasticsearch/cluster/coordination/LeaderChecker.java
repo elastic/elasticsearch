@@ -246,7 +246,7 @@ public class LeaderChecker {
                                 "leader [{}] has failed {} consecutive checks (limit [{}] is {}), restarting discovery; last failure was:",
                                 leader, failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount), exp);
                             leaderFailed(new ElasticsearchException(
-                                "node [" + leader + "] failed [" + failureCount + "] consecutive checks; last failure follows", exp));
+                                "node [" + leader + "] failed [" + failureCount + "] consecutive checks", exp));
                             return;
                         }
 

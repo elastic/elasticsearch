@@ -67,7 +67,6 @@ public class JsonLoggerTests extends ESTestCase {
         super.tearDown();
     }
 
-    @SuppressWarnings("unchecked")
     public void testJsonLayout() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
 
@@ -90,7 +89,6 @@ public class JsonLoggerTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testPrefixLoggerInJson() throws IOException {
         Logger shardIdLogger = Loggers.getLogger("shardIdLogger", ShardId.fromString("[indexName][123]"));
         shardIdLogger.info("This is an info message with a shardId");

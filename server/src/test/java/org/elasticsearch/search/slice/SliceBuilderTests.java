@@ -440,21 +440,6 @@ public class SliceBuilderTests extends ESTestCase {
         }
     }
 
-    public void testToFilterDeprecationMessage() throws IOException {
-        Directory dir = new RAMDirectory();
-        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
-            writer.commit();
-        }
-        try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(Version.V_6_3_0, reader, "_uid", null, 1,0);
-            SliceBuilder builder = new SliceBuilder("_uid", 5, 10);
-            Query query = builder.toFilter(null, createRequest(0), context, Version.CURRENT);
-            assertThat(query, instanceOf(TermsSliceQuery.class));
-            assertThat(builder.toFilter(null, createRequest(0), context, Version.CURRENT), equalTo(query));
-            assertWarnings("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
-        }
-    }
-
     public void testToFilterWithRouting() throws IOException {
         Directory dir = new RAMDirectory();
         try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {

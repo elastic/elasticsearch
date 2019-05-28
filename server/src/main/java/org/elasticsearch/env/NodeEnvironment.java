@@ -52,7 +52,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.FsDirectoryService;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -430,7 +430,7 @@ public final class NodeEnvironment  implements Closeable {
                 // resolve the directory the shard actually lives in
                 Path p = shardPaths[i].resolve("index");
                 // open a directory (will be immediately closed) on the shard's location
-                dirs[i] = new SimpleFSDirectory(p, indexSettings.getValue(FsDirectoryService.INDEX_LOCK_FACTOR_SETTING));
+                dirs[i] = new SimpleFSDirectory(p, indexSettings.getValue(FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING));
                 // create a lock for the "write.lock" file
                 try {
                     locks[i] = dirs[i].obtainLock(IndexWriter.WRITE_LOCK_NAME);

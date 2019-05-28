@@ -114,7 +114,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
     public static class TestCustomMetaDataPlugin extends Plugin {

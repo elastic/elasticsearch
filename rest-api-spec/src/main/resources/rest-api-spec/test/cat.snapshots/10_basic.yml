@@ -82,6 +82,6 @@
 
   - match:
       $body: |
-               /^   snap1\s+ test_cat_snapshots_1\+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
-                    snap2\s+ test_cat_snapshots_1\+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
+               /^   snap1\s+ test_cat_snapshots_1\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
+                    snap2\s+ test_cat_snapshots_1\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
                $/

@@ -166,10 +166,10 @@ public class AnalysisModuleTests extends ESTestCase {
 
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom1 = (CustomAnalyzer) analyzer;
-        assertThat(custom1.getComponents().getTokenizerFactory(), instanceOf(StandardTokenizerFactory.class));
-        assertThat(custom1.getComponents().getTokenFilters().length, equalTo(2));
+        assertThat(custom1.tokenizerFactory(), instanceOf(StandardTokenizerFactory.class));
+        assertThat(custom1.tokenFilters().length, equalTo(2));
 
-        StopTokenFilterFactory stop1 = (StopTokenFilterFactory) custom1.getComponents().getTokenFilters()[0];
+        StopTokenFilterFactory stop1 = (StopTokenFilterFactory) custom1.tokenFilters()[0];
         assertThat(stop1.stopWords().size(), equalTo(1));
 
         // verify position increment gap
@@ -182,7 +182,7 @@ public class AnalysisModuleTests extends ESTestCase {
         analyzer = indexAnalyzers.get("custom4").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));
         CustomAnalyzer custom4 = (CustomAnalyzer) analyzer;
-        assertThat(custom4.getComponents().getTokenFilters()[0], instanceOf(MyFilterTokenFilterFactory.class));
+        assertThat(custom4.tokenFilters()[0], instanceOf(MyFilterTokenFilterFactory.class));
     }
 
     public void testWordListPath() throws Exception {

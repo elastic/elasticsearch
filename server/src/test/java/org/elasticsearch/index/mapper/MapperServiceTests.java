@@ -448,13 +448,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertEquals(testString, documentMapper.mappers().getMapper(testString).simpleName());
     }
 
-    public void testReloadSearchAnalyzersNoReload() throws IOException {
-        MapperService mapperService = createIndex("no_reload_index", Settings.EMPTY).mapperService();
-        IndexAnalyzers current = mapperService.getIndexAnalyzers();
-        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class));
-        assertSame(current, mapperService.getIndexAnalyzers());
-    }
-
     public void testReloadSearchAnalyzers() throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)

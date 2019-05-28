@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.elasticsearch.index.analysis.CustomAnalyzerProvider.AnalyzerComponents;
 import org.elasticsearch.index.mapper.MapperException;
 
 import java.util.ArrayList;
@@ -113,9 +112,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
             return; // everything allowed if this analyzer is in ALL mode
         }
         if (this.getAnalysisMode() != mode) {
-            if (analyzer instanceof CustomAnalyzer) {
-                AnalyzerComponents components = ((CustomAnalyzer) analyzer).getComponents();
-                TokenFilterFactory[] tokenFilters = components.getTokenFilters();
+            if (analyzer instanceof TokenFilterComposite) {
+                TokenFilterFactory[] tokenFilters = ((TokenFilterComposite) analyzer).tokenFilters();
                 List<String> offendingFilters = new ArrayList<>();
                 for (TokenFilterFactory tokenFilter : tokenFilters) {
                     if (tokenFilter.getAnalysisMode() != mode) {

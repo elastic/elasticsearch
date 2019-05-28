@@ -29,7 +29,10 @@ import org.elasticsearch.index.analysis.CustomAnalyzerProvider.AnalyzerComponent
 import java.io.Reader;
 import java.util.Map;
 
-public final class ReloadableCustomAnalyzer extends CustomAnalyzer {
+public class ReloadableCustomAnalyzer extends Analyzer implements TokenFilterComposite {
+
+    private volatile AnalyzerComponents components;
+
     private CloseableThreadLocal<AnalyzerComponents> storedComponents = new CloseableThreadLocal<>();
 
     private static final ReuseStrategy UPDATE_STRATEGY = new ReuseStrategy() {
@@ -53,7 +56,53 @@ public final class ReloadableCustomAnalyzer extends CustomAnalyzer {
     };
 
     ReloadableCustomAnalyzer(AnalyzerComponents components) {
-        super(components, UPDATE_STRATEGY);
+        super(UPDATE_STRATEGY);
+        this.components = components;
+    }
+
+    public AnalyzerComponents getComponents() {
+        return this.components;
+    }
+
+    @Override
+    public TokenFilterFactory[] tokenFilters() {
+        return this.components.getTokenFilters();
+    }
+
+    @Override
+    public int getPositionIncrementGap(String fieldName) {
+        return this.components.getPositionIncrementGap();
+    }
+
+    @Override
+    public int getOffsetGap(String field) {
+        if (this.components.getOffsetGap() < 0) {
+            return super.getOffsetGap(field);
+        }
+        return this.components.getOffsetGap();
+    }
+
+    public AnalysisMode getAnalysisMode() {
+        return this.components.analysisMode();
+    }
+
+    @Override
+    protected Reader initReaderForNormalization(String fieldName, Reader reader) {
+        final AnalyzerComponents components = getComponents();
+        for (CharFilterFactory charFilter : components.getCharFilters()) {
+            reader = charFilter.normalize(reader);
+        }
+        return reader;
+    }
+
+    @Override
+    protected TokenStream normalize(String fieldName, TokenStream in) {
+        final AnalyzerComponents components = getComponents();
+        TokenStream result = in;
+        for (TokenFilterFactory filter : components.getTokenFilters()) {
+            result = filter.normalize(result);
+        }
+        return result;
     }
 
     private boolean shouldReload(AnalyzerComponents source) {

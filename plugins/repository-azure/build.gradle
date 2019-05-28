@@ -81,7 +81,7 @@ test {
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
 }
 
-task thirdPartyTests(type: Test) {
+task thirdPartyTest(type: Test) {
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
   systemProperty 'test.azure.key', azureKey ? azureKey : ""
@@ -90,5 +90,5 @@ task thirdPartyTests(type: Test) {
 }
 
 if (azureAccount || azureKey || azureContainer || azureBasePath) {
-  check.dependsOn(thirdPartyTests)
+  check.dependsOn(thirdPartyTest)
 }

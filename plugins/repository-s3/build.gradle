@@ -135,7 +135,7 @@ if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath) {
   throw new IllegalArgumentException("not all options specified to run EC2/ECS tests are present")
 }
 
-task thirdPartyTests(type: Test) {
+task thirdPartyTest(type: Test) {
   include '**/S3RepositoryThirdPartyTests.class'
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
@@ -178,13 +178,13 @@ if (useFixture) {
     }
   }
 
-  thirdPartyTests {
+  thirdPartyTest {
     dependsOn writeMinioAddress
     inputs.file(minioAddressFile)
     systemProperty 'test.s3.endpoint', minioAddressFile.name
   }
 
-  BuildPlugin.requireDocker(tasks.thirdPartyTests)
+  BuildPlugin.requireDocker(tasks.thirdPartyTest)
 
   task integTestMinio(type: RestIntegTestTask) {
     description = "Runs REST tests using the Minio repository."
@@ -222,7 +222,7 @@ if (useFixture) {
   }
 }
 
-check.dependsOn(thirdPartyTests)
+check.dependsOn(thirdPartyTest)
 
 File parentFixtures = new File(project.buildDir, "fixtures")
 File s3FixtureFile = new File(parentFixtures, 's3Fixture.properties')

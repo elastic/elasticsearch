@@ -36,8 +36,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.Version.V_6_3_0;
-import static org.elasticsearch.Version.V_7_0_0;
 import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -50,30 +48,32 @@ import static org.hamcrest.Matchers.sameInstance;
 public class VersionTests extends ESTestCase {
 
     public void testVersionComparison() throws Exception {
-        assertThat(V_6_3_0.before(V_7_0_0), is(true));
-        assertThat(V_6_3_0.before(V_6_3_0), is(false));
-        assertThat(V_7_0_0.before(V_6_3_0), is(false));
+        Version V_7_2_0 = Version.fromString("7.2.0");
+        Version V_8_0_0 = Version.fromString("8.0.0");
+        assertThat(V_7_2_0.before(V_8_0_0), is(true));
+        assertThat(V_7_2_0.before(V_7_2_0), is(false));
+        assertThat(V_8_0_0.before(V_7_2_0), is(false));
 
-        assertThat(V_6_3_0.onOrBefore(V_7_0_0), is(true));
-        assertThat(V_6_3_0.onOrBefore(V_6_3_0), is(true));
-        assertThat(V_7_0_0.onOrBefore(V_6_3_0), is(false));
+        assertThat(V_7_2_0.onOrBefore(V_8_0_0), is(true));
+        assertThat(V_7_2_0.onOrBefore(V_7_2_0), is(true));
+        assertThat(V_8_0_0.onOrBefore(V_7_2_0), is(false));
 
-        assertThat(V_6_3_0.after(V_7_0_0), is(false));
-        assertThat(V_6_3_0.after(V_6_3_0), is(false));
-        assertThat(V_7_0_0.after(V_6_3_0), is(true));
+        assertThat(V_7_2_0.after(V_8_0_0), is(false));
+        assertThat(V_7_2_0.after(V_7_2_0), is(false));
+        assertThat(V_8_0_0.after(V_7_2_0), is(true));
 
-        assertThat(V_6_3_0.onOrAfter(V_7_0_0), is(false));
-        assertThat(V_6_3_0.onOrAfter(V_6_3_0), is(true));
-        assertThat(V_7_0_0.onOrAfter(V_6_3_0), is(true));
+        assertThat(V_7_2_0.onOrAfter(V_8_0_0), is(false));
+        assertThat(V_7_2_0.onOrAfter(V_7_2_0), is(true));
+        assertThat(V_8_0_0.onOrAfter(V_7_2_0), is(true));
 
         assertTrue(Version.fromString("5.0.0-alpha2").onOrAfter(Version.fromString("5.0.0-alpha1")));
         assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
         assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
         assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
 
-        assertThat(V_6_3_0, is(lessThan(V_7_0_0)));
-        assertThat(V_6_3_0.compareTo(V_6_3_0), is(0));
-        assertThat(V_7_0_0, is(greaterThan(V_6_3_0)));
+        assertThat(V_7_2_0, is(lessThan(V_8_0_0)));
+        assertThat(V_7_2_0.compareTo(V_7_2_0), is(0));
+        assertThat(V_8_0_0, is(greaterThan(V_7_2_0)));
     }
 
     public void testMin() {
@@ -182,7 +182,7 @@ public class VersionTests extends ESTestCase {
 
         Version major56x = Version.fromString("5.6.0");
         assertThat(Version.V_6_5_0.minimumCompatibilityVersion(), equalTo(major56x));
-        assertThat(Version.V_6_3_1.minimumCompatibilityVersion(), equalTo(major56x));
+        assertThat(Version.fromString("6.3.1").minimumCompatibilityVersion(), equalTo(major56x));
 
         // from 7.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()

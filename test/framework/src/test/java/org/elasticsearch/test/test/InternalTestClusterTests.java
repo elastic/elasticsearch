@@ -192,11 +192,11 @@ public class InternalTestClusterTests extends ESTestCase {
         try {
             {
                 Random random = new Random(seed);
-                cluster0.beforeTest(random, random.nextDouble());
+                cluster0.beforeTest(random);
             }
             {
                 Random random = new Random(seed);
-                cluster1.beforeTest(random, random.nextDouble());
+                cluster1.beforeTest(random);
             }
             assertArrayEquals(cluster0.getNodeNames(), cluster1.getNodeNames());
             Iterator<Client> iterator1 = cluster1.getClients().iterator();
@@ -248,7 +248,7 @@ public class InternalTestClusterTests extends ESTestCase {
             true, minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             nodePrefix, mockPlugins(), Function.identity());
         try {
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             final int originalMasterCount = cluster.numMasterNodes();
             final Map<String,Path[]> shardNodePaths = new HashMap<>();
             for (String name: cluster.getNodeNames()) {
@@ -279,7 +279,7 @@ public class InternalTestClusterTests extends ESTestCase {
             Files.createDirectories(newTestMarker);
             final String newNode3 =  cluster.startNode(poorNodeDataPathSettings);
             assertThat(getNodePaths(cluster, newNode3)[0], equalTo(dataPath));
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             assertFileNotExists(newTestMarker); // the cluster should be reset for a new test, cleaning up the extra path we made
             assertFileNotExists(testMarker); // a new unknown node used this path, it should be cleaned
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
@@ -287,7 +287,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name), equalTo(shardNodePaths.get(name)));
             }
 
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             assertFileExists(stableTestMarker); // but leaving the structure of existing, reused nodes
             for (String name: cluster.getNodeNames()) {
                 assertThat("data paths for " + name + " changed", getNodePaths(cluster, name),
@@ -336,7 +336,7 @@ public class InternalTestClusterTests extends ESTestCase {
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, transportClient).build();
             }
         }, 0, "", mockPlugins(), Function.identity());
-        cluster.beforeTest(random(), 0.0);
+        cluster.beforeTest(random());
         List<DiscoveryNode.Role> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
             final DiscoveryNode.Role role = i == numNodes - 1 && roles.contains(MASTER) == false ?
@@ -426,7 +426,7 @@ public class InternalTestClusterTests extends ESTestCase {
             "test", nodeConfigurationSource, 0, nodePrefix,
             plugins, Function.identity());
         try {
-            cluster.beforeTest(random(), 0.0);
+            cluster.beforeTest(random());
             switch (randomInt(2)) {
                 case 0:
                     cluster.stopRandomDataNode();

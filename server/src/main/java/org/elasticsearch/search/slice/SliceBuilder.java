@@ -54,7 +54,7 @@ import java.util.Set;
 
 /**
  *  A slice builder allowing to split a scroll in multiple partitions.
- *  If the provided field is the "_uid" it uses a {@link org.elasticsearch.search.slice.TermsSliceQuery}
+ *  If the provided field is the "_id" it uses a {@link org.elasticsearch.search.slice.TermsSliceQuery}
  *  to do the slicing. The slicing is done at the shard level first and then each shard is split into multiple slices.
  *  For instance if the number of shards is equal to 2 and the user requested 4 slices
  *  then the slices 0 and 2 are assigned to the first shard and the slices 1 and 3 are assigned to the second shard.
@@ -79,7 +79,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         PARSER.declareInt(SliceBuilder::setMax, MAX_FIELD);
     }
 
-    /** Name of field to slice against (_uid by default) */
+    /** Name of field to slice against (_id by default) */
     private String field = IdFieldMapper.NAME;
     /** The id of the slice */
     private int id = -1;
@@ -249,15 +249,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
         String field = this.field;
         boolean useTermQuery = false;
-        if ("_uid".equals(field)) {
-            // on new indices, the _id acts as a _uid
-            field = IdFieldMapper.NAME;
-            if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
-                throw new IllegalArgumentException("Computing slices on the [_uid] field is illegal for 7.x indices, use [_id] instead");
-            }
-            DEPRECATION_LOG.deprecated("Computing slices on the [_uid] field is deprecated for 6.x indices, use [_id] instead");
-            useTermQuery = true;
-        } else if (IdFieldMapper.NAME.equals(field)) {
+        if (IdFieldMapper.NAME.equals(field)) {
             useTermQuery = true;
         } else if (type.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);

@@ -88,5 +88,4 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // listing operations will become consistent within these 10 minutes.
         assertBusy(() -> super.assertConsistentRepository(repo, executor), 10L, TimeUnit.MINUTES);
     }
-
 }

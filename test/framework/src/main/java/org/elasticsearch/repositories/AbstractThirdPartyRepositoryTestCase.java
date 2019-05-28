@@ -22,7 +22,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -69,14 +68,13 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             client().prepareIndex("test-idx-3", "doc", Integer.toString(i)).setSource("foo", "bar" + i).get();
         }
         client().admin().indices().prepareRefresh().get();
-        assertThat(count(client(), "test-idx-1"), equalTo(100L));
-        assertThat(count(client(), "test-idx-2"), equalTo(100L));
-        assertThat(count(client(), "test-idx-3"), equalTo(100L));
+
+        final String snapshotName = "test-snap-" + System.currentTimeMillis();
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin()
             .cluster()
-            .prepareCreateSnapshot("test-repo", "test-snap")
+            .prepareCreateSnapshot("test-repo", snapshotName)
             .setWaitForCompletion(true)
             .setIndices("test-idx-*", "-test-idx-3")
             .get();
@@ -87,7 +85,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         assertThat(client().admin()
                 .cluster()
                 .prepareGetSnapshots("test-repo")
-                .setSnapshots("test-snap")
+                .setSnapshots(snapshotName)
                 .get()
                 .getSnapshots()
                 .get(0)
@@ -111,7 +109,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         future.actionGet();
         assertTrue(assertCorruptionVisible(repo, genericExec));
         logger.info("--> deleting a snapshot to trigger repository cleanup");
-        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", "test-snap")).actionGet();
+        client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
 
         assertConsistentRepository(repo, genericExec);
     }
@@ -133,9 +131,5 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
     protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
         BlobStoreTestUtil.assertConsistency(repo, executor);
-    }
-
-    private long count(Client client, String index) {
-        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
     }
 }

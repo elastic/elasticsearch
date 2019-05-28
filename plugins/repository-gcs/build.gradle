@@ -133,7 +133,7 @@ test {
   exclude '**/GoogleCloudStorageThirdPartyTests.class'
 }
 
-task thirdPartyTests(type: Test) {
+task thirdPartyTest(type: Test) {
   include '**/GoogleCloudStorageThirdPartyTests.class'
   systemProperty 'test.google.account', gcsServiceAccount ? Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath())) : ""
   systemProperty 'test.google.bucket', gcsBucket ? gcsBucket : ""
@@ -141,5 +141,5 @@ task thirdPartyTests(type: Test) {
 }
 
 if (gcsServiceAccount || gcsBucket || gcsBasePath) {
-  check.dependsOn(thirdPartyTests)
+  check.dependsOn(thirdPartyTest)
 }

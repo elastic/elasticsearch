@@ -332,6 +332,7 @@ Prior to 5.0.0 scripting engines could register multiple extensions. The only
 engine doing this was the Javascript engine, which registered "js" and
 "javascript". It now only registers the "js" file extension for on-disk scripts.
 
+[[_literal_javascript_literal_files_are_no_longer_supported_use_literal_js_literal]]
 ==== `.javascript` files are no longer supported (use `.js`)
 
 The Javascript engine previously registered "js" and "javascript". It now only

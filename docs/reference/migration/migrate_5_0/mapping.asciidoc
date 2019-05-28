@@ -77,6 +77,7 @@ PUT my_index
 Also the `precision_step` parameter is now irrelevant and will be rejected on
 indices that are created on or after 5.0.
 
+[[_literal_geo_point_literal_fields]]
 ==== `geo_point` fields
 
 Like Numeric fields the Geo point field now uses the new BKD tree structure. Since
@@ -86,6 +87,7 @@ following field parameters are no longer needed or supported: `geohash`,
 an API perspective, and can still be accessed using the `.geohash` field extension,
 but they are no longer used to index geo point data.
 
+[[_literal__timestamp_literal_and_literal__ttl_literal]]
 ==== `_timestamp` and `_ttl`
 
 The `_timestamp` and `_ttl` fields were deprecated and are now removed. As a
@@ -94,6 +96,7 @@ current timestamp on application side. For `_ttl`, you should either use
 time-based indices when applicable, or cron a delete-by-query with a range
 query on a timestamp field
 
+[[_literal_index_literal_property]]
 ==== `index` property
 
 On all field datatypes (except for the deprecated `string` field), the `index`
@@ -106,6 +109,7 @@ Previously, setting a field to `index:no` would also disable doc-values.  Now,
 doc-values are enabled by default on all types but `text` and `binary`,
 regardless of the value of the `index` property.
 
+[[_floating_points_use_literal_float_literal_instead_of_literal_double_literal]]
 ==== Floating points use `float` instead of `double`
 
 When dynamically mapping a field containing a floating point number, the field
@@ -113,18 +117,21 @@ now defaults to using `float` instead of `double`. The reasoning is that
 floats should be more than enough for most cases but would decrease storage
 requirements significantly.
 
+[[_literal_norms_literal]]
 ==== `norms`
 
 `norms` now take a boolean instead of an object. This boolean is the replacement
 for `norms.enabled`. There is no replacement for `norms.loading` since eager
 loading of norms is not useful anymore now that norms are disk-based.
 
+[[_literal_fielddata_format_literal]]
 ==== `fielddata.format`
 
 Setting `fielddata.format: doc_values` in the mappings used to implicitly
 enable doc-values on a field. This no longer works: the only way to enable or
 disable doc-values is by using the `doc_values` property of mappings.
 
+[[_literal_fielddata_filter_regex_literal]]
 ==== `fielddata.filter.regex`
 
 Regex filters are not supported anymore and will be dropped on upgrade.
@@ -145,7 +152,7 @@ created in 5.x:
 
 See <<mapping-limit-settings>> for more.
 
-
+[[_literal__parent_literal_field_no_longer_indexed]]
 ==== `_parent` field no longer indexed
 
 The join between parent and child documents no longer relies on indexed fields
@@ -154,6 +161,7 @@ order to find documents that refer to a specific parent id, the new
 `parent_id` query can be used. The GET response and hits inside the search
 response still include the parent id under the `_parent` key.
 
+[[_source_literal_format_literal_option]]
 ==== Source `format` option
 
 The `_source` mapping no longer supports the `format` option. It will still be
@@ -174,6 +182,7 @@ per document boosts as follows:
 }
 ---------------
 
+[[_boost_accuracy_for_queries_on_literal__all_literal]]
 ==== Boost accuracy for queries on `_all`
 
 Per-field boosts on the `_all` are now compressed into a single byte instead
@@ -181,6 +190,7 @@ of the 4 bytes used previously. While this will make the index much more
 space-efficient, it also means that index time boosts will be less accurately
 encoded.
 
+[[_literal__ttl_literal_and_literal__timestamp_literal_cannot_be_created]]
 ==== `_ttl` and `_timestamp` cannot be created
 
 You can no longer create indexes with `_ttl` or `_timestamp` enabled. Indexes

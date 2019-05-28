@@ -679,17 +679,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
             assert directoryReader.leaves().size() == 1 : "Expected single leaf, but got [" + directoryReader.leaves().size() + "]";
-            final IndexSearcher slowSearcher = new IndexSearcher(directoryReader) {
-
-                @Override
-                public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
-                    BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                    bq.add(query, BooleanClause.Occur.MUST);
-                    bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
-                    return super.createNormalizedWeight(bq.build(), needsScores);
-                }
-
-            };
+            final IndexSearcher slowSearcher = new IndexSearcher(directoryReader);
             slowSearcher.setQueryCache(null);
             return slowSearcher;
         } catch (IOException e) {

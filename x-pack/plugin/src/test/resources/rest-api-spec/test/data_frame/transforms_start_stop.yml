@@ -114,8 +114,8 @@ teardown:
         transform_id: "airline-transform-start-stop"
   - match: { count: 1 }
   - match: { transforms.0.id: "airline-transform-start-stop" }
-#  - match: { transforms.0.state.indexer_state: "stopped" }
-#  - match: { transforms.0.state.task_state: "stopped" }
+  - match: { transforms.0.state.indexer_state: "stopped" }
+  - match: { transforms.0.state.task_state: "stopped" }
 
   - do:
       data_frame.start_data_frame_transform:

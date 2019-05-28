@@ -164,7 +164,6 @@ Note that this is different from a facet of the
 <<search-facets-filter-facet,filter>> type.
 
 [float]
-[[_facets_with_the_emphasis_nested_emphasis_types]]
 === Facets with the _nested_ types
 
 <<mapping-nested-type,Nested>> mapping allows

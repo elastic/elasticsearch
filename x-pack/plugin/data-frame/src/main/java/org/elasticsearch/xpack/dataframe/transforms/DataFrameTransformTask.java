@@ -238,7 +238,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
         IndexerState state = getIndexer().stop();
         if (state == IndexerState.STOPPED) {
-            getIndexer().saveState(state, () -> getIndexer().onStop());
+            getIndexer().doSaveState(state, getIndexer().getPosition(), () -> getIndexer().onStop());
         }
     }
 
@@ -534,15 +534,10 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 return;
             }
 
-            saveState(indexerState, next);
-        }
-
-        public void saveState(IndexerState indexerState, Runnable next){
-
             final DataFrameTransformState state = new DataFrameTransformState(
                 transformTask.taskState.get(),
                 indexerState,
-                getPosition(),
+                position,
                 transformTask.currentCheckpoint.get(),
                 transformTask.stateReason.get(),
                 getProgress());

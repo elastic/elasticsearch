@@ -257,6 +257,7 @@ PUT my_index/my_type/1?routing=bar <2>
 <1> Routing can be marked as required to ensure it is not forgotten during indexing.
 <2> This indexing request uses a `routing` value of `bar`.
 
+[[_literal__timestamp_literal_and_literal__ttl_literal_deprecated]]
 ==== `_timestamp` and `_ttl` deprecated
 
 The `_timestamp` and `_ttl` fields are deprecated, but will remain functional
@@ -315,6 +316,7 @@ PUT my_index/my_type/1
 -------------------------
 <1> Has `format`: `"strict_date_optional_time||epoch_millis"`.
 
+[[_literal_mapping_date_round_ceil_literal_setting]]
 ==== `mapping.date.round_ceil` setting
 
 The `mapping.date.round_ceil` setting for date math parsing has been removed.
@@ -352,6 +354,7 @@ the user-friendly representation of boolean fields: `false`/`true`:
 ]
 ---------------
 
+[[_literal_index_name_literal_and_literal_path_literal_removed]]
 ==== `index_name` and `path` removed
 
 The `index_name` setting was used to change the name of the Lucene field,

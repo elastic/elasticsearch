@@ -150,6 +150,7 @@ In this situation an error will be thrown.
 ===== Limited de-dup logic.
 The de-duplication logic in the diversify settings applies only at a shard level so will not apply across shards.
 
+[[_no_specialized_syntax_for_geo_date_fields]]
 ===== No specialized syntax for geo/date fields
 Currently the syntax for defining the diversifying values is defined by a choice of `field` or `script` - there is no added syntactical sugar for expressing geo or date units such as "1w" (1 week).
 This support may be added in a later release and users will currently have to create these sorts of values using a script.

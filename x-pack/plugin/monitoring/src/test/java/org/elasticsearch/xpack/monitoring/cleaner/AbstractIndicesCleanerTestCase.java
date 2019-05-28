@@ -21,7 +21,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 
-@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTestCase {
 
     static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy.MM.dd").withZone(ZoneOffset.UTC);

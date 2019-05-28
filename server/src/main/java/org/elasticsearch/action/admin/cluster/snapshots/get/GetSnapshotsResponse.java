@@ -220,7 +220,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 }
             }
 
-            throw failedResponses.values().iterator().next();
+            if (failedResponses.isEmpty() == false) {
+                throw failedResponses.values().iterator().next();
+            }
         }
     }
 

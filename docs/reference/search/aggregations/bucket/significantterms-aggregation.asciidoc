@@ -339,7 +339,7 @@ It is hard to say which one of the different heuristics will be the best choice 
 
 
 
-	
+[[_size_amp_shard_size]]	
 ===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By

@@ -17,6 +17,7 @@ to allow multi-field queries:
 <2> The fields to be queried.
 
 [float]
+[[_literal_fields_literal_and_per_field_boosting]]
 === `fields` and per-field boosting
 
 Fields can be specified with wildcards, eg:
@@ -46,6 +47,7 @@ Individual fields can be boosted with the caret (`^`) notation:
 <1> The `subject` field is three times as important as the `message` field.
 
 [float]
+[[_literal_use_dis_max_literal]]
 === `use_dis_max`
 
 By default, the `multi_match` query generates a `match` clause per field, then wraps them
@@ -324,6 +326,7 @@ Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `zero_terms_query` and `cutoff_frequency`, as explained in
 <<query-dsl-match-query, match query>>.
 
+[[_literal_cross_field_literal_and_analysis]]
 ===== `cross_field` and analysis
 
 The `cross_field` type can only work in term-centric mode on fields that have
@@ -418,6 +421,7 @@ which will be executed as:
     blended("will",  fields: [first, first.edge, last.edge, last])
     blended("smith", fields: [first, first.edge, last.edge, last])
 
+[[_literal_tie_breaker_literal]]
 ===== `tie_breaker`
 
 By default, each per-term `blended` query will use the best score returned by

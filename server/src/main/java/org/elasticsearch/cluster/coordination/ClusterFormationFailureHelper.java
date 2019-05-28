@@ -20,7 +20,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
@@ -162,8 +161,8 @@ public class ClusterFormationFailureHelper {
                 }
 
                 return String.format(Locale.ROOT,
-                    "master not discovered yet, this node has not previously joined a bootstrapped (v%d+) cluster, and %s: %s",
-                    Version.CURRENT.major + 1, bootstrappingDescription, discoveryStateIgnoringQuorum);
+                    "master not discovered yet, this node has not previously joined a bootstrapped cluster, and %s: %s",
+                    bootstrappingDescription, discoveryStateIgnoringQuorum);
             }
 
             assert clusterState.getLastCommittedConfiguration().isEmpty() == false;

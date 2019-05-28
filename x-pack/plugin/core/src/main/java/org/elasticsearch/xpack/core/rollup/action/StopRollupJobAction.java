@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;

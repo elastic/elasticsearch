@@ -245,13 +245,11 @@ public class UpdateHelper {
             final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
                     .type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(updatedSourceAsMap, updateSourceContentType)
+                    .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())
                     .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
-            if (canUseIfSeqNo.getAsBoolean()) {
-                finalIndexRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
-            } else {
-                finalIndexRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
-                finalIndexRequest.ignoreCASUsingVersionDeprecation();
+            if (canUseIfSeqNo.getAsBoolean() == false) {
+                finalIndexRequest.setFallbackCASUsingVersion(calculateUpdateVersion(request, getResult), request.versionType());
             }
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
@@ -292,25 +290,21 @@ public class UpdateHelper {
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
                         .type(request.type()).id(request.id()).routing(routing).parent(parent)
                         .source(updatedSourceAsMap, updateSourceContentType)
+                        .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())
                         .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                         .setRefreshPolicy(request.getRefreshPolicy());
-                if (canUseIfSeqNo.getAsBoolean()) {
-                    indexRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
-                } else {
-                    indexRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
-                    indexRequest.ignoreCASUsingVersionDeprecation();
+                if (canUseIfSeqNo.getAsBoolean() == false) {
+                    indexRequest.setFallbackCASUsingVersion(calculateUpdateVersion(request, getResult), request.versionType());
                 }
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             case DELETE:
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
                         .type(request.type()).id(request.id()).routing(routing).parent(parent)
+                        .setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm())
                         .waitForActiveShards(request.waitForActiveShards())
                         .timeout(request.timeout()).setRefreshPolicy(request.getRefreshPolicy());
-                if (canUseIfSeqNo.getAsBoolean()) {
-                    deleteRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
-                } else {
-                    deleteRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
-                    deleteRequest.ignoreCASUsingVersionDeprecation();
+                if (canUseIfSeqNo.getAsBoolean() == false) {
+                    deleteRequest.setFallbackCASUsingVersion(calculateUpdateVersion(request, getResult), request.versionType());
                 }
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
             default:

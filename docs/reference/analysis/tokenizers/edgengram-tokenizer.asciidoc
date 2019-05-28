@@ -62,6 +62,7 @@ of these classes. |`[]` (Keep all characters)
 --------------------------------------------------
 
 [float]
+[[_literal_side_literal_deprecated]]
 ==== `side` deprecated
 
 There used to be a `side` parameter up to `0.90.1` but it is now deprecated. In

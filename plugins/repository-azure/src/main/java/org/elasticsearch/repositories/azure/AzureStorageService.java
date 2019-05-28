@@ -97,7 +97,7 @@ public class AzureStorageService {
         }
     }
 
-    protected CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
+    private static CloudBlobClient buildClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
         final CloudBlobClient client = createClient(azureStorageSettings);
         // Set timeout option if the user sets cloud.azure.storage.timeout or
         // cloud.azure.storage.xxx.timeout (it's negative by default)
@@ -115,12 +115,12 @@ public class AzureStorageService {
         return client;
     }
 
-    protected CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
+    private static CloudBlobClient createClient(AzureStorageSettings azureStorageSettings) throws InvalidKeyException, URISyntaxException {
         final String connectionString = azureStorageSettings.buildConnectionString();
         return CloudStorageAccount.parse(connectionString).createCloudBlobClient();
     }
 
-    protected OperationContext buildOperationContext(AzureStorageSettings azureStorageSettings) {
+    private static OperationContext buildOperationContext(AzureStorageSettings azureStorageSettings) {
         final OperationContext context = new OperationContext();
         context.setProxy(azureStorageSettings.getProxy());
         return context;
@@ -144,24 +144,6 @@ public class AzureStorageService {
         final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
         final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
         return SocketAccess.doPrivilegedException(() -> blobContainer.exists(null, null, client.v2().get()));
-    }
-
-    public void deleteFiles(String account, String container, String path) throws URISyntaxException, StorageException {
-        final Tuple<CloudBlobClient, Supplier<OperationContext>> client = client(account);
-        // container name must be lower case.
-        logger.trace(() -> new ParameterizedMessage("delete files container [{}], path [{}]", container, path));
-        SocketAccess.doPrivilegedVoidException(() -> {
-            // list the blobs using a flat blob listing mode
-            final CloudBlobContainer blobContainer = client.v1().getContainerReference(container);
-            for (final ListBlobItem blobItem : blobContainer.listBlobs(path, true, EnumSet.noneOf(BlobListingDetails.class), null,
-                    client.v2().get())) {
-                final String blobName = blobNameFromUri(blobItem.getUri());
-                logger.trace(() -> new ParameterizedMessage("removing blob [{}] full URI was [{}]", blobName, blobItem.getUri()));
-                // don't call {@code #deleteBlob}, use the same client
-                final CloudBlockBlob azureBlob = blobContainer.getBlockBlobReference(blobName);
-                azureBlob.delete(DeleteSnapshotsOption.NONE, null, null, client.v2().get());
-            }
-        });
     }
 
     /**

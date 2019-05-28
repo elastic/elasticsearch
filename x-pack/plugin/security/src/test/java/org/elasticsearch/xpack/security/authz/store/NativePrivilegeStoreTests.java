@@ -132,7 +132,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         final String docSource = Strings.toString(sourcePrivilege);
         listener.get().onResponse(new GetResponse(
-            new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true, new BytesArray(docSource), emptyMap())
+            new GetResult(request.index(), request.type(), request.id(), 0, 1, 1L, true,
+                new BytesArray(docSource), emptyMap(), emptyMap())
         ));
         final ApplicationPrivilegeDescriptor getPrivilege = future.get(1, TimeUnit.SECONDS);
         assertThat(getPrivilege, equalTo(sourcePrivilege));
@@ -149,7 +150,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         assertThat(request.id(), equalTo("application-privilege_myapp:admin"));
 
         listener.get().onResponse(new GetResponse(
-            new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1, false, null, emptyMap())
+            new GetResult(request.index(), request.type(), request.id(), UNASSIGNED_SEQ_NO, 0, -1,
+                false, null, emptyMap(), emptyMap())
         ));
         final ApplicationPrivilegeDescriptor getPrivilege = future.get(1, TimeUnit.SECONDS);
         assertThat(getPrivilege, Matchers.nullValue());

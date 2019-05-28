@@ -125,7 +125,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
         refresh();
 
-        Client client = internalCluster().transportClient();
+        Client client = client();
 
         // no specifying an index, should replace indices with the permitted ones (test & test1)
         SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).get();
@@ -246,7 +246,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
         refresh();
 
-        Client client = internalCluster().transportClient();
+        Client client = client();
 
         SearchResponse response = client
             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_a", USERS_PASSWD)))

@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.DataFrameMessages;
 import org.elasticsearch.xpack.core.dataframe.utils.ExceptionsHelper;
@@ -29,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Matcher;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -135,6 +137,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
     private static Map<String, SingleGroupSource> parseGroupConfig(final XContentParser parser,
             boolean lenient) throws IOException {
+        Matcher validAggMatcher = AggregatorFactories.VALID_AGG_NAME.matcher("");
         LinkedHashMap<String, SingleGroupSource> groups = new LinkedHashMap<>();
 
         // be parsing friendly, whether the token needs to be advanced or not (similar to what ObjectParser does)
@@ -150,6 +153,11 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
             String destinationFieldName = parser.currentName();
+            if (validAggMatcher.reset(destinationFieldName).matches() == false) {
+                throw new ParsingException(parser.getTokenLocation(), "Invalid group name [" + destinationFieldName
+                        + "]. Group names can contain any character except '[', ']', and '>'");
+            }
+
             token = parser.nextToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
             token = parser.nextToken();

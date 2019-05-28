@@ -17,6 +17,9 @@ import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.dataframe.DataFrameField;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DestConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
 
@@ -50,7 +53,7 @@ public final class DataFrameInternalIndex {
     public static final String RAW = "raw";
 
     // data types
-    public static final String DOUBLE = "double";
+    public static final String FLOAT = "float";
     public static final String LONG = "long";
     public static final String KEYWORD = "keyword";
 
@@ -129,7 +132,7 @@ public final class DataFrameInternalIndex {
         // add the schema for transform configurations
         addDataFrameTransformsConfigMappings(builder);
         // add the schema for transform stats
-        addDataFrameTransformsStatsMappings(builder);
+        addDataFrameTransformStateAndStatsMappings(builder);
         // end type
         builder.endObject();
         // end properties
@@ -140,37 +143,76 @@ public final class DataFrameInternalIndex {
     }
 
 
-    private static XContentBuilder addDataFrameTransformsStatsMappings(XContentBuilder builder) throws IOException {
+    private static XContentBuilder addDataFrameTransformStateAndStatsMappings(XContentBuilder builder) throws IOException {
         return builder
-            .startObject(DataFrameIndexerTransformStats.NUM_PAGES.getPreferredName())
-                .field(TYPE, LONG)
+            .startObject(DataFrameTransformStateAndStats.STATE_FIELD.getPreferredName())
+                .startObject(PROPERTIES)
+                    .startObject(DataFrameTransformState.TASK_STATE.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(DataFrameTransformState.INDEXER_STATE.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(DataFrameTransformState.CURRENT_POSITION.getPreferredName())
+                        .field(ENABLED, false)
+                    .endObject()
+                    .startObject(DataFrameTransformState.CHECKPOINT.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                    .startObject(DataFrameTransformState.REASON.getPreferredName())
+                        .field(TYPE, KEYWORD)
+                    .endObject()
+                    .startObject(DataFrameTransformState.PROGRESS.getPreferredName())
+                        .startObject(PROPERTIES)
+                            .startObject(DataFrameTransformProgress.TOTAL_DOCS.getPreferredName())
+                                .field(TYPE, LONG)
+                            .endObject()
+                            .startObject(DataFrameTransformProgress.DOCS_REMAINING.getPreferredName())
+                                .field(TYPE, LONG)
+                            .endObject()
+                            .startObject(DataFrameTransformProgress.PERCENT_COMPLETE)
+                                .field(TYPE, FLOAT)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
             .endObject()
-            .startObject(DataFrameIndexerTransformStats.NUM_INPUT_DOCUMENTS.getPreferredName())
-                .field(TYPE, LONG)
+            .startObject(DataFrameField.STATS_FIELD.getPreferredName())
+                .startObject(PROPERTIES)
+                    .startObject(DataFrameIndexerTransformStats.NUM_PAGES.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                    .startObject(DataFrameIndexerTransformStats.NUM_INPUT_DOCUMENTS.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                     .startObject(DataFrameIndexerTransformStats.NUM_OUTPUT_DOCUMENTS.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                     .startObject(DataFrameIndexerTransformStats.NUM_INVOCATIONS.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                     .startObject(DataFrameIndexerTransformStats.INDEX_TIME_IN_MS.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                     .startObject(DataFrameIndexerTransformStats.SEARCH_TIME_IN_MS.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                     .startObject(DataFrameIndexerTransformStats.INDEX_TOTAL.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                     .startObject(DataFrameIndexerTransformStats.SEARCH_TOTAL.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                     .startObject(DataFrameIndexerTransformStats.SEARCH_FAILURES.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                     .startObject(DataFrameIndexerTransformStats.INDEX_FAILURES.getPreferredName())
+                        .field(TYPE, LONG)
+                    .endObject()
+                .endObject()
             .endObject()
-             .startObject(DataFrameIndexerTransformStats.NUM_OUTPUT_DOCUMENTS.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-             .startObject(DataFrameIndexerTransformStats.NUM_INVOCATIONS.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-             .startObject(DataFrameIndexerTransformStats.INDEX_TIME_IN_MS.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-             .startObject(DataFrameIndexerTransformStats.SEARCH_TIME_IN_MS.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-             .startObject(DataFrameIndexerTransformStats.INDEX_TOTAL.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-             .startObject(DataFrameIndexerTransformStats.SEARCH_TOTAL.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-             .startObject(DataFrameIndexerTransformStats.SEARCH_FAILURES.getPreferredName())
-                .field(TYPE, LONG)
-            .endObject()
-             .startObject(DataFrameIndexerTransformStats.INDEX_FAILURES.getPreferredName())
-                .field(TYPE, LONG)
+            .startObject(DataFrameTransformStateAndStats.CHECKPOINTING_INFO_FIELD.getPreferredName())
+                .field(ENABLED, false)
             .endObject();
     }
 

@@ -43,34 +43,23 @@ public class EnrichIT extends ESRestTestCase {
         }
     }
 
-    // TODO: update this test when policy runner is ready
     public void testBasicFlow() throws Exception {
         // Create the policy:
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-index*\"], \"enrich_key\": \"host\", " +
+        putPolicyRequest.setJsonEntity("{\"type\": \"exact_match\",\"indices\": [\"my-source-index\"], \"enrich_key\": \"host\", " +
             "\"enrich_values\": [\"globalRank\", \"tldRank\", \"tld\"]}");
         assertOK(client().performRequest(putPolicyRequest));
 
-        // create index (remove when execute policy api has been added)
-        String mapping = "\"_meta\": {\"enrich_key_field\": \"host\"},\"_source\": {\"enabled\": false}," +
-            "\"_enrich_source\": {\"enabled\": true}";
-        createIndex(".enrich-my_policy", Settings.EMPTY, mapping);
-
-        // Add a single enrich document for now and then refresh:
-        Request indexRequest = new Request("PUT", "/.enrich-my_policy/_doc/elastic.co");
-        XContentBuilder document = XContentBuilder.builder(XContentType.SMILE.xContent());
-        document.startObject();
-        document.field("host", "elastic.co");
-        document.field("globalRank", 25);
-        document.field("tldRank", 7);
-        document.field("tld", "co");
-        document.endObject();
-        document.close();
-        ByteArrayOutputStream out  = (ByteArrayOutputStream) document.getOutputStream();
-        indexRequest.setEntity(new ByteArrayEntity(out.toByteArray(), ContentType.create("application/smile")));
+        // Add entry to source index and then refresh:
+        Request indexRequest = new Request("PUT", "/my-source-index/_doc/elastic.co");
+        indexRequest.setJsonEntity("{\"host\": \"elastic.co\",\"globalRank\": 25,\"tldRank\": 7,\"tld\": \"co\"}");
         assertOK(client().performRequest(indexRequest));
-        Request refreshRequest = new Request("POST", "/.enrich-my_policy/_refresh");
+        Request refreshRequest = new Request("POST", "/my-source-index/_refresh");
         assertOK(client().performRequest(refreshRequest));
+
+        // Execute the policy:
+        Request executePolicyRequest = new Request("POST", "/_enrich/policy/my_policy/_execute");
+        assertOK(client().performRequest(executePolicyRequest));
 
         // Create pipeline
         Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/my_pipeline");
@@ -96,10 +85,6 @@ public class EnrichIT extends ESRestTestCase {
         assertThat(_source.get("host"), equalTo("elastic.co"));
         assertThat(_source.get("global_rank"), equalTo(25));
         assertThat(_source.get("tld_rank"), equalTo(7));
-
-        // Delete policy:
-        Request deletePolicyRequest = new Request("DELETE", "/_enrich/policy/my_policy");
-        assertOK(client().performRequest(deletePolicyRequest));
     }
 
     public void testEnrichSourceMapping() throws Exception {

@@ -126,8 +126,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
 
         final String indexName;
         final int shardId;
-        final int fromNodeId;
-        final int toNodeId;
 
         if (options.has(folderOption)) {
             final Path path = getPath(folderOption.value(options)).getParent();
@@ -150,8 +148,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
                 indexName = indexMetaData.getIndex().getName();
-                fromNodeId = Integer.parseInt(nodeIdFileName);
-                toNodeId = fromNodeId + 1;
             } else {
                 throw new ElasticsearchException("Unable to resolve shard id. Wrong folder structure at [ " + path.toString()
                     + " ], expected .../nodes/[NODE-ID]/indices/[INDEX-UUID]/[SHARD-ID]");
@@ -160,59 +156,49 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
             // otherwise resolve shardPath based on the index name and shard id
             indexName = Objects.requireNonNull(indexNameOption.value(options), "Index name is required");
             shardId = Objects.requireNonNull(shardIdOption.value(options), "Shard ID is required");
-
-            // resolve shard path in case of multi-node layout per environment
-            fromNodeId = 0;
-            toNodeId = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
         }
 
-        // have to iterate over possibleLockId as NodeEnvironment; on a contrast to it - we have to fail if node is busy
-        for (int possibleLockId = fromNodeId; possibleLockId < toNodeId; possibleLockId++) {
-            try {
-                try (NodeEnvironment.NodeLock nodeLock = new NodeEnvironment.NodeLock(possibleLockId, logger, environment, Files::exists)) {
-                    final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
-                    for (NodeEnvironment.NodePath nodePath : nodePaths) {
-                        if (Files.exists(nodePath.indicesPath)) {
-                            // have to scan all index uuid folders to resolve from index name
-                            try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
-                                for (Path file : stream) {
-                                    if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
-                                        continue;
-                                    }
+        try (NodeEnvironment.NodeLock nodeLock = new NodeEnvironment.NodeLock(logger, environment, Files::exists)) {
+            final NodeEnvironment.NodePath[] nodePaths = nodeLock.getNodePaths();
+            for (NodeEnvironment.NodePath nodePath : nodePaths) {
+                if (Files.exists(nodePath.indicesPath)) {
+                    // have to scan all index uuid folders to resolve from index name
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodePath.indicesPath)) {
+                        for (Path file : stream) {
+                            if (Files.exists(file.resolve(MetaDataStateFormat.STATE_DIR_NAME)) == false) {
+                                continue;
+                            }
 
-                                    final IndexMetaData indexMetaData =
-                                        IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, file);
-                                    if (indexMetaData == null) {
-                                        continue;
-                                    }
-                                    final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
-                                    final Index index = indexMetaData.getIndex();
-                                    if (indexName.equals(index.getName()) == false) {
-                                        continue;
-                                    }
-                                    final ShardId shId = new ShardId(index, shardId);
+                            final IndexMetaData indexMetaData =
+                                IndexMetaData.FORMAT.loadLatestState(logger, namedXContentRegistry, file);
+                            if (indexMetaData == null) {
+                                continue;
+                            }
+                            final IndexSettings indexSettings = new IndexSettings(indexMetaData, settings);
+                            final Index index = indexMetaData.getIndex();
+                            if (indexName.equals(index.getName()) == false) {
+                                continue;
+                            }
+                            final ShardId shId = new ShardId(index, shardId);
 
-                                    final Path shardPathLocation = nodePath.resolve(shId);
-                                    if (Files.exists(shardPathLocation) == false) {
-                                        continue;
-                                    }
-                                    final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
-                                        new Path[]{shardPathLocation}, possibleLockId, nodePath.path);
-                                    if (shardPath != null) {
-                                        consumer.accept(shardPath);
-                                        return;
-                                    }
-                                }
+                            final Path shardPathLocation = nodePath.resolve(shId);
+                            if (Files.exists(shardPathLocation) == false) {
+                                continue;
+                            }
+                            final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings,
+                                new Path[]{shardPathLocation}, nodePath.path);
+                            if (shardPath != null) {
+                                consumer.accept(shardPath);
+                                return;
                             }
                         }
                     }
                 }
-            } catch (LockObtainFailedException lofe) {
-                throw new ElasticsearchException("Failed to lock node's directory [" + lofe.getMessage()
-                    + "], is Elasticsearch still running ?");
             }
+        } catch (LockObtainFailedException lofe) {
+            throw new ElasticsearchException("Failed to lock node's directory [" + lofe.getMessage()
+                + "], is Elasticsearch still running ?");
         }
-        throw new ElasticsearchException("Unable to resolve shard path for index [" + indexName + "] and shard id [" + shardId + "]");
     }
 
     public static boolean isCorruptMarkerFileIsPresent(final Directory directory) throws IOException {
@@ -238,7 +224,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
                 terminal);
         }
         String[] files = directory.listAll();
-        boolean found = false;
         for (String file : files) {
             if (file.startsWith(Store.CORRUPTED)) {
                 directory.deleteFile(file);
@@ -282,7 +267,6 @@ public class RemoveCorruptedShardDataCommand extends EnvironmentAwareCommand {
         findAndProcessShardPath(options, environment, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();
             final Path translogPath = shardPath.resolveTranslog();
-            final Path nodePath = getNodePath(shardPath);
             if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {
                 throw new ElasticsearchException("translog directory [" + translogPath + "], must exist and be a directory");
             }

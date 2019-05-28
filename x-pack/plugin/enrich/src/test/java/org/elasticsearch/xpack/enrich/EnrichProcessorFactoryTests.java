@@ -6,9 +6,6 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -19,7 +16,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -31,7 +27,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key",
             enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(createClusterStateSupplier("majestic", policy), null);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.policies = Map.of("majestic", policy);
 
         Map<String, Object> config = new HashMap<>();
         config.put("policy_name", "majestic");
@@ -69,7 +66,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     public void testPolicyDoesNotExist() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(createClusterStateSupplier(), null);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
 
         Map<String, Object> config = new HashMap<>();
         config.put("policy_name", "majestic");
@@ -99,7 +96,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key",
             enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(createClusterStateSupplier("_name", policy), null);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.policies = Map.of("_name", policy);
 
         Map<String, Object> config = new HashMap<>();
         config.put("enrich_key", "host");
@@ -127,7 +125,8 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testUnsupportedPolicy() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy("unsupported", null, List.of("source_index"), "my_key", enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(createClusterStateSupplier("majestic", policy), null);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.policies = Map.of("majestic", policy);
 
         Map<String, Object> config = new HashMap<>();
         config.put("policy_name", "majestic");
@@ -153,11 +152,12 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("unsupported policy type [unsupported]"));
     }
 
-    public void testNonExistingDecorateField() throws Exception {
+    public void testNonExistingDecorateField() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichPolicy policy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("source_index"), "my_key",
             enrichValues);
-        EnrichProcessorFactory factory = new EnrichProcessorFactory(createClusterStateSupplier("majestic", policy), null);
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(null);
+        factory.policies = Map.of("majestic", policy);
 
         Map<String, Object> config = new HashMap<>();
         config.put("policy_name", "majestic");
@@ -167,22 +167,6 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", config));
         assertThat(e.getMessage(), equalTo("source field [rank] does not exist in policy [majestic]"));
-    }
-
-    private static Supplier<ClusterState> createClusterStateSupplier(String policyName, EnrichPolicy policy) {
-        EnrichMetadata enrichMetadata = new EnrichMetadata(Map.of(policyName, policy));
-        ClusterState state = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().putCustom(EnrichMetadata.TYPE, enrichMetadata).build())
-            .build();
-        return () -> state;
-    }
-
-    private static Supplier<ClusterState> createClusterStateSupplier() {
-        EnrichMetadata enrichMetadata = new EnrichMetadata(Map.of());
-        ClusterState state = ClusterState.builder(new ClusterName("_name"))
-            .metaData(MetaData.builder().putCustom(EnrichMetadata.TYPE, enrichMetadata).build())
-            .build();
-        return () -> state;
     }
 
 }

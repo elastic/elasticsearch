@@ -59,7 +59,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     private static final DeprecationLogger deprecationLogger =
         new DeprecationLogger(LogManager.getLogger(CommonTermsQueryBuilder.class));
 
-    static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[Common Terms Query] has been deprecated in favor of the " +
+    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[Common Terms Query] has been deprecated in favor of the " +
         "MatchQuery [max_score] optimization which is applied automatically without any configuration";
 
     public static final String NAME = "common";

@@ -53,6 +53,7 @@ above. If you are preparing to upgrade from an earlier version, you must set
 `discovery.zen.ping.unicast.hosts` or `discovery.zen.hosts_provider`.
 
 [float]
+[[new-name-no-master-block-setting]]
 ==== New name for `no_master_block` setting
 
 The `discovery.zen.no_master_block` setting is now known as

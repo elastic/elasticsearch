@@ -145,6 +145,7 @@ document and can use significant space. If you never need to search against all
 fields at the same time, it can be disabled.
 
 [float]
+[[_use_literal_best_compression_literal]]
 === Use `best_compression`
 
 The `_source` and stored fields can easily take a non negligible amount of disk

@@ -455,14 +455,13 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "30s")
-                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "120s")
                 .put("index.routing.allocation.include._name", "node-0")
                 .build());
             indexDocs(indexName, 0, randomInt(10));
             // allocate replica to node-2
-            updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.include._name",
-                "node-0,node-2,upgraded-node-*"));
+            updateIndexSettings(indexName,
+                Settings.builder().put("index.routing.allocation.include._name", "node-0,node-2,upgraded-node-*"));
             ensureGreen(indexName);
             closeIndex(indexName);
         }

@@ -595,7 +595,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         Version v = Version.V_6_1_0;
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(Collections.singleton(new IntPoint("int_field", 3)), new WhitespaceAnalyzer());
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-        Query query = fieldType.percolateQuery("_name", queryStore, Collections.singletonList(new BytesArray("{}")), percolateSearcher, false, v);
+        Query query = fieldType.percolateQuery("_name", queryStore,
+            Collections.singletonList(new BytesArray("{}")), percolateSearcher, false, v);
         TopDocs topDocs = shardSearcher.search(query, 1);
         assertEquals(1L, topDocs.totalHits);
         assertEquals(1, topDocs.scoreDocs.length);

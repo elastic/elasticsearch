@@ -29,10 +29,6 @@ The queries in this group are:
 
     The multi-field version of the `match` query.
 
-<<query-dsl-common-terms-query,`common` terms query>>::
-
-    A more specialized query which gives more preference to uncommon words.
-
 <<query-dsl-query-string-query,`query_string` query>>::
 
     Supports the compact Lucene <<query-string-syntax,query string syntax>>,
@@ -58,8 +54,6 @@ include::match-phrase-prefix-query.asciidoc[]
 include::match-bool-prefix-query.asciidoc[]
 
 include::multi-match-query.asciidoc[]
-
-include::common-terms-query.asciidoc[]
 
 include::query-string-query.asciidoc[]
 

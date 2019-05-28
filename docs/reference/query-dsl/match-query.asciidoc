@@ -119,53 +119,6 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-[[query-dsl-match-query-cutoff]]
-===== Cutoff frequency
-
-deprecated[7.3.0,"This option can be omitted as the <<query-dsl-match-query>> can skip block of documents efficiently, without any configuration, provided that the total number of hits is not tracked."]
-
-The match query supports a `cutoff_frequency` that allows
-specifying an absolute or relative document frequency where high
-frequency terms are moved into an optional subquery and are only scored
-if one of the low frequency (below the cutoff) terms in the case of an
-`or` operator or all of the low frequency terms in the case of an `and`
-operator match.
-
-This query allows handling `stopwords` dynamically at runtime, is domain
-independent and doesn't require a stopword file. It prevents scoring /
-iterating high frequency terms and only takes the terms into account if a
-more significant / lower frequency term matches a document. Yet, if all
-of the query terms are above the given `cutoff_frequency` the query is
-automatically transformed into a pure conjunction (`and`) query to
-ensure fast execution.
-
-The `cutoff_frequency` can either be relative to the total number of
-documents if in the range `[0..1)` or absolute if greater or equal to
-`1.0`.
-
-Here is an example showing a query composed of stopwords exclusively:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query": {
-        "match" : {
-            "message" : {
-                "query" : "to be or not to be",
-                "cutoff_frequency" : 0.001
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[warning:Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]]
-
-IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This means
-that when trying it out on test indexes with low document numbers you
-should follow the advice in {defguide}/relevance-is-broken.html[Relevance is broken].
-
 [[query-dsl-match-query-synonyms]]
 ===== Synonyms
 

@@ -128,10 +128,6 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         fieldType.setDateTimeFormatter(formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);
         assertEquals("field:<ranges:[1465975790000 : 1466062190000]>", query.toString());
-
-        assertWarnings("'y' year should be replaced with 'u'. Use 'y' for year-of-era.; " +
-            "'Z' time zone offset/id fails when parsing 'Z' for Zulu timezone. Consider using 'X'. " +
-            "Prefix your date format with '8' to use the new specifier.");
     }
 
     private Query getExpectedRangeQuery(ShapeRelation relation, Object from, Object to, boolean includeLower, boolean includeUpper) {

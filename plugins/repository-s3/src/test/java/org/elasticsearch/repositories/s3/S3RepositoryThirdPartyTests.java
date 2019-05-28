@@ -19,6 +19,7 @@
 package org.elasticsearch.repositories.s3;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +29,7 @@ import org.elasticsearch.test.StreamsUtils;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,5 +71,12 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             .setType("s3")
             .setSettings(settings).get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+    }
+
+    @Override
+    protected void assertChildren(BlobPath path, Collection<String> children) throws Exception {
+        // AWS S3 is eventually consistent so we retry for 10 minutes assuming a list operation will never take longer than that
+        // to become consistent.
+        assertBusy(() -> super.assertChildren(path, children), 10L, TimeUnit.MINUTES);
     }
 }

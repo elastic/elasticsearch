@@ -33,6 +33,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -96,6 +98,13 @@ public class AzureBlobStore implements BlobStore {
     public Map<String, BlobMetaData> listBlobsByPrefix(String keyPath, String prefix)
         throws URISyntaxException, StorageException {
         return service.listBlobsByPrefix(clientName, container, keyPath, prefix);
+    }
+
+    public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException {
+        return Collections.unmodifiableMap(service.children(clientName, container, path).stream().collect(
+            HashMap::new,
+            (existing, name) -> existing.put(name, new AzureBlobContainer(path.add(name), this)),
+            HashMap::putAll));
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)

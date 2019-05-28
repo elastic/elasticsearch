@@ -390,7 +390,6 @@ are supported.
 If the numeric field is missing in the document, the function will
 return 1.
 
-[[_relation_to_literal_custom_boost_literal_literal_custom_score_literal_and_literal_custom_filters_score_literal]]
 ==== Relation to `custom_boost`, `custom_score` and `custom_filters_score`
 
 The <<query-dsl-custom-boost-factor-query>>

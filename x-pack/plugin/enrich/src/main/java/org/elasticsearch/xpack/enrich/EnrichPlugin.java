@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -50,7 +49,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -71,15 +69,10 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        final ClusterService clusterService = parameters.ingestService.getClusterService();
-        // Pipelines are created from cluster state update thead and calling ClusterService#state() from that thead is illegal
-        // (because the current cluster state update is in progress)
-        // So with the below atomic reference we keep track of the latest updated cluster state:
-        AtomicReference<ClusterState> reference = new AtomicReference<>();
-        clusterService.addStateApplier(event -> reference.set(event.state()));
-
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.localShardSearcher);
+        parameters.ingestService.addIngestClusterStateListener(factory);
         return Collections.singletonMap(EnrichProcessorFactory.TYPE,
-                new EnrichProcessorFactory(reference::get, parameters.localShardSearcher));
+                factory);
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {

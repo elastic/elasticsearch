@@ -13,29 +13,27 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-final class EnrichProcessorFactory implements Processor.Factory {
+final class EnrichProcessorFactory implements Processor.Factory, Consumer<ClusterState> {
 
     static final String TYPE = "enrich";
-
-    private final Function<String, EnrichPolicy> policyLookup;
     private final Function<String, Tuple<IndexMetaData, Engine.Searcher>> searchProvider;
+    volatile Map<String, EnrichPolicy> policies = Collections.emptyMap();
 
-    EnrichProcessorFactory(Supplier<ClusterState> clusterStateSupplier,
-                           Function<String, Tuple<IndexMetaData, Engine.Searcher>> searchProvider) {
-        this.policyLookup = policyName -> EnrichStore.getPolicy(policyName, clusterStateSupplier.get());
+    EnrichProcessorFactory(Function<String, Tuple<IndexMetaData, Engine.Searcher>> searchProvider) {
         this.searchProvider = searchProvider;
     }
 
     @Override
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, Map<String, Object> config) throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
-        EnrichPolicy policy = policyLookup.apply(policyName);
+        EnrichPolicy policy = policies.get(policyName);
         if (policy == null) {
             throw new IllegalArgumentException("policy [" + policyName + "] does not exists");
         }
@@ -63,6 +61,19 @@ final class EnrichProcessorFactory implements Processor.Factory {
             default:
                 throw new IllegalArgumentException("unsupported policy type [" + policy.getType() + "]");
         }
+    }
+
+    @Override
+    public void accept(ClusterState state) {
+        final EnrichMetadata enrichMetadata = state.metaData().custom(EnrichMetadata.TYPE);
+        if (enrichMetadata == null) {
+            return;
+        }
+        if (policies.equals(enrichMetadata.getPolicies())) {
+            return;
+        }
+
+        policies = enrichMetadata.getPolicies();
     }
 
     static final class EnrichSpecification {

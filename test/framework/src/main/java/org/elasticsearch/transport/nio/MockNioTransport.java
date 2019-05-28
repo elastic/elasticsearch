@@ -363,16 +363,16 @@ public class MockNioTransport extends TcpTransport {
 
         private void logLongRunningExecutions() {
             for (Map.Entry<Thread, Long> entry : registry.entrySet()) {
-                final long elapsedTime = threadPool.relativeTimeInMillis() - entry.getValue();
-                if (elapsedTime > WARN_THRESHOLD) {
+                final long elapsedTimeInNanos = threadPool.relativeTimeInNanos() - entry.getValue();
+                if (elapsedTimeInNanos > WARN_THRESHOLD) {
                     final Thread thread = entry.getKey();
-                    logger.warn("Slow execution on network thread [{}] [{} milliseconds]: \n{}", thread.getName(),
-                        TimeUnit.NANOSECONDS.toMillis(elapsedTime),
+                    logger.warn("Potentially blocked execution on network thread [{}] [{} milliseconds]: \n{}", thread.getName(),
+                        TimeUnit.NANOSECONDS.toMillis(elapsedTimeInNanos),
                         Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n")));
                 }
             }
             if (stopped == false) {
-                threadPool.schedule(this::logLongRunningExecutions, CHECK_INTERVAL, ThreadPool.Names.GENERIC);
+                threadPool.scheduleUnlessShuttingDown(CHECK_INTERVAL, ThreadPool.Names.GENERIC, this::logLongRunningExecutions);
             }
         }
 

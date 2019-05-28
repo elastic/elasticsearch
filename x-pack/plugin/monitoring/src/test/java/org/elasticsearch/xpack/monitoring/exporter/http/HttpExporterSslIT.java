@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.SUITE,
-    numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+    numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
     private final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();

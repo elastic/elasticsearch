@@ -35,6 +35,10 @@ public class ReloadableCustomAnalyzer extends Analyzer implements TokenFilterCom
 
     private CloseableThreadLocal<AnalyzerComponents> storedComponents = new CloseableThreadLocal<>();
 
+    private final int positionIncrementGap;
+
+    private final int offsetGap;
+
     private static final ReuseStrategy UPDATE_STRATEGY = new ReuseStrategy() {
         @Override
         public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {
@@ -55,9 +59,11 @@ public class ReloadableCustomAnalyzer extends Analyzer implements TokenFilterCom
         }
     };
 
-    ReloadableCustomAnalyzer(AnalyzerComponents components) {
+    ReloadableCustomAnalyzer(AnalyzerComponents components, int positionIncrementGap, int offsetGap) {
         super(UPDATE_STRATEGY);
         this.components = components;
+        this.positionIncrementGap = positionIncrementGap;
+        this.offsetGap = offsetGap;
     }
 
     public AnalyzerComponents getComponents() {
@@ -71,15 +77,15 @@ public class ReloadableCustomAnalyzer extends Analyzer implements TokenFilterCom
 
     @Override
     public int getPositionIncrementGap(String fieldName) {
-        return this.components.getPositionIncrementGap();
+        return this.positionIncrementGap;
     }
 
     @Override
     public int getOffsetGap(String field) {
-        if (this.components.getOffsetGap() < 0) {
+        if (this.offsetGap < 0) {
             return super.getOffsetGap(field);
         }
-        return this.components.getOffsetGap();
+        return this.offsetGap;
     }
 
     public AnalysisMode getAnalysisMode() {

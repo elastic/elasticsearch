@@ -57,12 +57,15 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
     private static Analyzer create(String name, Settings analyzerSettings, Map<String, TokenizerFactory> tokenizers,
             Map<String, CharFilterFactory> charFilters,
             Map<String, TokenFilterFactory> tokenFilters) {
+        int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
+        int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
         AnalyzerComponents components = createComponents(name, analyzerSettings, tokenizers, charFilters, tokenFilters);
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME)) {
-            return new ReloadableCustomAnalyzer(components);
+            return new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap);
         } else {
             return new CustomAnalyzer(components.getTokenizerName(), components.getTokenizerFactory(), components.getCharFilters(),
-                    components.getTokenFilters(), components.getPositionIncrementGap(), components.getOffsetGap());
+                    components.getTokenFilters(), positionIncrementGap, offsetGap);
         }
     }
 
@@ -128,8 +131,6 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
         private final TokenizerFactory tokenizerFactory;
         private final CharFilterFactory[] charFilters;
         private final TokenFilterFactory[] tokenFilters;
-        private final int positionIncrementGap;
-        private final int offsetGap;
         private final AnalysisMode analysisMode;
 
         AnalyzerComponents(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
@@ -139,8 +140,6 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
             this.tokenizerFactory = tokenizerFactory;
             this.charFilters = charFilters;
             this.tokenFilters = tokenFilters;
-            this.positionIncrementGap = positionIncrementGap;
-            this.offsetGap = offsetGap;
             AnalysisMode mode = AnalysisMode.ALL;
             for (TokenFilterFactory f : tokenFilters) {
                 mode = mode.merge(f.getAnalysisMode());
@@ -162,14 +161,6 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
 
         public CharFilterFactory[] getCharFilters() {
             return charFilters;
-        }
-
-        public int getPositionIncrementGap() {
-            return positionIncrementGap;
-        }
-
-        public int getOffsetGap() {
-            return offsetGap;
         }
 
         public AnalysisMode analysisMode() {

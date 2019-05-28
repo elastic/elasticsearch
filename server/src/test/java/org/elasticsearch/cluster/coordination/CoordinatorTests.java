@@ -1927,7 +1927,7 @@ public class CoordinatorTests extends ESTestCase {
                     Cluster.this::provideSeedHosts, clusterApplierService, onJoinValidators, Randomness.get());
                 masterService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(settings, allocationService, clusterService,
-                    deterministicTaskQueue.getThreadPool(this::onNode), null, null, coordinator);
+                    deterministicTaskQueue.getThreadPool(this::onNode), null, coordinator);
 
                 logger.trace("starting up [{}]", localNode);
                 transportService.start();

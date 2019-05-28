@@ -287,9 +287,6 @@ public class MonitoringIT extends ESSingleNodeTestCase {
         assertThat(index, equalTo(MonitoringTemplateUtils.indexName(DateFormatter.forPattern("YYYY.MM.dd"),
                                                                     expectedSystem,
                                                                     ISODateTimeFormat.dateTime().parseMillis(timestamp))));
-        assertWarnings("'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year. " +
-            "Prefix your date format with '8' to use the new specifier.");
-
 
         final Map<String, Object> sourceNode = (Map<String, Object>) source.get("source_node");
         if (sourceNode != null) {

@@ -15,7 +15,7 @@ defined by the source of input in a custom way
 ZonedDateTime:: a <<reference-types, reference type>> (object) that contains an
 internal representation of a datetime and provides numerous
 <<painless-api-reference-shared-ZonedDateTime, methods>> for
-modification and comparison
+modification and comparison.
 
 A typical pattern in a script is to convert a long or String representation of
 a datetime to a ZonedDateTime representation, modify, or compare the

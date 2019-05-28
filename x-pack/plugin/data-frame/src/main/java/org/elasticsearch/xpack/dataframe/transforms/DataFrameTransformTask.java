@@ -174,13 +174,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         }
     }
 
-    public boolean isStopped() {
-        IndexerState currentState = getIndexer() == null ? initialIndexerState : getIndexer().getState();
-        return currentState.equals(IndexerState.STOPPED);
-    }
-
-    boolean isInitialRun() {
-        return getIndexer() != null && getIndexer().initialRun();
+    public void setTaskStateStopped() {
+        taskState.set(DataFrameTransformTaskState.STOPPED);
     }
 
     /**
@@ -235,11 +230,9 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     public synchronized void stop() {
         if (getIndexer() == null) {
-            return;
-        }
-        // taskState is initialized as STOPPED and is updated in tandem with the indexerState
-        // Consequently, if it is STOPPED, we consider the whole task STOPPED.
-        if (taskState.get() == DataFrameTransformTaskState.STOPPED) {
+            // If there is no indexer the task has not been triggered
+            // but it still needs to be stopped and removed
+            shutdown();
             return;
         }
 
@@ -609,6 +602,8 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         protected void onStop() {
             auditor.info(transformConfig.getId(), "Indexer has stopped");
             logger.info("Data frame transform [{}] indexer has stopped", transformConfig.getId());
+
+            transformTask.setTaskStateStopped();
             transformsConfigManager.putOrUpdateTransformStats(
                     new DataFrameTransformStateAndStats(transformId, transformTask.getState(), getStats(),
                             DataFrameTransformCheckpointingInfo.EMPTY), // TODO should this be null

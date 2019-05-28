@@ -195,7 +195,7 @@ public class CoordinatorTests extends ESTestCase {
     }
 
     /**
-     * This test was added to verify that state recovery is properly reset on a node afte it has become master and successfully
+     * This test was added to verify that state recovery is properly reset on a node after it has become master and successfully
      * recovered a state (see {@link GatewayService}). The situation which triggers this with a decent likelihood is as follows:
      * 3 master-eligible nodes (leader, follower1, follower2), the followers are shut down (leader remains), when followers come back
      * one of them becomes leader and publishes first state (with STATE_NOT_RECOVERED_BLOCK) to old leader, which accepts it.

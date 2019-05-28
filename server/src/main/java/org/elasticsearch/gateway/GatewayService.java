@@ -85,7 +85,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     private final Runnable recoveryRunnable;
 
-    private final AtomicBoolean recovered = new AtomicBoolean();
+    private final AtomicBoolean recoveryInProgress = new AtomicBoolean();
     private final AtomicBoolean scheduledRecovery = new AtomicBoolean();
 
     @Inject
@@ -211,7 +211,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
                     @Override
                     protected void doRun() {
-                        if (recovered.compareAndSet(false, true)) {
+                        if (recoveryInProgress.compareAndSet(false, true)) {
                             logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
                             recoveryRunnable.run();
                         }
@@ -219,7 +219,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 }, recoverAfterTime, ThreadPool.Names.GENERIC);
             }
         } else {
-            if (recovered.compareAndSet(false, true)) {
+            if (recoveryInProgress.compareAndSet(false, true)) {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(final Exception e) {
@@ -237,7 +237,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     }
 
     private void resetRecoveredFlags() {
-        recovered.set(false);
+        recoveryInProgress.set(false);
         scheduledRecovery.set(false);
     }
 

@@ -405,7 +405,7 @@ public final class NodeEnvironment  implements Closeable {
                     }
                 }
 
-                assert Sets.difference(Sets.newHashSet(INDICES_FOLDER, MetaDataStateFormat.STATE_DIR_NAME), folderNames).isEmpty() :
+                assert Sets.difference(folderNames, Sets.newHashSet(INDICES_FOLDER, MetaDataStateFormat.STATE_DIR_NAME)).isEmpty() :
                     "expected indices and/or state dir folder but was " + folderNames;
 
                 upgradeActions.add(() -> {

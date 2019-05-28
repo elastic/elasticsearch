@@ -39,6 +39,7 @@ following settings:
 - `index.shadow_replicas`
 - `node.add_lock_id_to_custom_path`
 
+[[_open_close_index_api_allows_wildcard_expressions_that_match_no_indices_by_default]]
 ==== Open/Close index API allows wildcard expressions that match no indices by default
 
 The default value of the `allow_no_indices` option for the Open/Close index API
@@ -64,6 +65,7 @@ The index parameter in the delete index API no longer accepts alias names.
 Instead, it accepts only index names (or wildcards which will expand to
 matching indices).
 
+[[_support_for_literal_literal_has_been_removed_in_index_expressions]]
 ==== Support for `+` has been removed in index expressions
 
 Omitting the `+` has the same effect as specifying it, hence support for `+`

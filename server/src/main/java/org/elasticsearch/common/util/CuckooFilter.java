@@ -21,13 +21,11 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Random;
@@ -51,6 +49,10 @@ import java.util.Random;
  * loses the ability to delete values.  But not by allowing deletions, we can save space
  * (do not need to waste slots on duplicate fingerprints), and we do not need to worry
  * about inserts "overflowing" a bucket because the same item has been repeated repeatedly
+ *
+ * NOTE: this CuckooFilter exposes a number of Expert APIs which assume the caller has
+ * intimate knowledge about how the algorithm works.  It is recommended to avoid these
+ * APIs, or better yet, use {@link SetBackedScalingCuckooFilter} instead.
  *
  * Based on the paper:
  *
@@ -87,7 +89,7 @@ public class CuckooFilter implements Writeable {
         this.bitsPerEntry = bitsPerEntry(fpp, entriesPerBucket);
         this.numBuckets = getNumBuckets(capacity, loadFactor, entriesPerBucket);
 
-        if (numBuckets * entriesPerBucket > Integer.MAX_VALUE) {
+        if ((long) numBuckets * (long) entriesPerBucket > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Attempted to create [" + numBuckets * entriesPerBucket
                 + "] entries which is > Integer.MAX_VALUE");
         }
@@ -97,6 +99,9 @@ public class CuckooFilter implements Writeable {
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
     }
 
+    /**
+     * This ctor is likely slow and should only be used for testing
+     */
     CuckooFilter(CuckooFilter other) {
         this.numBuckets = other.numBuckets;
         this.bitsPerEntry = other.bitsPerEntry;
@@ -107,7 +112,7 @@ public class CuckooFilter implements Writeable {
         this.fingerprintMask = other.fingerprintMask;
 
         // This shouldn't happen, but as a sanity check
-        if (numBuckets * entriesPerBucket > Integer.MAX_VALUE) {
+        if ((long) numBuckets * (long) entriesPerBucket > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Attempted to create [" + numBuckets * entriesPerBucket
                 + "] entries which is > Integer.MAX_VALUE");
         }
@@ -170,6 +175,24 @@ public class CuckooFilter implements Writeable {
     }
 
     /**
+     * Returns the number of buckets that has been chosen based
+     * on the initial configuration
+     *
+     * Expert-level API
+     */
+    int getNumBuckets() {
+        return numBuckets;
+    }
+
+    int getBitsPerEntry() {
+        return bitsPerEntry;
+    }
+
+    int getFingerprintMask() {
+        return fingerprintMask;
+    }
+
+    /**
      * Returns an iterator that returns the long[] representation of each bucket.  The value
      * inside each long will be a fingerprint (or 0L, representing empty).
      *
@@ -199,21 +222,21 @@ public class CuckooFilter implements Writeable {
      * Returns true if the set might contain the provided value, false otherwise.  False values are
      * 100% accurate, while true values may be a false-positive.
      */
-    boolean mightContain(MurmurHash3.Hash128 hash) {
-        int bucket = hashToIndex((int) hash.h1);
-        int fingerprint = fingerprint((int) hash.h2);
+    boolean mightContain(long hash) {
+        int bucket = hashToIndex((int) hash, numBuckets);
+        int fingerprint = fingerprint((int) (hash  >>> 32), bitsPerEntry, fingerprintMask);
+        int alternateIndex = alternateIndex(bucket, fingerprint, numBuckets);
 
-        return mightContainFingerprint(bucket, fingerprint);
+        return mightContainFingerprint(bucket, fingerprint, alternateIndex);
     }
 
     /**
      * Returns true if the bucket or it's alternate bucket contains the fingerprint.
      *
-     * Expert-level API, use {@link CuckooFilter#mightContain(MurmurHash3.Hash128)} to check if
+     * Expert-level API, use {@link CuckooFilter#mightContain(long)} to check if
      * a value is in the filter.
      */
-    boolean mightContainFingerprint(int bucket, int fingerprint) {
-        int alternateBucket = alternateIndex(bucket, fingerprint);
+    boolean mightContainFingerprint(int bucket, int fingerprint, int alternateBucket) {
 
         // check all entries for both buckets and the evicted slot
         return hasFingerprint(bucket, fingerprint) || hasFingerprint(alternateBucket, fingerprint) || evictedFingerprint == fingerprint;
@@ -227,18 +250,23 @@ public class CuckooFilter implements Writeable {
         int offset = getOffset(bucket, 0);
         data.get(offset, values, 0, entriesPerBucket);
 
-        return Arrays.stream(values).anyMatch(value -> value == fingerprint);
+        for (int i = 0; i < entriesPerBucket; i++) {
+            if (values[i] == fingerprint) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * Add's the hash to the bucket or alternate bucket.  Returns true if the insertion was
      * successful, false if the filter is saturated.
      */
-    boolean add(MurmurHash3.Hash128 hash) {
+    boolean add(long hash) {
         // can only use 64 of 128 bytes unfortunately (32 for each bucket), simplest
         // to just truncate h1 and h2 appropriately
-        int bucket = hashToIndex((int) hash.h1);
-        int fingerprint = fingerprint((int) hash.h2);
+        int bucket = hashToIndex((int) hash, numBuckets);
+        int fingerprint = fingerprint((int) (hash  >>> 32), bitsPerEntry, fingerprintMask);
         return mergeFingerprint(bucket, fingerprint);
     }
 
@@ -246,7 +274,7 @@ public class CuckooFilter implements Writeable {
      * Attempts to merge the fingerprint into the specified bucket or it's alternate bucket.
      * Returns true if the insertion was successful, false if the filter is saturated.
      *
-     * Expert-level API, use {@link CuckooFilter#add(MurmurHash3.Hash128)} to insert
+     * Expert-level API, use {@link CuckooFilter#add(long)} to insert
      * values into the filter
      */
     boolean mergeFingerprint(int bucket, int fingerprint) {
@@ -255,7 +283,7 @@ public class CuckooFilter implements Writeable {
             return false;
         }
 
-        int alternateBucket = alternateIndex(bucket, fingerprint);
+        int alternateBucket = alternateIndex(bucket, fingerprint, numBuckets);
         if (tryInsert(bucket, fingerprint) || tryInsert(alternateBucket, fingerprint)) {
             count += 1;
             return true;
@@ -270,7 +298,7 @@ public class CuckooFilter implements Writeable {
             // replace details and start again
             fingerprint = oldFingerprint;
             bucket = alternateBucket;
-            alternateBucket = alternateIndex(bucket, fingerprint);
+            alternateBucket = alternateIndex(bucket, fingerprint, numBuckets);
 
             // Only try to insert into alternate bucket
             if (tryInsert(alternateBucket, fingerprint)) {
@@ -317,13 +345,11 @@ public class CuckooFilter implements Writeable {
      *
      * If the hash is negative, this flips the bits.  The hash is then modulo numBuckets
      * to get the final index.
+     *
+     * Expert-level API
      */
-    private int hashToIndex(int hash) {
-        // invert the bits if we're negative
-        if (hash < 0) {
-            hash = ~hash;
-        }
-        return hash % numBuckets;
+    static int hashToIndex(int hash, int numBuckets) {
+        return hash & (numBuckets - 1);
     }
 
     /**
@@ -331,14 +357,16 @@ public class CuckooFilter implements Writeable {
      *
      * The alternate bucket is the fingerprint multiplied by a mixing constant,
      * then xor'd against the bucket.  This new value is modulo'd against
-     * the buckets via {@link CuckooFilter#hashToIndex(int)} to get the final
+     * the buckets via {@link CuckooFilter#hashToIndex(int, int)} to get the final
      * index.
      *
      * Note that the xor makes this operation reversible as long as we have the
      * fingerprint and current bucket (regardless of if that bucket was the primary
      * or alternate).
+     *
+     * Expert-level API
      */
-    private int alternateIndex(int bucket, int fingerprint) {
+    static int alternateIndex(int bucket, int fingerprint, int numBuckets) {
         /*
             Reference impl uses murmur2 mixing constant:
             https://github.com/efficient/cuckoofilter/blob/master/src/cuckoofilter.h#L78
@@ -349,7 +377,7 @@ public class CuckooFilter implements Writeable {
                 return IndexHash((uint32_t)(index ^ (tag * 0x5bd1e995)));
          */
         int index = bucket ^ (fingerprint * 0x5bd1e995);
-        return hashToIndex(index);
+        return hashToIndex(index, numBuckets);
     }
 
     /**
@@ -365,8 +393,10 @@ public class CuckooFilter implements Writeable {
      *
      * The fingerprint is simply the first `bitsPerEntry` number of bits that are non-zero.
      * If the entire hash is zero, `(int) 1` is used
+     *
+     * Expert-level API
      */
-    private int fingerprint(int hash) {
+    static int fingerprint(int hash, int bitsPerEntry, int fingerprintMask) {
         if (hash == 0) {
             // we use 0 as "empty" so if the hash actually hashes to zero... return 1
             // Some other impls will re-hash with a salt but this seems simpler
@@ -374,7 +404,7 @@ public class CuckooFilter implements Writeable {
         }
 
         for (int i = 0; i + bitsPerEntry <= Long.SIZE; i += bitsPerEntry) {
-            int v = (hash >> i) & this.fingerprintMask;
+            int v = (hash >> i) & fingerprintMask;
             if (v != 0) {
                 return v;
             }
@@ -476,5 +506,14 @@ public class CuckooFilter implements Writeable {
             && Objects.equals(this.entriesPerBucket, that.entriesPerBucket)
             && Objects.equals(this.count, that.count)
             && Objects.equals(this.evictedFingerprint, that.evictedFingerprint);
+    }
+
+    static long murmur64(long h) {
+        h ^= h >>> 33;
+        h *= 0xff51afd7ed558ccdL;
+        h ^= h >>> 33;
+        h *= 0xc4ceb9fe1a85ec53L;
+        h ^= h >>> 33;
+        return h;
     }
 }

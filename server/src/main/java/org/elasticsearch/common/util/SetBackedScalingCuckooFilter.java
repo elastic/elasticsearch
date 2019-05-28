@@ -64,7 +64,7 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      *
      * package-private for testing
      */
-    Set<MurmurHash3.Hash128> hashes;
+    Set<Long> hashes;
 
     /**
      * This list holds our approximate filters, after we have migrated out of a set.
@@ -79,6 +79,12 @@ public class SetBackedScalingCuckooFilter implements Writeable {
     private Consumer<Long> breaker = aLong -> {
         //noop
     };
+
+    // cached here for performance reasons
+    private int numBuckets = 0;
+    private int bitsPerEntry = 0;
+    private int fingerprintMask = 0;
+    private MurmurHash3.Hash128 scratchHash = new MurmurHash3.Hash128();
 
     // True if we are tracking inserts with a set, false otherwise
     private boolean isSetMode = true;
@@ -120,6 +126,9 @@ public class SetBackedScalingCuckooFilter implements Writeable {
             this.hashes = new HashSet<>(other.hashes);
         } else {
             this.filters = new ArrayList<>(other.filters);
+            this.numBuckets = filters.get(0).getNumBuckets();
+            this.fingerprintMask = filters.get(0).getFingerprintMask();
+            this.bitsPerEntry = filters.get(0).getBitsPerEntry();
         }
     }
 
@@ -131,14 +140,12 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         this.fpp = in.readDouble();
 
         if (isSetMode) {
-            this.hashes = in.readSet(in1 -> {
-                MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-                hash.h1 = in1.readZLong();
-                hash.h2 = in1.readZLong();
-                return hash;
-            });
+            this.hashes = in.readSet(StreamInput::readZLong);
         } else {
             this.filters = in.readList(in12 -> new CuckooFilter(in12, rng));
+            this.numBuckets = filters.get(0).getNumBuckets();
+            this.fingerprintMask = filters.get(0).getFingerprintMask();
+            this.bitsPerEntry = filters.get(0).getBitsPerEntry();
         }
     }
 
@@ -149,15 +156,11 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         out.writeVInt(capacity);
         out.writeDouble(fpp);
         if (isSetMode) {
-            out.writeCollection(hashes, (out1, hash) -> {
-                out1.writeZLong(hash.h1);
-                out1.writeZLong(hash.h2);
-            });
+            out.writeCollection(hashes, StreamOutput::writeZLong);
         } else {
             out.writeList(filters);
         }
     }
-
 
     /**
      * Registers a circuit breaker with the datastructure.
@@ -176,15 +179,8 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * 100% accurate, while true values may be a false-positive.
      */
     public boolean mightContain(BytesRef value) {
-        return mightContain(value.bytes, value.offset, value.length);
-    }
-
-    /**
-     * Returns true if the set might contain the provided value, false otherwise.  False values are
-     * 100% accurate, while true values may be a false-positive.
-     */
-    public boolean mightContain(byte[] value) {
-        return mightContain(value, 0, value.length);
+        MurmurHash3.Hash128 hash = MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, scratchHash);
+        return mightContainHash(hash.h1);
     }
 
     /**
@@ -192,18 +188,30 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * 100% accurate, while true values may be a false-positive.
      */
     public boolean mightContain(long value) {
-        return mightContain(Numbers.longToBytes(value));
+        long hash = CuckooFilter.murmur64(value);
+        return mightContainHash(hash);
     }
 
-    private boolean mightContain(byte[] bytes, int offset, int length) {
-        return mightContain(MurmurHash3.hash128(bytes, offset, length, 0, new MurmurHash3.Hash128()));
-    }
-
-    private boolean mightContain(MurmurHash3.Hash128 hash) {
+    /**
+     * Returns true if the set might contain the provided value, false otherwise.  False values are
+     * 100% accurate, while true values may be a false-positive.
+     */
+    private boolean mightContainHash(long hash) {
         if (isSetMode) {
             return hashes.contains(hash);
         }
-        return filters.stream().anyMatch(filter -> filter.mightContain(hash));
+
+        // We calculate these once up front for all the filters and use the expert API
+        int bucket = CuckooFilter.hashToIndex((int) hash, numBuckets);
+        int fingerprint = CuckooFilter.fingerprint((int) (hash >> 32), bitsPerEntry, fingerprintMask);
+        int alternateIndex = CuckooFilter.alternateIndex(bucket, fingerprint, numBuckets);
+
+        for (CuckooFilter filter : filters) {
+            if (filter.mightContainFingerprint(bucket, fingerprint, alternateIndex)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -212,33 +220,31 @@ public class SetBackedScalingCuckooFilter implements Writeable {
      * being hashed.
      */
     private boolean mightContainFingerprint(int bucket, int fingerprint) {
-        return filters.stream().anyMatch(filter -> filter.mightContainFingerprint(bucket, fingerprint));
+        int alternateIndex = CuckooFilter.alternateIndex(bucket, fingerprint, numBuckets);
+        for (CuckooFilter filter : filters) {
+            if (filter.mightContainFingerprint(bucket, fingerprint, alternateIndex)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * Add's the provided value to the set for tracking
      */
     public void add(BytesRef value) {
-        MurmurHash3.Hash128 hash = MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, new MurmurHash3.Hash128());
-        add(hash);
-    }
-
-    /**
-     * Add's the provided value to the set for tracking
-     */
-    public void add(byte[] value) {
-        MurmurHash3.Hash128 hash = MurmurHash3.hash128(value, 0, value.length, 0, new MurmurHash3.Hash128());
-        add(hash);
+        MurmurHash3.Hash128 hash = MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, scratchHash);
+        addHash(hash.h1);
     }
 
     /**
      * Add's the provided value to the set for tracking
      */
     public void add(long value) {
-        add(Numbers.longToBytes(value));
+        addHash(CuckooFilter.murmur64(value));
     }
 
-    private void add(MurmurHash3.Hash128 hash) {
+    private void addHash(long hash) {
         if (isSetMode) {
             hashes.add(hash);
             maybeConvert();
@@ -274,6 +280,11 @@ public class SetBackedScalingCuckooFilter implements Writeable {
 
         filters = new ArrayList<>();
         CuckooFilter t = new CuckooFilter(capacity, fpp, rng);
+        // Cache the chosen numBuckets for later use
+        numBuckets = t.getNumBuckets();
+        fingerprintMask = t.getFingerprintMask();
+        bitsPerEntry = t.getBitsPerEntry();
+
         hashes.forEach(t::add);
         filters.add(t);
 

@@ -156,7 +156,7 @@ public class MergingBucketsDeferringCollector extends DeferringBucketCollector {
 
         // if there are buckets that have been collected in the current segment
         // we need to update the bucket ordinals there too
-        if (buckets.size() > 0) {
+        if (buckets != null && buckets.size() > 0) {
             PackedLongValues currentBuckets = buckets.build();
             PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
             PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);

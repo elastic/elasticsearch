@@ -597,6 +597,4 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
          * buckets we should have left after each reduction.
          */
     }
-
-
 }

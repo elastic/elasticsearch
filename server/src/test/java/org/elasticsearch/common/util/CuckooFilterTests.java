@@ -94,6 +94,10 @@ public class CuckooFilterTests extends AbstractWireSerializingTestCase<CuckooFil
         }
     }
 
+    public void testHash() {
+        CuckooFilter.hashToIndex(-10, 32);
+    }
+
     public void testBig() {
         CuckooFilter filter = new CuckooFilter(1000000, 0.001, Randomness.get());
 
@@ -126,7 +130,11 @@ public class CuckooFilterTests extends AbstractWireSerializingTestCase<CuckooFil
         assertThat(fppRate, lessThanOrEqualTo(0.001));
     }
 
-    private MurmurHash3.Hash128 hash(long i) {
-        return MurmurHash3.hash128(Numbers.longToBytes(i), 0, 8, 0, new MurmurHash3.Hash128());
+    //private MurmurHash3.Hash128 hash(long i) {
+    //    return MurmurHash3.hash128(Numbers.longToBytes(i), 0, 8, 0, new MurmurHash3.Hash128());
+    //}
+
+    private long hash(long i) {
+        return CuckooFilter.murmur64(i);
     }
 }

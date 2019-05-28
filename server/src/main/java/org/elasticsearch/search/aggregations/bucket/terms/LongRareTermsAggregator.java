@@ -89,28 +89,22 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
     }
 
     @Override
-    boolean filterMightContain(Long value) {
-        return filter.mightContain(value);
-    }
-
-    @Override
-    long findOrdinal(Long value) {
-        return bucketOrds.find(value);
-    }
-
-    @Override
     long addValueToOrds(Long value) {
         return bucketOrds.add(value);
     }
 
-    @Override
-    void addValueToFilter(Long value) {
-        filter.add(value);
-    }
-
-    protected void gcDeletedEntries(long numDeleted) {
+    /**
+     * Merges the ordinals to a minimal set, populates the CuckooFilter and
+     * generates a final set of buckets.
+     *
+     * If a term is below the maxDocCount, it is turned into a Bucket.  Otherwise,
+     * the term is added to the filter, and pruned from the ordinal map.  If
+     * necessary the ordinal map is merged down to a minimal set to remove deletions
+     */
+    private List<LongRareTerms.Bucket> buildSketch() {
         long deletionCount = 0;
         LongHash newBucketOrds = new LongHash(1, context.bigArrays());
+        List<LongRareTerms.Bucket> buckets = new ArrayList<>();
         try (LongHash oldBucketOrds = bucketOrds) {
 
             long[] mergeMap = new long[(int) oldBucketOrds.size()];
@@ -122,17 +116,17 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
                 // if the key is below threshold, reinsert into the new ords
                 if (docCount <= maxDocCount) {
                     newBucketOrd = newBucketOrds.add(oldKey);
+                    LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(oldKey, docCount, null, format);
+                    bucket.bucketOrd = newBucketOrd;
+                    buckets.add(bucket);
+
+                    consumeBucketsAndMaybeBreak(1);
                 } else {
                     // Make a note when one of the ords has been deleted
                     deletionCount += 1;
+                    filter.add(oldKey);
                 }
-
                 mergeMap[i] = newBucketOrd;
-            }
-
-            if (numDeleted != -1 && deletionCount != numDeleted) {
-                throw new IllegalStateException("Expected to prune [" + numDeleted + "] terms, but [" + numDeleted
-                    + "] were removed instead");
             }
 
             // Only merge/delete the ordinals if we have actually deleted one,
@@ -145,25 +139,13 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator<ValuesS
             }
         }
         bucketOrds = newBucketOrds;
+        return buckets;
     }
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
-        List<LongRareTerms.Bucket> buckets = new ArrayList<>();
-
-        for (long i = 0; i < bucketOrds.size(); i++) {
-            // The agg managed pruning unwanted terms at runtime, so any
-            // terms that made it this far are "rare" and we want buckets
-            LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(0, 0, null, format);
-            bucket.term = bucketOrds.get(i);
-            bucket.docCount = bucketDocCount(i);
-            bucket.bucketOrd = i;
-            buckets.add(bucket);
-
-            consumeBucketsAndMaybeBreak(1);
-        }
-
+        List<LongRareTerms.Bucket> buckets = buildSketch();
         runDeferredCollections(buckets.stream().mapToLong(b -> b.bucketOrd).toArray());
 
         // Finalize the buckets

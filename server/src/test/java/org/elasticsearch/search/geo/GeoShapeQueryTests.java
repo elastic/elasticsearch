@@ -20,6 +20,7 @@
 package org.elasticsearch.search.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -233,7 +234,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type"))
+                .setQuery(geoIntersectionQuery("location", "Big_Rectangle"))
                 .get();
 
         assertSearchResponse(searchResponse);
@@ -242,7 +243,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type"))
+                .setQuery(geoShapeQuery("location", "Big_Rectangle"))
                 .get();
 
         assertSearchResponse(searchResponse);

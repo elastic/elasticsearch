@@ -34,7 +34,7 @@ public class RollupDateHistoUpgradeIT extends AbstractUpgradeTestCase {
         Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     public void testDateHistoIntervalUpgrade() throws Exception {
-        assumeTrue("DateHisto interval changed in 7.1", UPGRADE_FROM_VERSION.before(Version.V_7_2_0));
+        assumeTrue("DateHisto interval changed in 7.2", UPGRADE_FROM_VERSION.before(Version.V_7_2_0));
         switch (CLUSTER_TYPE) {
             case OLD:
                 break;

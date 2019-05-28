@@ -39,7 +39,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private static final ParseField INDICES = new ParseField("indices");
     private static final ParseField ENRICH_KEY = new ParseField("enrich_key");
     private static final ParseField ENRICH_VALUES = new ParseField("enrich_values");
-    private static final ParseField SCHEDULE = new ParseField("schedule");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<EnrichPolicy, Void> PARSER = new ConstructingObjectParser<>("policy",
@@ -48,8 +47,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             (QuerySource) args[1],
             (List<String>) args[2],
             (String) args[3],
-            (List<String>) args[4],
-            (String) args[5]
+            (List<String>) args[4]
         )
     );
 
@@ -67,7 +65,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES);
         parser.declareString(ConstructingObjectParser.constructorArg(), ENRICH_KEY);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_VALUES);
-        parser.declareString(ConstructingObjectParser.constructorArg(), SCHEDULE);
     }
 
     public static EnrichPolicy fromXContent(XContentParser parser) throws IOException {
@@ -79,7 +76,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final List<String> indices;
     private final String enrichKey;
     private final List<String> enrichValues;
-    private final String schedule;
 
     public EnrichPolicy(StreamInput in) throws IOException {
         this(
@@ -87,8 +83,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             in.readOptionalWriteable(QuerySource::new),
             in.readStringList(),
             in.readString(),
-            in.readStringList(),
-            in.readString()
+            in.readStringList()
         );
     }
 
@@ -96,11 +91,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                         QuerySource query,
                         List<String> indices,
                         String enrichKey,
-                        List<String> enrichValues,
-                        String schedule) {
+                        List<String> enrichValues) {
         this.type = type;
         this.query= query;
-        this.schedule = schedule;
         this.indices = indices;
         this.enrichKey = enrichKey;
         this.enrichValues = enrichValues;
@@ -126,10 +119,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return enrichValues;
     }
 
-    public String getSchedule() {
-        return schedule;
-    }
-
     public static String getBaseName(String policyName) {
         return ENRICH_INDEX_NAME_BASE + policyName;
     }
@@ -141,7 +130,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeStringCollection(indices);
         out.writeString(enrichKey);
         out.writeStringCollection(enrichValues);
-        out.writeString(schedule);
     }
 
     @Override
@@ -153,7 +141,6 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         builder.array(INDICES.getPreferredName(), indices.toArray(new String[0]));
         builder.field(ENRICH_KEY.getPreferredName(), enrichKey);
         builder.array(ENRICH_VALUES.getPreferredName(), enrichValues.toArray(new String[0]));
-        builder.field(SCHEDULE.getPreferredName(), schedule);
         return builder;
     }
 
@@ -166,8 +153,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             Objects.equals(query, policy.query) &&
             indices.equals(policy.indices) &&
             enrichKey.equals(policy.enrichKey) &&
-            enrichValues.equals(policy.enrichValues) &&
-            schedule.equals(policy.schedule);
+            enrichValues.equals(policy.enrichValues);
     }
 
     @Override
@@ -177,8 +163,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             query,
             indices,
             enrichKey,
-            enrichValues,
-            schedule
+            enrichValues
         );
     }
 
@@ -244,8 +229,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                     (QuerySource) args[2],
                     (List<String>) args[3],
                     (String) args[4],
-                    (List<String>) args[5],
-                    (String) args[6])
+                    (List<String>) args[5])
             )
         );
 

@@ -49,7 +49,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
-import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -206,5 +205,11 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals(3, result.getHits().getTotalHits().value);
         reader.close();
         directory.close();
+    }
+
+    public void testSortByScore() throws Exception {
+        // just check that it does not fail with exceptions
+        testCase(new MatchAllDocsQuery(), topHits("_name").sort("_score", SortOrder.DESC));
+        testCase(new MatchAllDocsQuery(), topHits("_name").sort("_score"));
     }
 }

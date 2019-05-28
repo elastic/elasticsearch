@@ -19,10 +19,13 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedFunction;
+
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Wrapper for a XContentParser that makes a single object/array look like a complete document.
@@ -108,6 +111,12 @@ public class XContentSubParser implements XContentParser {
     @Override
     public Map<String, String> mapStringsOrdered() throws IOException {
         return parser.mapStringsOrdered();
+    }
+
+    @Override
+    public <T> Map<String, T> map(
+            Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser) throws IOException {
+        return parser.map(mapFactory, mapValueParser);
     }
 
     @Override

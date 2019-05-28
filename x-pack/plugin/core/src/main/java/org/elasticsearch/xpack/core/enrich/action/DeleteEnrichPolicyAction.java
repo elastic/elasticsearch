@@ -20,7 +20,7 @@ public class DeleteEnrichPolicyAction extends Action<AcknowledgedResponse> {
     public static final DeleteEnrichPolicyAction INSTANCE = new DeleteEnrichPolicyAction();
     public static final String NAME = "cluster:admin/xpack/enrich/delete";
 
-    protected DeleteEnrichPolicyAction() {
+    private DeleteEnrichPolicyAction() {
         super(NAME);
     }
 

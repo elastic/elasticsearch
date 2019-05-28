@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -33,14 +32,17 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.action.TransportExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportPutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestDeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.rest.RestExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
@@ -50,7 +52,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -71,14 +72,9 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-        final ClusterService clusterService = parameters.ingestService.getClusterService();
-        // Pipelines are created from cluster state update thead and calling ClusterService#state() from that thead is illegal
-        // (because the current cluster state update is in progress)
-        // So with the below atomic reference we keep track of the latest updated cluster state:
-        AtomicReference<ClusterState> reference = new AtomicReference<>();
-        clusterService.addStateApplier(event -> reference.set(event.state()));
-
-        return Map.of(EnrichProcessorFactory.TYPE, new EnrichProcessorFactory(reference::get, parameters.localShardSearcher));
+        EnrichProcessorFactory factory = new EnrichProcessorFactory(parameters.localShardSearcher);
+        parameters.ingestService.addIngestClusterStateListener(factory);
+        return Map.of(EnrichProcessorFactory.TYPE, factory);
     }
 
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -90,7 +86,8 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
             new ActionHandler<>(ListEnrichPolicyAction.INSTANCE, TransportListEnrichPolicyAction.class),
-            new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class)
+            new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
+            new ActionHandler<>(ExecuteEnrichPolicyAction.INSTANCE, TransportExecuteEnrichPolicyAction.class)
         );
     }
 
@@ -106,7 +103,8 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin {
             new RestGetEnrichPolicyAction(settings, restController),
             new RestDeleteEnrichPolicyAction(settings, restController),
             new RestListEnrichPolicyAction(settings, restController),
-            new RestPutEnrichPolicyAction(settings, restController)
+            new RestPutEnrichPolicyAction(settings, restController),
+            new RestExecuteEnrichPolicyAction(settings, restController)
         );
     }
 

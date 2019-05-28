@@ -164,7 +164,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             new HandshakingTransportAddressConnector(settings, transportService), configuredHostsResolver);
         this.publicationHandler = new PublicationTransportHandler(transportService, namedWriteableRegistry,
             this::handlePublishRequest, this::handleApplyCommit);
-        this.leaderChecker = new LeaderChecker(settings, transportService, getOnLeaderFailure());
+        this.leaderChecker = new LeaderChecker(settings, transportService, this::onLeaderFailure);
         this.followersChecker = new FollowersChecker(settings, transportService, this::onFollowerCheckRequest, this::removeNode);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.clusterApplier = clusterApplier;
@@ -183,20 +183,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).collect(Collectors.toList()), getCurrentTerm());
     }
 
-    private Runnable getOnLeaderFailure() {
-        return new Runnable() {
-            @Override
-            public void run() {
-                synchronized (mutex) {
-                    becomeCandidate("onLeaderFailure");
-                }
+    private void onLeaderFailure(Exception e) {
+        synchronized (mutex) {
+            if (mode != Mode.CANDIDATE) {
+                assert lastKnownLeader.isPresent();
+                logger.info(new ParameterizedMessage("master node [{}] failed, restarting discovery", lastKnownLeader.get()), e);
             }
-
-            @Override
-            public String toString() {
-                return "notification of leader failure";
-            }
-        };
+            becomeCandidate("onLeaderFailure");
+        }
     }
 
     private void removeNode(DiscoveryNode discoveryNode, String reason) {

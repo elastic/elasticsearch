@@ -270,7 +270,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterAlias = entry.getKey();
             boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
             OriginalIndices indices = entry.getValue();
-            SearchRequest ccsSearchRequest = SearchRequest.crossClusterSearch(searchRequest, indices.indices(),
+            SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(searchRequest, indices.indices(),
                 clusterAlias, timeProvider.getAbsoluteStartMillis(), true);
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
             remoteClusterClient.search(ccsSearchRequest, new ActionListener<SearchResponse>() {
@@ -306,7 +306,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 String clusterAlias = entry.getKey();
                 boolean skipUnavailable = remoteClusterService.isSkipUnavailable(clusterAlias);
                 OriginalIndices indices = entry.getValue();
-                SearchRequest ccsSearchRequest = SearchRequest.crossClusterSearch(searchRequest, indices.indices(),
+                SearchRequest ccsSearchRequest = SearchRequest.subSearchRequest(searchRequest, indices.indices(),
                     clusterAlias, timeProvider.getAbsoluteStartMillis(), false);
                 ActionListener<SearchResponse> ccsListener = createCCSListener(clusterAlias, skipUnavailable, countDown,
                     skippedClusters, exceptions, searchResponseMerger, totalClusters,  listener);
@@ -316,7 +316,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             if (localIndices != null) {
                 ActionListener<SearchResponse> ccsListener = createCCSListener(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                     false, countDown, skippedClusters, exceptions, searchResponseMerger, totalClusters, listener);
-                SearchRequest ccsLocalSearchRequest = SearchRequest.crossClusterSearch(searchRequest, localIndices.indices(),
+                SearchRequest ccsLocalSearchRequest = SearchRequest.subSearchRequest(searchRequest, localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, timeProvider.getAbsoluteStartMillis(), false);
                 localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);
             }

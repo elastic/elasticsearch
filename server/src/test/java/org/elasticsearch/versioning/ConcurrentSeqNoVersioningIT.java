@@ -118,8 +118,7 @@ import static org.hamcrest.Matchers.greaterThan;
  *     stale or dirty, i.e., come from a stale primary or belong to a write that ends up being discarded.</li>
  * </ul>
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 4, maxNumDataNodes = 6,
-    transportClientRatio = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 4, maxNumDataNodes = 6)
 @TestLogging("_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE," +
     "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE," +
     "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE," +

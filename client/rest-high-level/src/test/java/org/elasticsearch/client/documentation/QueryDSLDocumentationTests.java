@@ -74,7 +74,6 @@ import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanWithinQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
@@ -431,12 +430,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         termsQuery("tags",                                           // <1>
                 "blue", "pill");                                     // <2>
         // end::terms
-    }
-
-    public void testType() {
-        // tag::type
-        typeQuery("my_type");                                        // <1>
-        // end::type
     }
 
     public void testWildcard() {

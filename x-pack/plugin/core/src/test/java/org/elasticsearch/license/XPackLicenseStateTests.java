@@ -242,7 +242,7 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testNewTrialDefaultsSecurityOff() {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(TRIAL, true, VersionUtils.randomVersionBetween(random(), Version.V_6_3_0, Version.CURRENT));
+        licenseState.update(TRIAL, true, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
 
         assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(true));
         assertSecurityNotAllowed(licenseState);

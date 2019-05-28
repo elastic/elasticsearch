@@ -14,13 +14,9 @@ include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]
 
-include::setup/setup-xes.asciidoc[]
-
 include::monitoring/configuring-monitoring.asciidoc[]
 
 include::{xes-repo-dir}/security/configuring-es.asciidoc[]
-
-include::setup/setup-xclient.asciidoc[]
 
 include::setup/bootstrap-checks-xes.asciidoc[]
 

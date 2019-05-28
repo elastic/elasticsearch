@@ -115,12 +115,10 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private Settings settings;
     private boolean enabled;
-    private boolean transportClientMode;
 
     public IndexLifecycle(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.INDEX_LIFECYCLE_ENABLED.get(settings);
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
     }
 
     // overridable by tests
@@ -130,13 +128,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
 
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-
-        if (transportClientMode) {
-            return modules;
-        }
-
         modules.add(b -> XPackPlugin.bindFeatureSet(b, IndexLifecycleFeatureSet.class));
-
         return modules;
     }
 
@@ -155,7 +147,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return emptyList();
         }
         indexLifecycleInitialisationService.set(new IndexLifecycleService(settings, client, clusterService, threadPool,

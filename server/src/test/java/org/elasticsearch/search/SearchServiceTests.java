@@ -19,7 +19,6 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -261,12 +260,16 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         try {
             final int rounds = scaledRandomIntBetween(100, 10000);
             SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
+            SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true)
+                .scroll(new Scroll(TimeValue.timeValueMinutes(1)));
             for (int i = 0; i < rounds; i++) {
                 try {
                     try {
                         PlainActionFuture<SearchPhaseResult> result = new PlainActionFuture<>();
+                        boolean useScroll = randomBoolean();
                         service.executeQueryPhase(
-                            new ShardSearchLocalRequest(searchRequest, indexShard.shardId(), 1,
+                            new ShardSearchLocalRequest(useScroll ? searchRequest : scrollSearchRequest,
+                                indexShard.shardId(), 1,
                                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null),
                             new SearchTask(123L, "", "", "", null, Collections.emptyMap()), result);
                         SearchPhaseResult searchPhaseResult = result.get();
@@ -276,6 +279,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
                         service.executeFetchPhase(req, new SearchTask(123L, "", "", "", null, Collections.emptyMap()), listener);
                         listener.get();
+                        if (useScroll) {
+                            service.freeContext(searchPhaseResult.requestId);
+                        }
                     } catch (ExecutionException ex) {
                         assertThat(ex.getCause(), instanceOf(RuntimeException.class));
                         throw ((RuntimeException)ex.getCause());

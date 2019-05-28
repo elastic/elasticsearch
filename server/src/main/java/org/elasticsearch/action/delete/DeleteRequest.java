@@ -65,6 +65,8 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private VersionType versionType = VersionType.INTERNAL;
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
+    private boolean ignoreCASUsingVersionDeprecation = false;
+
 
     public DeleteRequest() {
     }
@@ -102,7 +104,9 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        DocWriteRequest.logDeprecationWarnings(this, DEPRECATION_LOGGER);
+        if (ignoreCASUsingVersionDeprecation == false) {
+            DocWriteRequest.logDeprecationWarnings(this, DEPRECATION_LOGGER);
+        }
 
         return validationException;
     }
@@ -306,5 +310,19 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     @Override
     public DeleteRequest setShardId(ShardId shardId) {
         throw new UnsupportedOperationException("shard id should never be set on DeleteRequest");
+    }
+
+    /**
+     * If the primary on 6.6+ but replicas on older versions, we can not use CAS using ifSeqNo since it requires all nodes on 6.6+.
+     * In this case, we have to fall back to use CAS with _version and should not issue a deprecation warning log during validation.
+     * This flag is merely used to forgo the deprecation log when the cluster is not ready for ifSeqNo.
+     */
+    public void ignoreCASUsingVersionDeprecation() {
+        if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
+            assert false : ifSeqNo + "[" + ifSeqNo + "] ifPrimaryTerm[" + ifPrimaryTerm + "]";
+            throw new IllegalStateException("request already uses sequence number based compare and write; " +
+                "ifSeqNo [" + ifSeqNo + "] ifPrimaryTerm[" + ifPrimaryTerm + "]");
+        }
+        this.ignoreCASUsingVersionDeprecation = true;
     }
 }

@@ -251,6 +251,7 @@ public class UpdateHelper {
                 finalIndexRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
             } else {
                 finalIndexRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
+                finalIndexRequest.ignoreCASUsingVersionDeprecation();
             }
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
@@ -297,6 +298,7 @@ public class UpdateHelper {
                     indexRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
                 } else {
                     indexRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
+                    indexRequest.ignoreCASUsingVersionDeprecation();
                 }
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             case DELETE:
@@ -308,6 +310,7 @@ public class UpdateHelper {
                     deleteRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
                 } else {
                     deleteRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
+                    deleteRequest.ignoreCASUsingVersionDeprecation();
                 }
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
             default:

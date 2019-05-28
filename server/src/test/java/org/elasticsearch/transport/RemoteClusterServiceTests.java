@@ -57,12 +57,10 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RemoteClusterServiceTests extends ESTestCase {
@@ -128,8 +126,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                                 .put("cluster.remote.bar.seeds", "[::1]:9090")
                                 .put("cluster.remote.boom.seeds", "boom-node1.internal:1000")
                                 .put("cluster.remote.boom.proxy", "foo.bar.com:1234")
-                                .put("search.remote.quux.seeds", "quux:9300")
-                                .put("search.remote.quux.proxy", "quux-proxy:19300")
+                                .put("cluster.remote.quux.seeds", "quux:9300")
+                                .put("cluster.remote.quux.proxy", "quux-proxy:19300")
                                 .build());
         assertThat(map.keySet(), containsInAnyOrder(equalTo("foo"), equalTo("bar"), equalTo("boom"), equalTo("quux")));
         assertThat(map.get("foo").v2(), hasSize(1));
@@ -162,34 +160,6 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertEquals(quux.getId(), "quux#quux:9300");
         assertEquals("quux-proxy:19300", map.get("quux").v1());
         assertEquals(quux.getVersion(), Version.CURRENT.minimumCompatibilityVersion());
-
-        assertSettingDeprecationsAndWarnings(new String[]{"search.remote.quux.seeds", "search.remote.quux.proxy"});
-    }
-
-    public void testBuildRemoteClustersDynamicConfigWithDuplicate() {
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> RemoteClusterService.buildRemoteClustersDynamicConfig(
-                        Settings.builder()
-                                .put("cluster.remote.foo.seeds", "192.168.0.1:8080")
-                                .put("search.remote.foo.seeds", "192.168.0.1:8080")
-                                .build()));
-        assertThat(e, hasToString(containsString("found duplicate remote cluster configurations for cluster alias [foo]")));
-        assertSettingDeprecationsAndWarnings(new String[]{"search.remote.foo.seeds"});
-    }
-
-    public void testBuildRemoteClustersDynamicConfigWithDuplicates() {
-        final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> RemoteClusterService.buildRemoteClustersDynamicConfig(
-                        Settings.builder()
-                                .put("cluster.remote.foo.seeds", "192.168.0.1:8080")
-                                .put("search.remote.foo.seeds", "192.168.0.1:8080")
-                                .put("cluster.remote.bar.seeds", "192.168.0.1:8080")
-                                .put("search.remote.bar.seeds", "192.168.0.1:8080")
-                                .build()));
-        assertThat(e, hasToString(containsString("found duplicate remote cluster configurations for cluster aliases [bar,foo]")));
-        assertSettingDeprecationsAndWarnings(new String[]{"search.remote.bar.seeds", "search.remote.foo.seeds"});
     }
 
     public void testGroupClusterIndices() throws IOException {

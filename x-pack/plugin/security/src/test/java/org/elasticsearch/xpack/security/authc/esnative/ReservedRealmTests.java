@@ -32,14 +32,12 @@ import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -72,7 +70,6 @@ public class ReservedRealmTests extends ESTestCase {
         usersStore = mock(NativeUsersStore.class);
         securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);
-        when(securityIndex.checkMappingVersion(any())).thenReturn(true);
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -164,8 +161,6 @@ public class ReservedRealmTests extends ESTestCase {
 
         verify(securityIndex, times(2)).indexExists();
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
-        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityIndex, times(2)).checkMappingVersion(predicateCaptor.capture());
         verifyNoMoreInteractions(usersStore);
     }
 
@@ -181,9 +176,6 @@ public class ReservedRealmTests extends ESTestCase {
         final User user = listener.actionGet();
         assertEquals(expectedUser, user);
         verify(securityIndex).indexExists();
-
-        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
         reservedRealm.doLookupUser("foobar", future);
@@ -228,9 +220,6 @@ public class ReservedRealmTests extends ESTestCase {
 
         verify(securityIndex).indexExists();
         verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
-
-        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
-        verify(securityIndex).checkMappingVersion(predicateCaptor.capture());
 
         verifyNoMoreInteractions(usersStore);
     }

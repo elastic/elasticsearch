@@ -26,6 +26,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -396,10 +397,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                 // before timing out
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "30s")
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
                 .build());
-            indexDocs(indexName, 0, randomInt(10));
             ensureGreen(indexName);
             closeIndex(indexName);
         }
@@ -410,9 +410,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
             // so we expect the index to be closed and replicated
             ensureGreen(indexName);
             assertClosedIndex(indexName, true);
-            if (minimumNodeVersion().onOrAfter(Version.V_8_0_0)) { // todo: change to 7_X once backported.
-                assertNoFileBasedRecovery(indexName);
-            }
         } else {
             assertClosedIndex(indexName, false);
         }
@@ -447,6 +444,44 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
+
+    /**
+     * We test that a closed index makes no-op replica allocation only.
+     */
+    public void testClosedIndexReplicaAllocation() throws Exception {
+        final String indexName = "closed_index_replica_allocation";
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            createIndex(indexName, Settings.builder()
+                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "30s")
+                .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0") // fail faster
+                .put("index.routing.allocation.include._name", "node-0")
+                .build());
+            indexDocs(indexName, 0, randomInt(10));
+            // allocate replica to node-2
+            updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.include._name",
+                "node-0,node-2,upgraded-node-*"));
+            ensureGreen(indexName);
+            closeIndex(indexName);
+        }
+
+        final Version indexVersionCreated = indexVersionCreated(indexName);
+        if (indexVersionCreated.onOrAfter(Version.V_7_2_0)) {
+            // index was created on a version that supports the replication of closed indices,
+            // so we expect the index to be closed and replicated
+            ensureGreen(indexName);
+            assertClosedIndex(indexName, true);
+            // todo: change to 7_X once backported.
+            if (CLUSTER_TYPE != ClusterType.OLD && minimumNodeVersion().onOrAfter(Version.V_8_0_0)) {
+                assertNoFileBasedRecovery(indexName, s-> s.startsWith("upgraded"));
+            }
+        } else {
+            assertClosedIndex(indexName, false);
+        }
+
+    }
     /**
      * Returns the version in which the given index has been created
      */
@@ -573,7 +608,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    private void assertNoFileBasedRecovery(String indexName) throws IOException {
+    private void assertNoFileBasedRecovery(String indexName, Predicate<String> targetNode) throws IOException {
         Map<String, Object> recoveries = entityAsMap(client()
             .performRequest(new Request("GET", indexName + "/_recovery?detailed=true")));
 
@@ -582,20 +617,21 @@ public class RecoveryIT extends AbstractRollingTestCase {
         assertNotNull(shards);
         boolean foundReplica = false;
         for (Map<String, ?> shard : shards) {
-            if (shard.get("primary") == Boolean.FALSE) {
+            if (shard.get("primary") == Boolean.FALSE
+                && targetNode.test((String) XContentMapValues.extractValue("target.name", shard))) {
                 List<?> details = (List<?>) XContentMapValues.extractValue("index.files.details", shard);
                 // once detailed recoveries works, remove this if.
                 if (details == null) {
                     long totalFiles = ((Number) XContentMapValues.extractValue("index.files.total", shard)).longValue();
                     long reusedFiles = ((Number) XContentMapValues.extractValue("index.files.reused", shard)).longValue();
-                    assertEquals(totalFiles, reusedFiles);
+                    assertEquals("must reuse all files, recoveries [" + recoveries + "]", totalFiles, reusedFiles);
                 } else {
                     assertNotNull(details);
                     assertThat(details, empty());
                 }
 
                 long translogRecovered = ((Number) XContentMapValues.extractValue("translog.recovered", shard)).longValue();
-                assertEquals("must be noop", 0, translogRecovered);
+                assertEquals("must be noop, recoveries [" + recoveries + "]", 0, translogRecovered);
                 foundReplica = true;
             }
         }

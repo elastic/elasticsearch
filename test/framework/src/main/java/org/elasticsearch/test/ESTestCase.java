@@ -391,9 +391,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             if (warnings != null && enableJodaDeprecationWarningsCheck() == false) {
-                List<String> filteredWarnings = warnings.stream()
-                                               .filter(m -> m.contains(JodaDeprecationPatterns.USE_PREFIX_8_WARNING) == false)
-                                               .collect(Collectors.toList());
+                List<String> filteredWarnings = filterJodaDeprecationWarnings(warnings);
                 assertThat( filteredWarnings, empty());
 
             } else {
@@ -431,18 +429,33 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
-            assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
-            final Set<String> actualWarningValues =
-                    actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
-            for (String msg : expectedWarnings) {
-                assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
+            if (actualWarnings != null && enableJodaDeprecationWarningsCheck() == false) {
+                List<String> filteredWarnings = filterJodaDeprecationWarnings(actualWarnings);
+                assertWarnings(filteredWarnings, expectedWarnings);
+            } else {
+                assertWarnings(actualWarnings, expectedWarnings);
             }
-            assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
-                    + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
-                expectedWarnings.length, actualWarnings.size());
         } finally {
             resetDeprecationLogger(true);
         }
+    }
+
+    private List<String> filterJodaDeprecationWarnings(List<String> actualWarnings) {
+        return actualWarnings.stream()
+                             .filter(m -> m.contains(JodaDeprecationPatterns.USE_PREFIX_8_WARNING) == false)
+                             .collect(Collectors.toList());
+    }
+
+    private void assertWarnings(List<String> actualWarnings, String[] expectedWarnings) {
+        assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarnings);
+        final Set<String> actualWarningValues =
+                actualWarnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
+        for (String msg : expectedWarnings) {
+            assertThat(actualWarningValues, hasItem(DeprecationLogger.escapeAndEncode(msg)));
+        }
+        assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
+                + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
+            expectedWarnings.length, actualWarnings.size());
     }
 
     /**

@@ -1,6 +1,8 @@
 [[query-dsl-common-terms-query]]
 === Common Terms Query
 
+deprecated[7.3.0,Replaced by the more performant `max_score` optimization which is applied automatically without any configuration on a <<query-dsl-match-query>>]
+
 The `common` terms query is a modern alternative to stopwords which
 improves the precision and recall of search results (by taking stopwords
 into account), without sacrificing performance.

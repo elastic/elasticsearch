@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -42,8 +44,20 @@ import java.util.Objects;
  * result of the analysis.
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
+
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(MatchQueryBuilder.class));
+
+    static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "[cutoff_frequency] has been deprecated in favor of the " +
+        "[max_score] optimization which is applied automatically without any configuration";
+
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
-    public static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
+    /**
+     * @deprecated Since max_optimization optimization landed in 7.0, normal MatchQuery
+     *             will achieve the same result without any configuration.
+     */
+    @Deprecated
+    public static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency", "cutoff_frequency");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
     public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
@@ -85,6 +99,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
+    /**
+     * @deprecated See {@link MatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
+     */
+    @Deprecated
     private Float cutoffFrequency = null;
 
     private boolean autoGenerateSynonymsPhraseQuery = true;
@@ -235,8 +253,12 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      * Set a cutoff value in [0..1] (or absolute number &gt;=1) representing the
      * maximum threshold of a terms document frequency to be considered a low
      * frequency term.
+     *
+     * @deprecated see {@link MatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
      */
+    @Deprecated
     public MatchQueryBuilder cutoffFrequency(float cutoff) {
+        deprecationLogger.deprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
         this.cutoffFrequency = cutoff;
         return this;
     }

@@ -169,6 +169,10 @@ public class RandomQueryGenerator {
         return QueryBuilders.constantScoreQuery(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
     }
 
+    /**
+     * @deprecated See {@link CommonTermsQueryBuilder}
+     */
+    @Deprecated
     private static QueryBuilder randomCommonTermsQuery(List<String> fields, int numDocs) {
         int numTerms = randomInt(numDocs);
 

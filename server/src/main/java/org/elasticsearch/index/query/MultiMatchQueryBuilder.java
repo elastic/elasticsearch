@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -50,6 +52,13 @@ import java.util.TreeMap;
  * Same as {@link MatchQueryBuilder} but supports multiple fields.
  */
 public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
+
+    private static final DeprecationLogger deprecationLogger =
+        new DeprecationLogger(LogManager.getLogger(MultiMatchQueryBuilder.class));
+
+    static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "[cutoff_frequency] has been deprecated in favor of the " +
+        "[max_score] optimization which is applied automatically without any configuration";
+
     public static final String NAME = "multi_match";
 
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
@@ -63,7 +72,12 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private static final ParseField SLOP_FIELD = new ParseField("slop");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
+    /**
+     * @deprecated Since max_score optimization landed in 7.0, normal MultiMatchQuery
+     *             will achieve the same result without any configuration.
+     */
+    @Deprecated
+    private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency", "cutoff_frequency");
     private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
     private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
@@ -91,6 +105,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private String fuzzyRewrite = null;
     private Float tieBreaker;
     private Boolean lenient;
+    /**
+     * @deprecated See {@link MultiMatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
+     */
+    @Deprecated
     private Float cutoffFrequency = null;
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
     private boolean autoGenerateSynonymsPhraseQuery = true;
@@ -484,8 +502,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * Set a cutoff value in [0..1] (or absolute number &gt;=1) representing the
      * maximum threshold of a terms document frequency to be considered a low
      * frequency term.
+     * @deprecated See {@link MultiMatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
      */
+    @Deprecated
     public MultiMatchQueryBuilder cutoffFrequency(float cutoff) {
+        deprecationLogger.deprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
         this.cutoffFrequency = cutoff;
         return this;
     }
@@ -494,8 +515,14 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * Set a cutoff value in [0..1] (or absolute number &gt;=1) representing the
      * maximum threshold of a terms document frequency to be considered a low
      * frequency term.
+     *
+     * @deprecated See {@link MultiMatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
      */
+    @Deprecated
     public MultiMatchQueryBuilder cutoffFrequency(Float cutoff) {
+        if (cutoff != null) {
+            deprecationLogger.deprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
+        }
         this.cutoffFrequency = cutoff;
         return this;
     }

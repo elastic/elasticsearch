@@ -125,10 +125,6 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
         }
 
         if (randomBoolean()) {
-            matchQuery.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
-        }
-
-        if (randomBoolean()) {
             matchQuery.autoGenerateSynonymsPhraseQuery(randomBoolean());
         }
         return matchQuery;
@@ -477,6 +473,11 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
+    }
+
+    public void testCutoffFrequency() {
+        new MatchQueryBuilder("field", "value").cutoffFrequency((float) 10 / randomIntBetween(1, 100));
+        assertWarnings(MatchQueryBuilder.CUTOFF_FREQUENCY_DEPRECATION_MSG);
     }
     
     private static class MockGraphAnalyzer extends Analyzer {

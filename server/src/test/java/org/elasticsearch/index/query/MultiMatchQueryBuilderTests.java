@@ -134,9 +134,6 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.tieBreaker(randomFloat());
         }
-        if (randomBoolean() && query.type() != Type.BOOL_PREFIX) {
-            query.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
-        }
         if (randomBoolean()) {
             query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.NONE, MatchQuery.ZeroTermsQuery.ALL));
         }
@@ -556,6 +553,14 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
                 .field(STRING_FIELD_NAME_2)
                 .toQuery(createShardContext()));
         assertThat(exc.getMessage(), containsString("negative [boost]"));
+    }
+
+    public void testCutoffFrequency() {
+        new MultiMatchQueryBuilder("value", "field1", "field2").cutoffFrequency(10f / randomIntBetween(1, 100));
+        assertWarnings(MultiMatchQueryBuilder.CUTOFF_FREQUENCY_DEPRECATION_MSG);
+        new MultiMatchQueryBuilder("value", "field1", "field2").cutoffFrequency(Float.valueOf(10f / randomIntBetween(1, 100)));
+        assertWarnings(MultiMatchQueryBuilder.CUTOFF_FREQUENCY_DEPRECATION_MSG);
+
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

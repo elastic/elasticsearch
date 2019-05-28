@@ -47,7 +47,11 @@ import java.util.Objects;
  * and high-frequency terms are added to an optional boolean clause. The
  * optional clause is only executed if the required "low-frequency' clause
  * matches.
+ *
+ * @deprecated Since max_optimization optimization landed in 7.0, normal MatchQuery
+ *             will achieve the same result without any configuration.
  */
+@Deprecated
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
 
     public static final String NAME = "common";

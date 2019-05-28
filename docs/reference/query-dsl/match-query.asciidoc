@@ -122,6 +122,8 @@ GET /_search
 [[query-dsl-match-query-cutoff]]
 ===== Cutoff frequency
 
+deprecated[7.3.0,Replaced by the more performant `max_score` optimization which is applied automatically without any configuration]
+
 The match query supports a `cutoff_frequency` that allows
 specifying an absolute or relative document frequency where high
 frequency terms are moved into an optional subquery and are only scored

@@ -37,6 +37,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
+/**
+ * @deprecated See {@link CommonTermsQueryBuilder}
+ */
+@Deprecated
 public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTermsQueryBuilder> {
 
     @Override

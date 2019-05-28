@@ -72,11 +72,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private static final ParseField SLOP_FIELD = new ParseField("slop");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    /**
-     * @deprecated Since max_score optimization landed in 7.0, normal MultiMatchQuery
-     *             will achieve the same result without any configuration.
-     */
-    @Deprecated
     private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency", "cutoff_frequency");
     private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
     private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
@@ -105,10 +100,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private String fuzzyRewrite = null;
     private Float tieBreaker;
     private Boolean lenient;
-    /**
-     * @deprecated See {@link MultiMatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
-     */
-    @Deprecated
     private Float cutoffFrequency = null;
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
     private boolean autoGenerateSynonymsPhraseQuery = true;
@@ -502,7 +493,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * Set a cutoff value in [0..1] (or absolute number &gt;=1) representing the
      * maximum threshold of a terms document frequency to be considered a low
      * frequency term.
-     * @deprecated See {@link MultiMatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
+     *
+     * @deprecated Since max_score optimization landed in 7.0, normal MultiMatchQuery
+     *             will achieve the same result without any configuration.
      */
     @Deprecated
     public MultiMatchQueryBuilder cutoffFrequency(float cutoff) {
@@ -516,7 +509,8 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * maximum threshold of a terms document frequency to be considered a low
      * frequency term.
      *
-     * @deprecated See {@link MultiMatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
+     * @deprecated Since max_score optimization landed in 7.0, normal MultiMatchQuery
+     *             will achieve the same result without any configuration.
      */
     @Deprecated
     public MultiMatchQueryBuilder cutoffFrequency(Float cutoff) {

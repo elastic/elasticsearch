@@ -172,10 +172,6 @@ public class MatchQuery {
 
     protected ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
 
-    /**
-     * @deprecated See {@link MatchQueryBuilder#setCommonTermsCutoff(Float)} for more details
-     */
-    @Deprecated
     protected Float commonTermsCutoff = null;
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
@@ -307,10 +303,6 @@ public class MatchQuery {
         return query == null ? zeroTermsQuery() : query;
     }
 
-    /**
-     * @deprecated See {@link CommonTermsQueryBuilder}
-     */
-    @Deprecated
     private Query createCommonTermsQuery(MatchQueryBuilder builder, String field, String queryText,
                                          Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency) {
         Query booleanQuery = builder.createBooleanQuery(field, queryText, lowFreqOccur);
@@ -321,10 +313,6 @@ public class MatchQuery {
         return booleanQuery;
     }
 
-    /**
-     * @deprecated See {@link CommonTermsQueryBuilder}
-     */
-    @Deprecated
     private Query boolToExtendedCommonTermsQuery(BooleanQuery bq,
                                                  Occur highFreqOccur,
                                                  Occur lowFreqOccur,

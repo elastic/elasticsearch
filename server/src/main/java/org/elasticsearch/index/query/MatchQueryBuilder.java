@@ -99,10 +99,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
-    /**
-     * @deprecated See {@link MatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
-     */
-    @Deprecated
     private Float cutoffFrequency = null;
 
     private boolean autoGenerateSynonymsPhraseQuery = true;

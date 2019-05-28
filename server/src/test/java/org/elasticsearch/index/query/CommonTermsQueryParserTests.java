@@ -22,10 +22,6 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-/**
- * @deprecated See {@link CommonTermsQueryBuilder}
- */
-@Deprecated
 public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {
     public void testWhenParsedQueryIsNullNoNullPointerExceptionIsThrown() {
         final String index = "test-index";

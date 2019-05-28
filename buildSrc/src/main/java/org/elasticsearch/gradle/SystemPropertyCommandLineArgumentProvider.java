@@ -16,7 +16,10 @@ public class SystemPropertyCommandLineArgumentProvider implements CommandLineArg
 
     @Override
     public Iterable<String> asArguments() {
-        return systemProperties.entrySet().stream().map(entry -> "-D" + entry.getKey() + "=" + entry.getValue()).collect(Collectors.toList());
+        return systemProperties.entrySet()
+            .stream()
+            .map(entry -> "-D" + entry.getKey() + "=" + entry.getValue())
+            .collect(Collectors.toList());
     }
 
     // Track system property keys as an input so our build cache key will change if we add properties but values are still ignored

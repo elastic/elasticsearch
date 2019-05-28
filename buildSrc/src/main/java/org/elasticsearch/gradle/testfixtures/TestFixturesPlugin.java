@@ -124,7 +124,8 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 configureServiceInfoForTask(
                     task,
                     fixtureProject,
-                    (name, host) -> task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
+                    (name, host) ->
+                        task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
                 );
                 task.dependsOn(fixtureProject.getTasks().getByName("postProcessFixture"));
             })

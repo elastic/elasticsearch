@@ -21,6 +21,7 @@ instead the same functionality can be achieved by masking the `systemd-sysctl`
 service.
 
 [float]
+[[_rpm_and_debian_packages_literal_setgid_literal_on_literal_etc_elasticsearch_literal]]
 === RPM and Debian packages `setgid` on `/etc/elasticsearch`
 
 The RPM and Debian packages now set the `setgid` flag on `/etc/elasticsearch` so

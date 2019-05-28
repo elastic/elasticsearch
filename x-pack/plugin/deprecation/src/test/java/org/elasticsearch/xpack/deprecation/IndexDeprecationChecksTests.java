@@ -23,11 +23,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasItem;
 
 public class IndexDeprecationChecksTests extends ESTestCase {
     public void testOldIndicesCheck() {
@@ -168,10 +167,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createSimpleIndex(simpleMapping);
+        IndexMetaData simpleIndex = createV6Index(simpleMapping);
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
-        assertThat(issues, is(emptyList()));
+        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
+        assertNull(issue);
     }
 
     public void testMigratedPatterns() throws IOException {
@@ -183,10 +182,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createSimpleIndex(simpleMapping);
+        IndexMetaData simpleIndex = createV6Index(simpleMapping);
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
-        assertThat(issues, is(emptyList()));
+        DeprecationIssue issue = IndexDeprecationChecks.deprecatedDateTimeFormat(simpleIndex);
+        assertNull(issue);
     }
 
     public void testMultipleWarningsOnCombinedPattern() throws IOException {
@@ -198,19 +197,19 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createSimpleIndex(simpleMapping);
+        IndexMetaData simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which may change meaning in 7.0",
+            "Date field format uses patterns which has changed meaning in 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field_Y, format: dd-CC||MM-YYYY, " +
                 "suggestion: 'C' century of era is no longer supported." +
                 "; "+
                 "'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
-                "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
-        assertEquals(singletonList(expected), issues);
+        assertThat(issues, hasItem(expected));
     }
 
     public void testDuplicateWarningsOnCombinedPattern() throws IOException {
@@ -222,17 +221,17 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createSimpleIndex(simpleMapping);
+        IndexMetaData simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which may change meaning in 7.0",
+            "Date field format uses patterns which has changed meaning in 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field_Y, format: dd-YYYY||MM-YYYY, " +
                 "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
-                "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
-        assertEquals(singletonList(expected), issues);
+        assertThat(issues, hasItem(expected));
     }
 
     public void testWarningsOnMixCustomAndDefinedPattern() throws IOException {
@@ -244,17 +243,17 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "       }\n" +
             "   }" +
             "}";
-        IndexMetaData simpleIndex = createSimpleIndex(simpleMapping);
+        IndexMetaData simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which may change meaning in 7.0",
+            "Date field format uses patterns which has changed meaning in 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field_Y, format: strictWeekyearWeek||MM-YYYY, " +
                 "suggestion: 'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year.]"+
-                "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
-        assertEquals(singletonList(expected), issues);
+        assertThat(issues, hasItem(expected));
     }
 
     public void testJodaPatternDeprecations() throws IOException {
@@ -287,10 +286,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "   }" +
             "}";
 
-        IndexMetaData simpleIndex = createSimpleIndex(simpleMapping);
+        IndexMetaData simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which may change meaning in 7.0",
+            "Date field format uses patterns which has changed meaning in 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field_Y, format: MM-YYYY, " +
@@ -306,9 +305,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "[type: _doc, field: date_time_field_z, format: HH:mmz, " +
                 "suggestion: 'z' time zone text. Will print 'Z' for Zulu given UTC timezone." +
                 "]"+
-                "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
-        assertEquals(singletonList(expected), issues);
+        assertThat(issues, hasItem(expected));
     }
 
     public void testMultipleJodaPatternDeprecationInOneField() throws IOException {
@@ -321,10 +320,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "   }" +
             "}";
 
-        IndexMetaData simpleIndex = createSimpleIndex(simpleMapping);
+        IndexMetaData simpleIndex = createV6Index(simpleMapping);
 
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Date field format uses patterns which may change meaning in 7.0",
+            "Date field format uses patterns which has changed meaning in 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
             "This index has date fields with deprecated formats: ["+
                 "[type: _doc, field: date_time_field, format: Y-C-x-y, " +
@@ -333,16 +332,16 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 "'C' century of era is no longer supported.; " +
                 "'x' weak-year should be replaced with 'Y'. Use 'x' for zone-offset." +
                 "]"+
-                "]. "+ JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
+                "]. "+ JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex));
-        assertEquals(singletonList(expected), issues);
+        assertThat(issues, hasItem(expected));
     }
 
-    public IndexMetaData createSimpleIndex(String simpleMapping) throws IOException {
+    public IndexMetaData createV6Index(String simpleMapping) throws IOException {
         return IndexMetaData.builder(randomAlphaOfLengthBetween(5, 10))
                             .settings(settings(
                                 VersionUtils.randomVersionBetween(random(), Version.V_6_0_0,
-                                    VersionUtils.getPreviousVersion(Version.CURRENT))))
+                                    VersionUtils.getPreviousVersion(Version.V_7_0_0))))
                             .numberOfShards(randomIntBetween(1, 100))
                             .numberOfReplicas(randomIntBetween(1, 100))
                             .putMapping("_doc", simpleMapping)

@@ -7,6 +7,7 @@
 Document modification operations may no longer specify the `version_type` of
 `force` to override any previous version checks.
 
+[[_link_linkend_upserts_upserts_link_no_longer_support_versions]]
 ==== Upserts no longer support versions
 
 Adding a `version` to an upsert request is no longer supported.

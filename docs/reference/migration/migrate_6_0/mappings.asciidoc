@@ -9,6 +9,7 @@ series the previous coercion rules will continue to work on pre-6.0 indices. Thi
 mappings immediately. However, it is not possible to create new indices from existing index templates that violate the strict `boolean`
 coercion rules.
 
+[[_the_literal__all_literal_meta_field_is_now_disabled_by_default]]
 ==== The `_all` meta field is now disabled by default
 
 On new mappings, the `_all` meta field that contains a copy of the text from
@@ -18,18 +19,21 @@ check if `_all` is enabled/disabled and switch to executing the query across all
 fields if `_all` is disabled. `_all` can no longer be configured for indices
 created with Elasticsearch version 6.0 or later.
 
+[[_the_literal_include_in_all_literal_mapping_parameter_is_now_disallowed]]
 ==== The `include_in_all` mapping parameter is now disallowed
 
 Since the ++_all++ field is now disabled by default and cannot be configured for
 indices created with Elasticsearch 6.0 or later, the `include_in_all` setting is
 now disallowed for these indices' mappings.
 
+[[_unrecognized_literal_match_mapping_type_literal_options_not_silently_ignored]]
 ==== Unrecognized `match_mapping_type` options not silently ignored
 
 Previously Elasticsearch would silently ignore any dynamic templates that
 included a `match_mapping_type` type that was unrecognized. An exception is now
 thrown on an unrecognized type.
 
+[[_validation_of_literal_locale_literal_on_date_fields]]
 ==== Validation of `locale` on date fields
 
 The `locale` option of `date` fields previously allowed almost any string values,

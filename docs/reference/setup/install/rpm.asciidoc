@@ -115,7 +115,7 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
-:int-context: rpm
+:init-context: rpm
 
 include::init-systemd.asciidoc[]
 

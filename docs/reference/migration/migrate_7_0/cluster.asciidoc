@@ -17,6 +17,7 @@ Due to cross-cluster search using `:` to separate a cluster and index name,
 cluster names may no longer contain `:`.
 
 [float]
+[[new-default-wait-for-active-shards-param]]
 ==== New default for `wait_for_active_shards` parameter of the open index command
 
 The default value for the `wait_for_active_shards` parameter of the open index API
@@ -25,6 +26,7 @@ primary shards of the opened index to be allocated.
 
 //tag::notable-breaking-changes[]
 [float]
+[[shard-preferences-removed]]
 ==== Shard preferences `_primary`, `_primary_first`, `_replica`, and `_replica_first` are removed
 These shard preferences are removed in favour of the `_prefer_nodes` and `_only_nodes` preferences.
 //end::notable-breaking-changes[]

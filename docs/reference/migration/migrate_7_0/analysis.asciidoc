@@ -10,6 +10,7 @@
 // end::notable-breaking-changes[]
 
 [float]
+[[limit-number-of-tokens-produced-by-analyze]]
 ==== Limiting the number of tokens produced by _analyze
 
 To safeguard against out of memory errors, the number of tokens that can be produced
@@ -27,6 +28,7 @@ limited to 1000000. This default limit can be changed
 for a particular index with the index setting `index.highlight.max_analyzed_offset`.
 
 [float]
+[[delimited-payload-filter-renaming]]
 ==== `delimited_payload_filter` renaming
 
 The `delimited_payload_filter` was deprecated and renamed to `delimited_payload` in 6.2.
@@ -35,6 +37,7 @@ name in new indices created in 7.0 will throw an error. Use the new name `delimi
 instead.
 
 [float]
+[[standard-filter-removed]]
 ==== `standard` filter has been removed
 
 The `standard` token filter has been removed because it doesn't change anything in the stream.
@@ -48,6 +51,7 @@ Indexes created using this analyzer will still be readable in elasticsearch 7.0,
 but it will not be possible to create new indexes using it.
 
 [float]
+[[deprecated-ngram-edgengram-token-filter-cannot-be-used]]
 ==== The deprecated `nGram` and `edgeNGram` token filter cannot be used on new indices
 
 The `nGram` and `edgeNGram` token filter names have been deprecated in an earlier 6.x version.

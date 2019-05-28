@@ -86,6 +86,7 @@ Tribe node functionality has been removed in favor of
   can no longer provide their own discovery implementations.
 
 [float]
+[[watcher-hipchat-action-removed]]
 ==== Watcher 'hipchat' action removed
 
 Hipchat has been deprecated and shut down as a service. The `hipchat` action for

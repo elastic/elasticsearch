@@ -1165,9 +1165,13 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
      */
     boolean cancelCommittedPublication() {
         synchronized (mutex) {
-            if (currentPublication.isPresent() && currentPublication.get().isCommitted()) {
-                currentPublication.get().cancel("cancelCommittedPublication");
-                return true;
+            if (currentPublication.isPresent()) {
+                final CoordinatorPublication publication = currentPublication.get();
+                if (publication.isCommitted()) {
+                    publication.cancel("cancelCommittedPublication");
+                    logger.debug("Cancelled publication of [{}].", publication);
+                    return true;
+                }
             }
             return false;
         }

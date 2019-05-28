@@ -11,9 +11,12 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformProgress;
+
+import java.util.function.Function;
 
 /**
  * Utility class to gather the progress information for a given config and its cursor position
@@ -29,17 +32,10 @@ public final class TransformProgressGatherer {
     public static void getInitialProgress(Client client,
                                           DataFrameTransformConfig config,
                                           ActionListener<DataFrameTransformProgress> progressListener) {
-        SearchRequest request = client.prepareSearch(config.getSource().getIndex())
-            .setSize(0)
-            .setAllowPartialSearchResults(false)
-            .setTrackTotalHits(true)
-            .setQuery(config.getSource().getQueryConfig().getQuery())
-            .request();
+        SearchRequest request = getSearchRequest(config);
 
         ActionListener<SearchResponse> searchResponseActionListener = ActionListener.wrap(
-            searchResponse -> {
-                progressListener.onResponse(new DataFrameTransformProgress(searchResponse.getHits().getTotalHits().value, null));
-            },
+            searchResponse -> progressListener.onResponse(searchResponseToDataFrameTransformProgressFunction().apply(searchResponse)),
             progressListener::onFailure
         );
         ClientHelper.executeWithHeadersAsync(config.getHeaders(),
@@ -50,4 +46,17 @@ public final class TransformProgressGatherer {
             searchResponseActionListener);
     }
 
+    public static SearchRequest getSearchRequest(DataFrameTransformConfig config) {
+        SearchRequest request = new SearchRequest(config.getSource().getIndex());
+        request.allowPartialSearchResults(false);
+        request.source(new SearchSourceBuilder()
+            .size(0)
+            .trackTotalHits(true)
+            .query(config.getSource().getQueryConfig().getQuery()));
+        return request;
+    }
+
+    public static Function<SearchResponse, DataFrameTransformProgress> searchResponseToDataFrameTransformProgressFunction() {
+        return searchResponse -> new DataFrameTransformProgress(searchResponse.getHits().getTotalHits().value, null);
+    }
 }

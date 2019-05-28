@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -84,6 +85,8 @@ public interface TestClusterConfiguration {
     List<String> getAllTransportPortURI();
 
     void stop(boolean tailLogs);
+
+    void setNameCustomization(Function<String, String> nameSupplier);
 
     default void waitForConditions(
         LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions,

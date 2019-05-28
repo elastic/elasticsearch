@@ -44,7 +44,4 @@ public class StopDataFrameTransformResponse extends AcknowledgedTasksResponse {
         super(acknowledged, taskFailures, nodeFailures);
     }
 
-    public boolean isStopped() {
-        return isAcknowledged();
-    }
 }

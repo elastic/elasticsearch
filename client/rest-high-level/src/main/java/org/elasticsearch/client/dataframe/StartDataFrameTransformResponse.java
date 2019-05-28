@@ -45,7 +45,4 @@ public class StartDataFrameTransformResponse extends AcknowledgedTasksResponse {
         super(acknowledged, taskFailures, nodeFailures);
     }
 
-    public boolean isStarted() {
-        return isAcknowledged();
-    }
 }

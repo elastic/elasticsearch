@@ -105,6 +105,7 @@ plugin --remove <pluginname>
 -----------------------------------
 
 [float]
+[[_silent_verbose_mode]]
 ==== Silent/Verbose mode
 
 When running the `plugin` script, you can get more information (debug mode) using `--verbose`.

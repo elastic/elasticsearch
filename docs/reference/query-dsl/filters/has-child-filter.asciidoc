@@ -43,6 +43,7 @@ The `has_child` filter also accepts a filter instead of a query:
 --------------------------------------------------
 
 [float]
+[[_min_max_children_2]]
 ==== Min/Max Children
 
 added[1.3.0]

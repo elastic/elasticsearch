@@ -54,6 +54,7 @@ inside the `has_child` query:
 --------------------------------------------------
 
 [float]
+[[_min_max_children]]
 ==== Min/Max Children
 
 added[1.3.0]

@@ -133,7 +133,6 @@ public class Bucket implements ToXContentObject, Writeable {
         isInterim = in.readBoolean();
         bucketInfluencers = in.readList(BucketInfluencer::new);
         processingTimeMs = in.readLong();
-        in.readList(Bucket::readOldPerPartitionNormalization);
         scheduledEvents = in.readStringList();
         if (scheduledEvents.isEmpty()) {
             scheduledEvents = Collections.emptyList();

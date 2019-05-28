@@ -28,6 +28,7 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -304,7 +305,7 @@ public class DoSection implements ExecutableSection {
                      * We skip warnings related to types deprecation so that we can continue to run the many
                      * mixed-version tests that used typed APIs.
                      */
-                } else  if (message.endsWith("Prefix your date format with '8' to use the new specifier.")) {
+                } else  if (message.endsWith(JodaDeprecationPatterns.USE_PREFIX_8_WARNING)) {
                     /*
                      * Skipping warning checks related to joda-java migration.
                      */

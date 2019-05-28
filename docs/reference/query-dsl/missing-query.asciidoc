@@ -42,6 +42,7 @@ These documents would *not* match the above filter:
 <3> This field has one non-`null` value.
 
 [float]
+[[_literal_null_value_literal_mapping]]
 ==== `null_value` mapping
 
 If the field mapping includes a <<null-value,`null_value`>> then explicit `null` values
@@ -75,6 +76,7 @@ no values in the `user` field and thus would match the `missing` filter:
 --------------------------------------------------
 
 [float]
+[[_literal_existence_literal_and_literal_null_value_literal_parameters]]
 ===== `existence` and `null_value` parameters
 
 When the field being queried has a `null_value` mapping, then the behaviour of

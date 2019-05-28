@@ -19,6 +19,7 @@ A change to the CORS implementation means that CORS support for pre-flight
 === Mappings
 
 [float]
+[[_limit_to_the_number_of_literal_nested_literal_fields]]
 ==== Limit to the number of `nested` fields
 
 Indexing a document with 100 nested fields actually indexes 101 documents as each nested

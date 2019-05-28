@@ -12,6 +12,7 @@ your application to Elasticsearch 2.1.
 [[breaking_21_search_changes]]
 === Search changes
 
+[[_literal_search_type_scan_literal_deprecated]]
 ==== `search_type=scan` deprecated
 
 The `scan` search type has been deprecated. All benefits from this search
@@ -32,6 +33,7 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+[[_literal_search_type_count_literal_deprecated_2]]
 ==== `search_type=count` deprecated
 
 The `count` search type has been deprecated. All benefits from this search
@@ -74,6 +76,7 @@ MoreLikeThisBuilder#addLikeItem.
 [[breaking_21_update_changes]]
 === Update changes
 
+[[_updates_now_literal_detect_noop_literal_by_default]]
 ==== Updates now `detect_noop` by default
 
 We've switched the default value of the `detect_noop` option from `false` to
@@ -97,6 +100,7 @@ The value for the `queue_size` in nodes info/stats was sometimes shown as
 [[breaking_21_removed_features]]
 === Removed features
 
+[[_literal_indices_fielddata_cache_expire_literal]]
 ==== `indices.fielddata.cache.expire`
 
 The experimental feature `indices.fielddata.cache.expire` has been removed.

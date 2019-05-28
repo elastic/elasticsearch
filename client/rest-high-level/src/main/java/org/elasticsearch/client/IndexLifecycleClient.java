@@ -308,9 +308,12 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Retrieve one or more snapshot lifecycle policy definitions. See
-     * <a href="fill-me-in">
-     * the docs</a> for more.
+     * Retrieve one or more snapshot lifecycle policy definitions.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-get-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -323,9 +326,12 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Asynchronously retrieve one or more snapshot lifecycle policy definition. See
-     * <a href="fill-me-in">
-     * the docs</a> for more.
+     * Asynchronously retrieve one or more snapshot lifecycle policy definition.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-get-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -337,9 +343,12 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Create or modify a snapshot lifecycle definition. See <a href=
-     * "fill-me-in">
-     * the docs</a> for more.
+     * Create or modify a snapshot lifecycle definition.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-put-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -352,9 +361,12 @@ public class IndexLifecycleClient {
     }
 
     /**
-     * Asynchronously create or modify a snapshot lifecycle definition. See <a href=
-     * "fill-me-in">
-     * the docs</a> for more.
+     * Asynchronously create or modify a snapshot lifecycle definition.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-put-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -367,8 +379,11 @@ public class IndexLifecycleClient {
 
     /**
      * Delete a snapshot lifecycle definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-delete-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -382,8 +397,11 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously delete a snapshot lifecycle definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-delete-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
@@ -396,8 +414,11 @@ public class IndexLifecycleClient {
 
     /**
      * Execute a snapshot lifecycle definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-execute-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
@@ -411,8 +432,11 @@ public class IndexLifecycleClient {
 
     /**
      * Asynchronously execute a snapshot lifecycle definition
-     * See <a href="https://fix-me-when-we-have-docs.com">
-     * the docs</a> for more.
+     * See <pre>
+     *  https://www.elastic.co/guide/en/elasticsearch/client/java-rest/current/
+     *  java-rest-high-ilm-slm-execute-snapshot-lifecycle-policy.html
+     * </pre>
+     * for more.
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion

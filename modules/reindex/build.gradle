@@ -26,7 +26,6 @@ apply plugin: 'elasticsearch.test-with-dependencies'
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
-  hasClientJar = true
 }
 
 testClusters.integTest {

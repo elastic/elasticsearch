@@ -83,6 +83,7 @@ Indices created in the previous major version will need to be reindexed
 in order to return correct (and correctly ordered) results,
 and to take advantage of new characters.
 
+[[_plugins_should_not_construct_literal_environment_literal_instances_from_literal_settings_literal]]
 ==== Plugins should not construct `Environment` instances from `Settings`
 
 Previously, plugins could construct an `Environment` instance from `Settings` to

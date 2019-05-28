@@ -981,7 +981,6 @@ public abstract class TransportReplicationAction<
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            assert in.getVersion().onOrAfter(Version.V_6_0_0_rc1);
             localCheckpoint = in.readZLong();
             globalCheckpoint = in.readZLong();
         }
@@ -989,7 +988,6 @@ public abstract class TransportReplicationAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            assert out.getVersion().onOrAfter(Version.V_6_0_0_rc1);
             out.writeZLong(localCheckpoint);
             out.writeZLong(globalCheckpoint);
         }

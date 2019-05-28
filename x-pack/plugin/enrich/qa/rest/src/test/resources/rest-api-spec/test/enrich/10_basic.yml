@@ -17,6 +17,14 @@
   - is_true: acknowledged
 
   - do:
+      enrich.get_policy:
+        name: policy-crud
+  - match: { type: exact_match }
+  - match: { indices: ["bar*"] }
+  - match: { enrich_key: baz }
+  - match: { enrich_values: ["a", "b"] }
+
+  - do:
       enrich.list_policy: {}
   - length: { policies: 1 }
   - match: { policies.0.name: policy-crud }

@@ -127,3 +127,46 @@ setup:
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+
+---
+"Test preview returns bad request with invalid agg":
+  - skip:
+      reason:  date histo interval is deprecated
+      features: "warnings"
+
+  - do:
+      warnings:
+        - "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future."
+      catch: bad_request
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
+
+  - do:
+      warnings:
+        - "[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future."
+      catch: /mixed object types of nested and non-nested fields \[time.min\]/
+      data_frame.preview_data_frame_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "pivot": {
+              "group_by": {
+                "time": {"date_histogram": {"interval": "1h", "field": "time", "format": "yyyy-MM-DD HH"}}},
+              "aggs": {
+                "avg_response": {"avg": {"field": "responsetime"}},
+                "time.min": {"min": {"field": "time"}}
+              }
+            }
+          }
+

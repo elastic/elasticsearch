@@ -15,6 +15,7 @@ info, and node stats responses:
 * `os.mem.total` and `os.swap.total` have been removed from nodes info.
 * `process.mem.resident` and `process.mem.share` have been removed from node stats.
 
+[[_removed_literal_id_cache_literal_from_stats_apis]]
 ==== Removed `id_cache` from stats apis
 
 Removed `id_cache` metric from nodes stats, indices stats and cluster stats

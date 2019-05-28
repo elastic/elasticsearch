@@ -43,7 +43,6 @@ The `has_child` filter also accepts a filter instead of a query:
 --------------------------------------------------
 
 [float]
-[[_min_max_children_2]]
 ==== Min/Max Children
 
 The `has_child` filter allows you to specify that a minimum and/or maximum

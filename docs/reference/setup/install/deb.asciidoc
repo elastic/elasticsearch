@@ -122,6 +122,7 @@ sudo dpkg -i elasticsearch-{version}.deb
 
 endif::[]
 
+[[deb-sysv-init-vs-systemd]]
 include::init-systemd.asciidoc[]
 
 [[deb-running-init]]

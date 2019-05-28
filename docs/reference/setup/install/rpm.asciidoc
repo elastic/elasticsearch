@@ -114,6 +114,7 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
+[[rpm-sysv-init-vs-systemd]]
 include::init-systemd.asciidoc[]
 
 [[rpm-running-init]]

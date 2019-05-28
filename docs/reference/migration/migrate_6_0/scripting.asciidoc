@@ -23,6 +23,7 @@ milliseconds since epoch as a `long`. The same is true for
 fetch the milliseconds since epoch if you need it.
 
 [float]
+[[_removed_access_to_index_internal_via_the_literal__index_literal_variable]]
 ==== Removed access to index internal via the `_index` variable
 
 The `_index` variable has been removed. If you used it for advanced scoring, consider writing a `Similarity` plugin.
@@ -34,6 +35,7 @@ All of the existing scripting security settings have been removed.  Instead
 they are replaced with `script.allowed_types` and `script.allowed_contexts`.
 
 [float]
+[[_literal_lang_literal_can_no_longer_be_specified_when_using_a_stored_script_as_part_of_a_request]]
 ==== `lang` can no longer be specified when using a stored script as part of a request
 
 The `lang` variable can no longer be specified as part of a request that uses a stored

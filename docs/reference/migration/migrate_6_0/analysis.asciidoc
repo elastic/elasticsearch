@@ -26,6 +26,7 @@ is not set. A deprecation warning will be issued when an analyzed text exceeds 1
 `index.highlight.max_analyzed_offset`.
 
 [float]
+[[_literal_standard_literal_filter_has_been_deprecated]]
 ==== `standard` filter has been deprecated
  The `standard` token filter has been deprecated because it doesn't change anything in
  the stream. It will be removed in the next major version.

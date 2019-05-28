@@ -85,6 +85,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration]
 
 The number of terms which should match can be controlled with the
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
@@ -110,6 +111,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration]
 
 which is roughly equivalent to:
 
@@ -134,6 +136,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration]
 
 Alternatively use
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
@@ -156,6 +159,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration]
 
 which is roughly equivalent to:
 
@@ -185,6 +189,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration]
 
 A different
 <<query-dsl-minimum-should-match,`minimum_should_match`>>
@@ -211,6 +216,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration]
 
 which is roughly equivalent to:
 
@@ -246,6 +252,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration]
 
 In this case it means the high frequency terms have only an impact on
 relevance when there are at least three of them. But the most
@@ -272,6 +279,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration]
 
 which is roughly equivalent to:
 
@@ -293,6 +301,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration]
 
 The high frequency generated query is then slightly less restrictive
 than with an `AND`.

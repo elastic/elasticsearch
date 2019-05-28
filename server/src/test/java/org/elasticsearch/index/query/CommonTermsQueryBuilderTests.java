@@ -25,6 +25,9 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.junit.After;
+import org.junit.Rule;
+import org.junit.rules.TestName;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -42,6 +45,13 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @Deprecated
 public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTermsQueryBuilder> {
+
+    @After
+    public void validateDeprecationMessage() {
+        if (getTestName().equals("testParseFailsWithMultipleFields") == false) {
+            assertWarnings(CommonTermsQueryBuilder.COMMON_TERMS_QUERY_DEPRECATION_MSG);
+        }
+    }
 
     @Override
     protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {

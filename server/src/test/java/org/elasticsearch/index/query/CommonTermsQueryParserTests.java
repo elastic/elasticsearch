@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.junit.After;
 
 /**
  * @deprecated See {@link CommonTermsQueryBuilder}
@@ -48,5 +49,7 @@ public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {
 
         assertNotNull(response);
         assertEquals(response.getHits().getHits().length, 0);
+
+        assertWarnings(CommonTermsQueryBuilder.COMMON_TERMS_QUERY_DEPRECATION_MSG);
     }
 }

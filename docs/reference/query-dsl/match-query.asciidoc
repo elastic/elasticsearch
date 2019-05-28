@@ -160,6 +160,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:[cutoff_frequency] has been deprecated in favor of the [max_score] optimization which is applied automatically without any configuration]
 
 IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This means
 that when trying it out on test indexes with low document numbers you

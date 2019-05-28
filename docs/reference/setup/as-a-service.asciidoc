@@ -44,7 +44,7 @@ java -version
 
 The last command should verify a successful installation of the Oracle JDK.
 
-
+[[__redhat_centos_fedora]]
 ==== RedHat/Centos/Fedora
 
 RedHat based distributions are using `chkconfig` to enable and disable services. The init script is at `/etc/init.d/elasticsearch`, where as the configuration file is placed at `/etc/sysconfig/elasticsearch`.

@@ -150,6 +150,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
+            restClient.indices().refresh(new RefreshRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
             SearchResponse searchResponse = restClient.search(new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
                     .source(SearchSourceBuilder.searchSource()
                         .size(1)

@@ -9,6 +9,7 @@ configured, e.g. `path.data`, `path.scripts`, `path.repo`.  A configured path
 may itself be a symbolic link, but no symlinks under that path will be
 followed.
 
+[[_running_literal_bin_elasticsearch_literal]]
 ==== Running `bin/elasticsearch`
 
 The command line parameter parsing has been rewritten to deal properly with
@@ -25,11 +26,13 @@ bin/elasticsearch -d -p /tmp/foo.pid --http.cors.enabled=true --http.cors.allow-
 
 For a list of static parameters, run `bin/elasticsearch -h`
 
+[[_literal_f_literal_removed]]
 ==== `-f` removed
 
 The `-f` parameter, which used to indicate that Elasticsearch should be run in
 the foreground, was deprecated in 1.0 and removed in 2.0.
 
+[[_literal_v_literal_for_version]]
 ==== `V` for version
 
 The `-v` parameter now means `--verbose` for both `bin/plugin` and

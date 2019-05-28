@@ -35,6 +35,7 @@ the node that receives the request or another node.
 The `text()` method on `AnalyzeRequest` now returns `String[]` instead of
 `String`.
 
+[[_removed_literal_id_cache_literal_from_clear_cache_api]]
 ==== Removed `id_cache` from clear cache api
 
 The <<indices-clearcache,clear cache>> API no longer supports the `id_cache`

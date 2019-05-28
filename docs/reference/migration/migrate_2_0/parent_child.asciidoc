@@ -35,6 +35,7 @@ PUT my_index
 The mapping for the parent type can be added at the same time as the mapping
 for the child type, but cannot be added before the child type.
 
+[[_literal_top_children_literal_query_removed]]
 ==== `top_children` query removed
 
 The `top_children` query has been removed in favour of the `has_child` query.

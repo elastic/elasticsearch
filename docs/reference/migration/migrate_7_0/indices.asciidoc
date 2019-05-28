@@ -21,12 +21,14 @@ Due to cross-cluster search using `:` to separate a cluster and index name,
 index names may no longer contain `:`.
 
 [float]
+[[index-unassigned-node-left-delayed-timeout-no-longer-negative]]
 ==== `index.unassigned.node_left.delayed_timeout` may no longer be negative
 
 Negative values were interpreted as zero in earlier versions but are no
 longer accepted.
 
 [float]
+[[flush-force-merge-no-longer-refresh]]
 ==== `_flush` and `_force_merge` will no longer refresh
 
 In previous versions issuing a `_flush` or `_force_merge` (with `flush=true`)
@@ -84,6 +86,7 @@ The following previously deprecated url parameter have been removed:
 * `field_data` - use `fielddata` instead
 
 [float]
+[[network-breaker-inflight-requests-overhead-increased-to-2]]
 ==== `network.breaker.inflight_requests.overhead` increased to 2
 
 Previously the in flight requests circuit breaker considered only the raw byte representation.
@@ -107,11 +110,13 @@ there is less need for fielddata. Therefore, the default value of the setting
 heap size.
 
 [float]
+[[fix-value-for-index-shard-check-on-startup-removed]]
 ==== `fix` value for `index.shard.check_on_startup` is removed
 
 Deprecated option value `fix` for setting `index.shard.check_on_startup` is not supported.
 
 [float]
+[[elasticsearch-translog-removed]]
 ==== `elasticsearch-translog` is removed
 
 Use the `elasticsearch-shard` tool to remove corrupted translog data.

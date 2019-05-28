@@ -54,6 +54,7 @@ above. If you are preparing to upgrade from an earlier version, you must set
 //end::notable-breaking-changes[]
 
 [float]
+[[new-name-no-master-block-setting]]
 ==== New name for `no_master_block` setting
 
 The `discovery.zen.no_master_block` setting is now known as

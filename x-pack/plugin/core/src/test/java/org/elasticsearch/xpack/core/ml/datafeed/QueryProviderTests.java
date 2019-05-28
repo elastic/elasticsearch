@@ -96,28 +96,6 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
         assertThat(e.getMessage(), equalTo("Datafeed query is not parsable"));
     }
 
-    public void testSerializationBetweenBugVersion() throws IOException {
-        QueryProvider tempQueryProvider = createRandomValidQueryProvider();
-        QueryProvider queryProviderWithEx = new QueryProvider(tempQueryProvider.getQuery(),
-            tempQueryProvider.getParsedQuery(),
-            new IOException("ex"));
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_6_2);
-            queryProviderWithEx.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writableRegistry())) {
-                in.setVersion(Version.V_6_6_2);
-                QueryProvider streamedQueryProvider = QueryProvider.fromStream(in);
-                assertThat(streamedQueryProvider.getQuery(), equalTo(queryProviderWithEx.getQuery()));
-                assertThat(streamedQueryProvider.getParsingException(), is(nullValue()));
-
-                QueryBuilder streamedParsedQuery = XContentObjectTransformer.queryBuilderTransformer(xContentRegistry())
-                    .fromMap(streamedQueryProvider.getQuery());
-                assertThat(streamedParsedQuery, equalTo(queryProviderWithEx.getParsedQuery()));
-                assertThat(streamedQueryProvider.getParsedQuery(), is(nullValue()));
-            }
-        }
-    }
-
     public void testSerializationBetweenEagerVersion() throws IOException {
         QueryProvider validQueryProvider = createRandomValidQueryProvider();
 

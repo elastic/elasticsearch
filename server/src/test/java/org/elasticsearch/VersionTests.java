@@ -345,7 +345,7 @@ public class VersionTests extends ESTestCase {
 
     public void testIsCompatible() {
         assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
-        assertFalse(isCompatible(Version.V_6_6_0, Version.V_7_0_0));
+        assertFalse(isCompatible(Version.fromString("6.6.0"), Version.fromString("7.0.0")));
         assertFalse(isCompatible(Version.V_6_7_0, Version.V_7_0_0));
         assertTrue(isCompatible(Version.V_6_8_0, Version.V_7_0_0));
         assertFalse(isCompatible(Version.fromId(2000099), Version.V_7_0_0));

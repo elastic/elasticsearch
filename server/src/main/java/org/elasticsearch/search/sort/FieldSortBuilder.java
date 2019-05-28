@@ -394,16 +394,18 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 localSortMode = reverse ? MultiValueMode.MAX : MultiValueMode.MIN;
             }
 
-            final Nested nested;
-            if (nestedSort != null) {
-                if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
-                    throw new QueryShardException(context,
-                        "max_children is only supported on last level of nested sort");
+            Nested nested = null;
+            if (isUnmapped == false) {
+                if (nestedSort != null) {
+                    if (nestedSort.getNestedSort() != null && nestedSort.getMaxChildren() != Integer.MAX_VALUE) {
+                        throw new QueryShardException(context,
+                            "max_children is only supported on last level of nested sort");
+                    }
+                    // new nested sorts takes priority
+                    nested = resolveNested(context, nestedSort);
+                } else {
+                    nested = resolveNested(context, nestedPath, nestedFilter);
                 }
-                // new nested sorts takes priority
-                nested = resolveNested(context, nestedSort);
-            } else {
-                nested = resolveNested(context, nestedPath, nestedFilter);
             }
 
             IndexFieldData<?> fieldData = context.getForField(fieldType);

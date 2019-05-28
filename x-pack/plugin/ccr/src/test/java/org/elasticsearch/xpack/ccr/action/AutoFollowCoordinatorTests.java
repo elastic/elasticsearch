@@ -813,8 +813,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
-        ClusterState remoteState = randomBoolean() ? createRemoteClusterState("logs-20190101", false) :
-            createRemoteClusterState("logs-20190101", randomBoolean());
+        ClusterState remoteState = createRemoteClusterState("logs-20190101", false);
 
         AutoFollowPattern autoFollowPattern = new AutoFollowPattern("remote", Collections.singletonList("logs-*"),
             null, null, null, null, null, null, null, null, null, null, null);

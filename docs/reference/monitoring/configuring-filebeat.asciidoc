@@ -1,0 +1,11 @@
+[role="xpack"]
+[testenv="basic"]
+[[configuring-filebeat]]
+=== Collecting {es} log data with {filebeat}
+
+[subs="attributes"]
+++++
+<titleabbrev>Collecting log data with {filebeat}</titleabbrev>
+++++
+
+coming[7.2.0]

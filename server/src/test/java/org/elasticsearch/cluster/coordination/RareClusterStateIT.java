@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 @TestLogging("_root:DEBUG")
 public class RareClusterStateIT extends ESIntegTestCase {
 
@@ -141,6 +141,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
     private <Req extends ActionRequest, Res extends ActionResponse> ActionFuture<Res> executeAndCancelCommittedPublication(
             ActionRequestBuilder<Req, Res> req) throws Exception {
+        // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
+        // request.
+        assertBusy(
+            () -> assertFalse(((Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class)).publicationInProgress()));
         ActionFuture<Res> future = req.execute();
         assertBusy(
             () -> assertTrue(((Coordinator)internalCluster().getCurrentMasterNodeInstance(Discovery.class)).cancelCommittedPublication()));

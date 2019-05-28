@@ -206,19 +206,6 @@ public final class AnalysisRegistry implements Closeable {
     }
 
     /**
-     * Returns a registered {@link CharFilterFactory} provider by {@link IndexSettings}
-     *  or a registered {@link CharFilterFactory} provider by predefined name
-     *  or <code>null</code> if the charFilter was not registered
-     * @param charFilter global or defined charFilter name
-     * @param indexSettings an index settings
-     * @return {@link CharFilterFactory} provider or <code>null</code>
-     */
-    public AnalysisProvider<CharFilterFactory> getCharFilterProvider(String charFilter, IndexSettings indexSettings) {
-        return getProvider(Component.CHAR_FILTER, charFilter, indexSettings, "index.analysis.char_filter", charFilters,
-                this::getCharFilterProvider);
-    }
-
-    /**
      * Returns a registered {@link TokenFilterFactory} provider by {@link IndexSettings}
      *  or a registered {@link TokenFilterFactory} provider by predefined name
      *  or <code>null</code> if the tokenFilter was not registered
@@ -229,6 +216,19 @@ public final class AnalysisRegistry implements Closeable {
     public AnalysisProvider<TokenFilterFactory> getTokenFilterProvider(String tokenFilter, IndexSettings indexSettings) {
         return getProvider(Component.FILTER, tokenFilter, indexSettings, "index.analysis.filter", tokenFilters,
                 this::getTokenFilterProvider);
+    }
+
+    /**
+     * Returns a registered {@link CharFilterFactory} provider by {@link IndexSettings}
+     *  or a registered {@link CharFilterFactory} provider by predefined name
+     *  or <code>null</code> if the charFilter was not registered
+     * @param charFilter global or defined charFilter name
+     * @param indexSettings an index settings
+     * @return {@link CharFilterFactory} provider or <code>null</code>
+     */
+    public AnalysisProvider<CharFilterFactory> getCharFilterProvider(String charFilter, IndexSettings indexSettings) {
+        return getProvider(Component.CHAR_FILTER, charFilter, indexSettings, "index.analysis.char_filter", charFilters,
+                this::getCharFilterProvider);
     }
 
     private <T> AnalysisProvider<T> getProvider(Component componentType, String componentName, IndexSettings indexSettings,
@@ -328,7 +328,7 @@ public final class AnalysisRegistry implements Closeable {
             if (provider.requiresAnalysisSettings()) {
                 continue;
             }
-            AnalysisModule.AnalysisProvider<T> defaultProvider = defaultInstance.get(name);
+            AnalysisProvider<T> defaultProvider = defaultInstance.get(name);
             final T instance;
             if (defaultProvider == null) {
                 instance = provider.get(settings, environment, name, defaultSettings);
@@ -338,9 +338,9 @@ public final class AnalysisRegistry implements Closeable {
             factories.put(name, instance);
         }
 
-        for (Map.Entry<String, ? extends AnalysisModule.AnalysisProvider<T>> entry : defaultInstance.entrySet()) {
+        for (Map.Entry<String, ? extends AnalysisProvider<T>> entry : defaultInstance.entrySet()) {
             final String name = entry.getKey();
-            final AnalysisModule.AnalysisProvider<T> provider = entry.getValue();
+            final AnalysisProvider<T> provider = entry.getValue();
             factories.putIfAbsent(name, provider.get(settings, environment, name, defaultSettings));
         }
         return factories;

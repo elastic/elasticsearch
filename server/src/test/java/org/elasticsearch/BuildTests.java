@@ -192,7 +192,7 @@ public class BuildTests extends ESTestCase {
                 throw new AssertionError();
             });
     }
-    
+
     public void testFlavorParsing() {
         for (final Build.Flavor flavor : Build.Flavor.values()) {
             // strict or not should not impact parsing at all here

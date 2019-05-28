@@ -292,9 +292,9 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
     }
 
     private static Map<String, Object> randomUserMetadata() {
-//        if (randomBoolean()) {
-//            return null;
-//        }
+        if (randomBoolean()) {
+            return null;
+        }
 
         Map<String, Object> metadata = new HashMap<>();
         long fields = randomLongBetween(0, 4);

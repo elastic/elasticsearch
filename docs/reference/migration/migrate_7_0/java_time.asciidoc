@@ -37,7 +37,7 @@ try to use a date formatter that includes a lower case `Y`
 [source,text]
 ----------
 Use of 'Y' (year-of-era) will change to 'y' in the next major version of
-Elasticsearch. Prefix your date format with '8' to use the new specifier.
+Elasticsearch. Use new java.time date format specifiiers.
 ----------
 
 So, instead of using `YYYY.MM.dd` you should use `8yyyy.MM.dd`.

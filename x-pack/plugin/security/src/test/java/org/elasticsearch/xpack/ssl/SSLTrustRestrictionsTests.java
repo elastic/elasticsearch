@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.is;
  *
  * @see RestrictedTrustManager
  */
-@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false, transportClientRatio = 0.0)
+@ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @TestLogging("org.elasticsearch.xpack.ssl.RestrictedTrustManager:DEBUG")
 public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 

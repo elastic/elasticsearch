@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
-import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.dataframe.DataFrame;
@@ -223,18 +222,8 @@ public class DataFrameTransformPersistentTasksExecutor extends PersistentTasksEx
                            DataFrameTransformTask.ClientDataFrameIndexerBuilder indexerBuilder,
                            Long previousCheckpoint,
                            ActionListener<StartDataFrameTransformTaskAction.Response> listener) {
-        // If we are stopped, and it is an initial run, this means we have never been started,
-        // attempt to start the task
-
         buildTask.initializeIndexer(indexerBuilder);
-        // TODO isInitialRun is false after relocation??
-        if (buildTask.getState().getTaskState().equals(DataFrameTransformTaskState.STOPPED) && buildTask.isInitialRun()) {
-            logger.info("Data frame transform [{}] created.", buildTask.getTransformId());
-            buildTask.start(previousCheckpoint, listener);
-        } else {
-            logger.debug("No need to start task. Its current state is: {}", buildTask.getState().getIndexerState());
-            listener.onResponse(new StartDataFrameTransformTaskAction.Response(true));
-        }
+        buildTask.start(previousCheckpoint, listener);
     }
 
     @Override

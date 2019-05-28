@@ -67,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -90,6 +91,7 @@ public class IngestService implements ClusterStateApplier {
     private volatile Map<String, PipelineHolder> pipelines = Map.of();
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
+    private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
 
     public IngestService(ClusterService clusterService, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
@@ -418,6 +420,17 @@ public class IngestService implements ClusterStateApplier {
         return statsBuilder.build();
     }
 
+    /**
+     * Adds a listener that gets invoked with the current cluster state before processor factories
+     * get invoked.
+     *
+     * This is useful for components that are used by ingest processors, so that have the opportunity to update
+     * before these components get used by the ingest processor factory.
+     */
+    public void addIngestClusterStateListener(Consumer<ClusterState> listener) {
+        ingestClusterStateListeners.add(listener);
+    }
+
     //package private for testing
     static String getProcessorName(Processor processor){
         // conditionals are implemented as wrappers around the real processor, so get the real processor for the correct type for the name
@@ -489,6 +502,12 @@ public class IngestService implements ClusterStateApplier {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             return;
         }
+
+        // Publish cluster state to components that are used by processor factories before letting
+        // processor factories create new processor instances.
+        // (Note that this needs to be done also in the case when there is no change to ingest metadata, because in the case
+        // when only the part of the cluster state that a component is interested in, is updated.)
+        ingestClusterStateListeners.forEach(consumer -> consumer.accept(state));
 
         IngestMetadata newIngestMetadata = state.getMetaData().custom(IngestMetadata.TYPE);
         if (newIngestMetadata == null) {

@@ -18,16 +18,21 @@ to ensure that each node is consistently assigned to the same data path.
 [float]
 ==== Change of data folder layout
 
-While data was previously stored in `$DATA_DIR/nodes/$nodeOrdinal`, it
-has now, with the removal of the `node.max_local_storage_nodes` setting,
-moved directly to `$DATA_DIR`. Upon startup, Elasticsearch will check
-to see if there is data in the old location, and automatically move it
-to the new location. This automatic migration only works if `$nodeOrdinal`
-is 0, i.e., multiple node instances have not previously run on the same
-data path, which required for `node.max_local_storage_nodes` to explicitly
-be configured. In case where the automatic migration cannot be done due to
-ambiguity of `$nodeOrdinal` subfolders, the data path (i.e. `path.data`
-setting) can either be adjusted for each node instance to one of the
-`$nodeOrdinal` subfolders, or preferably the contents of the `$nodeOrdinal`
-subfolders can be manually moved into separate new folders, with `path.data`
-then set to one of these folders for each node instance.
+Each node's data is now stored directly in the data directory set by the
+`path.data` setting, rather than in `${path.data}/nodes/0`, because the removal
+of the `node.max_local_storage_nodes` setting means that nodes may no longer
+share a data path. At startup, Elasticsearch will automatically migrate the data
+path to the new layout. This automatic migration will not proceed if the data
+path contains data for more than one node. You should move to a configuration in
+which each node has its own data path before upgrading.
+
+If you try to upgrade a configuration in which there is data for more than one
+node in a data path then the automatic migration will fail and Elasticsearch
+will refuse to start. To resolve this you will need to perform the migration
+manually. The data for the extra nodes are stored in folders named
+`${path.data}/nodes/1`, `${path.data}/nodes/2` and so on, and you should move
+each of these folders to an appropriate location and then configure the
+corresponding node to use this location for its data path. If your nodes each
+have more than one data path in their `path.data` settings then you should move
+all the corresponding subfolders in parallel. Each node uses the same subfolder
+(e.g. `nodes/2`) across all its data paths.

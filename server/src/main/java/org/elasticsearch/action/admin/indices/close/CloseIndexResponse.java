@@ -60,7 +60,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             readShardsAcknowledged(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             indices = unmodifiableList(in.readList(IndexResult::new));
         } else {
             indices = unmodifiableList(emptyList());
@@ -73,7 +73,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             writeShardsAcknowledged(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             out.writeList(indices);
         }
     }

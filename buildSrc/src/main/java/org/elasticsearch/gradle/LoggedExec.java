@@ -3,6 +3,7 @@ package org.elasticsearch.gradle;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.tasks.Exec;
 import org.gradle.api.tasks.Internal;
@@ -34,22 +35,27 @@ public class LoggedExec extends Exec {
         if (getLogger().isInfoEnabled() == false) {
             setIgnoreExitValue(true);
             setSpoolOutput(false);
-            doLast(task -> {
-                if (getExecResult().getExitValue() != 0) {
-                    try {
-                        getLogger().error("Output for " + getExecutable() + ":");
-                        outputLogger.accept(getLogger());
-                    } catch (Exception e) {
-                        throw new GradleException("Failed to read exec output", e);
+            // We use an anonymous inner class here because Gradle cannot properly snapshot this input for the purposes of
+            // incremental build if we use a lambda. This ensures LoggedExec tasks that declare output can be UP-TO-DATE.
+            doLast(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    if (LoggedExec.this.getExecResult().getExitValue() != 0) {
+                        try {
+                            LoggedExec.this.getLogger().error("Output for " + LoggedExec.this.getExecutable() + ":");
+                            outputLogger.accept(LoggedExec.this.getLogger());
+                        } catch (Exception e) {
+                            throw new GradleException("Failed to read exec output", e);
+                        }
+                        throw new GradleException(
+                            String.format(
+                                "Process '%s %s' finished with non-zero exit value %d",
+                                LoggedExec.this.getExecutable(),
+                                LoggedExec.this.getArgs(),
+                                LoggedExec.this.getExecResult().getExitValue()
+                            )
+                        );
                     }
-                    throw new GradleException(
-                        String.format(
-                            "Process '%s %s' finished with non-zero exit value %d",
-                            getExecutable(),
-                            getArgs(),
-                            getExecResult().getExitValue()
-                        )
-                    );
                 }
             });
         }

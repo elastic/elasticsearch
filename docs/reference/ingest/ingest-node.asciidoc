@@ -1772,6 +1772,7 @@ Right padding modifier with empty key example
 * level = WARN
 |======
 
+[[_append_modifier_literal_literal]]
 ===== Append modifier (`+`)
 [[dissect-modifier-append-key]]
 Dissect supports appending two or more results together for the output.
@@ -1786,6 +1787,7 @@ Append modifier example
 * name = john jacob jingleheimer schmidt
 |======
 
+[[_append_with_order_modifier_literal_literal_and_literal_n_literal]]
 ===== Append with order modifier (`+` and `/n`)
 [[dissect-modifier-append-key-with-order]]
 Dissect supports appending two or more results together for the output.
@@ -1800,6 +1802,7 @@ Append with order modifier example
 * name = schmidt,john,jingleheimer,jacob
 |======
 
+[[_named_skip_key_literal_literal]]
 ===== Named skip key (`?`)
 [[dissect-modifier-named-skip-key]]
 Dissect supports ignoring matches in the final result. This can be done with an empty key `%{}`, but for readability
@@ -1814,6 +1817,7 @@ Named skip key modifier example
 * @timestamp = 30/Apr/1998:22:00:52 +0000
 |======
 
+[[_reference_keys_literal_literal_and_literal_amp_literal]]
 ===== Reference keys (`*` and `&`)
 [[dissect-modifier-reference-keys]]
 Dissect support using parsed values as the key/value pairings for the structured content. Imagine a system that 

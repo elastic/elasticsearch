@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -53,11 +51,8 @@ import java.util.TreeMap;
  */
 public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQueryBuilder> {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(MultiMatchQueryBuilder.class));
-
-    static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "[cutoff_frequency] has been deprecated in favor of the " +
-        "[max_score] optimization which is applied automatically without any configuration";
+    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "you can omit this option, " +
+        "the [multi_match] query can skip block of documents efficiently if the total number of hits is not tracked";
 
     public static final String NAME = "multi_match";
 
@@ -72,7 +67,8 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private static final ParseField SLOP_FIELD = new ParseField("slop");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency", "cutoff_frequency");
+    private static final ParseField CUTOFF_FREQUENCY_FIELD =
+        new ParseField("cutoff_frequency").withAllDeprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
     private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
     private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
@@ -499,7 +495,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      */
     @Deprecated
     public MultiMatchQueryBuilder cutoffFrequency(float cutoff) {
-        deprecationLogger.deprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
         this.cutoffFrequency = cutoff;
         return this;
     }
@@ -514,9 +509,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      */
     @Deprecated
     public MultiMatchQueryBuilder cutoffFrequency(Float cutoff) {
-        if (cutoff != null) {
-            deprecationLogger.deprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
-        }
         this.cutoffFrequency = cutoff;
         return this;
     }

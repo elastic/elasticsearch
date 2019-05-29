@@ -44,7 +44,5 @@ public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {
 
         assertNotNull(response);
         assertEquals(response.getHits().getHits().length, 0);
-
-        assertWarnings(CommonTermsQueryBuilder.COMMON_TERMS_QUERY_DEPRECATION_MSG);
     }
 }

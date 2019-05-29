@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -56,11 +54,8 @@ import java.util.Objects;
 @Deprecated
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(CommonTermsQueryBuilder.class));
-
-    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[Common Terms Query] has been deprecated in favor of the " +
-        "MatchQuery [max_score] optimization which is applied automatically without any configuration";
+    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[match] query which can efficiently " +
+        "skip blocks of documents if the total number of hits is not tracked";
 
     public static final String NAME = "common";
 
@@ -97,9 +92,10 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     /**
      * Constructs a new common terms query.
+     * @deprecated See {@link CommonTermsQueryBuilder} for more details.
      */
+    @Deprecated
     public CommonTermsQueryBuilder(String fieldName, Object text) {
-        deprecationLogger.deprecated(COMMON_TERMS_QUERY_DEPRECATION_MSG);
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
@@ -112,10 +108,11 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     /**
      * Read from a stream.
+     * @deprecated See {@link CommonTermsQueryBuilder} for more details.
      */
+    @Deprecated
     public CommonTermsQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        deprecationLogger.deprecated(COMMON_TERMS_QUERY_DEPRECATION_MSG);
         fieldName = in.readString();
         text = in.readGenericValue();
         highFreqOperator = Operator.readFromStream(in);

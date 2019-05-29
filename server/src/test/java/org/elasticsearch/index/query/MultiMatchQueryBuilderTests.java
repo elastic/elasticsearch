@@ -555,13 +555,6 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
         assertThat(exc.getMessage(), containsString("negative [boost]"));
     }
 
-    public void testCutoffFrequency() {
-        new MultiMatchQueryBuilder("value", "field1", "field2").cutoffFrequency(10f / randomIntBetween(1, 100));
-        assertWarnings(MultiMatchQueryBuilder.CUTOFF_FREQUENCY_DEPRECATION_MSG);
-        new MultiMatchQueryBuilder("value", "field1", "field2").cutoffFrequency(Float.valueOf(10f / randomIntBetween(1, 100)));
-        assertWarnings(MultiMatchQueryBuilder.CUTOFF_FREQUENCY_DEPRECATION_MSG);
-    }
-
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
         Settings build = Settings.builder().put(oldIndexSettings)
             .put(indexSettings)

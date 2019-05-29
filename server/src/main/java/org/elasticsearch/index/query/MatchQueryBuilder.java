@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -45,11 +43,8 @@ import java.util.Objects;
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(MatchQueryBuilder.class));
-
-    static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "[cutoff_frequency] has been deprecated in favor of the " +
-        "[max_score] optimization which is applied automatically without any configuration";
+    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "you can omit this option, " +
+        "the [match] query can skip block of documents efficiently if the total number of hits is not tracked";
 
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     /**
@@ -57,7 +52,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      *             will achieve the same result without any configuration.
      */
     @Deprecated
-    public static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency", "cutoff_frequency");
+    public static final ParseField CUTOFF_FREQUENCY_FIELD =
+        new ParseField("cutoff_frequency").withAllDeprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
     public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
@@ -254,7 +250,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      */
     @Deprecated
     public MatchQueryBuilder cutoffFrequency(float cutoff) {
-        deprecationLogger.deprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
         this.cutoffFrequency = cutoff;
         return this;
     }

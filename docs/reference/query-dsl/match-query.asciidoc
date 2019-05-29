@@ -122,7 +122,7 @@ GET /_search
 [[query-dsl-match-query-cutoff]]
 ===== Cutoff frequency
 
-deprecated[7.3.0,Replaced by the more performant `max_score` optimization which is applied automatically without any configuration]
+deprecated[7.3.0,"This option can be omitted as the <<query-dsl-match-query>> can skip block of documents efficiently, without any configuration, provided that the total number of hits is not tracked."]
 
 The match query supports a `cutoff_frequency` that allows
 specifying an absolute or relative document frequency where high
@@ -160,7 +160,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[warning:[cutoff_frequency] has been deprecated in favor of the [max_score] optimization which is applied automatically without any configuration]
+// TEST[warning:Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]]
 
 IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This means
 that when trying it out on test indexes with low document numbers you

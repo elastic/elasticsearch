@@ -51,7 +51,7 @@
 
   - do:
       warnings:
-        - '[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -68,7 +68,7 @@
 
   - do:
       warnings:
-        - '[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -84,7 +84,7 @@
 
   - do:
       warnings:
-        - '[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -100,7 +100,7 @@
 
   - do:
       warnings:
-        - '[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -115,7 +115,7 @@
 
   - do:
       warnings:
-        - '[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -132,7 +132,7 @@
 
   - do:
       warnings:
-        - '[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -148,7 +148,7 @@
 
   - do:
       warnings:
-        - '[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -162,7 +162,7 @@
 
   - do:
       warnings:
-        - '[Common Terms Query] has been deprecated in favor of the MatchQuery [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -178,7 +178,7 @@
 
   - do:
       warnings:
-        - '[cutoff_frequency] has been deprecated in favor of the [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -194,7 +194,7 @@
 
   - do:
       warnings:
-        - '[cutoff_frequency] has been deprecated in favor of the [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -211,7 +211,7 @@
 
   - do:
       warnings:
-        - '[cutoff_frequency] has been deprecated in favor of the [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -227,7 +227,7 @@
 
   - do:
       warnings:
-        - '[cutoff_frequency] has been deprecated in favor of the [max_score] optimization which is applied automatically without any configuration'
+        - 'Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [multi_match] query can skip block of documents efficiently if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:

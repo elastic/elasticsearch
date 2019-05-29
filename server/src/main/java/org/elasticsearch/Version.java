@@ -66,7 +66,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 if (declaredField.getName().equals("CURRENT") || declaredField.getName().equals("V_EMPTY")) {
                     continue;
                 }
-                assert declaredField.getName().matches("V_\\d+_\\d+_\\d+") : declaredField.getName();
+                assert declaredField.getName().matches("V_\\d+_\\d+_\\d+")
+                        : "expected Version field [" + declaredField.getName() + "] to match V_\\d+_\\d+_\\d+";
                 try {
                     final Version version = (Version) declaredField.get(null);
                     if (Assertions.ENABLED) {
@@ -82,7 +83,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                     assert maybePrevious == null :
                             "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
                 } catch (final IllegalAccessException e) {
-                    assert false : "version fields should be public";
+                    assert false : "Version field [" + declaredField.getName() + "] should be public";
                 }
             }
         }

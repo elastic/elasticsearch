@@ -173,6 +173,8 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         if (fetchVersion != null) {
             assertThat(params, fetchVersion ? hasEntry("version", Boolean.TRUE.toString()) :
                 hasEntry("version", Boolean.FALSE.toString()));
+        } else {
+            assertThat(params, hasEntry("version", Boolean.FALSE.toString()));
         }
     }
 

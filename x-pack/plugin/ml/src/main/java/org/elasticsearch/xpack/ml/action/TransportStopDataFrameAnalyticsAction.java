@@ -166,7 +166,7 @@ public class TransportStopDataFrameAnalyticsAction
                 persistentTasksService.sendRemoveRequest(task.getId(), ActionListener.wrap(r -> {}, e -> {}));
             }
         }
-        return nodes.toArray(new String[nodes.size()]);
+        return nodes.toArray(new String[0]);
     }
 
     private void redirectToMasterNode(DiscoveryNode masterNode, StopDataFrameAnalyticsAction.Request request,

@@ -47,6 +47,7 @@ import java.util.HashSet;
 
 import static java.util.Arrays.asList;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -71,7 +72,8 @@ public class TransportActivateWatchActionTests extends ESTestCase {
         TransportService transportService = mock(TransportService.class);
 
         WatchParser parser = mock(WatchParser.class);
-        when(parser.parseWithSecrets(eq("watch_id"), eq(true), anyObject(), anyObject(), anyObject())).thenReturn(watch);
+        when(parser.parseWithSecrets(eq("watch_id"), eq(true), anyObject(), anyObject(), anyObject(), anyLong(), anyLong()))
+            .thenReturn(watch);
 
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -93,7 +95,7 @@ public class TransportActivateWatchActionTests extends ESTestCase {
             GetRequest request = (GetRequest) invocation.getArguments()[0];
             ActionListener<GetResponse> listener = (ActionListener) invocation.getArguments()[1];
 
-            GetResult getResult = new GetResult(request.index(), request.type(), request.id(), request.version(), true, null,
+            GetResult getResult = new GetResult(request.index(), request.type(), request.id(), 20, 1, request.version(), true, null,
                 Collections.emptyMap());
             listener.onResponse(new GetResponse(getResult));
 

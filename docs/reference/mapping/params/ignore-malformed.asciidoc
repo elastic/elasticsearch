@@ -95,3 +95,17 @@ become meaningless. Elasticsearch makes it easy to check how many documents
 have malformed fields by using `exist` or `term` queries on the special
 <<mapping-ignored-field,`_ignored`>> field.
 
+[[json-object-limits]]
+==== Limits for JSON Objects
+You can't use `ignore_malformed` with the following datatypes:
+
+* <<nested, Nested datatype>>
+* <<object, Object datatype>>
+* <<range, Range datatypes>>
+
+You also can't use `ignore_malformed` to ignore JSON objects submitted to fields
+of the wrong datatype. A JSON object is any data surrounded by curly brackets
+`"{}"` and includes data mapped to the nested, object, and range datatypes.
+
+If you submit a JSON object to an unsupported field, {es} will return an error
+and reject the entire document regardless of the `ignore_malformed` setting.

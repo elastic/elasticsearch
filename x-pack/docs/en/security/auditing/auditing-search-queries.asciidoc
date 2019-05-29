@@ -25,7 +25,7 @@ xpack.security.audit.logfile.events.emit_request_body: true
 ----------------------------
 --
 
-* For the `index` output:
+* For the `index` output: deprecated[6.7.0]
 +
 --
 [source,yaml]

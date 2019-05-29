@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
-import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 
 import java.util.Collections;
@@ -35,8 +35,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.persistent.PersistentTasksCustomMetaData.INITIAL_ASSIGNMENT;
+import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.action.TransportOpenJobActionTests.addJobTask;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedConfig;
 import static org.elasticsearch.xpack.ml.datafeed.DatafeedManagerTests.createDatafeedJob;
@@ -64,7 +64,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                 }
                 job = new Job.Builder(job).setAnalysisConfig(analysisConfig).build();
                 builder.putJob(job, false);
-                builder.putDatafeed(datafeedConfig, Collections.emptyMap());
+                builder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
             } else {
                 builder.putJob(job, false);
             }
@@ -165,7 +165,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putDatafeed(datafeedConfig1, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
                 () -> builder.deleteJob(job1.getId(), new PersistentTasksCustomMetaData(0L, Collections.emptyMap())));
@@ -185,7 +185,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putDatafeed(datafeedConfig1, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
 
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("job_id"), sameInstance(job1));
@@ -202,7 +202,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", "missing-job").build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
 
-        expectThrows(ResourceNotFoundException.class, () -> builder.putDatafeed(datafeedConfig1, Collections.emptyMap()));
+        expectThrows(ResourceNotFoundException.class,
+            () -> builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry()));
     }
 
     public void testPutDatafeed_failBecauseJobIsBeingDeleted() {
@@ -211,7 +212,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
 
-        expectThrows(ResourceNotFoundException.class, () -> builder.putDatafeed(datafeedConfig1, Collections.emptyMap()));
+        expectThrows(ResourceNotFoundException.class,
+            () -> builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry()));
     }
 
     public void testPutDatafeed_failBecauseDatafeedIdIsAlreadyTaken() {
@@ -219,9 +221,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putDatafeed(datafeedConfig1, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
 
-        expectThrows(ResourceAlreadyExistsException.class, () -> builder.putDatafeed(datafeedConfig1, Collections.emptyMap()));
+        expectThrows(ResourceAlreadyExistsException.class,
+            () -> builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry()));
     }
 
     public void testPutDatafeed_failBecauseJobAlreadyHasDatafeed() {
@@ -230,10 +233,10 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig2 = createDatafeedConfig("datafeed2", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putDatafeed(datafeedConfig1, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> builder.putDatafeed(datafeedConfig2, Collections.emptyMap()));
+                () -> builder.putDatafeed(datafeedConfig2, Collections.emptyMap(), xContentRegistry()));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
@@ -247,7 +250,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1.build(now), false);
 
-        expectThrows(ElasticsearchStatusException.class, () -> builder.putDatafeed(datafeedConfig1, Collections.emptyMap()));
+        expectThrows(ElasticsearchStatusException.class,
+            () -> builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry()));
     }
 
     public void testPutDatafeed_setsSecurityHeaders() {
@@ -259,7 +263,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         Map<String, String> headers = new HashMap<>();
         headers.put("unrelated_header", "unrelated_header_value");
         headers.put(AuthenticationServiceField.RUN_AS_USER_HEADER, "permitted_run_as_user");
-        builder.putDatafeed(datafeedConfig, headers);
+        builder.putDatafeed(datafeedConfig, headers, xContentRegistry());
         MlMetadata metadata = builder.build();
         assertThat(metadata.getDatafeed("datafeed1").getHeaders().size(), equalTo(1));
         assertThat(metadata.getDatafeed("datafeed1").getHeaders(),
@@ -271,13 +275,14 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putDatafeed(datafeedConfig1, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
         MlMetadata beforeMetadata = builder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
         update.setScrollSize(5000);
         MlMetadata updatedMetadata =
-                new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null, Collections.emptyMap()).build();
+                new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null,
+                    Collections.emptyMap(), xContentRegistry()).build();
 
         DatafeedConfig updatedDatafeed = updatedMetadata.getDatafeed(datafeedConfig1.getId());
         assertThat(updatedDatafeed.getJobId(), equalTo(datafeedConfig1.getJobId()));
@@ -290,7 +295,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder("job_id");
         update.setScrollSize(5000);
         expectThrows(ResourceNotFoundException.class,
-                () -> new MlMetadata.Builder().updateDatafeed(update.build(), null, Collections.emptyMap()).build());
+                () -> new MlMetadata.Builder().updateDatafeed(update.build(), null,
+                    Collections.emptyMap(), xContentRegistry()).build());
     }
 
     public void testUpdateDatafeed_failBecauseDatafeedIsNotStopped() {
@@ -298,19 +304,19 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putDatafeed(datafeedConfig1, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
         MlMetadata beforeMetadata = builder.build();
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(datafeedConfig1.getId(), 0L);
-        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), MlTasks.DATAFEED_TASK_NAME, params, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
         update.setScrollSize(5000);
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), tasksInProgress, null));
+                () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), tasksInProgress, null, xContentRegistry()));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
@@ -319,14 +325,15 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putDatafeed(datafeedConfig1, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
         MlMetadata beforeMetadata = builder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
         update.setJobId(job1.getId() + "_2");
 
         expectThrows(ResourceNotFoundException.class,
-                () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null, Collections.emptyMap()));
+                () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null,
+                    Collections.emptyMap(), xContentRegistry()));
     }
 
     public void testUpdateDatafeed_failBecauseNewJobHasAnotherDatafeedAttached() {
@@ -338,15 +345,16 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
         builder.putJob(job2.build(), false);
-        builder.putDatafeed(datafeedConfig1, Collections.emptyMap());
-        builder.putDatafeed(datafeedConfig2, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
+        builder.putDatafeed(datafeedConfig2, Collections.emptyMap(), xContentRegistry());
         MlMetadata beforeMetadata = builder.build();
 
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeedConfig1.getId());
         update.setJobId(job2.getId());
 
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null, Collections.emptyMap()));
+                () -> new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null,
+                    Collections.emptyMap(), xContentRegistry()));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
         assertThat(e.getMessage(), equalTo("A datafeed [datafeed2] already exists for job [job_id_2]"));
     }
@@ -356,7 +364,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig = createDatafeedConfig("datafeed1", datafeedJob.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(datafeedJob, false);
-        builder.putDatafeed(datafeedConfig, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
         MlMetadata beforeMetadata = builder.build();
         assertTrue(beforeMetadata.getDatafeed("datafeed1").getHeaders().isEmpty());
 
@@ -366,7 +374,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         Map<String, String> headers = new HashMap<>();
         headers.put("unrelated_header", "unrelated_header_value");
         headers.put(AuthenticationServiceField.RUN_AS_USER_HEADER, "permitted_run_as_user");
-        MlMetadata afterMetadata = new MlMetadata.Builder(beforeMetadata).updateDatafeed(update.build(), null, headers).build();
+        MlMetadata afterMetadata = new MlMetadata.Builder(beforeMetadata)
+            .updateDatafeed(update.build(), null, headers, xContentRegistry()).build();
         Map<String, String> updatedHeaders = afterMetadata.getDatafeed("datafeed1").getHeaders();
         assertThat(updatedHeaders.size(), equalTo(1));
         assertThat(updatedHeaders, hasEntry(AuthenticationServiceField.RUN_AS_USER_HEADER, "permitted_run_as_user"));
@@ -377,7 +386,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         DatafeedConfig datafeedConfig1 = createDatafeedConfig("datafeed1", job1.getId()).build();
         MlMetadata.Builder builder = new MlMetadata.Builder();
         builder.putJob(job1, false);
-        builder.putDatafeed(datafeedConfig1, Collections.emptyMap());
+        builder.putDatafeed(datafeedConfig1, Collections.emptyMap(), xContentRegistry());
 
         MlMetadata result = builder.build();
         assertThat(result.getJobs().get("job_id"), sameInstance(job1));
@@ -385,7 +394,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams("datafeed1", 0L);
-        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), StartDatafeedAction.TASK_NAME, params, INITIAL_ASSIGNMENT);
+        tasksBuilder.addTask(MlTasks.datafeedTaskId("datafeed1"), MlTasks.DATAFEED_TASK_NAME, params, INITIAL_ASSIGNMENT);
         PersistentTasksCustomMetaData tasksInProgress = tasksBuilder.build();
 
         MlMetadata.Builder builder2 = new MlMetadata.Builder(result);
@@ -397,24 +406,27 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     public void testExpandJobIds() {
         MlMetadata mlMetadata = newMlMetadataWithJobs("bar-1", "foo-1", "foo-2").build();
 
-        assertThat(mlMetadata.expandJobIds("_all", false), contains("bar-1", "foo-1", "foo-2"));
-        assertThat(mlMetadata.expandJobIds("*", false), contains("bar-1", "foo-1", "foo-2"));
-        assertThat(mlMetadata.expandJobIds("foo-*", false), contains("foo-1", "foo-2"));
-        assertThat(mlMetadata.expandJobIds("foo-1,bar-*", false), contains("bar-1", "foo-1"));
+        assertThat(mlMetadata.expandJobIds("_all"), contains("bar-1", "foo-1", "foo-2"));
+        assertThat(mlMetadata.expandJobIds("*"), contains("bar-1", "foo-1", "foo-2"));
+        assertThat(mlMetadata.expandJobIds("foo-*"), contains("foo-1", "foo-2"));
+        assertThat(mlMetadata.expandJobIds("foo-1,bar-*"), contains("bar-1", "foo-1"));
     }
 
     public void testExpandDatafeedIds() {
         MlMetadata.Builder mlMetadataBuilder = newMlMetadataWithJobs("bar-1", "foo-1", "foo-2");
-        mlMetadataBuilder.putDatafeed(createDatafeedConfig("bar-1-feed", "bar-1").build(), Collections.emptyMap());
-        mlMetadataBuilder.putDatafeed(createDatafeedConfig("foo-1-feed", "foo-1").build(), Collections.emptyMap());
-        mlMetadataBuilder.putDatafeed(createDatafeedConfig("foo-2-feed", "foo-2").build(), Collections.emptyMap());
+        mlMetadataBuilder.putDatafeed(createDatafeedConfig("bar-1-feed", "bar-1").build(),
+            Collections.emptyMap(), xContentRegistry());
+        mlMetadataBuilder.putDatafeed(createDatafeedConfig("foo-1-feed", "foo-1").build(),
+            Collections.emptyMap(), xContentRegistry());
+        mlMetadataBuilder.putDatafeed(createDatafeedConfig("foo-2-feed", "foo-2").build(),
+            Collections.emptyMap(), xContentRegistry());
         MlMetadata mlMetadata = mlMetadataBuilder.build();
 
 
-        assertThat(mlMetadata.expandDatafeedIds("_all", false), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
-        assertThat(mlMetadata.expandDatafeedIds("*", false), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
-        assertThat(mlMetadata.expandDatafeedIds("foo-*", false), contains("foo-1-feed", "foo-2-feed"));
-        assertThat(mlMetadata.expandDatafeedIds("foo-1-feed,bar-1*", false), contains("bar-1-feed", "foo-1-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("_all"), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("*"), contains("bar-1-feed", "foo-1-feed", "foo-2-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("foo-*"), contains("foo-1-feed", "foo-2-feed"));
+        assertThat(mlMetadata.expandDatafeedIds("foo-1-feed,bar-1*"), contains("bar-1-feed", "foo-1-feed"));
     }
 
     private static MlMetadata.Builder newMlMetadataWithJobs(String... jobIds) {
@@ -436,7 +448,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             metadataBuilder.putJob(entry.getValue(), true);
         }
         for (Map.Entry<String, DatafeedConfig> entry : datafeeds.entrySet()) {
-            metadataBuilder.putDatafeed(entry.getValue(), Collections.emptyMap());
+            metadataBuilder.putDatafeed(entry.getValue(), Collections.emptyMap(), xContentRegistry());
         }
 
         switch (between(0, 1)) {
@@ -457,7 +469,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             }
             randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).build();
             metadataBuilder.putJob(randomJob, false);
-            metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap());
+            metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

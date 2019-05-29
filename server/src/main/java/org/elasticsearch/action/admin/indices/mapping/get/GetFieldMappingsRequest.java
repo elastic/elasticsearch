@@ -29,7 +29,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/** Request the mappings of specific fields */
+/**
+ * Request the mappings of specific fields
+ *
+ * Note: there is a new class with the same name for the Java HLRC that uses a typeless format.
+ * Any changes done to this class should go to that client class as well.
+ */
 public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected boolean local = false;

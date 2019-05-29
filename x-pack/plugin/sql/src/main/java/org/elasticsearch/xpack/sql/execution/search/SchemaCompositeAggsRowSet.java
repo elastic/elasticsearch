@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.type.Schema;
 
+import java.util.BitSet;
 import java.util.List;
 
 /**
@@ -21,9 +22,10 @@ class SchemaCompositeAggsRowSet extends CompositeAggsRowSet implements SchemaRow
 
     private final Schema schema;
 
-    SchemaCompositeAggsRowSet(Schema schema, List<BucketExtractor> exts, SearchResponse response, int limitAggs, byte[] next,
+    SchemaCompositeAggsRowSet(Schema schema, List<BucketExtractor> exts, BitSet mask, SearchResponse response, int limitAggs,
+            byte[] next,
             String... indices) {
-        super(exts, response, limitAggs, next, indices);
+        super(exts, mask, response, limitAggs, next, indices);
         this.schema = schema;
     }
 

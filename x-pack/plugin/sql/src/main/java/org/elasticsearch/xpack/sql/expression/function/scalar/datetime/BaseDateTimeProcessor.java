@@ -14,30 +14,26 @@ import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.TimeZone;
 
 public abstract class BaseDateTimeProcessor implements Processor {
 
-    private final TimeZone timeZone;
     private final ZoneId zoneId;
     
-    BaseDateTimeProcessor(TimeZone timeZone) {
-        this.timeZone = timeZone;
-        this.zoneId = timeZone.toZoneId();
+    BaseDateTimeProcessor(ZoneId zoneId) {
+        this.zoneId = zoneId;
     }
     
     BaseDateTimeProcessor(StreamInput in) throws IOException {
-        timeZone = TimeZone.getTimeZone(in.readString());
-        zoneId = timeZone.toZoneId();
+        zoneId = ZoneId.of(in.readString());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(timeZone.getID());
+        out.writeString(zoneId.getId());
     }
     
-    TimeZone timeZone() {
-        return timeZone;
+    ZoneId zoneId() {
+        return zoneId;
     }
 
     @Override

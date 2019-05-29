@@ -1,0 +1,83 @@
+---
+"PUT mapping with typeless API on an index that has types":
+
+ - skip:
+      version: " - 6.6.99"
+      reason:  include_type_name was introduced in 6.7.0
+
+ - do:
+      indices.create: # not using include_type_name: false on purpose
+          index: index
+          body:
+              mappings:
+                  not_doc:
+                      properties:
+                          foo:
+                              type: "keyword"
+
+ - do:
+      indices.put_mapping:
+          include_type_name: false
+          index: index
+          body:
+              properties:
+                  bar:
+                      type: "long"
+
+ - do:
+      indices.get_mapping:
+          include_type_name: false
+          index: index
+
+ - match: { index.mappings.properties.foo.type: "keyword" }
+ - match: { index.mappings.properties.bar.type: "long" }
+
+ - do:
+      indices.put_mapping:
+          include_type_name: false
+          index: index
+          body:
+              properties:
+                  foo:
+                      type: "keyword" # also test no-op updates that trigger special logic wrt the mapping version
+
+ - do:
+      catch: /the final mapping would have more than 1 type/
+      indices.put_mapping:
+          index: index
+          type: some_other_type
+          body:
+              some_other_type:
+                  properties:
+                      bar:
+                          type: "long"
+
+
+---
+"PUT mapping with _doc on an index that has types":
+
+ - skip:
+      version: " - 6.1.99"
+      reason: _doc as a type name was only allowed as of 6.2
+
+
+ - do:
+      indices.create:
+          index: index
+          body:
+              mappings:
+                  my_type:
+                      properties:
+                          foo:
+                              type: "keyword"
+
+ - do:
+      catch: /the final mapping would have more than 1 type/
+      indices.put_mapping:
+          index: index
+          type: _doc
+          body:
+              _doc:
+                  properties:
+                      bar:
+                          type: "long"

@@ -9,7 +9,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
 /**
- * Action for invalidating a given token
+ * Action for invalidating one or more tokens
  */
 public final class InvalidateTokenAction extends Action<InvalidateTokenRequest, InvalidateTokenResponse, InvalidateTokenRequestBuilder> {
 

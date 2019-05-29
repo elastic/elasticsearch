@@ -43,7 +43,7 @@ The list of hosts is set using the `discovery.zen.ping.unicast.hosts` static
 setting.  This is either an array of hosts or a comma-delimited string. Each
 value should be in the form of `host:port` or `host` (where `port` defaults to
 the setting `transport.profiles.default.port` falling back to
-`transport.tcp.port` if not set). Note that IPv6 hosts must be bracketed. The
+`transport.port` if not set). Note that IPv6 hosts must be bracketed. The
 default for this setting is `127.0.0.1, [::1]`
 
 Additionally, the `discovery.zen.ping.unicast.resolve_timeout` configures the

@@ -453,7 +453,7 @@ public final class GrokPatternCreator {
             this.fieldName = fieldName;
             // The (?m) here has the Ruby meaning, which is equivalent to (?s) in Java
             grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}" + preBreak +
-                "%{" + grokPatternName + ":" + VALUE + "}" + postBreak + "%{GREEDYDATA:" + EPILOGUE + "}");
+                "%{" + grokPatternName + ":" + VALUE + "}" + postBreak + "%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog);
         }
 
         @Override
@@ -472,7 +472,7 @@ public final class GrokPatternCreator {
                                       TimeoutChecker timeoutChecker) {
             Collection<String> values = new ArrayList<>();
             for (String snippet : snippets) {
-                Map<String, Object> captures = grok.captures(snippet);
+                Map<String, Object> captures = timeoutChecker.grokCaptures(grok, snippet, "full message Grok pattern field extraction");
                 // If the pattern doesn't match then captures will be null
                 if (captures == null) {
                     throw new IllegalStateException("[%{" + grokPatternName + "}] does not match snippet [" + snippet + "]");
@@ -480,14 +480,13 @@ public final class GrokPatternCreator {
                 prefaces.add(captures.getOrDefault(PREFACE, "").toString());
                 values.add(captures.getOrDefault(VALUE, "").toString());
                 epilogues.add(captures.getOrDefault(EPILOGUE, "").toString());
-                timeoutChecker.check("full message Grok pattern field extraction");
             }
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
             if (mappings != null) {
                 Map<String, String> fullMappingType = Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType);
                 if ("date".equals(mappingType)) {
                     assert values.isEmpty() == false;
-                    TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(values.iterator().next());
+                    TimestampMatch timestampMatch = TimestampFormatFinder.findFirstFullMatch(values.iterator().next(), timeoutChecker);
                     if (timestampMatch != null) {
                         fullMappingType = timestampMatch.getEsDateMappingTypeWithFormat();
                     }
@@ -548,7 +547,7 @@ public final class GrokPatternCreator {
                 throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
             }
             Grok grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}\\b" +
-                fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}");
+                fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog);
             Collection<String> values = new ArrayList<>();
             for (String snippet : snippets) {
                 Map<String, Object> captures = grok.captures(snippet);
@@ -563,7 +562,8 @@ public final class GrokPatternCreator {
             }
             String adjustedFieldName = buildFieldName(fieldNameCountStore, fieldName);
             if (mappings != null) {
-                mappings.put(adjustedFieldName, FileStructureUtils.guessScalarMapping(explanation, adjustedFieldName, values));
+                mappings.put(adjustedFieldName,
+                    FileStructureUtils.guessScalarMapping(explanation, adjustedFieldName, values, timeoutChecker));
                 timeoutChecker.check("mapping determination");
             }
             if (fieldStats != null) {
@@ -610,7 +610,7 @@ public final class GrokPatternCreator {
         private FullMatchGrokPatternCandidate(String grokPattern, String timeField) {
             this.grokPattern = grokPattern;
             this.timeField = timeField;
-            grok = new Grok(Grok.getBuiltinPatterns(), grokPattern);
+            grok = new Grok(Grok.getBuiltinPatterns(), grokPattern, TimeoutChecker.watchdog);
         }
 
         public String getTimeField() {
@@ -640,7 +640,8 @@ public final class GrokPatternCreator {
                 Map<String, Collection<String>> valuesPerField = new HashMap<>();
 
                 for (String sampleMessage : sampleMessages) {
-                    Map<String, Object> captures = grok.captures(sampleMessage);
+                    Map<String, Object> captures = timeoutChecker.grokCaptures(grok, sampleMessage,
+                        "full message Grok pattern field extraction");
                     // If the pattern doesn't match then captures will be null
                     if (captures == null) {
                         throw new IllegalStateException("[" + grokPattern + "] does not match snippet [" + sampleMessage + "]");
@@ -658,7 +659,6 @@ public final class GrokPatternCreator {
                             }
                         });
                     }
-                    timeoutChecker.check("full message Grok pattern field extraction");
                 }
 
                 for (Map.Entry<String, Collection<String>> valuesForField : valuesPerField.entrySet()) {
@@ -667,7 +667,7 @@ public final class GrokPatternCreator {
                         // Exclude the time field because that will be dropped and replaced with @timestamp
                         if (fieldName.equals(timeField) == false) {
                             mappings.put(fieldName,
-                                FileStructureUtils.guessScalarMapping(explanation, fieldName, valuesForField.getValue()));
+                                FileStructureUtils.guessScalarMapping(explanation, fieldName, valuesForField.getValue(), timeoutChecker));
                             timeoutChecker.check("mapping determination");
                         }
                     }

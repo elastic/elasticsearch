@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -21,7 +22,9 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -52,12 +55,20 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("transport.profiles.some_profile.xpack.security.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("transport.profiles.some_other_profile.xpack.security.ssl.secure_key_passphrase", "testnode");
         Settings settings1 = Settings.builder()
             .put(settings)
             .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.ssl.key", testnodeKey)
-            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
+            .put("transport.profiles.some_profile.xpack.security.ssl.enabled", true)
+            .put("transport.profiles.some_profile.xpack.security.ssl.key", testnodeKey)
+            .put("transport.profiles.some_profile.xpack.security.ssl.certificate", testnodeCert)
+            .put("transport.profiles.some_other_profile.xpack.security.ssl.enabled", true)
+            .put("transport.profiles.some_other_profile.xpack.security.ssl.key", testnodeKey)
+            .put("transport.profiles.some_other_profile.xpack.security.ssl.certificate", testnodeCert)
             .put("path.home", createTempDir())
             .setSecureSettings(secureSettings)
             .build();
@@ -86,9 +97,9 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         int port = serviceA.boundAddress().publishAddress().getPort();
         Settings settings = Settings.builder()
             .put(Node.NODE_NAME_SETTING.getKey(), "foobar")
-            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-            .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-            .put("transport.tcp.port", port)
+            .put(TransportSettings.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+            .put(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+            .put(TransportSettings.PORT.getKey(), port)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         BindTransportException bindTransportException = expectThrows(BindTransportException.class, () -> {
@@ -109,11 +120,14 @@ public abstract class AbstractSimpleSecurityTransportTestCase extends AbstractSi
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
 
         ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY);
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null);
-             TcpTransport.NodeChannels connection = originalTransport.openConnection(
-                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0),
-                 connectionProfile)) {
-            assertEquals(connection.getVersion(), Version.CURRENT);
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
+            DiscoveryNode node = new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                version0);
+            PlainActionFuture<Transport.Connection> future = PlainActionFuture.newFuture();
+            originalTransport.openConnection(node, connectionProfile, future);
+            try (TcpTransport.NodeChannels connection = (TcpTransport.NodeChannels) future.actionGet()) {
+                assertEquals(connection.getVersion(), Version.CURRENT);
+            }
         }
     }
 

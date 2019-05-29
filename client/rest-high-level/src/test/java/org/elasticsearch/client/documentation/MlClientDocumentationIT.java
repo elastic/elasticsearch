@@ -20,7 +20,6 @@ package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -33,12 +32,15 @@ import org.elasticsearch.client.MachineLearningIT;
 import org.elasticsearch.client.MlTestStateCleaner;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -76,6 +78,8 @@ import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsResponse;
 import org.elasticsearch.client.ml.GetRecordsRequest;
 import org.elasticsearch.client.ml.GetRecordsResponse;
+import org.elasticsearch.client.ml.MlInfoRequest;
+import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -95,6 +99,7 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -135,6 +140,7 @@ import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -865,7 +871,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "preview_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
             .setTypes(Arrays.asList("doc"))
@@ -925,7 +940,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId = job.getId() + "-feed";
         String indexName = "start_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, job.getId())
             .setTypes(Arrays.asList("doc"))
@@ -1046,7 +1070,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String datafeedId1 = job.getId() + "-feed";
         String indexName = "datafeed_stats_data_2";
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId1, job.getId())
             .setTypes(Arrays.asList("doc"))
@@ -1958,6 +1991,56 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
+
+    public void testDeleteExpiredData() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-delete-expired-data";
+        MachineLearningIT.buildJob(jobId);
+       {
+            // tag::delete-expired-data-request
+            DeleteExpiredDataRequest request = new DeleteExpiredDataRequest(); // <1>
+            // end::delete-expired-data-request
+
+            // tag::delete-expired-data-execute
+            DeleteExpiredDataResponse response = client.machineLearning().deleteExpiredData(request, RequestOptions.DEFAULT);
+            // end::delete-expired-data-execute
+
+            // tag::delete-expired-data-response
+            boolean deleted = response.getDeleted(); // <1>
+            // end::delete-expired-data-response
+
+            assertTrue(deleted);
+        }
+        {
+            // tag::delete-expired-data-execute-listener
+            ActionListener<DeleteExpiredDataResponse> listener = new ActionListener<DeleteExpiredDataResponse>() {
+                @Override
+                public void onResponse(DeleteExpiredDataResponse deleteExpiredDataResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-expired-data-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+
+            // tag::delete-expired-data-execute-async
+            client.machineLearning().deleteExpiredDataAsync(deleteExpiredDataRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-expired-data-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
 
     public void testDeleteModelSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();
@@ -2948,6 +3031,106 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-filter-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testGetMlInfo() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::get-ml-info-request
+            MlInfoRequest request = new MlInfoRequest(); // <1>
+            // end::get-ml-info-request
+
+            // tag::get-ml-info-execute
+            MlInfoResponse response = client.machineLearning()
+                .getMlInfo(request, RequestOptions.DEFAULT);
+            // end::get-ml-info-execute
+
+            // tag::get-ml-info-response
+            final Map<String, Object> info = response.getInfo();// <1>
+            // end::get-ml-info-response
+            assertTrue(info.containsKey("defaults"));
+            assertTrue(info.containsKey("limits"));
+        }
+        {
+            MlInfoRequest request = new MlInfoRequest();
+
+            // tag::get-ml-info-execute-listener
+            ActionListener<MlInfoResponse> listener = new ActionListener<MlInfoResponse>() {
+                @Override
+                public void onResponse(MlInfoResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-ml-info-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::get-ml-info-execute-async
+            client.machineLearning()
+                .getMlInfoAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-ml-info-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testSetUpgradeMode() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::set-upgrade-mode-request
+            SetUpgradeModeRequest request = new SetUpgradeModeRequest(true); // <1>
+            request.setTimeout(TimeValue.timeValueMinutes(10)); // <2>
+            // end::set-upgrade-mode-request
+
+            // Set to false so that the cluster setting does not have to be unset at the end of the test.
+            request.setEnabled(false);
+
+            // tag::set-upgrade-mode-execute
+            AcknowledgedResponse acknowledgedResponse = client.machineLearning().setUpgradeMode(request, RequestOptions.DEFAULT);
+            // end::set-upgrade-mode-execute
+
+            // tag::set-upgrade-mode-response
+            boolean acknowledged = acknowledgedResponse.isAcknowledged(); // <1>
+            // end::set-upgrade-mode-response
+            assertThat(acknowledged, is(true));
+        }
+        {
+            SetUpgradeModeRequest request = new SetUpgradeModeRequest(false);
+
+            // tag::set-upgrade-mode-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<AcknowledgedResponse>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::set-upgrade-mode-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::set-upgrade-mode-execute-async
+            client.machineLearning()
+                .setUpgradeModeAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::set-upgrade-mode-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+
         }
     }
 

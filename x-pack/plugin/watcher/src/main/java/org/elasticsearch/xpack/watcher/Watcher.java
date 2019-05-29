@@ -256,14 +256,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
     protected final Settings settings;
     protected final boolean transportClient;
     protected final boolean enabled;
-    protected final Environment env;
     protected List<NotificationService> reloadableServices = new ArrayList<>();
 
     public Watcher(Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
         this.transportClient = XPackPlugin.transportClientMode(settings);
-        env = transportClient ? null : new Environment(settings, null);
 
         if (enabled && transportClient == false) {
             validAutoCreateIndex(settings, logger);
@@ -610,11 +608,9 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
         }
 
         assert listener != null;
-        // for now, we only add this index operation listener to indices starting with .watches
-        // this also means, that aliases pointing to this index have to follow this notation
-        if (module.getIndex().getName().startsWith(Watch.INDEX)) {
-            module.addIndexOperationListener(listener);
-        }
+        // Attach a listener to every index so that we can react to alias changes.
+        // This listener will be a no-op except on the index pointed to by .watches
+        module.addIndexOperationListener(listener);
     }
 
     static void validAutoCreateIndex(Settings settings, Logger logger) {
@@ -688,7 +684,7 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck(env));
+        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck());
     }
 
     @Override
@@ -699,10 +695,12 @@ public class Watcher extends Plugin implements ActionPlugin, ScriptPlugin, Reloa
 
     @Override
     public void close() throws IOException {
-        bulkProcessor.flush();
+        if (enabled) {
+            bulkProcessor.flush();
+        }
         IOUtils.closeWhileHandlingException(httpClient);
         try {
-            if (bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
+            if (enabled && bulkProcessor.awaitClose(10, TimeUnit.SECONDS) == false) {
                 logger.warn("failed to properly close watcher bulk processor");
             }
         } catch (InterruptedException e) {

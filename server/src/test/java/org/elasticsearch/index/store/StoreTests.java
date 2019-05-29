@@ -43,9 +43,11 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
@@ -943,17 +945,17 @@ public class StoreTests extends ESTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         Path tempDir = createTempDir();
         final BaseDirectoryWrapper dir = newFSDirectory(tempDir);
-        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         IndexWriter writer = new IndexWriter(dir, iwc);
         Document doc = new Document();
         doc.add(new StringField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         writer.commit();
         writer.close();
-        assertTrue(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertTrue(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         Store store = new Store(shardId, INDEX_SETTINGS, dir, new DummyShardLock(shardId));
         store.markStoreCorrupted(new CorruptIndexException("foo", "bar"));
-        assertFalse(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
+        assertFalse(StoreUtils.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
         store.close();
     }
 
@@ -1142,5 +1144,17 @@ public class StoreTests extends ESTestCase {
             .setMergePolicy(NoMergePolicy.INSTANCE)
             .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         return new IndexWriter(store.directory(), iwc);
+    }
+
+    public void testGetPendingFiles() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final String testfile = "testfile";
+        try (Store store = new Store(shardId, INDEX_SETTINGS, new NIOFSDirectory(createTempDir()), new DummyShardLock(shardId))) {
+            store.directory().createOutput(testfile, IOContext.DEFAULT).close();
+            try (IndexInput input = store.directory().openInput(testfile, IOContext.DEFAULT)) {
+                store.directory().deleteFile(testfile);
+                assertEquals(FilterDirectory.unwrap(store.directory()).getPendingDeletions(), store.directory().getPendingDeletions());
+            }
+        }
     }
 }

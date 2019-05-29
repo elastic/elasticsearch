@@ -72,7 +72,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final TransportSearchAction.SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
-    protected AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
+    AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                                         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                         Map<String, Set<String>> indexRoutings,
@@ -223,7 +223,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         results.getSuccessfulResults().forEach((entry) -> {
             try {
                 SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                Transport.Connection connection = getConnection(null, searchShardTarget.getNodeId());
+                Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
                 sendReleaseSearchContext(entry.getRequestId(), connection, searchShardTarget.getOriginalIndices());
             } catch (Exception inner) {
                 inner.addSuppressed(exception);
@@ -276,14 +276,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, String scrollId) {
-
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (allowPartialResults == false && failures.length > 0){
             raisePhaseFailure(new SearchPhaseExecutionException("", "Shard failures", null, failures));
         }
-
         return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
             skippedOps.get(), buildTookInMillis(), failures, clusters);
     }
@@ -318,8 +316,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         listener.onFailure(e);
     }
 
+    @Override
     public final ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt) {
-        String clusterAlias = shardIt.getClusterAlias();
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
@@ -327,7 +325,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         final String[] routings = indexRoutings.getOrDefault(indexName, Collections.emptySet())
             .toArray(new String[0]);
         return new ShardSearchTransportRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
-            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), clusterAlias, routings);
+            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings);
     }
 
     /**

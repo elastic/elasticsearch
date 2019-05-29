@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.plan.logical;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -18,8 +18,8 @@ public class SubQueryAlias extends UnaryPlan {
 
     private final String alias;
 
-    public SubQueryAlias(Location location, LogicalPlan child, String alias) {
-        super(location, child);
+    public SubQueryAlias(Source source, LogicalPlan child, String alias) {
+        super(source, child);
         this.alias = alias;
     }
 
@@ -30,7 +30,7 @@ public class SubQueryAlias extends UnaryPlan {
 
     @Override
     protected SubQueryAlias replaceChild(LogicalPlan newChild) {
-        return new SubQueryAlias(location(), newChild, alias);
+        return new SubQueryAlias(source(), newChild, alias);
     }
 
     public String alias() {

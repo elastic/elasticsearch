@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.MappingRequestValidator;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
@@ -53,7 +54,9 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
@@ -274,15 +277,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                          PageCacheRecycler pageCacheRecycler,
+    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry,
-                                                          NetworkService networkService) {
+                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         Map<String, Supplier<Transport>> transports = new HashMap<>();
-        transports.putAll(super.getTransports(settings, threadPool, bigArrays, pageCacheRecycler,
-                                              circuitBreakerService, namedWriteableRegistry, networkService));
-        filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getTransports(settings, threadPool, bigArrays,
+        transports.putAll(super.getTransports(settings, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry,
+            networkService));
+        filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getTransports(settings, threadPool,
                 pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService)));
         return transports;
 
@@ -401,6 +402,21 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        HashMap<String, Repository.Factory> repositories = new HashMap<>(super.getRepositories(env, namedXContentRegistry));
+        filterPlugins(RepositoryPlugin.class).forEach(r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry)));
+        return repositories;
+    }
+
+    @Override
+    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        HashMap<String, Repository.Factory> internalRepositories = new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry));
+        filterPlugins(RepositoryPlugin.class).forEach(r ->
+            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry)));
+        return internalRepositories;
+    }
+
+    @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         List<Optional<EngineFactory>> enginePlugins = filterPlugins(EnginePlugin.class).stream()
             .map(p -> p.getEngineFactory(indexSettings))
@@ -417,6 +433,12 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     public void close() throws IOException {
         IOUtils.close(plugins);
+    }
+
+    @Override
+    public Collection<MappingRequestValidator> mappingRequestValidators() {
+        return filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.mappingRequestValidators().stream())
+            .collect(Collectors.toList());
     }
 
     private <T> List<T> filterPlugins(Class<T> type) {

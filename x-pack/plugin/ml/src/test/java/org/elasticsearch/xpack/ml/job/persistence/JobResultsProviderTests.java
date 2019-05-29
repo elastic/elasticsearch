@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -784,12 +783,10 @@ public class JobResultsProviderTests extends ESTestCase {
         MetaData metaData = MetaData.builder()
                 .put(indexMetaData1)
                 .build();
-        boolean result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        boolean result = JobResultsProvider.violatedFieldCountLimit(0, 10, metaData.index("index1").getMappings().valuesIt());
         assertFalse(result);
 
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 1, 10,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+        result = JobResultsProvider.violatedFieldCountLimit(1, 10, metaData.index("index1").getMappings().valuesIt());
         assertTrue(result);
 
         IndexMetaData.Builder indexMetaData2 = new IndexMetaData.Builder("index1")
@@ -802,8 +799,8 @@ public class JobResultsProviderTests extends ESTestCase {
         metaData = MetaData.builder()
                 .put(indexMetaData2)
                 .build();
-        result = JobResultsProvider.violatedFieldCountLimit("index1", 0, 19,
-                ClusterState.builder(new ClusterName("_name")).metaData(metaData).build());
+
+        result = JobResultsProvider.violatedFieldCountLimit(0, 19, metaData.index("index1").getMappings().valuesIt());
         assertTrue(result);
     }
 
@@ -832,13 +829,6 @@ public class JobResultsProviderTests extends ESTestCase {
 
     private JobResultsProvider createProvider(Client client) {
         return new JobResultsProvider(client, Settings.EMPTY);
-    }
-
-    private static GetResponse createGetResponse(boolean exists, Map<String, Object> source) throws IOException {
-        GetResponse getResponse = mock(GetResponse.class);
-        when(getResponse.isExists()).thenReturn(exists);
-        when(getResponse.getSourceAsBytesRef()).thenReturn(BytesReference.bytes(XContentFactory.jsonBuilder().map(source)));
-        return getResponse;
     }
 
     private static SearchResponse createSearchResponse(List<Map<String, Object>> source) throws IOException {

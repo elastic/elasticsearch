@@ -20,6 +20,8 @@
 package org.elasticsearch.client;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.migration.DeprecationInfoRequest;
+import org.elasticsearch.client.migration.DeprecationInfoResponse;
 import org.elasticsearch.client.migration.IndexUpgradeInfoRequest;
 import org.elasticsearch.client.migration.IndexUpgradeInfoResponse;
 import org.elasticsearch.client.migration.IndexUpgradeRequest;
@@ -27,9 +29,11 @@ import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MigrationIT extends ESRestHighLevelClientTestCase {
 
@@ -71,6 +75,20 @@ public class MigrationIT extends ESRestHighLevelClientTestCase {
 
         BooleanSupplier hasUpgradeCompleted = checkCompletionStatus(upgrade);
         awaitBusy(hasUpgradeCompleted);
+    }
+
+    public void testGetDeprecationInfo() throws IOException {
+        createIndex("test", Settings.EMPTY);
+        DeprecationInfoRequest request = new DeprecationInfoRequest(Collections.singletonList("test"));
+        DeprecationInfoResponse response = highLevelClient().migration().getDeprecationInfo(request, RequestOptions.DEFAULT);
+        // a test like this cannot test actual deprecations
+        for (DeprecationInfoResponse.DeprecationIssue issue : response.getNodeSettingsIssues()) {
+            logger.error("Got deprecation issue: {}", issue.getMessage());
+        }
+        assertThat(response.getClusterSettingsIssues().size(), equalTo(0));
+        assertThat(response.getIndexSettingsIssues().size(), equalTo(0));
+        assertThat(response.getNodeSettingsIssues().size(), equalTo(0));
+        assertThat(response.getMlSettingsIssues().size(), equalTo(0));
     }
 
     /**

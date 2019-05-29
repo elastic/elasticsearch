@@ -97,7 +97,7 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
                     }
                 },
                 client(), internalCluster().clusterService(internalCluster().getMasterName()), Strings.EMPTY_ARRAY, null,
-                listener -> {
+                (cs, listener) -> {
                     assertFalse(preUpgradeIsCalled.getAndSet(true));
                     assertFalse(postUpgradeIsCalled.get());
                     listener.onResponse(val);

@@ -1,0 +1,118 @@
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.VersionProperties
+
+apply plugin: 'base'
+apply plugin: 'elasticsearch.test.fixtures'
+
+configurations {
+  dockerPlugins
+  dockerSource
+  ossDockerSource
+}
+
+dependencies {
+  dockerSource project(path: ":distribution:archives:tar")
+  ossDockerSource project(path: ":distribution:archives:oss-tar")
+}
+
+ext.expansions = { oss, local ->
+  final String elasticsearch = oss ? "elasticsearch-oss-${VersionProperties.elasticsearch}.tar.gz" : "elasticsearch-${VersionProperties.elasticsearch}.tar.gz"
+  return [
+    'elasticsearch'       : elasticsearch,
+    'jdkUrl'              : 'https://download.oracle.com/java/GA/jdk12.0.1/69cfe15208a647278a19ef0990eea691/12/GPL/openjdk-12.0.1_linux-x64_bin.tar.gz',
+    'jdkVersion'          : '12.0.1',
+    'license'             : oss ? 'Apache-2.0' : 'Elastic License',
+    'source_elasticsearch': local ? "COPY $elasticsearch /opt/" : "RUN cd /opt && curl --retry 8 -s -L -O https://artifacts.elastic.co/downloads/elasticsearch/${elasticsearch} && cd -",
+    'version'             : VersionProperties.elasticsearch
+  ]
+}
+
+private static String files(final boolean oss) {
+  return "build/${ oss ? 'oss-' : ''}docker"
+}
+
+private static String taskName(final String prefix, final boolean oss, final String suffix) {
+  return "${prefix}${oss ? 'Oss' : ''}${suffix}"
+}
+
+project.ext {
+  dockerBuildContext = { boolean oss, boolean local ->
+    copySpec {
+      into('bin') {
+        from project.projectDir.toPath().resolve("src/docker/bin")
+      }
+
+      into('config') {
+        from project.projectDir.toPath().resolve("src/docker/config")
+      }
+
+      from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {
+        MavenFilteringHack.filter(it, expansions(oss, local))
+      }
+    }
+  }
+}
+
+void addCopyDockerContextTask(final boolean oss) {
+  task(taskName("copy", oss, "DockerContext"), type: Sync) {
+    inputs.properties(expansions(oss, true))
+    into files(oss)
+
+    with dockerBuildContext(oss, true)
+
+    if (oss) {
+      from configurations.ossDockerSource
+    } else {
+      from configurations.dockerSource
+    }
+
+    from configurations.dockerPlugins
+  }
+}
+
+preProcessFixture {
+  dependsOn taskName("copy", true, "DockerContext")
+  dependsOn taskName("copy", false, "DockerContext")
+}
+
+postProcessFixture.doLast {
+  println "docker default distro is on port: ${ext."test.fixtures.elasticsearch-default.tcp.9200"}, " +
+          "oss is on: ${ext."test.fixtures.elasticsearch-oss.tcp.9200"}"
+}
+
+// TODO: Add some actual tests, this will just check that the TPC port in the container is up
+check.dependsOn postProcessFixture
+
+void addBuildDockerImage(final boolean oss) {
+  final Task buildDockerImageTask = task(taskName("build", oss, "DockerImage"), type: LoggedExec) {
+    dependsOn taskName("copy", oss, "DockerContext")
+    List<String> tags
+    if (oss) {
+      tags = [ "docker.elastic.co/elasticsearch/elasticsearch-oss:${VersionProperties.elasticsearch}" ]
+    } else {
+      tags = [
+        "elasticsearch:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch:${VersionProperties.elasticsearch}",
+        "docker.elastic.co/elasticsearch/elasticsearch-full:${VersionProperties.elasticsearch}"
+      ]
+    }
+    executable 'docker'
+    final List<String> dockerArgs = ['build', files(oss), '--pull', '--no-cache']
+    for (final String tag : tags) {
+      dockerArgs.add('--tag')
+      dockerArgs.add(tag)
+    }
+    args dockerArgs.toArray()
+  }
+  BuildPlugin.requireDocker(buildDockerImageTask)
+}
+
+for (final boolean oss : [false, true]) {
+  addCopyDockerContextTask(oss)
+  addBuildDockerImage(oss)
+}
+
+assemble.dependsOn "buildOssDockerImage"
+assemble.dependsOn "buildDockerImage"

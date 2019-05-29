@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.Objects;
@@ -18,8 +18,8 @@ public class BinaryComparisonPipe extends BinaryPipe {
 
     private final BinaryComparisonOperation operation;
 
-    public BinaryComparisonPipe(Location location, Expression expression, Pipe left, Pipe right, BinaryComparisonOperation operation) {
-        super(location, expression, left, right);
+    public BinaryComparisonPipe(Source source, Expression expression, Pipe left, Pipe right, BinaryComparisonOperation operation) {
+        super(source, expression, left, right);
         this.operation = operation;
     }
 
@@ -30,7 +30,7 @@ public class BinaryComparisonPipe extends BinaryPipe {
 
     @Override
     protected BinaryPipe replaceChildren(Pipe left, Pipe right) {
-        return new BinaryComparisonPipe(location(), expression(), left, right, operation);
+        return new BinaryComparisonPipe(source(), expression(), left, right, operation);
     }
 
     @Override

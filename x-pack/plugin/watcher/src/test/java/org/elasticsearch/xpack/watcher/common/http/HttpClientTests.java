@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
@@ -40,6 +41,8 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -167,8 +170,9 @@ public class HttpClientTests extends ESTestCase {
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
+        final boolean noFallback = randomBoolean();
         Settings settings;
-        if (randomBoolean()) {
+        if (noFallback) {
             settings = Settings.builder()
                 .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
                 .setSecureSettings(secureSettings)
@@ -186,20 +190,55 @@ public class HttpClientTests extends ESTestCase {
             Settings settings2 = Settings.builder()
                 .put("xpack.ssl.key", keyPath)
                 .put("xpack.ssl.certificate", certPath)
+                .put("xpack.watcher.enabled", false) // avoid deprecation warning since this is used for the server
                 .setSecureSettings(secureSettings)
                 .build();
 
             TestsSSLService sslService = new TestsSSLService(settings2, environment);
             testSslMockWebserver(client, sslService.sslContext(), false);
         }
+
+        if (noFallback == false) {
+            assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [" +
+                "trust configuration], which is deprecated.");
+        }
+    }
+
+    public void testHttpsWithTLSv1GeneratesWarnings() throws Exception {
+        Path trustedCertPath = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.crt");
+        Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");
+        Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        Settings settings = Settings.builder()
+                .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
+                .setSecureSettings(secureSettings)
+                .build();
+
+        try (HttpClient client = new HttpClient(settings, new SSLService(settings, environment), null)) {
+            secureSettings = new MockSecureSettings();
+            secureSettings.setString("xpack.security.http.ssl.secure_key_passphrase", "testnode");
+            Settings settings2 = Settings.builder()
+                .put("xpack.security.http.ssl.key", keyPath)
+                .put("xpack.security.http.ssl.certificate", certPath)
+                .put("xpack.watcher.enabled", false)
+                .setSecureSettings(secureSettings)
+                .build();
+
+            TestsSSLService sslService = new TestsSSLService(settings2, environment);
+            testSslMockWebserver(client, sslService.sslContext("xpack.security.http.ssl."), false, Collections.singletonList("TLSv1"));
+        }
+
+        assertWarnings("a TLS v1.0 session was used for [http connection to localhost]," +
+            " this protocol will be disabled by default in a future version." +
+            " The [xpack.http.ssl.supported_protocols] setting can be used to control this.");
     }
 
     public void testHttpsDisableHostnameVerification() throws Exception {
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.crt");
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.pem");
+        final boolean useHttpSslSettings = randomBoolean();
         Settings settings;
-        if (randomBoolean()) {
-            MockSecureSettings secureSettings = new MockSecureSettings();
+        if (useHttpSslSettings) {
             Settings.Builder builder = Settings.builder()
                 .put("xpack.http.ssl.certificate_authorities", certPath);
             if (inFipsJvm()) {
@@ -227,11 +266,17 @@ public class HttpClientTests extends ESTestCase {
             Settings settings2 = Settings.builder()
                 .put("xpack.ssl.key", keyPath)
                 .put("xpack.ssl.certificate", certPath)
+                .put("xpack.watcher.enabled", false) // avoid deprecation warning since this is used for the server
                 .setSecureSettings(secureSettings)
                 .build();
 
             TestsSSLService sslService = new TestsSSLService(settings2, environment);
             testSslMockWebserver(client, sslService.sslContext(), false);
+        }
+
+        if (useHttpSslSettings == false) {
+            assertWarnings("SSL configuration [xpack.http.ssl] relies upon fallback to another configuration for [" +
+                "trust configuration, certificate verification mode], which is deprecated.");
         }
     }
 
@@ -240,9 +285,12 @@ public class HttpClientTests extends ESTestCase {
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.http.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
             .put("xpack.ssl.key", keyPath)
             .put("xpack.ssl.certificate", certPath)
+            .put("xpack.http.ssl.key", keyPath)
+            .put("xpack.http.ssl.certificate", certPath)
             .setSecureSettings(secureSettings)
             .build();
 
@@ -253,7 +301,12 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private void testSslMockWebserver(HttpClient client, SSLContext sslContext, boolean needClientAuth) throws IOException {
-        try (MockWebServer mockWebServer = new MockWebServer(sslContext, needClientAuth)) {
+        testSslMockWebserver(client, sslContext, needClientAuth, XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS);
+    }
+
+    private void testSslMockWebserver(HttpClient client, SSLContext sslContext, boolean needClientAuth, List<String> supportedProtocols)
+        throws IOException {
+        try (MockWebServer mockWebServer = new MockWebServer(sslContext, needClientAuth, supportedProtocols)) {
             mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
             mockWebServer.start();
 
@@ -379,6 +432,7 @@ public class HttpClientTests extends ESTestCase {
         Settings serverSettings = Settings.builder()
             .put("xpack.ssl.key", keyPath)
             .put("xpack.ssl.certificate", certPath)
+            .put("xpack.watcher.enabled", false) // avoid deprecation warning since this is used for the server
             .setSecureSettings(serverSecureSettings)
             .build();
         TestsSSLService sslService = new TestsSSLService(serverSettings, environment);
@@ -388,12 +442,16 @@ public class HttpClientTests extends ESTestCase {
             proxyServer.start();
 
             MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("xpack.http.ssl.secure_key_passphrase", "testnode");
             Settings settings = Settings.builder()
-                    .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
-                    .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
-                    .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
+                .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
+                .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
+                .put(HttpSettings.PROXY_SCHEME.getKey(), "https")
+                .put("xpack.http.ssl.key", keyPath)
+                .put("xpack.http.ssl.certificate", certPath)
                 .put("xpack.http.ssl.certificate_authorities", trustedCertPath)
-                    .build();
+                .setSecureSettings(secureSettings)
+                .build();
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                     .method(HttpMethod.GET)

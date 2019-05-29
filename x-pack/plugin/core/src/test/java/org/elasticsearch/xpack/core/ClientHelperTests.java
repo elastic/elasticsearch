@@ -42,32 +42,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ClientHelperTests extends ESTestCase {
-
-    public void testStashContext() {
-        final String origin = randomAlphaOfLengthBetween(4, 16);
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-
-        final boolean setOtherValues = randomBoolean();
-        if (setOtherValues) {
-            threadContext.putTransient("foo", "bar");
-            threadContext.putHeader("foo", "bar");
-        }
-
-        assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
-        ThreadContext.StoredContext storedContext = ClientHelper.stashWithOrigin(threadContext, origin);
-        assertEquals(origin, threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
-        assertNull(threadContext.getTransient("foo"));
-        assertNull(threadContext.getTransient("bar"));
-
-        storedContext.close();
-        assertNull(threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME));
-
-        if (setOtherValues) {
-            assertEquals("bar", threadContext.getTransient("foo"));
-            assertEquals("bar", threadContext.getHeader("foo"));
-        }
-    }
-
     public void testExecuteAsyncWrapsListener() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String headerName = randomAlphaOfLengthBetween(4, 16);

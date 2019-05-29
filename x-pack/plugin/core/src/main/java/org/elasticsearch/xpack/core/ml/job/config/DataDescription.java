@@ -77,12 +77,12 @@ public class DataDescription implements ToXContentObject, Writeable {
         }
     }
 
-    private static final ParseField DATA_DESCRIPTION_FIELD = new ParseField("data_description");
-    private static final ParseField FORMAT_FIELD = new ParseField("format");
-    private static final ParseField TIME_FIELD_NAME_FIELD = new ParseField("time_field");
-    private static final ParseField TIME_FORMAT_FIELD = new ParseField("time_format");
-    private static final ParseField FIELD_DELIMITER_FIELD = new ParseField("field_delimiter");
-    private static final ParseField QUOTE_CHARACTER_FIELD = new ParseField("quote_character");
+    public static final ParseField DATA_DESCRIPTION_FIELD = new ParseField("data_description");
+    public static final ParseField FORMAT_FIELD = new ParseField("format");
+    public static final ParseField TIME_FIELD_NAME_FIELD = new ParseField("time_field");
+    public static final ParseField TIME_FORMAT_FIELD = new ParseField("time_format");
+    public static final ParseField FIELD_DELIMITER_FIELD = new ParseField("field_delimiter");
+    public static final ParseField QUOTE_CHARACTER_FIELD = new ParseField("quote_character");
 
     /**
      * Special time format string for epoch times (seconds)

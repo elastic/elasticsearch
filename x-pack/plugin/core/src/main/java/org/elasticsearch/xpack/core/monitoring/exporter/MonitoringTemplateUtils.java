@@ -6,13 +6,14 @@
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.joda.time.format.DateTimeFormatter;
-import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -28,7 +29,7 @@ public final class MonitoringTemplateUtils {
      * <p>
      * It may be possible for this to diverge between templates and pipelines, but for now they're the same.
      */
-    public static final int LAST_UPDATED_VERSION = Version.V_6_5_0.id;
+    public static final int LAST_UPDATED_VERSION = Version.V_6_7_2.id;
 
     /**
      * Current version of templates used in their name to differentiate from breaking changes (separate from product version).
@@ -257,7 +258,7 @@ public final class MonitoringTemplateUtils {
      * @param timestamp the timestamp value to use to compute the timestamped index name
      * @return the index name as a @{link String}
      */
-    public static String indexName(final DateTimeFormatter formatter, final MonitoredSystem system, final long timestamp) {
-        return ".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-" + formatter.print(timestamp);
+    public static String indexName(final DateFormatter formatter, final MonitoredSystem system, final long timestamp) {
+        return ".monitoring-" + system.getSystem() + "-" + TEMPLATE_VERSION + "-" + formatter.formatMillis(timestamp);
     }
 }

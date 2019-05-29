@@ -91,8 +91,8 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
 
         try {
             keystore.setString(setting, value);
-        } catch (IllegalArgumentException e) {
-            throw new UserException(ExitCodes.DATA_ERROR, "String value must contain only ASCII");
+        } catch (final IllegalArgumentException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         }
         keystore.save(env.configFile(), new char[0]);
     }

@@ -8,10 +8,12 @@ Functions for converting an expression of one data type to another.
 [[sql-functions-type-conversion-cast]]
 ==== `CAST`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-CAST ( expression<1> AS data_type<2> )
+CAST(
+    expression <1>
+ AS data_type) <2>
 ----
 
 <1> Expression to cast
@@ -35,17 +37,24 @@ include-tagged::{sql-specs}/docs.csv-spec[conversionIntToStringCast]
 
 ["source","sql",subs="attributes,callouts,macros"]
 ----
-include-tagged::{sql-specs}/docs.csv-spec[conversionStringToDateCast]
+include-tagged::{sql-specs}/docs.csv-spec[conversionStringToDateTimeCast]
 ----
+
+IMPORTANT: Both ANSI SQL and {es-sql} types are supported with the former taking
+precedence. This only affects `FLOAT` which due naming conflict, is interpreted as ANSI SQL 
+and thus maps to `double` in {es} as oppose to `float`.
+To obtain an {es} `float`, perform casting to its SQL equivalent, `real` type.
 
 
 [[sql-functions-type-conversion-convert]]
 ==== `CONVERT`
 
-.Synopsis
+.Synopsis:
 [source, sql]
 ----
-CONVERT ( expression<1>, data_type<2> )
+CONVERT(
+    expression, <1>
+    data_type)  <2>
 ----
 
 <1> Expression to convert

@@ -36,9 +36,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.index.IndexSettings;
 
@@ -70,12 +72,13 @@ public class UnifiedHighlighter implements Highlighter {
         int numberOfFragments;
         try {
 
-            final Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType);
+            final Analyzer analyzer = getAnalyzer(context.mapperService().documentMapper(hitContext.hit().getType()), fieldType,
+                    hitContext);
             List<Object> fieldValues = loadFieldValues(fieldType, field, context, hitContext);
             if (fieldValues.size() == 0) {
                 return null;
             }
-            final PassageFormatter passageFormatter = getPassageFormatter(field, encoder);
+            final PassageFormatter passageFormatter = getPassageFormatter(hitContext, field, encoder);
             final IndexSearcher searcher = new IndexSearcher(hitContext.reader());
             final CustomUnifiedHighlighter highlighter;
             final String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
@@ -122,7 +125,9 @@ public class UnifiedHighlighter implements Highlighter {
                 final String fieldName = highlighterContext.fieldName;
                 highlighter.setFieldMatcher((name) -> fieldName.equals(name));
             } else {
-                highlighter.setFieldMatcher((name) -> true);
+                // ignore terms that targets the _id field since they use a different encoding
+                // that is not compatible with utf8
+                highlighter.setFieldMatcher(name -> IdFieldMapper.NAME.equals(name) == false);
             }
 
             Snippet[] fieldSnippets = highlighter.highlightField(highlighterContext.fieldName,
@@ -136,8 +141,6 @@ public class UnifiedHighlighter implements Highlighter {
             throw new FetchPhaseExecutionException(context,
                 "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
-
-        snippets = filterSnippets(snippets, field.fieldOptions().numberOfFragments());
 
         if (field.fieldOptions().scoreOrdered()) {
             //let's sort the snippets by score if needed
@@ -155,14 +158,14 @@ public class UnifiedHighlighter implements Highlighter {
         return null;
     }
 
-    protected PassageFormatter getPassageFormatter(SearchContextHighlight.Field field, Encoder encoder) {
+    protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchContextHighlight.Field field, Encoder encoder) {
         CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0],
             field.fieldOptions().postTags()[0], encoder);
         return passageFormatter;
     }
 
     
-    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type) {
+    protected Analyzer getAnalyzer(DocumentMapper docMapper, MappedFieldType type, HitContext hitContext) {
         return HighlightUtils.getAnalyzer(docMapper, type);
     }
     
@@ -196,41 +199,6 @@ public class UnifiedHighlighter implements Highlighter {
             default:
                 throw new IllegalArgumentException("Invalid boundary scanner type: " + type.toString());
         }
-    }
-
-    protected static List<Snippet> filterSnippets(List<Snippet> snippets, int numberOfFragments) {
-
-        //We need to filter the snippets as due to no_match_size we could have
-        //either highlighted snippets or non highlighted ones and we don't want to mix those up
-        List<Snippet> filteredSnippets = new ArrayList<>(snippets.size());
-        for (Snippet snippet : snippets) {
-            if (snippet.isHighlighted()) {
-                filteredSnippets.add(snippet);
-            }
-        }
-
-        //if there's at least one highlighted snippet, we return all the highlighted ones
-        //otherwise we return the first non highlighted one if available
-        if (filteredSnippets.size() == 0) {
-            if (snippets.size() > 0) {
-                Snippet snippet = snippets.get(0);
-                //if we tried highlighting the whole content using whole break iterator (as number_of_fragments was 0)
-                //we need to return the first sentence of the content rather than the whole content
-                if (numberOfFragments == 0) {
-                    BreakIterator bi = BreakIterator.getSentenceInstance(Locale.ROOT);
-                    String text = snippet.getText();
-                    bi.setText(text);
-                    int next = bi.next();
-                    if (next != BreakIterator.DONE) {
-                        String newText = text.substring(0, next).trim();
-                        snippet = new Snippet(newText, snippet.getScore(), snippet.isHighlighted());
-                    }
-                }
-                filteredSnippets.add(snippet);
-            }
-        }
-
-        return filteredSnippets;
     }
 
     protected static String convertFieldValue(MappedFieldType type, Object value) {

@@ -4,7 +4,7 @@
 == SQL Translate API
 
 The SQL Translate API accepts SQL in a JSON document and translates it
-into native Elasticsearch queries. For example:
+into native {es} queries. For example:
 
 [source,js]
 --------------------------------------------------

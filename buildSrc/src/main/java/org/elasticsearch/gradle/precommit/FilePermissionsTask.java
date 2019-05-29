@@ -28,15 +28,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.tools.ant.taskdefs.condition.Os;
+import org.elasticsearch.gradle.tool.Boilerplate;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
-import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.SkipWhenEmpty;
-import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -81,8 +80,7 @@ public class FilePermissionsTask extends DefaultTask {
     @InputFiles
     @SkipWhenEmpty
     public FileCollection getFiles() {
-        SourceSetContainer sourceSets = getProject().getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
-        return sourceSets.stream()
+        return Boilerplate.getJavaSourceSets(getProject()).stream()
                 .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
                 .reduce(FileTree::plus)
                 .orElse(getProject().files().getAsFileTree());

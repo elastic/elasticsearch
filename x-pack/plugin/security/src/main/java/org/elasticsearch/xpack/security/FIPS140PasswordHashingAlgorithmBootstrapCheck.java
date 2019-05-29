@@ -21,8 +21,8 @@ public class FIPS140PasswordHashingAlgorithmBootstrapCheck implements BootstrapC
      */
     @Override
     public BootstrapCheckResult check(final BootstrapContext context) {
-        if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
-            final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(context.settings);
+        if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings())) {
+            final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(context.settings());
             if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
                 return BootstrapCheckResult.failure("Only PBKDF2 is allowed for password hashing in a FIPS-140 JVM. Please set the " +
                         "appropriate value for [ " + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey() + " ] setting.");

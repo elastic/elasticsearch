@@ -5,8 +5,9 @@
 The images use https://hub.docker.com/_/centos/[centos:7] as the base image.
 
 A list of all published Docker images and tags is available at
-https://www.docker.elastic.co[www.docker.elastic.co]. The source code is in
-https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
+https://www.docker.elastic.co[www.docker.elastic.co]. The source files
+are in
+https://github.com/elastic/elasticsearch/blob/{branch}/distribution/docker[Github].
 
 These images are free to use under the Elastic license. They contain open source 
 and free commercial features and access to paid commercial features.  
@@ -83,7 +84,7 @@ The `vm.max_map_count` setting should be set permanently in /etc/sysctl.conf:
 --------------------------------------------
 $ grep vm.max_map_count /etc/sysctl.conf
 vm.max_map_count=262144
-----------------------------------
+--------------------------------------------
 
 To apply the setting on a live system type: `sysctl -w vm.max_map_count=262144`
 --
@@ -282,6 +283,7 @@ comfortable with them adding the `--batch` flag to the plugin install command.
 See {plugins}/_other_command_line_parameters.html[Plugin Management documentation]
 for more details.
 
+[[override-image-default]]
 ===== D. Override the image's default https://docs.docker.com/engine/reference/run/#cmd-default-command-or-options[CMD]
 
 Options can be passed as command-line options to the {es} process by
@@ -323,7 +325,7 @@ data through a bind-mount:
 
 As a last resort, you can also force the container to mutate the ownership of
 any bind-mounts used for the <<path-settings,data and log dirs>> through the
-environment variable `TAKE_FILE_OWNERSHIP`; in this case they will be owned by
+environment variable `TAKE_FILE_OWNERSHIP`. In this case, they will be owned by
 uid:gid `1000:0` providing read/write access to the {es} process as required.
 --
 
@@ -336,7 +338,7 @@ needed, adjust them in the Daemon, or override them per container, for example
 using `docker run`:
 +
 --
-  --ulimit nofile=65536:65536
+  --ulimit nofile=65535:65535
 
 NOTE: One way of checking the Docker daemon defaults for the aforementioned
 ulimits is by running:

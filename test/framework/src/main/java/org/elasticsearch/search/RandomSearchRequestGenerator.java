@@ -83,7 +83,17 @@ public class RandomSearchRequestGenerator {
      *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier, Supplier)}.
      */
     public static SearchRequest randomSearchRequest(Supplier<SearchSourceBuilder> randomSearchSourceBuilder) {
-        SearchRequest searchRequest = new SearchRequest();
+        return randomSearchRequest(new SearchRequest(), randomSearchSourceBuilder);
+    }
+
+    /**
+     * Set random fields to the provided search request.
+     *
+     * @param searchRequest the search request
+     * @param randomSearchSourceBuilder builds a random {@link SearchSourceBuilder}. You can use
+     *        {@link #randomSearchSourceBuilder(Supplier, Supplier, Supplier, Supplier, Supplier)}.
+     */
+    public static SearchRequest randomSearchRequest(SearchRequest searchRequest, Supplier<SearchSourceBuilder> randomSearchSourceBuilder) {
         searchRequest.allowPartialSearchResults(true);
         if (randomBoolean()) {
             searchRequest.indices(generateRandomStringArray(10, 10, false, false));
@@ -133,6 +143,9 @@ public class RandomSearchRequestGenerator {
         }
         if (randomBoolean()) {
             builder.version(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.seqNoAndPrimaryTerm(randomBoolean());
         }
         if (randomBoolean()) {
             builder.trackScores(randomBoolean());

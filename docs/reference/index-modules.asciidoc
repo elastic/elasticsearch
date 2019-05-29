@@ -45,30 +45,17 @@ specific index module:
     part of the cluster.
 
 `index.shard.check_on_startup`::
-+
---
+
 Whether or not shards should be checked for corruption before opening. When
 corruption is detected, it will prevent the shard from being opened. Accepts:
-
-`false`::
-
-    (default) Don't check for corruption when opening a shard.
-
-`checksum`::
-
-    Check for physical corruption.
-
-`true`::
-
-    Check for both physical and logical corruption. This is much more
+`false`:: (default) Don't check for corruption when opening a shard.
+`checksum`:: Check for physical corruption.
+`true`:: Check for both physical and logical corruption. This is much more
     expensive in terms of CPU and memory usage.
-
-`fix`::
-
-    The same as `false`. This option is deprecated and will be completely removed in 7.0.
-
+`fix`:: The same as `false`. This option is deprecated and will be completely
+removed in 7.0.
++
 WARNING: Expert only. Checking shards may take a lot of time on large indices.
---
 
 [[index-codec]] `index.codec`::
 
@@ -86,6 +73,11 @@ WARNING: Expert only. Checking shards may take a lot of time on large indices.
     Defaults to 1 and can only be set at index creation time. This value must be less
     than the `index.number_of_shards` unless the `index.number_of_shards` value is also 1.
     See <<routing-index-partition>> for more details about how this setting is used.
+
+[[load-fixed-bitset-filters-eagerly]] `index.load_fixed_bitset_filters_eagerly`::
+
+    Indicates whether <<query-filter-context, cached filters>> are pre-loaded for
+    nested queries. Possible values are `true` (default) and `false`.
 
 [float]
 [[dynamic-index-settings]]

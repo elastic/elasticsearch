@@ -460,7 +460,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         int sigDigits = randomSignificantDigits();
         final double[] pcts = randomPercents(minValues, maxValues);
 
-        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values'].values", emptyMap());
+        Script script = new Script(ScriptType.INLINE, AggregationTestScriptsPlugin.NAME, "doc['values']", emptyMap());
 
         SearchResponse searchResponse = client()
                 .prepareSearch("idx")

@@ -144,7 +144,7 @@ access `text` fields from scripts.
 
 _Stored fields_ -- fields explicitly marked as
 <<mapping-store,`"store": true`>> -- can be accessed using the
-`_fields['field_name'].value` or `_fields['field_name'].values` syntax.
+`_fields['field_name'].value` or `_fields['field_name']` syntax.
 
 The document <<mapping-source-field,`_source`>>, which is really just a
 special stored field,  can be accessed using the `_source.field_name` syntax.

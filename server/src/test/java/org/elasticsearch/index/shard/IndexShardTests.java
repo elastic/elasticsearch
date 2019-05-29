@@ -67,6 +67,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -81,7 +82,9 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.CommitStats;
+import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.DeleteResult;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -101,11 +104,14 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.store.StoreUtils;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -142,6 +148,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
@@ -167,17 +174,21 @@ import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -261,7 +272,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardStateMetaData shardStateMetaData = load(logger, shardPath.getShardStatePath());
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         // but index can't be opened for a failed shard
-        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId(),
+        assertThat("store index should be corrupted", StoreUtils.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId(),
             (shardId, lockTimeoutMS) -> new DummyShardLock(shardId)),
             equalTo(false));
     }
@@ -315,18 +326,82 @@ public class IndexShardTests extends IndexShardTestCase {
         expectThrows(IndexShardClosedException.class,
             () -> indexShard.acquireAllPrimaryOperationsPermits(null, TimeValue.timeValueSeconds(30L)));
         expectThrows(IndexShardClosedException.class,
-            () -> indexShard.acquireReplicaOperationPermit(indexShard.getPendingPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO,
+            () -> indexShard.acquireReplicaOperationPermit(indexShard.getPendingPrimaryTerm(), UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(), null, ThreadPool.Names.WRITE, ""));
         expectThrows(IndexShardClosedException.class,
-            () -> indexShard.acquireAllReplicaOperationsPermits(indexShard.getPendingPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO,
+            () -> indexShard.acquireAllReplicaOperationsPermits(indexShard.getPendingPrimaryTerm(), UNASSIGNED_SEQ_NO,
                 randomNonNegativeLong(), null, TimeValue.timeValueSeconds(30L)));
+    }
+
+    public void testRunUnderPrimaryPermitRunsUnderPrimaryPermit() throws IOException {
+        final IndexShard indexShard = newStartedShard(true);
+        try {
+            assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
+            indexShard.runUnderPrimaryPermit(
+                    () -> assertThat(indexShard.getActiveOperationsCount(), equalTo(1)),
+                    e -> fail(e.toString()),
+                    ThreadPool.Names.SAME,
+                    "test");
+                assertThat(indexShard.getActiveOperationsCount(), equalTo(0));
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testRunUnderPrimaryPermitOnFailure() throws IOException {
+        final IndexShard indexShard = newStartedShard(true);
+        final AtomicBoolean invoked = new AtomicBoolean();
+        try {
+            indexShard.runUnderPrimaryPermit(
+                    () -> {
+                        throw new RuntimeException("failure");
+                    },
+                    e -> {
+                        assertThat(e, instanceOf(RuntimeException.class));
+                        assertThat(e.getMessage(), equalTo("failure"));
+                        invoked.set(true);
+                    },
+                    ThreadPool.Names.SAME,
+                    "test");
+            assertTrue(invoked.get());
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
+    public void testRunUnderPrimaryPermitDelaysToExecutorWhenBlocked() throws Exception {
+        final IndexShard indexShard = newStartedShard(true);
+        try {
+            final PlainActionFuture<Releasable> onAcquired = new PlainActionFuture<>();
+            indexShard.acquireAllPrimaryOperationsPermits(onAcquired, new TimeValue(Long.MAX_VALUE, TimeUnit.NANOSECONDS));
+            final Releasable permit = onAcquired.actionGet();
+            final CountDownLatch latch = new CountDownLatch(1);
+            final String executorOnDelay =
+                    randomFrom(ThreadPool.Names.FLUSH, ThreadPool.Names.GENERIC, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.SAME);
+            indexShard.runUnderPrimaryPermit(
+                    () -> {
+                        final String expectedThreadPoolName =
+                                executorOnDelay.equals(ThreadPool.Names.SAME) ? "generic" : executorOnDelay.toLowerCase(Locale.ROOT);
+                        assertThat(Thread.currentThread().getName(), containsString(expectedThreadPoolName));
+                        latch.countDown();
+                    },
+                    e -> fail(e.toString()),
+                    executorOnDelay,
+                    "test");
+            permit.close();
+            latch.await();
+            // we could race and assert on the count before the permit is returned
+            assertBusy(() -> assertThat(indexShard.getActiveOperationsCount(), equalTo(0)));
+        } finally {
+            closeShards(indexShard);
+        }
     }
 
     public void testRejectOperationPermitWithHigherTermWhenNotStarted() throws IOException {
         IndexShard indexShard = newShard(false);
         expectThrows(IndexShardNotStartedException.class, () ->
             randomReplicaOperationPermitAcquisition(indexShard, indexShard.getPendingPrimaryTerm() + randomIntBetween(1, 100),
-                SequenceNumbers.UNASSIGNED_SEQ_NO, randomNonNegativeLong(), null, ""));
+                UNASSIGNED_SEQ_NO, randomNonNegativeLong(), null, ""));
         closeShards(indexShard);
     }
 
@@ -567,10 +642,12 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;
 
+        final boolean isPrimaryMode;
         if (randomBoolean()) {
             // relocation target
             indexShard = newShard(newShardRouting(shardId, "local_node", "other node",
                 true, ShardRoutingState.INITIALIZING, AllocationId.newRelocation(AllocationId.newInitializing())));
+            isPrimaryMode = false;
         } else if (randomBoolean()) {
             // simulate promotion
             indexShard = newStartedShard(false);
@@ -587,21 +664,59 @@ public class IndexShardTests extends IndexShardTestCase {
                 new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build(),
                 Collections.emptySet());
             latch.await();
+            isPrimaryMode = true;
         } else {
             indexShard = newStartedShard(true);
+            isPrimaryMode = true;
         }
-        final long primaryTerm = indexShard.getPendingPrimaryTerm();
-        assertEquals(0, indexShard.getActiveOperationsCount());
-        Releasable operation1 = acquirePrimaryOperationPermitBlockingly(indexShard);
-        assertEquals(1, indexShard.getActiveOperationsCount());
-        Releasable operation2 = acquirePrimaryOperationPermitBlockingly(indexShard);
-        assertEquals(2, indexShard.getActiveOperationsCount());
+        final long pendingPrimaryTerm = indexShard.getPendingPrimaryTerm();
+        if (isPrimaryMode) {
+            assertEquals(0, indexShard.getActiveOperationsCount());
+            Releasable operation1 = acquirePrimaryOperationPermitBlockingly(indexShard);
+            assertEquals(1, indexShard.getActiveOperationsCount());
+            Releasable operation2 = acquirePrimaryOperationPermitBlockingly(indexShard);
+            assertEquals(2, indexShard.getActiveOperationsCount());
 
-        Releasables.close(operation1, operation2);
-        assertEquals(0, indexShard.getActiveOperationsCount());
+            Releasables.close(operation1, operation2);
+            assertEquals(0, indexShard.getActiveOperationsCount());
+        } else {
+            indexShard.acquirePrimaryOperationPermit(
+                    new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(final Releasable releasable) {
+                            throw new AssertionError();
+                        }
+
+                        @Override
+                        public void onFailure(final Exception e) {
+                            assertThat(e, instanceOf(ShardNotInPrimaryModeException.class));
+                            assertThat(e, hasToString(containsString("shard is not in primary mode")));
+                        }
+                    },
+                    ThreadPool.Names.SAME,
+                    "test");
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            indexShard.acquireAllPrimaryOperationsPermits(
+                    new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(final Releasable releasable) {
+                            throw new AssertionError();
+                        }
+
+                        @Override
+                        public void onFailure(final Exception e) {
+                            assertThat(e, instanceOf(ShardNotInPrimaryModeException.class));
+                            assertThat(e, hasToString(containsString("shard is not in primary mode")));
+                            latch.countDown();
+                        }
+                    },
+                    TimeValue.timeValueSeconds(30));
+            latch.await();
+        }
 
         if (Assertions.ENABLED && indexShard.routingEntry().isRelocationTarget() == false) {
-            assertThat(expectThrows(AssertionError.class, () -> indexShard.acquireReplicaOperationPermit(primaryTerm,
+            assertThat(expectThrows(AssertionError.class, () -> indexShard.acquireReplicaOperationPermit(pendingPrimaryTerm,
                 indexShard.getGlobalCheckpoint(), indexShard.getMaxSeqNoOfUpdatesOrDeletes(), new ActionListener<Releasable>() {
                     @Override
                     public void onResponse(Releasable releasable) {
@@ -668,7 +783,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 } else {
                     indexShard.acquireAllPrimaryOperationsPermits(future, TimeValue.timeValueHours(1L));
                 }
-                assertEquals(0, indexShard.getActiveOperationsCount());
             });
             threads[threadId].start();
         }
@@ -822,7 +936,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 newGlobalCheckPoint = randomIntBetween((int) indexShard.getGlobalCheckpoint(), (int) localCheckPoint);
             }
             final long expectedLocalCheckpoint;
-            if (newGlobalCheckPoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            if (newGlobalCheckPoint == UNASSIGNED_SEQ_NO) {
                 expectedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
             } else {
                 expectedLocalCheckpoint = newGlobalCheckPoint;
@@ -884,18 +998,18 @@ public class IndexShardTests extends IndexShardTestCase {
                 // our operation should be blocked until the previous operations complete
                 assertFalse(onResponse.get());
                 assertNull(onFailure.get());
-                assertThat(indexShard.operationPrimaryTerm, equalTo(primaryTerm));
+                assertThat(indexShard.getOperationPrimaryTerm(), equalTo(primaryTerm));
                 assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(primaryTerm));
                 Releasables.close(operation1);
                 // our operation should still be blocked
                 assertFalse(onResponse.get());
                 assertNull(onFailure.get());
-                assertThat(indexShard.operationPrimaryTerm, equalTo(primaryTerm));
+                assertThat(indexShard.getOperationPrimaryTerm(), equalTo(primaryTerm));
                 assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(primaryTerm));
                 Releasables.close(operation2);
                 barrier.await();
                 // now lock acquisition should have succeeded
-                assertThat(indexShard.operationPrimaryTerm, equalTo(newPrimaryTerm));
+                assertThat(indexShard.getOperationPrimaryTerm(), equalTo(newPrimaryTerm));
                 assertThat(indexShard.getPendingPrimaryTerm(), equalTo(newPrimaryTerm));
                 assertThat(TestTranslog.getCurrentTerm(getTranslog(indexShard)), equalTo(newPrimaryTerm));
                 if (engineClosed) {
@@ -904,7 +1018,10 @@ public class IndexShardTests extends IndexShardTestCase {
                 } else {
                     assertTrue(onResponse.get());
                     assertNull(onFailure.get());
-                    assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration, equalTo(translogGen + 1));
+                    assertThat(getTranslog(indexShard).getGeneration().translogFileGeneration,
+                        // if rollback happens we roll translog twice: one when we flush a commit before opening a read-only engine
+                        // and one after replaying translog (upto the global checkpoint); otherwise we roll translog once.
+                        either(equalTo(translogGen + 1)).or(equalTo(translogGen + 2)));
                     assertThat(indexShard.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
                     assertThat(indexShard.getGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                 }
@@ -933,7 +1050,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             };
 
-            final long oldPrimaryTerm = indexShard.pendingPrimaryTerm - 1;
+            final long oldPrimaryTerm = indexShard.getPendingPrimaryTerm() - 1;
             randomReplicaOperationPermitAcquisition(indexShard, oldPrimaryTerm, indexShard.getGlobalCheckpoint(),
                 randomNonNegativeLong(), onLockAcquired, "");
             latch.await();
@@ -955,7 +1072,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         long newMaxSeqNoOfUpdates = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
         PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
-        randomReplicaOperationPermitAcquisition(replica, replica.operationPrimaryTerm, replica.getGlobalCheckpoint(),
+        randomReplicaOperationPermitAcquisition(replica, replica.getOperationPrimaryTerm(), replica.getGlobalCheckpoint(),
             newMaxSeqNoOfUpdates, fut, "");
         try (Releasable ignored = fut.actionGet()) {
             assertThat(replica.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, newMaxSeqNoOfUpdates)));
@@ -981,8 +1098,8 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexMetaData.Builder indexMetadata =
             IndexMetaData.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, 1);
         final AtomicBoolean synced = new AtomicBoolean();
-        final IndexShard primaryShard =
-                newShard(shardRouting, indexMetadata.build(), null, new InternalEngineFactory(), () -> synced.set(true));
+        final IndexShard primaryShard = newShard(
+            shardRouting, indexMetadata.build(), null, new InternalEngineFactory(), () -> synced.set(true), RetentionLeaseSyncer.EMPTY);
         // add a replica
         recoverShardFromStore(primaryShard);
         final IndexShard replicaShard = newShard(shardId, false);
@@ -1024,17 +1141,16 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(replicaShard, primaryShard);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
 
         final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
-        final long globalCheckpointOnReplica = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
+        final long globalCheckpointOnReplica = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
-        final long globalCheckpoint = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
+        final long globalCheckpoint = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         final long currentMaxSeqNoOfUpdates = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
         final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo);
         final Set<String> docsBeforeRollback = getShardDocUIDs(indexShard);
@@ -1079,17 +1195,11 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
         assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
-        if (shouldRollback) {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Collections.max(
-                Arrays.asList(currentMaxSeqNoOfUpdates, maxSeqNoOfUpdatesOrDeletes, globalCheckpoint, globalCheckpointOnReplica))
-            ));
-        } else {
-            assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(Math.max(currentMaxSeqNoOfUpdates, maxSeqNoOfUpdatesOrDeletes)));
-        }
+        // we conservatively roll MSU forward to maxSeqNo during restoreLocalHistory, ideally it should become just currentMaxSeqNoOfUpdates
+        assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(maxSeqNo));
         closeShard(indexShard, false);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/35850")
     public void testRollbackReplicaEngineOnPromotion() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
 
@@ -1097,9 +1207,9 @@ public class IndexShardTests extends IndexShardTestCase {
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbers.NO_OPS_PERFORMED));
 
-        final long globalCheckpointOnReplica = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
+        final long globalCheckpointOnReplica = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
-        final long globalCheckpoint = randomLongBetween(SequenceNumbers.UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
+        final long globalCheckpoint = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         Set<String> docsBelowGlobalCheckpoint = getShardDocUIDs(indexShard).stream()
             .filter(id -> Long.parseLong(id) <= Math.max(globalCheckpointOnReplica, globalCheckpoint)).collect(Collectors.toSet());
         final CountDownLatch latch = new CountDownLatch(1);
@@ -1108,7 +1218,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final Engine beforeRollbackEngine = indexShard.getEngine();
         final long newMaxSeqNoOfUpdates = randomLongBetween(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), Long.MAX_VALUE);
         randomReplicaOperationPermitAcquisition(indexShard,
-                indexShard.pendingPrimaryTerm + 1,
+                indexShard.getPendingPrimaryTerm() + 1,
                 globalCheckpoint,
                 newMaxSeqNoOfUpdates,
                 new ActionListener<Releasable>() {
@@ -1125,7 +1235,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }, "");
 
         latch.await();
-        if (globalCheckpointOnReplica == SequenceNumbers.UNASSIGNED_SEQ_NO && globalCheckpoint == SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        if (globalCheckpointOnReplica == UNASSIGNED_SEQ_NO && globalCheckpoint == UNASSIGNED_SEQ_NO) {
             assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         } else {
             assertThat(indexShard.getLocalCheckpoint(), equalTo(Math.max(globalCheckpoint, globalCheckpointOnReplica)));
@@ -1312,8 +1422,13 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testShardStats() throws IOException {
 
         IndexShard shard = newStartedShard();
-        ShardStats stats = new ShardStats(shard.routingEntry(), shard.shardPath(),
-            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()), shard.commitStats(), shard.seqNoStats());
+        ShardStats stats = new ShardStats(
+                shard.routingEntry(),
+                shard.shardPath(),
+                new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
+                shard.commitStats(),
+                shard.seqNoStats(),
+                shard.getRetentionLeaseStats());
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
         assertEquals(shard.shardPath().isCustomDataPath(), stats.isCustomDataPath());
@@ -1391,12 +1506,17 @@ public class IndexShardTests extends IndexShardTestCase {
                     return super.listAll();
                 }
             }
+
+            // temporary override until LUCENE-8735 is integrated
+            @Override
+            public Set<String> getPendingDeletions() throws IOException {
+                return in.getPendingDeletions();
+            }
         };
 
         try (Store store = createStore(shardId, new IndexSettings(metaData, Settings.EMPTY), directory)) {
-            IndexShard shard = newShard(shardRouting, shardPath, metaData, i -> store,
-                    null, new InternalEngineFactory(), () -> {
-                    }, EMPTY_EVENT_LISTENER);
+            IndexShard shard = newShard(shardRouting, shardPath, metaData, i -> store, null, new InternalEngineFactory(),
+                () -> { }, RetentionLeaseSyncer.EMPTY, EMPTY_EVENT_LISTENER);
             AtomicBoolean failureCallbackTriggered = new AtomicBoolean(false);
             shard.addShardFailureCallback((ig)->failureCallbackTriggered.set(true));
 
@@ -1433,7 +1553,7 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         long refreshCount = shard.refreshStats().getTotal();
         indexDoc(shard, "_doc", "test");
-        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "test", "test",
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, false, "_doc", "test",
             new Term(IdFieldMapper.NAME, Uid.encodeId("test"))))) {
             assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount+1));
         }
@@ -1599,10 +1719,9 @@ public class IndexShardTests extends IndexShardTestCase {
         // recovery can be now finalized
         recoveryThread.join();
         assertTrue(shard.isRelocatedPrimary());
-        try (Releasable ignored = acquirePrimaryOperationPermitBlockingly(shard)) {
-            // lock can again be acquired
-            assertTrue(shard.isRelocatedPrimary());
-        }
+        final ExecutionException e = expectThrows(ExecutionException.class, () -> acquirePrimaryOperationPermitBlockingly(shard));
+        assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+        assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
 
         closeShards(shard);
     }
@@ -1610,30 +1729,66 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
         IndexShardTestCase.updateRoutingEntry(shard, ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
+        final CountDownLatch startRecovery = new CountDownLatch(1);
+        final CountDownLatch relocationStarted = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
             try {
-                shard.relocated(primaryContext -> {});
+                startRecovery.await();
+                shard.relocated(primaryContext -> relocationStarted.countDown());
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         });
 
         recoveryThread.start();
-        List<PlainActionFuture<Releasable>> onLockAcquiredActions = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            PlainActionFuture<Releasable> onLockAcquired = new PlainActionFuture<Releasable>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    releasable.close();
-                    super.onResponse(releasable);
-                }
-            };
-            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.INDEX, "i_" + i);
-            onLockAcquiredActions.add(onLockAcquired);
+
+        final int numberOfAcquisitions = randomIntBetween(1, 10);
+        final List<Runnable> assertions = new ArrayList<>(numberOfAcquisitions);
+        final int recoveryIndex = randomIntBetween(0, numberOfAcquisitions - 1);
+
+        for (int i = 0; i < numberOfAcquisitions; i++) {
+            final PlainActionFuture<Releasable> onLockAcquired;
+            if (i < recoveryIndex) {
+                final AtomicBoolean invoked = new AtomicBoolean();
+                onLockAcquired = new PlainActionFuture<Releasable>() {
+
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        invoked.set(true);
+                        releasable.close();
+                        super.onResponse(releasable);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError();
+                    }
+
+                };
+                assertions.add(() -> assertTrue(invoked.get()));
+            } else if (recoveryIndex == i) {
+                startRecovery.countDown();
+                relocationStarted.await();
+                onLockAcquired = new PlainActionFuture<>();
+                assertions.add(() -> {
+                    final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
+                    assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+                    assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+                });
+            } else {
+                onLockAcquired = new PlainActionFuture<>();
+                assertions.add(() -> {
+                    final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
+                    assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+                    assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+                });
+            }
+
+            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE, "i_" + i);
         }
 
-        for (PlainActionFuture<Releasable> onLockAcquired : onLockAcquiredActions) {
-            assertNotNull(onLockAcquired.get(30, TimeUnit.SECONDS));
+        for (final Runnable assertion : assertions) {
+            assertion.run();
         }
 
         recoveryThread.join();
@@ -2032,10 +2187,6 @@ public class IndexShardTests extends IndexShardTestCase {
             SourceToParse.source(indexName, "_doc", "doc-1", new BytesArray("{}"), XContentType.JSON));
         flushShard(shard);
         assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
-        // Here we try to increase term (i.e. a new primary is promoted) without rolling back a replica so we can keep stale operations
-        // in the index commit; then verify that a recovery from store (started with the safe commit) will remove all stale operations.
-        shard.pendingPrimaryTerm++;
-        shard.operationPrimaryTerm++;
         shard.getEngine().rollTranslogGeneration();
         shard.markSeqNoAsNoop(1, "test");
         shard.applyIndexOperationOnReplica(2, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
@@ -2045,11 +2196,21 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShard(shard, false);
         // Recovering from store should discard doc #1
         final ShardRouting replicaRouting = shard.routingEntry();
-        IndexShard newShard = reinitShard(shard,
-            newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING,
-                RecoverySource.ExistingStoreRecoverySource.INSTANCE));
-        newShard.pendingPrimaryTerm++;
-        newShard.operationPrimaryTerm++;
+        final IndexMetaData newShardIndexMetadata = IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
+                .primaryTerm(replicaRouting.shardId().id(), shard.getOperationPrimaryTerm() + 1)
+                .build();
+        closeShards(shard);
+        IndexShard newShard = newShard(
+                newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING,
+                        RecoverySource.ExistingStoreRecoverySource.INSTANCE),
+                shard.shardPath(),
+                newShardIndexMetadata,
+                null,
+                null,
+                shard.getEngineFactory(),
+                shard.getGlobalCheckpointSyncer(),
+                shard.getRetentionLeaseSyncer(),
+                EMPTY_EVENT_LISTENER);
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
@@ -2076,9 +2237,12 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRestoreShard() throws IOException {
         final IndexShard source = newStartedShard(true);
-        IndexShard target = newStartedShard(true);
+        IndexShard target = newStartedShard(true, Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), source.indexSettings().isSoftDeleteEnabled()).build());
 
         indexDoc(source, "_doc", "0");
+        EngineTestCase.generateNewSeqNo(source.getEngine()); // create a gap in the history
+        indexDoc(source, "_doc", "2");
         if (randomBoolean()) {
             source.refresh("test");
         }
@@ -2090,7 +2254,7 @@ public class IndexShardTests extends IndexShardTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE);
         final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
         routing = ShardRoutingHelper.newWithRestoreSource(routing,
-            new RecoverySource.SnapshotRecoverySource(snapshot, Version.CURRENT, "test"));
+            new RecoverySource.SnapshotRecoverySource(UUIDs.randomBase64UUID(), snapshot, Version.CURRENT, "test"));
         target = reinitShard(target, routing);
         Store sourceStore = source.store();
         Store targetStore = target.store();
@@ -2114,16 +2278,18 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }
         }));
-        assertThat(target.getLocalCheckpoint(), equalTo(0L));
-        assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(0L));
-        assertThat(target.getReplicationTracker().getGlobalCheckpoint(), equalTo(0L));
+        assertThat(target.getLocalCheckpoint(), equalTo(2L));
+        assertThat(target.seqNoStats().getMaxSeqNo(), equalTo(2L));
+        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(0L));
         IndexShardTestCase.updateRoutingEntry(target, routing.moveToStarted());
         assertThat(target.getReplicationTracker().getTrackedLocalCheckpointForShard(
-            target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(0L));
+            target.routingEntry().allocationId().getId()).getLocalCheckpoint(), equalTo(2L));
+        assertThat(target.seqNoStats().getGlobalCheckpoint(), equalTo(2L));
 
-        assertDocs(target, "0");
+        assertDocs(target, "0", "2");
 
-        closeShards(source, target);
+        closeShard(source, false);
+        closeShards(target);
     }
 
     public void testSearcherWrapperIsUsed() throws IOException {
@@ -2132,7 +2298,7 @@ public class IndexShardTests extends IndexShardTestCase {
         indexDoc(shard, "_doc", "1", "{\"foobar\" : \"bar\"}");
         shard.refresh("test");
 
-        Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "test", "1",
+        Engine.GetResult getResult = shard.get(new Engine.Get(false, false, "_doc", "1",
             new Term(IdFieldMapper.NAME, Uid.encodeId("1"))));
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher());
@@ -2163,6 +2329,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 wrapper,
                 new InternalEngineFactory(),
                 () -> {},
+                RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
@@ -2173,7 +2340,7 @@ public class IndexShardTests extends IndexShardTestCase {
             search = searcher.searcher().search(new TermQuery(new Term("foobar", "bar")), 10);
             assertEquals(search.totalHits, 1);
         }
-        getResult = newShard.get(new Engine.Get(false, false, "test", "1",
+        getResult = newShard.get(new Engine.Get(false, false, "_doc", "1",
             new Term(IdFieldMapper.NAME, Uid.encodeId("1"))));
         assertTrue(getResult.exists());
         assertNotNull(getResult.searcher()); // make sure get uses the wrapped reader
@@ -2316,6 +2483,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 wrapper,
                 new InternalEngineFactory(),
                 () -> {},
+                RetentionLeaseSyncer.EMPTY,
                 EMPTY_EVENT_LISTENER);
 
         recoverShardFromStore(newShard);
@@ -2347,12 +2515,20 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long maxSeenAutoIdTimestamp,
-                                                    long maxSeqNoOfUpdatesOrDeletes) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(
-                        operations, totalTranslogOps, maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-                    assertFalse(replica.isSyncNeeded());
-                    return localCheckpoint;
+                public void indexTranslogOperations(
+                        final List<Translog.Operation> operations,
+                        final int totalTranslogOps,
+                        final long maxSeenAutoIdTimestamp,
+                        final long maxSeqNoOfUpdatesOrDeletes,
+                        final RetentionLeases retentionLeases,
+                        final ActionListener<Long> listener){
+                    super.indexTranslogOperations(
+                            operations,
+                            totalTranslogOps,
+                            maxSeenAutoIdTimestamp,
+                            maxSeqNoOfUpdatesOrDeletes,
+                            retentionLeases,
+                            ActionListener.runAfter(listener, () -> assertFalse(replica.isSyncNeeded())));
                 }
             }, true, true);
 
@@ -2456,13 +2632,26 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                    long maxAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(
-                        operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-                    // Shard should now be active since we did recover:
-                    assertTrue(replica.isActive());
-                    return localCheckpoint;
+                public void indexTranslogOperations(
+                        final List<Translog.Operation> operations,
+                        final int totalTranslogOps,
+                        final long maxAutoIdTimestamp,
+                        final long maxSeqNoOfUpdatesOrDeletes,
+                        final RetentionLeases retentionLeases,
+                        final ActionListener<Long> listener){
+                    super.indexTranslogOperations(
+                            operations,
+                            totalTranslogOps,
+                            maxAutoIdTimestamp,
+                            maxSeqNoOfUpdatesOrDeletes,
+                            retentionLeases,
+                            ActionListener.wrap(
+                                    checkpoint -> {
+                                        listener.onResponse(checkpoint);
+                                        // Shard should now be active since we did recover:
+                                        assertTrue(replica.isActive());
+                                    },
+                                    listener::onFailure));
                 }
             }, false, true);
 
@@ -2499,24 +2688,36 @@ public class IndexShardTests extends IndexShardTestCase {
             }) {
             // we're only checking that listeners are called when the engine is open, before there is no point
                 @Override
-                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps) throws IOException {
-                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps);
+                public void prepareForTranslogOperations(boolean fileBasedRecovery, int totalTranslogOps, ActionListener<Void> listener) {
+                    super.prepareForTranslogOperations(fileBasedRecovery, totalTranslogOps, listener);
                     assertListenerCalled.accept(replica);
                 }
 
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                                    long maxAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes) throws IOException {
-                    final long localCheckpoint = super.indexTranslogOperations(
-                        operations, totalTranslogOps, maxAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes);
-                    assertListenerCalled.accept(replica);
-                    return localCheckpoint;
+                public void indexTranslogOperations(
+                        final List<Translog.Operation> operations,
+                        final int totalTranslogOps,
+                        final long maxAutoIdTimestamp,
+                        final long maxSeqNoOfUpdatesOrDeletes,
+                        final RetentionLeases retentionLeases,
+                        final ActionListener<Long> listener)  {
+                    super.indexTranslogOperations(
+                            operations,
+                            totalTranslogOps,
+                            maxAutoIdTimestamp,
+                            maxSeqNoOfUpdatesOrDeletes,
+                            retentionLeases,
+                            ActionListener.wrap(
+                                    checkpoint -> {
+                                        assertListenerCalled.accept(replica);
+                                        listener.onResponse(checkpoint);
+                                    },
+                                    listener::onFailure));
                 }
 
                 @Override
-                public void finalizeRecovery(long globalCheckpoint) throws IOException {
-                    super.finalizeRecovery(globalCheckpoint);
-                    assertListenerCalled.accept(replica);
+                public void finalizeRecovery(long globalCheckpoint, ActionListener<Void> listener) {
+                    super.finalizeRecovery(globalCheckpoint, ActionListener.runAfter(listener, () -> assertListenerCalled.accept(replica)));
                 }
             }, false, true);
 
@@ -2826,9 +3027,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("true", "checksum")))
             .build();
 
-        IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
-            null, null, indexShard.engineFactory,
-            indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+        IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData, null, null, indexShard.engineFactory,
+            indexShard.getGlobalCheckpointSyncer(), indexShard.getRetentionLeaseSyncer(), EMPTY_EVENT_LISTENER);
 
         final IndexShardRecoveryException indexShardRecoveryException =
             expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
@@ -2871,9 +3071,8 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         // try to start shard on corrupted files
-        final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData,
-            null, null, indexShard.engineFactory,
-            indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+        final IndexShard corruptedShard = newShard(shardRouting, shardPath, indexMetaData, null, null, indexShard.engineFactory,
+            indexShard.getGlobalCheckpointSyncer(), indexShard.getRetentionLeaseSyncer(), EMPTY_EVENT_LISTENER);
 
         final IndexShardRecoveryException exception1 = expectThrows(IndexShardRecoveryException.class,
             () -> newStartedShard(p -> corruptedShard, true));
@@ -2894,9 +3093,8 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("store has to be marked as corrupted", corruptedMarkerCount.get(), equalTo(1));
 
         // try to start another time shard on corrupted files
-        final IndexShard corruptedShard2 = newShard(shardRouting, shardPath, indexMetaData,
-            null, null, indexShard.engineFactory,
-            indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+        final IndexShard corruptedShard2 = newShard(shardRouting, shardPath, indexMetaData, null, null, indexShard.engineFactory,
+            indexShard.getGlobalCheckpointSyncer(), indexShard.getRetentionLeaseSyncer(), EMPTY_EVENT_LISTENER);
 
         final IndexShardRecoveryException exception2 = expectThrows(IndexShardRecoveryException.class,
             () -> newStartedShard(p -> corruptedShard2, true));
@@ -2934,9 +3132,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 .put(indexShard.indexSettings.getSettings())
                 .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum")))
             .build();
-        final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData,
-                null, null, indexShard.engineFactory,
-                indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+        final IndexShard newShard = newShard(shardRouting, indexShard.shardPath(), indexMetaData, null, null, indexShard.engineFactory,
+                indexShard.getGlobalCheckpointSyncer(), indexShard.getRetentionLeaseSyncer(), EMPTY_EVENT_LISTENER);
 
         Store.MetadataSnapshot storeFileMetaDatas = newShard.snapshotStoreMetadata();
         assertTrue("at least 2 files, commit and data: " + storeFileMetaDatas.toString(), storeFileMetaDatas.size() > 1);
@@ -3013,9 +3210,13 @@ public class IndexShardTests extends IndexShardTestCase {
         int localCheckpoint = offset;
         int max = offset;
         boolean gap = false;
+        Set<String> ids = new HashSet<>();
         for (int i = offset + 1; i < operations; i++) {
             if (!rarely() || i == operations - 1) { // last operation can't be a gap as it's not a gap anymore
-                final String id = Integer.toString(i);
+                final String id = ids.isEmpty() || randomBoolean() ? Integer.toString(i) : randomFrom(ids);
+                if (ids.add(id) == false) { // this is an update
+                    indexShard.advanceMaxSeqNoOfUpdatesOrDeletes(i);
+                }
                 SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "_doc", id,
                         new BytesArray("{}"), XContentType.JSON);
                 indexShard.applyIndexOperationOnReplica(i,
@@ -3041,7 +3242,6 @@ public class IndexShardTests extends IndexShardTestCase {
         private final String indexName;
 
         RestoreOnlyRepository(String indexName) {
-            super(Settings.EMPTY);
             this.indexName = indexName;
         }
 
@@ -3317,15 +3517,14 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
         AtomicBoolean markedInactive = new AtomicBoolean();
         AtomicReference<IndexShard> primaryRef = new AtomicReference<>();
-        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, null,
-            new InternalEngineFactory(), () -> {
-        }, new IndexEventListener() {
-            @Override
-            public void onShardInactive(IndexShard indexShard) {
-                markedInactive.set(true);
-                primaryRef.get().flush(new FlushRequest());
-            }
-        });
+        IndexShard primary = newShard(shardRouting, shardPath, metaData, null, null, new InternalEngineFactory(), () -> { },
+            RetentionLeaseSyncer.EMPTY, new IndexEventListener() {
+                @Override
+                public void onShardInactive(IndexShard indexShard) {
+                    markedInactive.set(true);
+                    primaryRef.get().flush(new FlushRequest());
+                }
+            });
         primaryRef.set(primary);
         recoverShardFromStore(primary);
         for (int i = 0; i < 3; i++) {
@@ -3436,12 +3635,97 @@ public class IndexShardTests extends IndexShardTestCase {
         Set<String> docBelowGlobalCheckpoint = getShardDocUIDs(shard).stream()
             .filter(id -> Long.parseLong(id) <= globalCheckpoint).collect(Collectors.toSet());
         TranslogStats translogStats = shard.translogStats();
+        AtomicBoolean done = new AtomicBoolean();
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread thread = new Thread(() -> {
+            latch.countDown();
+            int hitClosedExceptions = 0;
+            while (done.get() == false) {
+                try {
+                    List<String> exposedDocIds = EngineTestCase.getDocIds(getEngine(shard), rarely())
+                        .stream().map(DocIdSeqNoAndTerm::getId).collect(Collectors.toList());
+                    assertThat("every operations before the global checkpoint must be reserved",
+                        docBelowGlobalCheckpoint, everyItem(isIn(exposedDocIds)));
+                } catch (AlreadyClosedException ignored) {
+                    hitClosedExceptions++;
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            // engine reference was switched twice: current read/write engine -> ready-only engine -> new read/write engine
+            assertThat(hitClosedExceptions, lessThanOrEqualTo(2));
+        });
+        thread.start();
+        latch.await();
         shard.resetEngineToGlobalCheckpoint();
         assertThat(getShardDocUIDs(shard), equalTo(docBelowGlobalCheckpoint));
         assertThat(shard.seqNoStats().getMaxSeqNo(), equalTo(globalCheckpoint));
         assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(translogStats.estimatedNumberOfOperations()));
         assertThat(shard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(globalCheckpoint));
+        done.set(true);
+        thread.join();
         closeShard(shard, false);
+    }
+
+    public void testConcurrentAcquireAllReplicaOperationsPermitsWithPrimaryTermUpdate() throws Exception {
+        final IndexShard replica = newStartedShard(false);
+        indexOnReplicaWithGaps(replica, between(0, 1000), Math.toIntExact(replica.getLocalCheckpoint()));
+
+        final int nbTermUpdates = randomIntBetween(1, 5);
+
+        for (int i = 0; i < nbTermUpdates; i++) {
+            long opPrimaryTerm = replica.getOperationPrimaryTerm() + 1;
+            final long globalCheckpoint = replica.getGlobalCheckpoint();
+            final long maxSeqNoOfUpdatesOrDeletes = replica.getMaxSeqNoOfUpdatesOrDeletes();
+
+            final int operations = scaledRandomIntBetween(5, 32);
+            final CyclicBarrier barrier = new CyclicBarrier(1 + operations);
+            final CountDownLatch latch = new CountDownLatch(operations);
+
+            final Thread[] threads = new Thread[operations];
+            for (int j = 0; j < operations; j++) {
+                threads[j] = new Thread(() -> {
+                    try {
+                        barrier.await();
+                    } catch (final BrokenBarrierException | InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    replica.acquireAllReplicaOperationsPermits(
+                        opPrimaryTerm,
+                        globalCheckpoint,
+                        maxSeqNoOfUpdatesOrDeletes,
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(final Releasable releasable) {
+                                try (Releasable ignored = releasable) {
+                                    assertThat(replica.getPendingPrimaryTerm(), greaterThanOrEqualTo(opPrimaryTerm));
+                                    assertThat(replica.getOperationPrimaryTerm(), equalTo(opPrimaryTerm));
+                                } finally {
+                                    latch.countDown();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(final Exception e) {
+                                try {
+                                    throw new RuntimeException(e);
+                                } finally {
+                                    latch.countDown();
+                                }
+                            }
+                        }, TimeValue.timeValueMinutes(30L));
+                });
+                threads[j].start();
+            }
+            barrier.await();
+            latch.await();
+
+            for (Thread thread : threads) {
+                thread.join();
+            }
+        }
+
+        closeShard(replica, false);
     }
 
     /**
@@ -3462,4 +3746,60 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.acquireAllReplicaOperationsPermits(opPrimaryTerm, globalCheckpoint, maxSeqNoOfUpdatesOrDeletes, listener, timeout);
         }
     }
+
+    public void testTypelessDelete() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .build();
+        IndexMetaData metaData = IndexMetaData.builder("index")
+                .putMapping("some_type", "{ \"properties\": {}}")
+                .settings(settings)
+                .build();
+        IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(shard);
+        Engine.IndexResult indexResult = indexDoc(shard, "some_type", "id", "{}");
+        assertTrue(indexResult.isCreated());
+
+        DeleteResult deleteResult = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, "some_other_type", "id", VersionType.INTERNAL,
+                SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        assertFalse(deleteResult.isFound());
+
+        deleteResult = shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, "_doc", "id", VersionType.INTERNAL,
+                SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        assertTrue(deleteResult.isFound());
+
+        closeShards(shard);
+    }
+
+    public void testTypelessGet() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .build();
+        IndexMetaData metaData = IndexMetaData.builder("index")
+                .putMapping("some_type", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+                .settings(settings)
+                .primaryTerm(0, 1).build();
+        IndexShard shard = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        recoverShardFromStore(shard);
+        Engine.IndexResult indexResult = indexDoc(shard, "some_type", "0", "{\"foo\" : \"bar\"}");
+        assertTrue(indexResult.isCreated());
+
+        org.elasticsearch.index.engine.Engine.GetResult getResult = shard.get(
+                new Engine.Get(true, true, "some_type", "0", new Term("_id", Uid.encodeId("0"))));
+        assertTrue(getResult.exists());
+        getResult.close();
+
+        getResult = shard.get(new Engine.Get(true, true, "some_other_type", "0", new Term("_id", Uid.encodeId("0"))));
+        assertFalse(getResult.exists());
+        getResult.close();
+
+        getResult = shard.get(new Engine.Get(true, true, "_doc", "0", new Term("_id", Uid.encodeId("0"))));
+        assertTrue(getResult.exists());
+        getResult.close();
+
+        closeShards(shard);
+    }
+
 }

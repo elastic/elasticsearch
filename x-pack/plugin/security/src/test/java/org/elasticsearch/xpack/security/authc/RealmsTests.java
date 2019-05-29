@@ -39,10 +39,13 @@ import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -105,6 +108,8 @@ public class RealmsTests extends ESTestCase {
             assertThat(realm.name(), equalTo("realm_" + index));
             i++;
         }
+
+        assertThat(realms.getUnlicensedRealms(), empty());
     }
 
     public void testWithSettingsWhereDifferentRealmsHaveSameOrder() throws Exception {
@@ -144,6 +149,8 @@ public class RealmsTests extends ESTestCase {
             assertThat(realm.type(), equalTo("type_" + nameToRealmId.get(expectedRealmName)));
             assertThat(realm.name(), equalTo(expectedRealmName));
         }
+
+        assertThat(realms.getUnlicensedRealms(), empty());
     }
 
     public void testWithSettingsWithMultipleInternalRealmsOfSameType() throws Exception {
@@ -179,6 +186,8 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.type(), equalTo(NativeRealmSettings.TYPE));
         assertThat(realm.name(), equalTo("default_" + NativeRealmSettings.TYPE));
         assertThat(iter.hasNext(), is(false));
+
+        assertThat(realms.getUnlicensedRealms(), empty());
     }
 
     public void testUnlicensedWithOnlyCustomRealms() throws Exception {
@@ -214,6 +223,8 @@ public class RealmsTests extends ESTestCase {
             i++;
         }
 
+        assertThat(realms.getUnlicensedRealms(), empty());
+
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
 
         iter = realms.iterator();
@@ -230,6 +241,18 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.name(), equalTo("default_" + NativeRealmSettings.TYPE));
         assertThat(iter.hasNext(), is(false));
 
+        assertThat(realms.getUnlicensedRealms(), iterableWithSize(randomRealmTypesCount));
+        iter = realms.getUnlicensedRealms().iterator();
+        i = 0;
+        while (iter.hasNext()) {
+            realm = iter.next();
+            assertThat(realm.order(), equalTo(i));
+            int index = orderToIndex.get(i);
+            assertThat(realm.type(), equalTo("type_" + index));
+            assertThat(realm.name(), equalTo("realm_" + index));
+            i++;
+        }
+
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
 
         iter = realms.iterator();
@@ -245,6 +268,18 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.type(), equalTo(NativeRealmSettings.TYPE));
         assertThat(realm.name(), equalTo("default_" + NativeRealmSettings.TYPE));
         assertThat(iter.hasNext(), is(false));
+
+        assertThat(realms.getUnlicensedRealms(), iterableWithSize(randomRealmTypesCount));
+        iter = realms.getUnlicensedRealms().iterator();
+        i = 0;
+        while (iter.hasNext()) {
+            realm = iter.next();
+            assertThat(realm.order(), equalTo(i));
+            int index = orderToIndex.get(i);
+            assertThat(realm.type(), equalTo("type_" + index));
+            assertThat(realm.name(), equalTo("realm_" + index));
+            i++;
+        }
     }
 
     public void testUnlicensedWithInternalRealms() throws Exception {
@@ -273,6 +308,7 @@ public class RealmsTests extends ESTestCase {
             types.add(realm.type());
         }
         assertThat(types, contains("ldap", "type_0"));
+        assertThat(realms.getUnlicensedRealms(), empty());
 
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
         iter = realms.iterator();
@@ -286,6 +322,11 @@ public class RealmsTests extends ESTestCase {
             i++;
         }
         assertThat(i, is(1));
+
+        assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
+        realm = realms.getUnlicensedRealms().get(0);
+        assertThat(realm.type(), equalTo("type_0"));
+        assertThat(realm.name(), equalTo("custom"));
 
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
         iter = realms.iterator();
@@ -301,6 +342,14 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.type(), equalTo(NativeRealmSettings.TYPE));
         assertThat(realm.name(), equalTo("default_" + NativeRealmSettings.TYPE));
         assertThat(iter.hasNext(), is(false));
+
+        assertThat(realms.getUnlicensedRealms(), iterableWithSize(2));
+        realm = realms.getUnlicensedRealms().get(0);
+        assertThat(realm.type(), equalTo("ldap"));
+        assertThat(realm.name(), equalTo("foo"));
+        realm = realms.getUnlicensedRealms().get(1);
+        assertThat(realm.type(), equalTo("type_0"));
+        assertThat(realm.name(), equalTo("custom"));
     }
 
     public void testUnlicensedWithNativeRealmSettingss() throws Exception {
@@ -326,6 +375,7 @@ public class RealmsTests extends ESTestCase {
         realm = iter.next();
         assertThat(realm.type(), is(type));
         assertThat(iter.hasNext(), is(false));
+        assertThat(realms.getUnlicensedRealms(), empty());
 
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
         iter = realms.iterator();
@@ -336,6 +386,11 @@ public class RealmsTests extends ESTestCase {
         realm = iter.next();
         assertThat(realm.type(), is(type));
         assertThat(iter.hasNext(), is(false));
+
+        assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
+        realm = realms.getUnlicensedRealms().get(0);
+        assertThat(realm.type(), equalTo("ldap"));
+        assertThat(realm.name(), equalTo("foo"));
     }
 
     public void testUnlicensedWithNonStandardRealms() throws Exception {
@@ -356,6 +411,7 @@ public class RealmsTests extends ESTestCase {
         realm = iter.next();
         assertThat(realm.type(), is(selectedRealmType));
         assertThat(iter.hasNext(), is(false));
+        assertThat(realms.getUnlicensedRealms(), empty());
 
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.DEFAULT);
         iter = realms.iterator();
@@ -370,6 +426,11 @@ public class RealmsTests extends ESTestCase {
         assertThat(realm.type(), is(NativeRealmSettings.TYPE));
         assertThat(iter.hasNext(), is(false));
 
+        assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
+        realm = realms.getUnlicensedRealms().get(0);
+        assertThat(realm.type(), equalTo(selectedRealmType));
+        assertThat(realm.name(), equalTo("foo"));
+
         when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
         iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -382,6 +443,11 @@ public class RealmsTests extends ESTestCase {
         realm = iter.next();
         assertThat(realm.type(), is(NativeRealmSettings.TYPE));
         assertThat(iter.hasNext(), is(false));
+
+        assertThat(realms.getUnlicensedRealms(), iterableWithSize(1));
+        realm = realms.getUnlicensedRealms().get(0);
+        assertThat(realm.type(), equalTo(selectedRealmType));
+        assertThat(realm.name(), equalTo("foo"));
     }
 
     public void testDisabledRealmsAreNotAdded() throws Exception {
@@ -433,6 +499,11 @@ public class RealmsTests extends ESTestCase {
         }
 
         assertThat(count, equalTo(orderToIndex.size()));
+        assertThat(realms.getUnlicensedRealms(), empty());
+
+        // check that disabled realms are not included in unlicensed realms
+        when(licenseState.allowedRealmType()).thenReturn(AllowedRealmType.NATIVE);
+        assertThat(realms.getUnlicensedRealms(), hasSize(orderToIndex.size()));
     }
 
     public void testAuthcAuthzDisabled() throws Exception {

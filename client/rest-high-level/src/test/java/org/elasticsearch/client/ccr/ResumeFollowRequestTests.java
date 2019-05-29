@@ -21,7 +21,6 @@ package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
@@ -30,11 +29,10 @@ import java.io.IOException;
 
 public class ResumeFollowRequestTests extends AbstractXContentTestCase<ResumeFollowRequest> {
 
-    private static final ConstructingObjectParser<ResumeFollowRequest, Void> PARSER = new ConstructingObjectParser<>("test_parser",
-        true, (args) -> new ResumeFollowRequest((String) args[0]));
+    private static final ObjectParser<ResumeFollowRequest, Void> PARSER = new ObjectParser<>("test_parser",
+        true, () -> new ResumeFollowRequest("followerIndex"));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.FOLLOWER_INDEX_FIELD);
         PARSER.declareInt(ResumeFollowRequest::setMaxReadRequestOperationCount, FollowConfig.MAX_READ_REQUEST_OPERATION_COUNT);
         PARSER.declareField(
             ResumeFollowRequest::setMaxReadRequestSize,
@@ -79,7 +77,7 @@ public class ResumeFollowRequestTests extends AbstractXContentTestCase<ResumeFol
 
     @Override
     protected ResumeFollowRequest createTestInstance() {
-        ResumeFollowRequest resumeFollowRequest = new ResumeFollowRequest(randomAlphaOfLength(4));
+        ResumeFollowRequest resumeFollowRequest = new ResumeFollowRequest("followerIndex");
         if (randomBoolean()) {
             resumeFollowRequest.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }

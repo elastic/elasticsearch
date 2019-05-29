@@ -12,11 +12,10 @@ import java.nio.file.Path;
 import java.util.Collections;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.DnRoleMapperSettings;
 import org.junit.Before;
@@ -25,7 +24,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
+public class RoleMappingFileBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     private static final String ROLE_MAPPING_FILE_SETTING = DnRoleMapperSettings.ROLE_MAPPING_FILE_SETTING.getKey();
 
@@ -49,7 +48,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        assertFalse(check.check(new BootstrapContext(settings, null)).isFailure());
+        assertFalse(check.check(createTestContext(settings, null)).isFailure());
     }
 
     public void testBootstrapCheckOfMissingFile() {
@@ -63,7 +62,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        final BootstrapCheck.BootstrapCheckResult result = check.check(new BootstrapContext(settings, null));
+        final BootstrapCheck.BootstrapCheckResult result = check.check(createTestContext(settings, null));
         assertTrue(result.isFailure());
         assertThat(result.getMessage(), containsString("the-realm-name"));
         assertThat(result.getMessage(), containsString(fileName));
@@ -83,7 +82,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        final BootstrapCheck.BootstrapCheckResult result = check.check(new BootstrapContext(settings, null));
+        final BootstrapCheck.BootstrapCheckResult result = check.check(createTestContext(settings, null));
         assertTrue(result.isFailure());
         assertThat(result.getMessage(), containsString("the-realm-name"));
         assertThat(result.getMessage(), containsString(file.toString()));
@@ -103,7 +102,7 @@ public class RoleMappingFileBootstrapCheckTests extends ESTestCase {
         final BootstrapCheck check = RoleMappingFileBootstrapCheck.create(config);
         assertThat(check, notNullValue());
         assertThat(check.alwaysEnforce(), equalTo(true));
-        final BootstrapCheck.BootstrapCheckResult result = check.check(new BootstrapContext(settings, null));
+        final BootstrapCheck.BootstrapCheckResult result = check.check(createTestContext(settings, null));
         assertTrue(result.isFailure());
         assertThat(result.getMessage(), containsString("the-realm-name"));
         assertThat(result.getMessage(), containsString(file.toString()));

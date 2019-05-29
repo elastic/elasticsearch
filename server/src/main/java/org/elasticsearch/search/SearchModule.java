@@ -159,6 +159,8 @@ import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregat
 import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.mad.InternalMedianAbsoluteDeviation;
+import org.elasticsearch.search.aggregations.metrics.mad.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
@@ -183,8 +185,6 @@ import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCou
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.weighted_avg.InternalWeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.weighted_avg.WeightedAvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.mad.InternalMedianAbsoluteDeviation;
-import org.elasticsearch.search.aggregations.metrics.mad.MedianAbsoluteDeviationAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
@@ -237,6 +237,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.subphase.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.SeqNoPrimaryTermFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.VersionFetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
@@ -289,6 +290,16 @@ public class SearchModule {
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
+    /**
+     * Constructs a new SearchModule object
+     *
+     * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
+     *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
+     *
+     * @param settings Current settings
+     * @param transportClient Is this being constructed in the TransportClient or not
+     * @param plugins List of included {@link SearchPlugin} objects.
+     */
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
         this.settings = settings;
         this.transportClient = transportClient;
@@ -706,6 +717,7 @@ public class SearchModule {
         registerFetchSubPhase(new ScriptFieldsFetchSubPhase());
         registerFetchSubPhase(new FetchSourceSubPhase());
         registerFetchSubPhase(new VersionFetchSubPhase());
+        registerFetchSubPhase(new SeqNoPrimaryTermFetchSubPhase());
         registerFetchSubPhase(new MatchedQueriesFetchSubPhase());
         registerFetchSubPhase(new HighlightPhase(highlighters));
         registerFetchSubPhase(new ParentFieldSubFetchPhase());

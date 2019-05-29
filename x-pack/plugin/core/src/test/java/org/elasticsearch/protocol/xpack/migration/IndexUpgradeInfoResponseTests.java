@@ -8,7 +8,6 @@ package org.elasticsearch.protocol.xpack.migration;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.AbstractHlrcStreamableXContentTestCase;
 
-import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -19,12 +18,7 @@ public class IndexUpgradeInfoResponseTests extends
         AbstractHlrcStreamableXContentTestCase<IndexUpgradeInfoResponse, org.elasticsearch.client.migration.IndexUpgradeInfoResponse> {
 
     @Override
-    protected IndexUpgradeInfoResponse doParseInstance(XContentParser parser) {
-        return IndexUpgradeInfoResponse.fromXContent(parser);
-    }
-
-    @Override
-    public org.elasticsearch.client.migration.IndexUpgradeInfoResponse doHlrcParseInstance(XContentParser parser) throws IOException {
+    public org.elasticsearch.client.migration.IndexUpgradeInfoResponse doHlrcParseInstance(XContentParser parser) {
         return org.elasticsearch.client.migration.IndexUpgradeInfoResponse.fromXContent(parser);
     }
 

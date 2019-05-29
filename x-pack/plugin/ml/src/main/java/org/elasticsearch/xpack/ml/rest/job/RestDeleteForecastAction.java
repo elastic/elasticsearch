@@ -28,6 +28,11 @@ public class RestDeleteForecastAction extends BaseRestHandler {
                 "anomaly_detectors/{" + Job.ID.getPreferredName() +
                 "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}",
             this);
+        controller.registerHandler(RestRequest.Method.DELETE,
+            MachineLearning.V7_BASE_PATH +
+                "anomaly_detectors/{" + Job.ID.getPreferredName() +
+                "}/_forecast/{" + Forecast.FORECAST_ID.getPreferredName() + "}",
+            this);
     }
 
     @Override

@@ -6,34 +6,22 @@
 
 set -ex
 
-MARKER_FILE=/etc/marker
-
-if [ -f $MARKER_FILE ]; then
-  echo "Already provisioned..."
-  exit 0;
-fi
-
-VDIR=/vagrant
+VDIR=/fixture
 RESOURCES=$VDIR/src/main/resources
 CERTS_DIR=$RESOURCES/certs
 SSL_DIR=/var/lib/samba/private/tls
-
-# Update package manager
-apt-get update -qqy
-
-# Install krb5 packages
-apt-get install -qqy samba ldap-utils
 
 # install ssl certs
 mkdir -p $SSL_DIR
 cp $CERTS_DIR/*.pem $SSL_DIR
 chmod 600 $SSL_DIR/key.pem
 
+mkdir -p /etc/ssl/certs/
 cat $SSL_DIR/ca.pem >> /etc/ssl/certs/ca-certificates.crt
 
 mv /etc/samba/smb.conf /etc/samba/smb.conf.orig
 
-samba-tool domain provision --server-role=dc --use-rfc2307 --dns-backend=SAMBA_INTERNAL --realm=AD.TEST.ELASTICSEARCH.COM --domain=ADES --adminpass=Passw0rd
+samba-tool domain provision --server-role=dc --use-rfc2307 --dns-backend=SAMBA_INTERNAL --realm=AD.TEST.ELASTICSEARCH.COM --domain=ADES --adminpass=Passw0rd --use-ntvfs
 
 cp /var/lib/samba/private/krb5.conf /etc/krb5.conf
 
@@ -92,4 +80,3 @@ EOL
 
 ldapmodify -D Administrator@ad.test.elasticsearch.com -w Passw0rd -H ldaps://127.0.0.1:636 -f /tmp/entrymods -v
 
-touch $MARKER_FILE

@@ -61,7 +61,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         /**
          * Returns <code>true</code> iff the current reduce phase is the final reduce phase. This indicates if operations like
          * pipeline aggregations should be applied or if specific features like {@code minDocCount} should be taken into account.
-         * Operations that are potentially loosing information can only be applied during the final reduce phase.
+         * Operations that are potentially losing information can only be applied during the final reduce phase.
          */
         public boolean isFinalReduce() {
             return isFinalReduce;

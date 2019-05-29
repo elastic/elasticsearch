@@ -40,6 +40,8 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
@@ -59,7 +61,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         WatchParser watchParser = mock(WatchParser.class);
-        ClusterService clusterService = mock(ClusterService.class);
+        ClusterService clusterService = createClusterService(threadPool);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         action = new TransportAckWatchAction(Settings.EMPTY, transportService, threadPool,
@@ -72,7 +74,7 @@ public class TransportAckWatchActionTests extends ESTestCase {
         String watchId = "my_watch_id";
         doAnswer(invocation -> {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocation.getArguments()[1];
-            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, Watch.DOC_TYPE, watchId, -1, false,
+            listener.onResponse(new GetResponse(new GetResult(Watch.INDEX, Watch.DOC_TYPE, watchId, UNASSIGNED_SEQ_NO, 0, -1, false,
                     BytesArray.EMPTY, Collections.emptyMap())));
             return null;
         }).when(client).get(anyObject(), anyObject());

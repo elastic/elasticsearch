@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -44,7 +43,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * specification as this aspect does not make the most sense since the response body is
  * expected to be JSON
  */
-public final class RestGetTokenAction extends SecurityBaseRestHandler {
+public final class RestGetTokenAction extends TokenBaseRestHandler {
 
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("token_request",
             a -> new CreateTokenRequest((String) a[0], (String) a[1], (SecureString) a[2], (String) a[3], (String) a[4]));
@@ -61,6 +60,7 @@ public final class RestGetTokenAction extends SecurityBaseRestHandler {
     public RestGetTokenAction(Settings settings, RestController controller, XPackLicenseState xPackLicenseState) {
         super(settings, xPackLicenseState);
         controller.registerHandler(POST, "/_xpack/security/oauth2/token", this);
+        controller.registerHandler(POST, "/_security/oauth2/token", this);
     }
 
     @Override

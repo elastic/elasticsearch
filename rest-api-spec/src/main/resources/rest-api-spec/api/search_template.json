@@ -62,6 +62,11 @@
         "typed_keys": {
           "type" : "boolean",
           "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+        },
+        "rest_total_hits_as_int" : {
+          "type" : "boolean",
+          "description" : "This parameter is ignored in this version. It is used in the next major version to control whether the rest response should render the total.hits as an object or a number",
+          "default" : false
         }
       }
     },

@@ -29,8 +29,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.discovery.zen.UnicastZenPing;
 import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -42,7 +44,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -64,6 +66,13 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(DEFAULT_SETTINGS)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
+    }
+
+    @Override
+    public Settings indexSettings() {
+        return Settings.builder().put(super.indexSettings())
+            // sync global checkpoint quickly so we can verify seq_no_stats aligned between all copies after tests.
+            .put(IndexService.GLOBAL_CHECKPOINT_SYNC_INTERVAL_SETTING.getKey(), "1s").build();
     }
 
     @Override
@@ -124,7 +133,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put(TransportService.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
+            .put(TransportSettings.TCP_CONNECT_TIMEOUT.getKey(), "10s") // Network delay disruption waits for the min between this
             // value and the time of disruption and does not recover immediately
             // when disruption is stop. We should make sure we recover faster
             // then the default of 30s, causing ensureGreen and friends to time out
@@ -132,7 +141,7 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, InternalSettingsPlugin.class);
     }
 
     ClusterState getNodeClusterState(String node) {
@@ -154,8 +163,8 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
             assertNull("node [" + node + "] still has [" + nodes.getMasterNode() + "] as master", nodes.getMasterNode());
             if (expectedBlocks != null) {
                 for (ClusterBlockLevel level : expectedBlocks.levels()) {
-                    assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock
-                            (level));
+                    assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks",
+                        state.getBlocks().hasGlobalBlockWithLevel(level));
                 }
             }
         }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);

@@ -34,10 +34,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeType;
@@ -63,13 +62,13 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             addModifier(new Modifier("format", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("basic_week_date"));
                 }
             });
             addModifier(new Modifier("locale", true) {
                 @Override
                 public void modify(MappedFieldType ft) {
-                    ((RangeFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
+                    ((RangeFieldType) ft).setDateTimeFormatter(DateFormatter.forPattern("date_optional_time").withLocale(Locale.CANADA));
                 }
             });
         }
@@ -122,9 +121,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             ex.getMessage());
 
         // setting mapping format which is compatible with those dates
-        final FormatDateTimeFormatter formatter = Joda.forPattern("yyyy-dd-MM'T'HH:mm:ssZZ");
-        assertEquals(1465975790000L, formatter.parser().parseMillis(from));
-        assertEquals(1466062190000L, formatter.parser().parseMillis(to));
+        final DateFormatter formatter = DateFormatter.forPattern("yyyy-dd-MM'T'HH:mm:ssZZ");
+        assertEquals(1465975790000L, formatter.parseMillis(from));
+        assertEquals(1466062190000L, formatter.parseMillis(to));
 
         fieldType.setDateTimeFormatter(formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, null, context);

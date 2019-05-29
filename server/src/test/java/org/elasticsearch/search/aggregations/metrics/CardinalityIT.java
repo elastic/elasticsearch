@@ -73,8 +73,8 @@ public class CardinalityIT extends ESIntegTestCase {
                 return doc.get("str_value");
             });
 
-            scripts.put("doc['str_values'].values", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+            scripts.put("doc['str_values']", vars -> {
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 ScriptDocValues.Strings strValue = (ScriptDocValues.Strings) doc.get("str_values");
                 return strValue.getValues();
             });
@@ -84,8 +84,8 @@ public class CardinalityIT extends ESIntegTestCase {
                 return doc.get(singleNumericField());
             });
 
-            scripts.put("doc[' + multiNumericField(false) + '].values", vars -> {
-                Map<?, ?> doc = (Map) vars.get("doc");
+            scripts.put("doc[' + multiNumericField(false) + ']", vars -> {
+                Map<?, ?> doc =(Map<?, ?>) vars.get("doc");
                 return ((ScriptDocValues<?>) doc.get(multiNumericField(false))).getValues();
             });
 
@@ -323,7 +323,7 @@ public class CardinalityIT extends ESIntegTestCase {
                 .addAggregation(
                         cardinality("cardinality")
                                 .precisionThreshold(precisionThreshold)
-                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['str_values'].values", emptyMap())))
+                                .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['str_values']", emptyMap())))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -350,7 +350,7 @@ public class CardinalityIT extends ESIntegTestCase {
 
     public void testMultiValuedNumericScript() throws Exception {
         Script script =
-            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc[' + multiNumericField(false) + '].values", Collections.emptyMap());
+            new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc[' + multiNumericField(false) + ']", Collections.emptyMap());
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(cardinality("cardinality").precisionThreshold(precisionThreshold).script(script))
                 .execute().actionGet();

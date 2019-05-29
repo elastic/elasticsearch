@@ -86,13 +86,13 @@ public class RemoveIndexLifecyclePolicyAction extends
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            failedIndexes = in.readList(StreamInput::readString);
+            failedIndexes = in.readStringList();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeStringList(failedIndexes);
+            out.writeStringCollection(failedIndexes);
         }
 
         @Override

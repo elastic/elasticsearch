@@ -30,7 +30,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 
 /**
  * Response object that contains information about indices to be upgraded
+ * @deprecated Use the Deprecation Info API which returns {@link DeprecationInfoResponse} instead.
  */
+@Deprecated
 public class IndexUpgradeInfoResponse {
 
     private static final ParseField INDICES = new ParseField("indices");

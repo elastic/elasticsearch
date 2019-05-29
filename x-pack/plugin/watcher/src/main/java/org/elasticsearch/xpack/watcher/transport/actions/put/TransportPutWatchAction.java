@@ -21,6 +21,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -88,8 +89,9 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                                    ActionListener<PutWatchResponse> listener) throws Exception {
         try {
             DateTime now = new DateTime(clock.millis(), UTC);
-            boolean isUpdate = request.getVersion() > 0;
-            Watch watch = parser.parseWithSecrets(request.getId(), false, request.getSource(), now, request.xContentType(), isUpdate);
+            boolean isUpdate = request.getVersion() > 0 || request.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+            Watch watch = parser.parseWithSecrets(request.getId(), false, request.getSource(), now, request.xContentType(),
+                isUpdate, request.getIfSeqNo(), request.getIfPrimaryTerm());
             watch.setState(request.isActive(), now);
 
             // ensure we only filter for the allowed headers
@@ -103,7 +105,12 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
 
                 if (isUpdate) {
                     UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId());
-                    updateRequest.version(request.getVersion());
+                    if (request.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        updateRequest.setIfSeqNo(request.getIfSeqNo());
+                        updateRequest.setIfPrimaryTerm(request.getIfPrimaryTerm());
+                    } else {
+                        updateRequest.version(request.getVersion());
+                    }
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                     updateRequest.doc(builder);
 
@@ -113,7 +120,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                                 if (shouldBeTriggeredLocally(request, watch)) {
                                     triggerService.add(watch);
                                 }
-                                listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(), created));
+                                listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(),
+                                    response.getSeqNo(), response.getPrimaryTerm(), created));
                             }, listener::onFailure),
                             client::update);
                 } else {
@@ -127,7 +135,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                             if (shouldBeTriggeredLocally(request, watch)) {
                                 triggerService.add(watch);
                             }
-                            listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(), created));
+                            listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(),
+                                response.getSeqNo(), response.getPrimaryTerm(), created));
                         }, listener::onFailure),
                         client::index);
                 }

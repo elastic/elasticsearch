@@ -15,7 +15,9 @@ a `<clustername>_audit.log` file in the logs directory. This file is new to
 version 6.5 and prints audit entries as JSON documents. 
 
 For backwards compatibility purposes, a `<clustername>_access.log` with the old style of 
-formatting is also generated. See also <<breaking_65_settings_changes>>. 
+formatting is also generated. See also <<breaking_65_settings_changes>>. Due to this,
+the logging throughput effectively doubles. It is recommended that you enable only the
+new audit format in production (by adjusting the settings in the `log4j2.properties` file).
 
 [float]
 === Discover the structure of text files
@@ -89,6 +91,7 @@ new `authorization_realms` setting that you can configure in the
 {stack-ov}/realm-chains.html#authorization_realms[Realm chains] and <<realm-settings>>. 
 
 [float]
+[[_cross_cluster_replication_beta_superscript_superscript]]
 === Cross-cluster replication (beta^*^)
 
 Cross-cluster replication enables you to replicate indices that exist in remote 
@@ -104,6 +107,7 @@ For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication]
 and <<ccr-apis>>. 
 
 [float]
+[[_monitor_elasticsearch_with_metricbeat_beta_superscript_superscript]]
 === Monitor {es} with {metricbeat} (beta^*^)
 
 In 6.4 and later, you can use {metricbeat} to collect data about {kib} and ship 

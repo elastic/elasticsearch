@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-update-job]]
-=== Update Jobs API
+=== Update jobs API
 ++++
-<titleabbrev>Update Jobs</titleabbrev>
+<titleabbrev>Update jobs</titleabbrev>
 ++++
 
 Updates certain properties of a job.

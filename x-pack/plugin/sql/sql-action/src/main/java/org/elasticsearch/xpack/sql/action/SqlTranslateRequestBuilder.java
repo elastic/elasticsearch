@@ -11,11 +11,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
+import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
-import java.util.TimeZone;
 
 /**
  * Builder for the request for the sql action for translating SQL queries into ES requests
@@ -23,14 +24,15 @@ import java.util.TimeZone;
 public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslateRequest, SqlTranslateResponse,
         SqlTranslateRequestBuilder> {
     public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action) {
-        this(client, action, Mode.PLAIN, null, null, Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT);
+        this(client, action, null, null, Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT, new RequestInfo(Mode.PLAIN));
     }
 
-    public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action, Mode mode, String query,
-                                      QueryBuilder filter, List<SqlTypedParamValue> params, TimeZone timeZone, int fetchSize,
-                                      TimeValue requestTimeout, TimeValue pageTimeout) {
-        super(client, action, new SqlTranslateRequest(mode, query, params, filter, timeZone, fetchSize, requestTimeout, pageTimeout));
+    public SqlTranslateRequestBuilder(ElasticsearchClient client, SqlTranslateAction action, String query, QueryBuilder filter,
+            List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize, TimeValue requestTimeout,
+                                      TimeValue pageTimeout, RequestInfo requestInfo) {
+        super(client, action,
+                new SqlTranslateRequest(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo));
     }
 
     public SqlTranslateRequestBuilder query(String query) {
@@ -38,8 +40,8 @@ public class SqlTranslateRequestBuilder extends ActionRequestBuilder<SqlTranslat
         return this;
     }
 
-    public SqlTranslateRequestBuilder timeZone(TimeZone timeZone) {
-        request.timeZone(timeZone);
+    public SqlTranslateRequestBuilder zoneId(ZoneId zoneId) {
+        request.zoneId(zoneId);
         return this;
     }
 }

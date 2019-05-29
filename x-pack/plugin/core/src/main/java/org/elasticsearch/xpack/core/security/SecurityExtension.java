@@ -13,6 +13,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
@@ -89,6 +90,18 @@ public interface SecurityExtension {
     default List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
         getRolesProviders(Settings settings, ResourceWatcherService resourceWatcherService) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns a authorization engine for authorizing requests, or null to use the default authorization mechanism.
+     *
+     * Only one installed extension may have an authorization engine. If more than
+     * one extension returns a non-null authorization engine, an error is raised.
+     *
+     * @param settings The configured settings for the node
+     */
+    default AuthorizationEngine getAuthorizationEngine(Settings settings) {
+        return null;
     }
 
     /**

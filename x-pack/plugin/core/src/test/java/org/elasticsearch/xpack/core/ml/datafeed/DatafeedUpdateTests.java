@@ -147,7 +147,6 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         datafeedBuilder.setIndices(Collections.singletonList("i_1"));
         datafeedBuilder.setTypes(Collections.singletonList("t_1"));
         DatafeedConfig datafeed = datafeedBuilder.build();
-
         DatafeedUpdate.Builder update = new DatafeedUpdate.Builder(datafeed.getId());
         update.setJobId("bar");
         update.setIndices(Collections.singletonList("i_2"));
@@ -167,7 +166,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         assertThat(updatedDatafeed.getTypes(), equalTo(Collections.singletonList("t_2")));
         assertThat(updatedDatafeed.getQueryDelay(), equalTo(TimeValue.timeValueSeconds(42)));
         assertThat(updatedDatafeed.getFrequency(), equalTo(TimeValue.timeValueSeconds(142)));
-        assertThat(updatedDatafeed.getQuery(), equalTo(QueryBuilders.termQuery("a", "b")));
+        assertThat(updatedDatafeed.getParsedQuery(), equalTo(QueryBuilders.termQuery("a", "b")));
         assertThat(updatedDatafeed.hasAggregations(), is(false));
         assertThat(updatedDatafeed.getScriptFields(),
                 equalTo(Collections.singletonList(new SearchSourceBuilder.ScriptField("a", mockScript("b"), false))));
@@ -192,7 +191,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
 
         assertThat(updatedDatafeed.getIndices(), equalTo(Collections.singletonList("i_1")));
         assertThat(updatedDatafeed.getTypes(), equalTo(Collections.singletonList("t_1")));
-        assertThat(updatedDatafeed.getAggregations(),
+        assertThat(updatedDatafeed.getParsedAggregations(),
                 equalTo(new AggregatorFactories.Builder().addAggregator(
                         AggregationBuilders.histogram("a").interval(300000).field("time").subAggregation(maxTime))));
     }
@@ -202,7 +201,7 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
             DatafeedConfig datafeed = DatafeedConfigTests.createRandomizedDatafeedConfig(JobTests.randomValidJobId());
             if (datafeed.getAggregations() != null) {
                 DatafeedConfig.Builder withoutAggs = new DatafeedConfig.Builder(datafeed);
-                withoutAggs.setAggregations(null);
+                withoutAggs.setAggProvider(null);
                 datafeed = withoutAggs.build();
             }
             DatafeedUpdate update = createRandomized(datafeed.getId(), datafeed);

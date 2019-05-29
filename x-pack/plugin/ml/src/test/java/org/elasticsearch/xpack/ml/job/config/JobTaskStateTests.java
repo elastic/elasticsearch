@@ -27,4 +27,9 @@ public class JobTaskStateTests extends AbstractSerializingTestCase<JobTaskState>
     protected JobTaskState doParseInstance(XContentParser parser) {
         return JobTaskState.fromXContent(parser);
     }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 }

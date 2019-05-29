@@ -9,11 +9,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.execution.search.Querier;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
-import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlSession;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 
 import java.util.List;
 import java.util.Objects;
@@ -22,11 +21,10 @@ public class EsQueryExec extends LeafExec {
 
     private final String index;
     private final List<Attribute> output;
-
     private final QueryContainer queryContainer;
 
-    public EsQueryExec(Location location, String index, List<Attribute> output, QueryContainer queryContainer) {
-        super(location);
+    public EsQueryExec(Source source, String index, List<Attribute> output, QueryContainer queryContainer) {
+        super(source);
         this.index = index;
         this.output = output;
         this.queryContainer = queryContainer;
@@ -38,7 +36,7 @@ public class EsQueryExec extends LeafExec {
     }
 
     public EsQueryExec with(QueryContainer queryContainer) {
-        return new EsQueryExec(location(), index, output, queryContainer);
+        return new EsQueryExec(source(), index, output, queryContainer);
     }
 
     public String index() {
@@ -56,8 +54,9 @@ public class EsQueryExec extends LeafExec {
 
     @Override
     public void execute(SqlSession session, ActionListener<SchemaRowSet> listener) {
-        Querier scroller = new Querier(session.client(), session.settings());
-        scroller.query(Rows.schema(output), queryContainer, index, listener);
+        Querier scroller = new Querier(session);
+
+        scroller.query(output, queryContainer, index, listener);
     }
 
     @Override

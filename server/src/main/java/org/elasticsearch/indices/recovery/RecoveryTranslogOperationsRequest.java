@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -39,18 +40,26 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
     private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
     private long maxSeenAutoIdTimestampOnPrimary;
     private long maxSeqNoOfUpdatesOrDeletesOnPrimary;
+    private RetentionLeases retentionLeases;
 
     public RecoveryTranslogOperationsRequest() {
     }
 
-    RecoveryTranslogOperationsRequest(long recoveryId, ShardId shardId, List<Translog.Operation> operations, int totalTranslogOps,
-                                      long maxSeenAutoIdTimestampOnPrimary, long maxSeqNoOfUpdatesOrDeletesOnPrimary) {
+    RecoveryTranslogOperationsRequest(
+            final long recoveryId,
+            final ShardId shardId,
+            final List<Translog.Operation> operations,
+            final int totalTranslogOps,
+            final long maxSeenAutoIdTimestampOnPrimary,
+            final long maxSeqNoOfUpdatesOrDeletesOnPrimary,
+            final RetentionLeases retentionLeases) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.operations = operations;
         this.totalTranslogOps = totalTranslogOps;
         this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
         this.maxSeqNoOfUpdatesOrDeletesOnPrimary = maxSeqNoOfUpdatesOrDeletesOnPrimary;
+        this.retentionLeases = retentionLeases;
     }
 
     public long recoveryId() {
@@ -77,6 +86,10 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         return maxSeqNoOfUpdatesOrDeletesOnPrimary;
     }
 
+    public RetentionLeases retentionLeases() {
+        return retentionLeases;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -95,6 +108,11 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
             // UNASSIGNED_SEQ_NO means uninitialized and replica won't enable optimization using seq_no
             maxSeqNoOfUpdatesOrDeletesOnPrimary = SequenceNumbers.UNASSIGNED_SEQ_NO;
         }
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+            retentionLeases = new RetentionLeases(in);
+        } else {
+            retentionLeases = RetentionLeases.EMPTY;
+        }
     }
 
     @Override
@@ -109,6 +127,9 @@ public class RecoveryTranslogOperationsRequest extends TransportRequest {
         }
         if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
             out.writeZLong(maxSeqNoOfUpdatesOrDeletesOnPrimary);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+            retentionLeases.writeTo(out);
         }
     }
 }

@@ -203,8 +203,13 @@ public class BulkProcessor implements Closeable {
         Objects.requireNonNull(listener, "listener");
         final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor = Scheduler.initScheduler(Settings.EMPTY);
         return new Builder(consumer, listener,
-                (delay, executor, command) -> scheduledThreadPoolExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS),
+            buildScheduler(scheduledThreadPoolExecutor),
                 () -> Scheduler.terminate(scheduledThreadPoolExecutor, 10, TimeUnit.SECONDS));
+    }
+
+    private static Scheduler buildScheduler(ScheduledThreadPoolExecutor scheduledThreadPoolExecutor) {
+        return (command, delay, executor) ->
+            Scheduler.wrapAsScheduledCancellable(scheduledThreadPoolExecutor.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
     private final int bulkActions;
@@ -345,7 +350,9 @@ public class BulkProcessor implements Closeable {
         if (flushInterval == null) {
             return new Scheduler.Cancellable() {
                 @Override
-                public void cancel() {}
+                public boolean cancel() {
+                    return false;
+                }
 
                 @Override
                 public boolean isCancelled() {

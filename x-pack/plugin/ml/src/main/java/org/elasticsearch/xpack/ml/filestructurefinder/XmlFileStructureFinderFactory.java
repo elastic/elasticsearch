@@ -26,6 +26,9 @@ public class XmlFileStructureFinderFactory implements FileStructureFinderFactory
         xmlFactory = XMLInputFactory.newInstance();
         xmlFactory.setProperty(XMLInputFactory.IS_NAMESPACE_AWARE, Boolean.FALSE);
         xmlFactory.setProperty(XMLInputFactory.IS_VALIDATING, Boolean.FALSE);
+        xmlFactory.setProperty(XMLInputFactory.SUPPORT_DTD, Boolean.FALSE);
+        xmlFactory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, Boolean.FALSE);
+        xmlFactory.setProperty(XMLInputFactory.IS_REPLACING_ENTITY_REFERENCES, Boolean.FALSE);
     }
 
     @Override

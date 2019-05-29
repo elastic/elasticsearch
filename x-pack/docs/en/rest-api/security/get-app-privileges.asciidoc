@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-get-privileges]]
 === Get application privileges API
+++++
+<titleabbrev>Get application privileges</titleabbrev>
+++++
 
 Retrieves 
 {stack-ov}/security-privileges.html#application-privileges[application privileges].

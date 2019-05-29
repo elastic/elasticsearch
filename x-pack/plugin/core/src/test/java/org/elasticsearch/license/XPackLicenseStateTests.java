@@ -33,7 +33,7 @@ public class XPackLicenseStateTests extends ESTestCase {
     /** Creates a license state with the given license type and active state, and checks the given method returns expected. */
     void assertAllowed(OperationMode mode, boolean active, Predicate<XPackLicenseState> predicate, boolean expected) {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
-        licenseState.update(mode, active, null);
+        licenseState.update(mode, active, Version.CURRENT);
         assertEquals(expected, predicate.test(licenseState));
     }
 
@@ -60,6 +60,10 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public static OperationMode randomTrialOrPlatinumMode() {
         return randomFrom(TRIAL, PLATINUM);
+    }
+
+    public static OperationMode randomTrialGoldOrPlatinumMode() {
+        return randomFrom(TRIAL, GOLD, PLATINUM);
     }
 
     public static OperationMode randomTrialBasicStandardGoldOrPlatinumMode() {
@@ -91,6 +95,9 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
 
+        assertWarnings("Automatically enabling security because [xpack.security.transport.ssl.enabled] is true." +
+            " This behaviour will be removed in a future version of Elasticsearch. Please set [xpack.security.enabled] to true");
+
         licenseState = new XPackLicenseState(Settings.EMPTY);
         assertThat(licenseState.isAuthAllowed(), is(false));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
@@ -101,9 +108,8 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
     }
 
-    public void testSecurityBasic() {
-        XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
-                Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
+    public void testSecurityBasicWithoutExplicitSecurityEnabled() {
+        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(BASIC, true, null);
 
         assertThat(licenseState.isAuthAllowed(), is(false));
@@ -113,11 +119,30 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NONE));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
+
+        assertThat(licenseState.isSecurityAvailable(), is(true));
+        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(true));
     }
 
-    public void testSecurityBasicExpired() {
-        XPackLicenseState licenseState = new XPackLicenseState(randomFrom(Settings.EMPTY,
-                Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build()));
+    public void testSecurityBasicWithExplicitSecurityEnabled() {
+        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
+        XPackLicenseState licenseState = new XPackLicenseState(settings);
+        licenseState.update(BASIC, true, null);
+
+        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isIpFilteringAllowed(), is(false));
+        assertThat(licenseState.isAuditingAllowed(), is(false));
+        assertThat(licenseState.isStatsAndHealthAllowed(), is(true));
+        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
+        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NATIVE));
+        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
+
+        assertThat(licenseState.isSecurityAvailable(), is(true));
+        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(false));
+    }
+
+    public void testSecurityDefaultBasicExpired() {
+        XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(BASIC, false, null);
 
         assertThat(licenseState.isAuthAllowed(), is(false));
@@ -126,6 +151,20 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NONE));
+        assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
+    }
+
+    public void testSecurityEnabledBasicExpired() {
+        XPackLicenseState licenseState = new XPackLicenseState(
+            Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build());
+        licenseState.update(BASIC, false, null);
+
+        assertThat(licenseState.isAuthAllowed(), is(true));
+        assertThat(licenseState.isIpFilteringAllowed(), is(false));
+        assertThat(licenseState.isAuditingAllowed(), is(false));
+        assertThat(licenseState.isStatsAndHealthAllowed(), is(false));
+        assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(false));
+        assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.NATIVE));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(false));
     }
 
@@ -217,7 +256,11 @@ public class XPackLicenseStateTests extends ESTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(TRIAL, true, VersionUtils.randomVersionBetween(random(), Version.V_6_3_0, Version.CURRENT));
 
-        assertThat(licenseState.isSecurityDisabledByTrialLicense(), is(true));
+        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(true));
+        assertSecurityNotAllowed(licenseState);
+    }
+
+    private void assertSecurityNotAllowed(XPackLicenseState licenseState) {
         assertThat(licenseState.isAuthAllowed(), is(false));
         assertThat(licenseState.isIpFilteringAllowed(), is(false));
         assertThat(licenseState.isAuditingAllowed(), is(false));
@@ -231,7 +274,7 @@ public class XPackLicenseStateTests extends ESTestCase {
         XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY);
         licenseState.update(TRIAL, true, rarely() ? null : VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, Version.V_6_2_4));
 
-        assertThat(licenseState.isSecurityDisabledByTrialLicense(), is(false));
+        assertThat(licenseState.isSecurityDisabledByLicenseDefaults(), is(false));
         assertThat(licenseState.isAuthAllowed(), is(true));
         assertThat(licenseState.isIpFilteringAllowed(), is(true));
         assertThat(licenseState.isAuditingAllowed(), is(true));
@@ -239,6 +282,9 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat(licenseState.isDocumentAndFieldLevelSecurityAllowed(), is(true));
         assertThat(licenseState.allowedRealmType(), is(XPackLicenseState.AllowedRealmType.ALL));
         assertThat(licenseState.isCustomRoleProvidersAllowed(), is(true));
+
+        assertWarnings("Automatically enabling security because the current trial license was generated before 6.3.0." +
+            " This behaviour will be removed in a future version of Elasticsearch. Please set [xpack.security.enabled] to true");
     }
 
     public void testSecurityAckBasicToNotGoldOrStandard() {
@@ -250,18 +296,22 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAckMesssages(XPackField.SECURITY, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
 
-    public void testSecurityAckTrialStandardGoldOrPlatinumToBasic() {
-        assertAckMesssages(XPackField.SECURITY, randomTrialStandardGoldOrPlatinumMode(), BASIC, 3);
+    public void testSecurityAckTrialGoldOrPlatinumToBasic() {
+        assertAckMesssages(XPackField.SECURITY, randomTrialGoldOrPlatinumMode(), BASIC, 7);
+    }
+
+    public void testSecurityAckStandardToBasic() {
+        assertAckMesssages(XPackField.SECURITY, STANDARD, BASIC, 1);
     }
 
     public void testSecurityAckAnyToStandard() {
         OperationMode from = randomFrom(BASIC, GOLD, PLATINUM, TRIAL);
-        assertAckMesssages(XPackField.SECURITY, from, STANDARD, 4);
+        assertAckMesssages(XPackField.SECURITY, from, STANDARD, 5);
     }
 
     public void testSecurityAckBasicStandardTrialOrPlatinumToGold() {
         OperationMode from = randomFrom(BASIC, PLATINUM, TRIAL, STANDARD);
-        assertAckMesssages(XPackField.SECURITY, from, GOLD, 2);
+        assertAckMesssages(XPackField.SECURITY, from, GOLD, 3);
     }
 
     public void testMonitoringAckBasicToAny() {

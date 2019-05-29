@@ -9,12 +9,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.util.Check;
 
+import java.util.Collections;
 import java.util.List;
 
 public class SingletonExecutable implements Executable {
 
     private final List<Attribute> output;
     private final Object[] values;
+
+    public SingletonExecutable() {
+        this(Collections.emptyList());
+    }
 
     public SingletonExecutable(List<Attribute> output, Object... values) {
         Check.isTrue(output.size() == values.length, "Attributes {} and values {} are out of sync", output, values);

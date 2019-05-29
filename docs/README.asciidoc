@@ -60,6 +60,8 @@ for its modifiers:
     "figures out" the path. This is especially useful for making sweeping
     assertions like "I made up all the numbers in this example, don't compare
     them" which looks like `// TESTRESPONSE[s/\d+/$body.$_path/]`.
+  * You can't use `// TESTRESPONSE` immediately after `// TESTSETUP`. Instead,
+  consider using `// TEST[continued]` or rearrange your snippets.
   * `// TESTRESPONSE[_cat]`: Add substitutions for testing `_cat` responses. Use
   this after all other substitutions so it doesn't make other substitutions
   difficult.

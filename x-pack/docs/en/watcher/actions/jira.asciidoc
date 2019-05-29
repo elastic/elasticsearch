@@ -21,7 +21,6 @@ The following snippet shows a simple jira action definition:
     "jira" : {
       "account" : "integration-account", <1>
       "fields" : {
-        "issue" : {
           "project" : {
             "key": "PROJ" <2>
           },
@@ -34,7 +33,6 @@ The following snippet shows a simple jira action definition:
           "priority" : {
             "name" : "High" <7>
           }
-        }
       }
     }
   }
@@ -111,13 +109,15 @@ Jira account you need to specify (see {ref}/secure-settings.html[secure settings
 
 [source,yaml]
 --------------------------------------------------
-bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_url
-bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_user
-bin/elasticsearch-keystore xpack.notification.jira.account.monitoring.secure_password
+bin/elasticsearch-keystore add xpack.notification.jira.account.monitoring.secure_url
+bin/elasticsearch-keystore add xpack.notification.jira.account.monitoring.secure_user
+bin/elasticsearch-keystore add xpack.notification.jira.account.monitoring.secure_password
 --------------------------------------------------
 
-The insecure way of storing sensitive data (`url`, `user` and `password`) 
-in the configuration file or the cluster settings will be deprecated in the future.
+[WARNING]
+======
+Storing sensitive data (`url`, `user` and `password`) in the configuration file or the cluster settings is insecure and has been deprecated. Please use {es}'s secure {ref}/secure-settings.html[keystore] method instead.
+======
 
 To avoid credentials that transit in clear text over the network, {watcher} will
 reject `url` settings like `http://internal-jira.elastic.co` that are based on

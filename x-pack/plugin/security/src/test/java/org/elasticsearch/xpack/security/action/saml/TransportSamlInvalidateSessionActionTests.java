@@ -11,6 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -21,17 +25,18 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -42,6 +47,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -102,16 +108,20 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
     private SamlRealm samlRealm;
     private TokenService tokenService;
     private List<IndexRequest> indexRequests;
-    private List<UpdateRequest> updateRequests;
+    private List<BulkRequest> bulkRequests;
     private List<SearchRequest> searchRequests;
     private TransportSamlInvalidateSessionAction action;
     private SamlLogoutRequestHandler.Result logoutRequest;
     private Function<SearchRequest, SearchHit[]> searchFunction = ignore -> new SearchHit[0];
+    private Function<SearchScrollRequest, SearchHit[]> searchScrollFunction = ignore -> new SearchHit[0];
+    private boolean tokenServiceBwc;
 
     @Before
     public void setup() throws Exception {
+        tokenServiceBwc = randomBoolean();
         final Settings settings = Settings.builder()
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+                .put(TokenService.BWC_ENABLED.getKey(), tokenServiceBwc)
                 .put("path.home", createTempDir())
                 .build();
 
@@ -121,8 +131,8 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         new Authentication(new User("kibana"), new RealmRef("realm", "type", "node"), null).writeToContext(threadContext);
 
         indexRequests = new ArrayList<>();
-        updateRequests = new ArrayList<>();
         searchRequests = new ArrayList<>();
+        bulkRequests = new ArrayList<>();
         final Client client = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest,
@@ -134,20 +144,29 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     IndexRequest indexRequest = (IndexRequest) request;
                     indexRequests.add(indexRequest);
                     final IndexResponse response = new IndexResponse(
-                            indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
+                        indexRequest.shardId(), indexRequest.type(), indexRequest.id(), 1, 1, 1, true);
                     listener.onResponse((Response) response);
-                } else if (UpdateAction.NAME.equals(action.name())) {
-                    assertThat(request, instanceOf(UpdateRequest.class));
-                    updateRequests.add((UpdateRequest) request);
-                    listener.onResponse((Response) new UpdateResponse());
+                } else if (BulkAction.NAME.equals(action.name())) {
+                    assertThat(request, instanceOf(BulkRequest.class));
+                    bulkRequests.add((BulkRequest) request);
+                    final BulkResponse response = new BulkResponse(new BulkItemResponse[0], 1);
+                    listener.onResponse((Response) response);
                 } else if (SearchAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(SearchRequest.class));
                     SearchRequest searchRequest = (SearchRequest) request;
                     searchRequests.add(searchRequest);
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
                     final SearchResponse response = new SearchResponse(
-                            new SearchResponseSections(new SearchHits(hits, hits.length, 0f),
-                                    null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
+                        new SearchResponseSections(new SearchHits(hits, hits.length, 0f),
+                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
+                    listener.onResponse((Response) response);
+                } else if (SearchScrollAction.NAME.equals(action.name())){
+                    assertThat(request, instanceOf(SearchScrollRequest.class));
+                    SearchScrollRequest searchScrollRequest = (SearchScrollRequest) request;
+                    final SearchHit[] hits = searchScrollFunction.apply(searchScrollRequest);
+                    final SearchResponse response = new SearchResponse(
+                        new SearchResponseSections(new SearchHits(hits, hits.length, 0f),
+                            null, null, false, false, null, 1), "_scrollId1", 1, 1, 0, 1, null, null);
                     listener.onResponse((Response) response);
                 } else if (ClearScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(ClearScrollRequest.class));
@@ -174,8 +193,11 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         when(securityIndex.indexExists()).thenReturn(true);
         when(securityIndex.freeze()).thenReturn(securityIndex);
 
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
@@ -293,15 +315,52 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(((TermQueryBuilder) filter1.get(1)).fieldName(), equalTo("refresh_token.token"));
         assertThat(((TermQueryBuilder) filter1.get(1)).value(), equalTo(tokenToInvalidate1.v2()));
 
-        assertThat(updateRequests.size(), equalTo(4)); // (refresh-token + access-token) * 2
-        assertThat(updateRequests.get(0).id(), equalTo("token_" + tokenToInvalidate1.v1().getId()));
-        assertThat(updateRequests.get(1).id(), equalTo(updateRequests.get(0).id()));
-        assertThat(updateRequests.get(2).id(), equalTo("token_" + tokenToInvalidate2.v1().getId()));
-        assertThat(updateRequests.get(3).id(), equalTo(updateRequests.get(2).id()));
+        assertThat(bulkRequests.size(), equalTo(tokenServiceBwc ? 6 : 4)); // 4 updates (refresh-token + access-token)
+        // plus (potentially) 2 indexes (bwc-invalidate * 2)
 
-        assertThat(indexRequests.size(), equalTo(2)); // bwc-invalidate * 2
-        assertThat(indexRequests.get(0).id(), startsWith("invalidated-token_"));
-        assertThat(indexRequests.get(1).id(), startsWith("invalidated-token_"));
+        // Invalidate refresh token 1
+        int bulkIndex = 0;
+        assertThat(bulkRequests.get(bulkIndex).requests().get(0), instanceOf(UpdateRequest.class));
+        assertThat(bulkRequests.get(bulkIndex).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1().getId()));
+        UpdateRequest updateRequest1 = (UpdateRequest) bulkRequests.get(bulkIndex).requests().get(0);
+        assertThat(updateRequest1.toString().contains("refresh_token"), equalTo(true));
+
+        // BWC invalidate access token 1
+        if (tokenServiceBwc) {
+            bulkIndex++;
+            assertThat(bulkRequests.get(bulkIndex).requests().get(0), instanceOf(IndexRequest.class));
+            assertThat(bulkRequests.get(bulkIndex).requests().get(0).id(), equalTo("invalidated-token_" + tokenToInvalidate1.v1().getId()));
+        }
+
+        // Invalidate access token 1
+        bulkIndex++;
+        assertThat(bulkRequests.get(bulkIndex).requests().get(0), instanceOf(UpdateRequest.class));
+        assertThat(bulkRequests.get(bulkIndex).requests().get(0).id(), equalTo("token_" + tokenToInvalidate1.v1().getId()));
+        UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(bulkIndex).requests().get(0);
+        assertThat(updateRequest2.toString().contains("access_token"), equalTo(true));
+
+        // Invalidate refresh token 2
+        bulkIndex++;
+        assertThat(bulkRequests.get(bulkIndex).requests().get(0), instanceOf(UpdateRequest.class));
+        assertThat(bulkRequests.get(bulkIndex).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1().getId()));
+        UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(bulkIndex).requests().get(0);
+        assertThat(updateRequest3.toString().contains("refresh_token"), equalTo(true));
+
+        // BWC invalidate access token 2
+        if (tokenServiceBwc) {
+            bulkIndex++;
+            assertThat(bulkRequests.get(bulkIndex).requests().get(0), instanceOf(IndexRequest.class));
+            assertThat(bulkRequests.get(bulkIndex).requests().get(0).id(), equalTo("invalidated-token_" + tokenToInvalidate2.v1().getId()));
+        }
+
+        // Invalidate access token 2
+        bulkIndex++;
+        assertThat(bulkRequests.get(bulkIndex).requests().get(0), instanceOf(UpdateRequest.class));
+        assertThat(bulkRequests.get(bulkIndex).requests().get(0).id(), equalTo("token_" + tokenToInvalidate2.v1().getId()));
+        UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(bulkIndex).requests().get(0);
+        assertThat(updateRequest4.toString().contains("access_token"), equalTo(true));
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
     private Function<SearchRequest, SearchHit[]> findTokenByRefreshToken(SearchHit[] searchHits) {

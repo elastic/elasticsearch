@@ -36,6 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 /**
  * Tests for the {@link ActiveShardCount} class
@@ -165,6 +166,17 @@ public class ActiveShardCountTests extends ESTestCase {
         assertEquals("activeShardCount cannot be negative", e.getMessage());
     }
 
+    public void testEnoughShardsActiveWithClosedIndex() {
+        final String indexName = "test-idx";
+        final int numberOfShards = randomIntBetween(1, 5);
+        final int numberOfReplicas = randomIntBetween(4, 7);
+
+        final ClusterState clusterState = initializeWithClosedIndex(indexName, numberOfShards, numberOfReplicas);
+        for (ActiveShardCount waitForActiveShards : Arrays.asList(ActiveShardCount.DEFAULT, ActiveShardCount.ALL, ActiveShardCount.ONE)) {
+            assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
+        }
+    }
+
     private void runTestForOneActiveShard(final ActiveShardCount activeShardCount) {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);
@@ -190,6 +202,18 @@ public class ActiveShardCountTests extends ESTestCase {
         final MetaData metaData = MetaData.builder().put(indexMetaData, true).build();
         final RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetaData).build();
         return ClusterState.builder(new ClusterName("test_cluster")).metaData(metaData).routingTable(routingTable).build();
+    }
+
+    private ClusterState initializeWithClosedIndex(final String indexName, final int numShards, final int numReplicas) {
+        final IndexMetaData indexMetaData = IndexMetaData.builder(indexName)
+            .settings(settings(Version.CURRENT)
+                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
+            .numberOfShards(numShards)
+            .numberOfReplicas(numReplicas)
+            .state(IndexMetaData.State.CLOSE)
+            .build();
+        final MetaData metaData = MetaData.builder().put(indexMetaData, true).build();
+        return ClusterState.builder(new ClusterName("test_cluster")).metaData(metaData).build();
     }
 
     private ClusterState startPrimaries(final ClusterState clusterState, final String indexName) {

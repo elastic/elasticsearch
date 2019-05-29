@@ -103,7 +103,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             return;
         }
 
-        if (event.state().getBlocks().hasGlobalBlock(ClusterBlockLevel.WRITE)) {
+        if (event.state().getBlocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE)) {
             pauseExecution("write level cluster block");
             return;
         }

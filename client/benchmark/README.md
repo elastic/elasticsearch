@@ -1,7 +1,7 @@
 ### Steps to execute the benchmark
 
-1. Build `client-benchmark-noop-api-plugin` with `gradle :client:client-benchmark-noop-api-plugin:assemble`
-2. Install it on the target host with `bin/elasticsearch-plugin install file:///full/path/to/client-benchmark-noop-api-plugin.zip`
+1. Build `client-benchmark-noop-api-plugin` with `./gradlew :client:client-benchmark-noop-api-plugin:assemble`
+2. Install it on the target host with `bin/elasticsearch-plugin install file:///full/path/to/client-benchmark-noop-api-plugin.zip`.
 3. Start Elasticsearch on the target host (ideally *not* on the machine
 that runs the benchmarks)
 4. Run the benchmark with
@@ -49,7 +49,7 @@ The parameters are all in the `'`s and are in order:
 Example invocation:
 
 ```
-gradlew -p client/benchmark run --args ' rest search localhost geonames {"query":{"match_phrase":{"name":"Sankt Georgen"}}} 500,1000,1100,1200'
+./gradlew -p client/benchmark run --args ' rest search localhost geonames {"query":{"match_phrase":{"name":"Sankt Georgen"}}} 500,1000,1100,1200'
 ```
 
 The parameters are in order:

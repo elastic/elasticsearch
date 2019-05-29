@@ -1,0 +1,115 @@
+[[breaking-changes-6.7]]
+== Breaking changes in 6.7
+++++
+<titleabbrev>6.7</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to Elasticsearch 6.7.
+
+* <<breaking_67_indexing_changes>>
+* <<breaking_67_plugin_changes>>
+* <<breaking_67_settings_changes>>
+* <<breaking_67_api_changes>>
+* <<breaking_67_security_changes>>
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+[float]
+[[breaking_67_indexing_changes]]
+=== Indexing changes
+
+[float]
+[[_deprecated_usage_of_literal_internal_literal_versioning_for_optimistic_concurrency_control]]
+==== Deprecated usage of `internal` versioning for optimistic concurrency control
+
+`internal` version may not uniquely identify a document's version if an indexed document
+wasn't fully replicated when a primary fails. As such it is unsafe to use for
+optimistic concurrency control, is deprecated and the option will no longer be available
+in Elasticsearch 7.0.0. Please use the `if_seq_no` and `if_primary_term` parameters instead.
+See <<optimistic-concurrency-control>> for more details.
+
+[float]
+[[breaking_67_plugin_changes]]
+=== Plugin changes
+
+[float]
+[[_literal_ingest_geoip_literal_and_literal_ingest_user_agent_literal_are_no_longer_distributed_as_plugins]]
+==== `ingest-geoip` and `ingest-user-agent` are no longer distributed as plugins
+
+The `ingest-geoip` and `ingest-user-agent` plugins have been converted to
+modules and are now included with all Elasticsearch distributions. Starting with
+Elasticsearch 6.7.0, attempting to install or remove these plugins will result
+in a no-op. In Elasticsearch 7.0.0, attempting to install or remove these plugins
+will result in an error. Additionally, there are two minor breaking changes here:
+- `elasticsearch-plugin list` will no longer output `ingest-geoip` nor
+  `ingest-user-agent`
+- `plugin.mandatory` is no longer compatible with `ingest-geoip` nor
+  `ingest-user-agent`
+
+Elasticsearch 6.7.0 checks that there are no leftover geoip database files in
+the plugin configuration directory because the new module does not use them.
+Therefore, remove the `ingest-geoip` plugin prior to upgrading to 6.7.0 with
+the `--purge` option to also delete the old database files:
+
+[source,sh]
+------------------------------------------------------
+./bin/elasticsearch-plugin remove --purge ingest-geoip
+------------------------------------------------------
+
+Otherwise you will see the following error message upon startup (assuming
+`/etc/elasticsearch/ingest-geoip` as the plugin configuration directory):
+
+[source,text]
+---------------------------------------------------------------------------------------
+expected database [GeoLite2-ASN.mmdb] to not exist in [/etc/elasticsearch/ingest-geoip]
+---------------------------------------------------------------------------------------
+
+
+[float]
+[[breaking_67_settings_changes]]
+=== Settings changes
+
+[float]
+==== Disabling memory-mapping
+
+The setting `node.store.allow_mmapfs` has been deprecated. Use
+`node.store.allow_mmap` instead.
+
+[float]
+[[breaking_67_api_changes]]
+=== API changes
+
+[float]
+==== Removing compressed size of cluster state
+
+Since 6.0.0, the `/_cluster/state` REST endpoint and cluster state API on the
+transport client would compute and return the compressed size of the cluster
+state as if it were serialized for inter-node communication. This metric would
+be returned in the `compressed_size` or `compressed_size_in_bytes` fields in the
+REST endpoint, or `ClusterStateResponse#getTotalCompressedSize` via the
+transport client. Computing this field is expensive, and has dubious reporting
+value as it does not reflect the actual size of the cluster state on disk. The
+expense of computing this field is such that in some situations it can disrupt
+all activity on a node including indexing activity. Therefore we have elected to
+by default stop computing this field in a minor release. We are providing a
+backwards compatibility flag via the system property
+`-Des.cluster_state.size=true` which will return to the previous 6.0.0--6.6.2
+behavior.  Computing this metric and displaying this field will be completely
+removed in 7.0.0, and using this backwards compatibility flag will fail.
+
+[float]
+[[breaking_67_security_changes]]
+=== Security changes
+
+[float]
+==== Removed support for pre v6.2 tokens
+
+The token service no longer accepts tokens that were generated on an {es} version
+earlier than 6.2.0
+
+No applications in the {stack} made use of {es} tokens prior to 6.2.0, so this
+change does not affect access to {kib} or any official {es} clients.
+If you have an application that uses {es} tokens, and a token from 6.1 or earlier
+is presented for authentication, {es} will reject the token with a `401` status code.
+

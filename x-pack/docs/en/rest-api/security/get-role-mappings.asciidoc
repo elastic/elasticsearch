@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-get-role-mapping]]
 === Get role mappings API
+++++
+<titleabbrev>Get role mappings</titleabbrev>
+++++
 
 Retrieves role mappings.
 

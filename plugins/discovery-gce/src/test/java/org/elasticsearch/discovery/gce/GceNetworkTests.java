@@ -110,7 +110,7 @@ public class GceNetworkTests extends ESTestCase {
         NetworkService networkService = new NetworkService(Collections.singletonList(new GceNameResolver(mock)));
         try {
             InetAddress[] addresses = networkService.resolveBindHostAddresses(
-                NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY));
+                NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY));
             if (expected == null) {
                 fail("We should get a IllegalArgumentException when setting network.host: _gce:doesnotexist_");
             }

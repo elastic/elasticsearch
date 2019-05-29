@@ -123,11 +123,6 @@ information that concern the file system:
 `fs.data.available_in_bytes`::
   Total number of bytes available to this Java virtual machine on this file store
 
-`fs.data.spins` (Linux only)::
-  Indicates if the file store is backed by spinning storage.
-  `null` means we could not determine it, `true` means the device possibly spins
-   and `false` means it does not (ex: solid-state disks).
-
 `fs.io_stats.devices` (Linux only)::
     Array of disk metrics for each device that is backing an
     Elasticsearch data path. These disk metrics are probed periodically
@@ -277,7 +272,7 @@ the operating system:
     `os.cgroup.memory.limit_in_bytes`.
 
 NOTE: For the cgroup stats to be visible, cgroups must be compiled into
-the kernal, the `cpu` and `cpuacct` cgroup subsystems must be
+the kernel, the `cpu` and `cpuacct` cgroup subsystems must be
 configured and stats must be readable from `/sys/fs/cgroup/cpu`
 and `/sys/fs/cgroup/cpuacct`.
 

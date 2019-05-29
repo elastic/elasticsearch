@@ -42,7 +42,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -68,7 +68,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class TransportClientNodesService implements Closeable {
@@ -100,7 +99,7 @@ final class TransportClientNodesService implements Closeable {
 
     private final NodeSampler nodesSampler;
 
-    private volatile ScheduledFuture nodesSamplerFuture;
+    private volatile Scheduler.Cancellable nodesSamplerCancellable;
 
     private final AtomicInteger randomNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
@@ -146,7 +145,7 @@ final class TransportClientNodesService implements Closeable {
             this.nodesSampler = new SimpleNodeSampler();
         }
         this.hostFailureListener = hostFailureListener;
-        this.nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, new ScheduledNodeSampler());
+        this.nodesSamplerCancellable = threadPool.schedule(new ScheduledNodeSampler(), nodesSamplerInterval, ThreadPool.Names.GENERIC);
     }
 
     public List<TransportAddress> transportAddresses() {
@@ -325,7 +324,9 @@ final class TransportClientNodesService implements Closeable {
                 return;
             }
             closed = true;
-            FutureUtils.cancel(nodesSamplerFuture);
+            if (nodesSamplerCancellable != null) {
+                nodesSamplerCancellable.cancel();
+            }
             for (DiscoveryNode node : nodes) {
                 transportService.disconnectFromNode(node);
             }
@@ -392,7 +393,7 @@ final class TransportClientNodesService implements Closeable {
             try {
                 nodesSampler.sample();
                 if (!closed) {
-                    nodesSamplerFuture = threadPool.schedule(nodesSamplerInterval, ThreadPool.Names.GENERIC, this);
+                    nodesSamplerCancellable = threadPool.schedule(this, nodesSamplerInterval, ThreadPool.Names.GENERIC);
                 }
             } catch (Exception e) {
                 logger.warn("failed to sample", e);

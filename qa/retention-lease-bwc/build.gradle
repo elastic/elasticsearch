@@ -1,0 +1,112 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+  description 'add retention lease plugin'
+  classname 'org.elasticsearch.retention_lease_bwc.AddRetentionLeasePlugin'
+}
+
+integTest.enabled = false
+
+task bwcTest {
+  description = 'runs retention lease backwards compatibility tests'
+  group = 'verification'
+}
+
+for (Version version : bwcVersions.wireCompatible) {
+  if (version.before("6.5.0")) {
+    // versions before 6.5.0 do not support soft deletes
+    continue
+  }
+  if (version.onOrAfter("6.7.0")) {
+    // we are known to be compatible with these versions
+    continue
+  }
+
+  final String baseName = "v${version}"
+
+  final Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+    includePackaged = false
+  }
+
+  final Object oldClusterTestCluster = extensions.findByName("${baseName}#oldClusterTestCluster")
+
+  configure(oldClusterTestCluster) {
+    numNodes = 2
+    numBwcNodes = 2
+    bwcVersion = version
+    setting "cluster.name", "retention-lease-bwc"
+  }
+
+  final Task newClusterTest = tasks.create(name: "${baseName}#newClusterTest", type: RestIntegTestTask) {
+
+  }
+
+  final Object newClusterTestCluster = extensions.findByName("${baseName}#newClusterTestCluster")
+
+  configure(newClusterTestCluster) {
+    dependsOn "${baseName}#oldClusterTestCluster#wait"
+    numNodes = 1
+    plugin ":qa:retention-lease-bwc"
+    setting "discovery.zen.ping.unicast.hosts", "\"${-> oldClusterTest.nodes.get(0).transportUri()}\""
+    setting "cluster.name", "retention-lease-bwc"
+    setting "node.name", "new-node"
+  }
+
+  final Object newClusterTestRunner = tasks.findByName("${baseName}#newClusterTestRunner")
+
+  configure(newClusterTestRunner) {
+    finalizedBy "${baseName}#oldClusterTestCluster#node0.stop"
+    finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
+    finalizedBy "${baseName}#newClusterTestCluster#stop"
+  }
+
+  final Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
+    dependsOn newClusterTest
+  }
+
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn(versionBwcTest)
+  }
+}
+
+task bwcTestSnapshots {
+  if (project.bwc_tests_enabled) {
+    for (final def version : bwcVersions.unreleasedWireCompatible) {
+      if (version.before("6.5.0")) {
+        // versions before 6.5.0 do not support soft deletes
+        continue
+      }
+      if (version.onOrAfter("6.7.0")) {
+        // we are known to be compatible with these versions
+        continue
+      }
+      dependsOn "v${version}#bwcTest"
+    }
+  }
+}
+
+check.dependsOn bwcTestSnapshots
+unitTest.enabled = false

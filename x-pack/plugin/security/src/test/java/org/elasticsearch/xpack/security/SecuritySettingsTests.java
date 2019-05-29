@@ -170,5 +170,8 @@ public class SecuritySettingsTests extends ESTestCase {
                 .put(XPackSettings.AUDIT_ENABLED.getKey(), true)
                 .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), randomFrom("index", "logfile,index"))
                 .build());
+
+        assertWarnings("[xpack.security.audit.outputs] setting was deprecated in Elasticsearch and will be removed " +
+                "in a future release! See the breaking changes documentation for the next major version.");
     }
 }

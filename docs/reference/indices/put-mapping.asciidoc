@@ -114,3 +114,39 @@ PUT my_index/_mapping/_doc
 
 Each <<mapping-params,mapping parameter>> specifies whether or not its setting
 can be updated on an existing field.
+
+[float]
+=== Skipping types
+
+Types are being removed from Elasticsearch: in 7.0, the `mappings` element will no
+longer take the type name as a top-level key by default. You can already opt in for
+this behavior by setting `include_type_name=false` and putting mappings directly under
+`mappings` in the index creation call, without specifying a type name.
+
+NOTE: On indices created on Elasticsearch 5.x, such calls will actually
+introduce or update mappings for the `_doc` type. It is recommended to avoid
+calling the put-mapping API with `include_type_name=false` on 5.x indices.
+
+Here is an example:
+
+[source,js]
+-----------------------------------
+PUT my_index?include_type_name=false
+{
+  "mappings": {
+    "properties": {
+      "name": {
+        "properties": {
+          "first": {
+            "type": "text"
+          }
+        }
+      },
+      "user_id": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+-----------------------------------
+// CONSOLE

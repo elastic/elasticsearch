@@ -10,18 +10,18 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.BinaryPipe;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class NullIfPipe extends BinaryPipe {
 
-    public NullIfPipe(Location location, Expression expression, Pipe left, Pipe right) {
-        super(location, expression, left, right);
+    public NullIfPipe(Source source, Expression expression, Pipe left, Pipe right) {
+        super(source, expression, left, right);
     }
 
     @Override
     protected BinaryPipe replaceChildren(Pipe left, Pipe right) {
-        return new NullIfPipe(location(), expression(), left, right);
+        return new NullIfPipe(source(), expression(), left, right);
     }
 
     @Override

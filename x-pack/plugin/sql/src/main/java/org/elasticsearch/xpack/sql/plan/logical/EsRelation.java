@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.xpack.sql.analysis.index.EsIndex;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 import org.elasticsearch.xpack.sql.type.EsField;
 
@@ -25,10 +25,10 @@ public class EsRelation extends LeafPlan {
     private final EsIndex index;
     private final List<Attribute> attrs;
 
-    public EsRelation(Location location, EsIndex index) {
-        super(location);
+    public EsRelation(Source source, EsIndex index) {
+        super(source);
         this.index = index;
-        attrs = flatten(location, index.mapping());
+        attrs = flatten(source, index.mapping());
     }
 
     @Override
@@ -36,11 +36,11 @@ public class EsRelation extends LeafPlan {
         return NodeInfo.create(this, EsRelation::new, index);
     }
 
-    private static List<Attribute> flatten(Location location, Map<String, EsField> mapping) {
-        return flatten(location, mapping, null);
+    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
+        return flatten(source, mapping, null);
     }
 
-    private static List<Attribute> flatten(Location location, Map<String, EsField> mapping, FieldAttribute parent) {
+    private static List<Attribute> flatten(Source source, Map<String, EsField> mapping, FieldAttribute parent) {
         List<Attribute> list = new ArrayList<>();
 
         for (Entry<String, EsField> entry : mapping.entrySet()) {
@@ -48,11 +48,11 @@ public class EsRelation extends LeafPlan {
             EsField t = entry.getValue();
 
             if (t != null) {
-                FieldAttribute f = new FieldAttribute(location, parent, parent != null ? parent.name() + "." + name : name, t);
+                FieldAttribute f = new FieldAttribute(source, parent, parent != null ? parent.name() + "." + name : name, t);
                 list.add(f);
                 // object or nested
                 if (t.getProperties().isEmpty() == false) {
-                    list.addAll(flatten(location, t.getProperties(), f));
+                    list.addAll(flatten(source, t.getProperties(), f));
                 }
             }
         }

@@ -280,8 +280,11 @@ public class InternalEngine extends Engine {
         } else {
             lastMinRetainedSeqNo = Long.parseLong(commitUserData.get(SequenceNumbers.MAX_SEQ_NO)) + 1;
         }
-        return new SoftDeletesPolicy(translog::getLastSyncedGlobalCheckpoint, lastMinRetainedSeqNo,
-            engineConfig.getIndexSettings().getSoftDeleteRetentionOperations());
+        return new SoftDeletesPolicy(
+                translog::getLastSyncedGlobalCheckpoint,
+                lastMinRetainedSeqNo,
+                engineConfig.getIndexSettings().getSoftDeleteRetentionOperations(),
+                engineConfig.retentionLeasesSupplier());
     }
 
     /**
@@ -484,6 +487,11 @@ public class InternalEngine extends Engine {
         return translog;
     }
 
+    // Package private for testing purposes only
+    boolean hasSnapshottedCommits() {
+        return combinedDeletionPolicy.hasSnapshottedCommits();
+    }
+
     @Override
     public boolean isTranslogSyncNeeded() {
         return getTranslog().syncNeeded();
@@ -632,6 +640,12 @@ public class InternalEngine extends Engine {
                         throw new VersionConflictEngineException(shardId, get.type(), get.id(),
                             get.versionType().explainConflictForReads(versionValue.version, get.version()));
                     }
+                    if (get.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+                        get.getIfSeqNo() != versionValue.seqNo || get.getIfPrimaryTerm() != versionValue.term
+                        )) {
+                        throw new VersionConflictEngineException(shardId, get.type(), get.id(),
+                            get.getIfSeqNo(), get.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
+                    }
                     if (get.isReadFromTranslog()) {
                         // this is only used for updates - API _GET calls will always read form a reader for consistency
                         // the update call doesn't need the consistency since it's source only + _parent but parent can go away in 7.0
@@ -640,11 +654,12 @@ public class InternalEngine extends Engine {
                                 Translog.Operation operation = translog.readOperation(versionValue.getLocation());
                                 if (operation != null) {
                                     // in the case of a already pruned translog generation we might get null here - yet very unlikely
-                                    TranslogLeafReader reader = new TranslogLeafReader((Translog.Index) operation, engineConfig
+                                    final Translog.Index index = (Translog.Index) operation;
+                                    TranslogLeafReader reader = new TranslogLeafReader(index, engineConfig
                                         .getIndexSettings().getIndexVersionCreated());
                                     return new GetResult(new Searcher("realtime_get", new IndexSearcher(reader), reader::close),
-                                        new VersionsAndSeqNoResolver.DocIdAndVersion(0,
-                                            ((Translog.Index) operation).version(), reader, 0));
+                                        new VersionsAndSeqNoResolver.DocIdAndVersion(0, index.version(), index.seqNo(), index.primaryTerm(),
+                                            reader, 0));
                                 }
                             } catch (IOException e) {
                                 maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
@@ -721,14 +736,17 @@ public class InternalEngine extends Engine {
     }
 
     /** resolves the current version of the document, returning null if not found */
-    private VersionValue resolveDocVersion(final Operation op) throws IOException {
+    private VersionValue resolveDocVersion(final Operation op, boolean loadSeqNo) throws IOException {
         assert incrementVersionLookup(); // used for asserting in tests
         VersionValue versionValue = getVersionFromMap(op.uid().bytes());
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
-            final long currentVersion = loadCurrentVersionFromIndex(op.uid());
-            if (currentVersion != Versions.NOT_FOUND) {
-                versionValue = new IndexVersionValue(null, currentVersion, SequenceNumbers.UNASSIGNED_SEQ_NO, 0L);
+            final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion;
+            try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
+                 docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.reader(), op.uid(), loadSeqNo);
+            }
+            if (docIdAndVersion != null) {
+                versionValue = new IndexVersionValue(null, docIdAndVersion.version, docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
             }
         } else if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() &&
             (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue)versionValue).time) > getGcDeletesInMillis()) {
@@ -741,7 +759,7 @@ public class InternalEngine extends Engine {
         throws IOException {
         assert op.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO : "op is resolved based on versions but have a seq#";
         assert op.version() >= 0 : "versions should be non-negative. got " + op.version();
-        final VersionValue versionValue = resolveDocVersion(op);
+        final VersionValue versionValue = resolveDocVersion(op, false);
         if (versionValue == null) {
             return OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND;
         } else {
@@ -1000,6 +1018,7 @@ public class InternalEngine extends Engine {
                 }
             }
         }
+        markSeqNoAsSeen(index.seqNo());
         return plan;
     }
 
@@ -1027,7 +1046,8 @@ public class InternalEngine extends Engine {
         } else {
             versionMap.enforceSafeAccess();
             // resolves incoming version
-            final VersionValue versionValue = resolveDocVersion(index);
+            final VersionValue versionValue =
+                resolveDocVersion(index, index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
             final long currentVersion;
             final boolean currentNotFoundOrDeleted;
             if (versionValue == null) {
@@ -1037,7 +1057,17 @@ public class InternalEngine extends Engine {
                 currentVersion = versionValue.version;
                 currentNotFoundOrDeleted = versionValue.isDelete();
             }
-            if (index.versionType().isVersionConflictForWrites(
+            if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
+                final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.type(), index.id(),
+                    index.getIfSeqNo(), index.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
+            } else if (index.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+                versionValue.seqNo != index.getIfSeqNo() || versionValue.term != index.getIfPrimaryTerm()
+            )) {
+                final VersionConflictEngineException e = new VersionConflictEngineException(shardId, index.type(), index.id(),
+                    index.getIfSeqNo(), index.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
+                plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, getPrimaryTerm());
+            } else if (index.versionType().isVersionConflictForWrites(
                 currentVersion, index.version(), currentNotFoundOrDeleted)) {
                 final VersionConflictEngineException e =
                         new VersionConflictEngineException(shardId, index, currentVersion, currentNotFoundOrDeleted);
@@ -1078,7 +1108,7 @@ public class InternalEngine extends Engine {
                 assert assertDocDoesNotExist(index, canOptimizeAddDocument(index) == false);
                 addDocs(index.docs(), indexWriter);
             }
-            return new IndexResult(plan.versionForIndexing, getPrimaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
+            return new IndexResult(plan.versionForIndexing, index.primaryTerm(), plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
         } catch (Exception ex) {
             if (indexWriter.getTragicException() == null) {
                 /* There is no tragic event recorded so this must be a document failure.
@@ -1094,7 +1124,7 @@ public class InternalEngine extends Engine {
                  * we return a `MATCH_ANY` version to indicate no document was index. The value is
                  * not used anyway
                  */
-                return new IndexResult(ex, Versions.MATCH_ANY, getPrimaryTerm(), plan.seqNoForIndexing);
+                return new IndexResult(ex, Versions.MATCH_ANY, index.primaryTerm(), plan.seqNoForIndexing);
             } else {
                 throw ex;
             }
@@ -1356,6 +1386,7 @@ public class InternalEngine extends Engine {
                     delete.seqNo(), delete.version());
             }
         }
+        markSeqNoAsSeen(delete.seqNo());
         return plan;
     }
 
@@ -1368,7 +1399,7 @@ public class InternalEngine extends Engine {
         assert delete.origin() == Operation.Origin.PRIMARY : "planing as primary but got " + delete.origin();
         assert getMaxSeqNoOfUpdatesOrDeletes() != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         // resolve operation from external to internal
-        final VersionValue versionValue = resolveDocVersion(delete);
+        final VersionValue versionValue = resolveDocVersion(delete, delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO);
         assert incrementVersionLookup();
         final long currentVersion;
         final boolean currentlyDeleted;
@@ -1380,7 +1411,17 @@ public class InternalEngine extends Engine {
             currentlyDeleted = versionValue.isDelete();
         }
         final DeletionStrategy plan;
-        if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
+        if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && versionValue == null) {
+            final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.type(), delete.id(),
+                delete.getIfSeqNo(), delete.getIfPrimaryTerm(), SequenceNumbers.UNASSIGNED_SEQ_NO, 0);
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
+        } else if (delete.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO && (
+            versionValue.seqNo != delete.getIfSeqNo() || versionValue.term != delete.getIfPrimaryTerm()
+        )) {
+            final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete.type(), delete.id(),
+                delete.getIfSeqNo(), delete.getIfPrimaryTerm(), versionValue.seqNo, versionValue.term);
+            plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
+        } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
             final VersionConflictEngineException e = new VersionConflictEngineException(shardId, delete, currentVersion, currentlyDeleted);
             plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, getPrimaryTerm(), currentlyDeleted);
         } else {
@@ -1427,7 +1468,7 @@ public class InternalEngine extends Engine {
             if (indexWriter.getTragicException() == null) {
                 // there is no tragic event and such it must be a document level failure
                 return new DeleteResult(
-                        ex, plan.versionOfDeletion, getPrimaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
+                        ex, plan.versionOfDeletion, delete.primaryTerm(), plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             } else {
                 throw ex;
             }
@@ -1497,12 +1538,19 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public NoOpResult noOp(final NoOp noOp) {
-        NoOpResult noOpResult;
+    public NoOpResult noOp(final NoOp noOp) throws IOException {
+        final NoOpResult noOpResult;
         try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            markSeqNoAsSeen(noOp.seqNo());
             noOpResult = innerNoOp(noOp);
         } catch (final Exception e) {
-            noOpResult = new NoOpResult(getPrimaryTerm(), noOp.seqNo(), e);
+            try {
+                maybeFailEngine("noop", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
         }
         return noOpResult;
     }
@@ -2147,13 +2195,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private long loadCurrentVersionFromIndex(Term uid) throws IOException {
-        assert incrementIndexVersionLookup();
-        try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
-            return VersionsAndSeqNoResolver.loadVersion(searcher.reader(), uid);
-        }
-    }
-
     private IndexWriter createWriter() throws IOException {
         try {
             final IndexWriterConfig iwc = getIndexWriterConfig();
@@ -2189,8 +2230,9 @@ public class InternalEngine extends Engine {
         // Give us the opportunity to upgrade old segments while performing
         // background merges
         MergePolicy mergePolicy = config().getMergePolicy();
+        // always configure soft-deletes field so an engine with soft-deletes disabled can open a Lucene index with soft-deletes.
+        iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
         if (softDeleteEnabled) {
-            iwc.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);
             mergePolicy = new RecoverySourcePruneMergePolicy(SourceFieldMapper.RECOVERY_SOURCE_NAME, softDeletesPolicy::getRetentionQuery,
                 new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, softDeletesPolicy::getRetentionQuery, mergePolicy));
         }
@@ -2474,9 +2516,11 @@ public class InternalEngine extends Engine {
         return localCheckpointTracker.getCheckpoint();
     }
 
-    @Override
-    public void waitForOpsToComplete(long seqNo) throws InterruptedException {
-        localCheckpointTracker.waitForOpsToComplete(seqNo);
+    /**
+     * Marks the given seq_no as seen and advances the max_seq_no of this engine to at least that value.
+     */
+    protected final void markSeqNoAsSeen(long seqNo) {
+        localCheckpointTracker.advanceMaxSeqNo(seqNo);
     }
 
     /**
@@ -2561,7 +2605,9 @@ public class InternalEngine extends Engine {
     @Override
     public Translog.Snapshot newChangesSnapshot(String source, MapperService mapperService,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
-        // TODO: Should we defer the refresh until we really need it?
+        if (softDeleteEnabled == false) {
+            throw new IllegalStateException("accessing changes snapshot requires soft-deletes enabled");
+        }
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
@@ -2605,13 +2651,13 @@ public class InternalEngine extends Engine {
      * Returns the minimum seqno that is retained in the Lucene index.
      * Operations whose seq# are at least this value should exist in the Lucene index.
      */
-    final long getMinRetainedSeqNo() {
+    public final long getMinRetainedSeqNo() {
         assert softDeleteEnabled : Thread.currentThread().getName();
         return softDeletesPolicy.getMinRetainedSeqNo();
     }
 
     @Override
-    public Closeable acquireRetentionLockForPeerRecovery() {
+    public Closeable acquireRetentionLock() {
         if (softDeleteEnabled) {
             return softDeletesPolicy.acquireRetentionLock();
         } else {
@@ -2664,6 +2710,11 @@ public class InternalEngine extends Engine {
                                             Field... softDeletes) throws IOException {
             assert softDeleteEnabled : "Call #softUpdateDocuments but soft-deletes is disabled";
             return super.softUpdateDocuments(term, docs, softDeletes);
+        }
+        @Override
+        public long tryDeleteDocument(IndexReader readerIn, int docID) {
+            assert false : "#tryDeleteDocument is not supported. See Lucene#DirectoryReaderWithAllLiveDocs";
+            throw new UnsupportedOperationException();
         }
     }
 
@@ -2761,9 +2812,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void initializeMaxSeqNoOfUpdatesOrDeletes() {
-        assert getMaxSeqNoOfUpdatesOrDeletes() == SequenceNumbers.UNASSIGNED_SEQ_NO :
-            "max_seq_no_of_updates is already initialized [" + getMaxSeqNoOfUpdatesOrDeletes() + "]";
+    public void reinitializeMaxSeqNoOfUpdatesOrDeletes() {
         final long maxSeqNo = SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo());
         advanceMaxSeqNoOfUpdatesOrDeletes(maxSeqNo);
     }

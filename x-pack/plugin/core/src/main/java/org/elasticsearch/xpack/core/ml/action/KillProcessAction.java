@@ -52,6 +52,10 @@ public class KillProcessAction extends Action<KillProcessAction.Request, KillPro
         public Request() {
             super();
         }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+        }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable {

@@ -44,6 +44,7 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
     public RestSamlInvalidateSessionAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/saml/invalidate", this);
+        controller.registerHandler(POST, "/_security/saml/invalidate", this);
     }
 
     @Override

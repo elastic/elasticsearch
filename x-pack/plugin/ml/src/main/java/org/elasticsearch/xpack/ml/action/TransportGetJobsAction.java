@@ -18,9 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.JobManager;
-import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJobsAction.Request,
         GetJobsAction.Response> {
@@ -48,10 +46,14 @@ public class TransportGetJobsAction extends TransportMasterNodeReadAction<GetJob
 
     @Override
     protected void masterOperation(GetJobsAction.Request request, ClusterState state,
-                                   ActionListener<GetJobsAction.Response> listener) throws Exception {
+                                   ActionListener<GetJobsAction.Response> listener) {
         logger.debug("Get job '{}'", request.getJobId());
-        QueryPage<Job> jobs = jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), state);
-        listener.onResponse(new GetJobsAction.Response(jobs));
+        jobManager.expandJobs(request.getJobId(), request.allowNoJobs(), ActionListener.wrap(
+                jobs -> {
+                    listener.onResponse(new GetJobsAction.Response(jobs));
+                },
+                listener::onFailure
+        ));
     }
 
     @Override

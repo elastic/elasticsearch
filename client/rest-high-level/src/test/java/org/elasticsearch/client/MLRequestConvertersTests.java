@@ -28,6 +28,7 @@ import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -49,6 +50,7 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetOverallBucketsRequest;
 import org.elasticsearch.client.ml.GetRecordsRequest;
+import org.elasticsearch.client.ml.MlInfoRequest;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
 import org.elasticsearch.client.ml.PostDataRequest;
@@ -59,6 +61,7 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -181,6 +184,14 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals("/_xpack/ml/anomaly_detectors/" + jobId + ",otherjobs*/_close", request.getEndpoint());
         assertEquals("{\"job_id\":\"somejobid,otherjobs*\",\"timeout\":\"10m\",\"force\":true,\"allow_no_jobs\":false}",
             requestEntityToString(request));
+    }
+
+    public void testDeleteExpiredData() {
+        DeleteExpiredDataRequest deleteExpiredDataRequest = new DeleteExpiredDataRequest();
+
+        Request request = MLRequestConverters.deleteExpiredData(deleteExpiredDataRequest);
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals("/_xpack/ml/_delete_expired_data", request.getEndpoint());
     }
 
     public void testDeleteJob() {
@@ -719,6 +730,16 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertNull(request.getEntity());
     }
 
+    public void testMlInfo() {
+        MlInfoRequest infoRequest = new MlInfoRequest();
+
+        Request request = MLRequestConverters.mlInfo(infoRequest);
+
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/info"));
+        assertNull(request.getEntity());
+    }
+
     public void testFindFileStructure() throws Exception {
 
         String sample = randomAlphaOfLength(randomIntBetween(1000, 2000));
@@ -796,6 +817,22 @@ public class MLRequestConvertersTests extends ESTestCase {
             assertNull(request.getParameters().get("explain"));
         }
         assertEquals(sample, requestEntityToString(request));
+    }
+
+    public void testSetUpgradeMode() {
+        SetUpgradeModeRequest setUpgradeModeRequest = new SetUpgradeModeRequest(true);
+
+        Request request = MLRequestConverters.setUpgradeMode(setUpgradeModeRequest);
+        assertThat(request.getEndpoint(), equalTo("/_xpack/ml/set_upgrade_mode"));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(request.getParameters().get(SetUpgradeModeRequest.ENABLED.getPreferredName()), equalTo(Boolean.toString(true)));
+        assertThat(request.getParameters().containsKey(SetUpgradeModeRequest.TIMEOUT.getPreferredName()), is(false));
+
+        setUpgradeModeRequest.setTimeout(TimeValue.timeValueHours(1));
+        setUpgradeModeRequest.setEnabled(false);
+        request = MLRequestConverters.setUpgradeMode(setUpgradeModeRequest);
+        assertThat(request.getParameters().get(SetUpgradeModeRequest.ENABLED.getPreferredName()), equalTo(Boolean.toString(false)));
+        assertThat(request.getParameters().get(SetUpgradeModeRequest.TIMEOUT.getPreferredName()), is("1h"));
     }
 
     private static Job createValidJob(String jobId) {

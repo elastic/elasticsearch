@@ -316,6 +316,8 @@ public class BulkRequestTests extends ESTestCase {
         bulkRequest.add(data, null, null, xContentType);
         assertThat(bulkRequest.validate().validationErrors(), contains("can't provide both upsert request and a version",
             "can't provide version in upsert request"));
+        assertWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. " +
+            "Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [index], type [type], id [id])");
     }
 
     public void testBulkTerminatedByNewline() throws Exception {

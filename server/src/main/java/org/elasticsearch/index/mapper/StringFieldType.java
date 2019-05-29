@@ -37,6 +37,7 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -119,7 +120,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
 
         PhraseQuery.Builder builder = new PhraseQuery.Builder();
         builder.setSlop(slop);
@@ -136,15 +137,23 @@ public abstract class StringFieldType extends TermBasedFieldType {
             else {
                 position += 1;
             }
-            builder.add(new Term(field, termAtt.getBytesRef()), position);
+            builder.add(new Term(name(), termAtt.getBytesRef()), position);
         }
 
         return builder.build();
     }
 
     @Override
-    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        return createPhraseQuery(stream, name(), slop, enablePositionIncrements);
+    }
 
+    @Override
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        return createPhrasePrefixQuery(stream, name(), slop, maxExpansions);
+    }
+
+    static Query createPhraseQuery(TokenStream stream, String field, int slop, boolean enablePositionIncrements) throws IOException {
         MultiPhraseQuery.Builder mpqb = new MultiPhraseQuery.Builder();
         mpqb.setSlop(slop);
 
@@ -177,4 +186,32 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         return mpqb.build();
     }
+
+    static MultiPhrasePrefixQuery createPhrasePrefixQuery(TokenStream stream, String field,
+                                                          int slop, int maxExpansions) throws IOException {
+        MultiPhrasePrefixQuery builder = new MultiPhrasePrefixQuery(field);
+        builder.setSlop(slop);
+        builder.setMaxExpansions(maxExpansions);
+
+        List<Term> currentTerms = new ArrayList<>();
+
+        TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
+        PositionIncrementAttribute posIncrAtt = stream.getAttribute(PositionIncrementAttribute.class);
+
+        stream.reset();
+        int position = -1;
+        while (stream.incrementToken()) {
+            if (posIncrAtt.getPositionIncrement() != 0) {
+                if (currentTerms.isEmpty() == false) {
+                    builder.add(currentTerms.toArray(new Term[0]), position);
+                }
+                position += posIncrAtt.getPositionIncrement();
+                currentTerms.clear();
+            }
+            currentTerms.add(new Term(field, termAtt.getBytesRef()));
+        }
+        builder.add(currentTerms.toArray(new Term[0]), position);
+        return builder;
+    }
+
 }

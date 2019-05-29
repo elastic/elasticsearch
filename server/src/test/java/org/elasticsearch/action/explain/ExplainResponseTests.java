@@ -65,7 +65,7 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
         GetResult getResult = new GetResult(randomAlphaOfLengthBetween(3, 10),
             randomAlphaOfLengthBetween(3, 10),
             randomAlphaOfLengthBetween(3, 10),
-            randomNonNegativeLong(),
+            0, 1, randomNonNegativeLong(),
             true,
             RandomObjects.randomSource(random()),
             singletonMap(fieldName, new DocumentField(fieldName, values)));
@@ -83,7 +83,7 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
         String id = "1";
         boolean exist = true;
         Explanation explanation = Explanation.match(1.0f, "description", Collections.emptySet());
-        GetResult getResult = new GetResult(null, null, null, -1, true, new BytesArray("{ \"field1\" : " +
+        GetResult getResult = new GetResult(null, null, null, 0, 1, -1, true, new BytesArray("{ \"field1\" : " +
             "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new DocumentField("field1",
             singletonList("value1"))));
         ExplainResponse response = new ExplainResponse(index, type, id, exist, explanation, getResult);
@@ -105,6 +105,8 @@ public class ExplainResponseTests extends AbstractStreamableXContentTestCase<Exp
             "        \"details\":[]\n" +
             "    },\n" +
             "    \"get\":{\n" +
+            "        \"_seq_no\":0," +
+            "        \"_primary_term\":1," +
             "        \"found\":true,\n" +
             "        \"_source\":{\n" +
             "            \"field1\":\"value1\",\n" +

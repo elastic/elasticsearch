@@ -253,6 +253,7 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35990")
     public void testDeprecatedSettings() throws IOException, UserException {
         setupLogging("settings");
 

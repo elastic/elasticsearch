@@ -135,7 +135,9 @@ public class CompoundProcessor implements Processor {
                 if (onFailureProcessors.isEmpty()) {
                     throw compoundProcessorException;
                 } else {
-                    executeOnFailure(ingestDocument, compoundProcessorException);
+                    if (executeOnFailure(ingestDocument, compoundProcessorException) == false) {
+                        return null;
+                    }
                     break;
                 }
             } finally {
@@ -146,13 +148,17 @@ public class CompoundProcessor implements Processor {
         return ingestDocument;
     }
 
-
-    void executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
+    /**
+     * @return true if execution should continue, false if document is dropped.
+     */
+    boolean executeOnFailure(IngestDocument ingestDocument, ElasticsearchException exception) throws Exception {
         try {
             putFailureMetadata(ingestDocument, exception);
             for (Processor processor : onFailureProcessors) {
                 try {
-                    processor.execute(ingestDocument);
+                    if (processor.execute(ingestDocument) == null) {
+                        return false;
+                    }
                 } catch (Exception e) {
                     throw newCompoundProcessorException(e, processor.getType(), processor.getTag());
                 }
@@ -160,6 +166,7 @@ public class CompoundProcessor implements Processor {
         } finally {
             removeFailureMetadata(ingestDocument);
         }
+        return true;
     }
 
     private void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {

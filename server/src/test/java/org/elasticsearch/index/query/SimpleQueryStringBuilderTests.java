@@ -29,6 +29,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -40,15 +41,19 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,11 +69,16 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
+public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQueryStringBuilder> {
+    @Override
+    protected boolean isCacheable(SimpleQueryStringBuilder queryBuilder) {
+        return isCacheable(queryBuilder.fields().keySet(), queryBuilder.value());
+    }
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAlphaOfLengthBetween(1, 10));
+        String queryText = randomAlphaOfLengthBetween(1, 10);
+        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(queryText);
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
         }
@@ -104,11 +114,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             } else {
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
-        }
-        // special handling if query is "now" and no field specified. This hits the "mapped_date" field which leads to the query not being
-        // cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
-        if (fieldCount == 0 && result.value().equalsIgnoreCase("now")) {
-            fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
         }
 
         result.fields(fields);
@@ -182,6 +187,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     // Check operator handling, and default field handling.
     public void testDefaultOperatorHandling() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(STRING_FIELD_NAME);
         QueryShardContext shardContext = createShardContext();
         shardContext.setAllowUnmappedFields(true); // to avoid occasional cases
@@ -547,16 +553,25 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
             // phrase with slop
             query = parser.parse("big \"tiny guinea pig\"~2");
+            PhraseQuery pq1 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "tiny"))
+                .add(new Term(STRING_FIELD_NAME, "guinea"))
+                .add(new Term(STRING_FIELD_NAME, "pig"))
+                .setSlop(2)
+                .build();
+            PhraseQuery pq2 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "tiny"))
+                .add(new Term(STRING_FIELD_NAME, "cavy"))
+                .setSlop(2)
+                .build();
 
             expectedQuery = new BooleanQuery.Builder()
                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "big")), defaultOp)
-                .add(new SpanNearQuery(new SpanQuery[] {
-                    new SpanTermQuery(new Term(STRING_FIELD_NAME, "tiny")),
-                    new SpanOrQuery(
-                        new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))
-                    )
-                }, 2, true), defaultOp)
+                .add(new BooleanQuery.Builder()
+                        .add(pq1, BooleanClause.Occur.SHOULD)
+                        .add(pq2, BooleanClause.Occur.SHOULD)
+                        .build(),
+                    defaultOp)
                 .build();
             assertThat(query, equalTo(expectedQuery));
         }
@@ -725,6 +740,26 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "second")), BooleanClause.Occur.MUST)
                 .build();
         assertEquals(expected, query);
+        query = new SimpleQueryStringBuilder("first & second")
+            .field("unmapped")
+            .field("another_unmapped")
+            .defaultOperator(Operator.AND)
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .build();
+        assertEquals(expected, query);
+    }
+
+    public void testNegativeFieldBoost() throws IOException {
+        Query query =   new SimpleQueryStringBuilder("the quick fox")
+            .field(STRING_FIELD_NAME, -1.0f)
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(createShardContext());
+        assertWarnings("setting a negative [boost] on a query is deprecated and will throw an error in the next major " +
+            "version. You can use a value between 0 and 1 to deboost.");
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {
@@ -732,5 +767,32 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .put(indexSettings)
             .build();
         return IndexMetaData.builder(name).settings(build).build();
+    }
+
+    public void testSerializationRandomVersion() throws IOException {
+        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringBuilder("query").field("field");
+        Version version = VersionUtils.randomVersion(random());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(version);
+            queryBuilder.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry())) {
+                in.setVersion(version);
+                SimpleQueryStringBuilder deserializedQuery = new SimpleQueryStringBuilder(in);
+                assertNotSame(queryBuilder, deserializedQuery);
+                assertEquals("query", deserializedQuery.value());
+                assertEquals(1, deserializedQuery.fields().size());
+                assertEquals("field", deserializedQuery.fields().keySet().iterator().next());
+            }
+        }
+    }
+
+    public void testReadFrom_5_6() throws IOException {
+        String encodedQuery = "P4AAAAAFcXVlcnkAAAAA/////wAAAAAAAAIAAAAAAAA=";
+        byte[] bytes = Base64.getDecoder().decode(encodedQuery);
+        try (StreamInput in = StreamInput.wrap(bytes)) {
+            in.setVersion(Version.V_5_6_14);
+            SimpleQueryStringBuilder query = new SimpleQueryStringBuilder(in);
+            assertEquals("query", query.value());
+        }
     }
 }

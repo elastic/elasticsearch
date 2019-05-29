@@ -21,10 +21,13 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -46,6 +49,7 @@ import java.util.List;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -57,6 +61,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -666,5 +671,47 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1L));
         numStringParams = bucket.getAggregations().get("num_string_params");
         assertThat(numStringParams.getDocCount(), equalTo(0L));
+    }
+
+    public void testExtractInnerHitBuildersWithDuplicateHitName() throws Exception {
+        assertAcked(
+            prepareCreate("idxduplicatehitnames")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+        );
+        ensureGreen("idxduplicatehitnames");
+
+        SearchRequestBuilder searchRequestBuilder = client()
+            .prepareSearch("idxduplicatehitnames")
+            .setQuery(boolQuery()
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1")))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih2")))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder("ih1"))));
+
+        assertFailures(
+            searchRequestBuilder,
+            RestStatus.BAD_REQUEST,
+            containsString("[inner_hits] already contains an entry for key [ih1]"));
+    }
+
+    public void testExtractInnerHitBuildersWithDuplicatePath() throws Exception {
+        assertAcked(
+            prepareCreate("idxnullhitnames")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
+        );
+        ensureGreen("idxnullhitnames");
+
+        SearchRequestBuilder searchRequestBuilder = client()
+            .prepareSearch("idxnullhitnames")
+            .setQuery(boolQuery()
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .should(nestedQuery("property", termQuery("property.id", 1D), ScoreMode.None).innerHit(new InnerHitBuilder())));
+
+        assertFailures(
+            searchRequestBuilder,
+            RestStatus.BAD_REQUEST,
+            containsString("[inner_hits] already contains an entry for key [property]"));
     }
 }

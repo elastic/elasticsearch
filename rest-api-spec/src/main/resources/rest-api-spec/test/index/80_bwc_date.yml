@@ -1,0 +1,39 @@
+---
+"Index java 8 date without timezone":
+
+ - skip:
+    version: " - 6.6.99"
+    reason: bwc formatters were introduced in Elasticsearch 6.7
+
+ - do:
+     indices.create:
+         index: test_index
+         body:
+             settings:
+                 number_of_shards: 1
+             mappings:
+                 doc:
+                     properties:
+                         date_field:
+                             type: date
+                             format: "8yyyy-MM-dd HH:mm:ss"
+ - do:
+      bulk:
+          refresh: true
+          body:
+              - '{"index": {"_index": "test_index", "_type": "doc", "_id": "1"}}'
+              - '{"date_field": "2018-02-18 17:47:17"}'
+
+ - match: { errors: false }
+
+ - do:
+      get:
+          index:  test_index
+          type:   doc
+          id:     1
+
+ - match:   { _index:   test_index }
+ - match:   { _type:    doc }
+ - match:   { _id:      "1"}
+ - match:   { _version: 1}
+ - match:   { _source: { "date_field": "2018-02-18 17:47:17" }}

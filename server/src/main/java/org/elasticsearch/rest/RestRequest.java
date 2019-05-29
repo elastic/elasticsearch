@@ -63,6 +63,12 @@ public abstract class RestRequest implements ToXContent.Params {
     private final Set<String> consumedParams = new HashSet<>();
     private final SetOnce<XContentType> xContentType = new SetOnce<>();
 
+    private boolean contentConsumed = false;
+
+    public boolean isContentConsumed() {
+        return contentConsumed;
+    }
+
     /**
      * Creates a new REST request.
      *
@@ -156,7 +162,12 @@ public abstract class RestRequest implements ToXContent.Params {
 
     public abstract boolean hasContent();
 
-    public abstract BytesReference content();
+    public final BytesReference content() {
+        contentConsumed = true;
+        return innerContent();
+    }
+
+    protected abstract BytesReference innerContent();
 
     /**
      * @return content of the request body or throw an exception if the body or content type is missing

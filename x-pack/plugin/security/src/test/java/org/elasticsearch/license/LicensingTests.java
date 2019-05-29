@@ -21,12 +21,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -55,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -69,7 +70,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @TestLogging("org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE,org.elasticsearch.action.search:TRACE," +
     "org.elasticsearch.search:TRACE")
 public class LicensingTests extends SecurityIntegTestCase {
-    public static final String ROLES =
+    private static final String ROLES =
             SecuritySettingsSource.TEST_ROLE + ":\n" +
                     "  cluster: [ all ]\n" +
                     "  indices:\n" +
@@ -92,7 +93,7 @@ public class LicensingTests extends SecurityIntegTestCase {
                     "    - names: 'b'\n" +
                     "      privileges: [all]\n";
 
-    public static final String USERS_ROLES =
+    private static final String USERS_ROLES =
             SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES +
                     "role_a:user_a,user_b\n" +
                     "role_b:user_b\n";
@@ -135,8 +136,8 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     @Before
-    public void resetLicensing() {
-        enableLicensing();
+    public void resetLicensing() throws InterruptedException {
+        enableLicensing(OperationMode.MISSING);
     }
 
     @After
@@ -159,11 +160,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
-        // wait for all replicas to be started (to make sure that there are no more cluster state updates when we disable licensing)
-        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().routingTable()
-                .shardsWithState(ShardRoutingState.INITIALIZING).isEmpty()));
-
-        Client client = internalCluster().transportClient();
+        final Client client = internalCluster().transportClient();
 
         disableLicensing();
 
@@ -237,7 +234,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         // enable a license that enables security
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
-                License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
+                License.OperationMode.PLATINUM, License.OperationMode.STANDARD, OperationMode.BASIC);
         enableLicensing(mode);
         // security actions should work!
         try (TransportClient client = new TestXPackTransportClient(settings, LocalStateSecurity.class)) {
@@ -277,7 +274,6 @@ public class LicensingTests extends SecurityIntegTestCase {
     public void testNodeJoinWithoutSecurityExplicitlyEnabled() throws Exception {
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
-        ensureGreen();
 
         final List<String> unicastHostsList = internalCluster().masterClient().admin().cluster().nodesInfo(new NodesInfoRequest()).get()
             .getNodes().stream().map(n -> n.getTransport().getAddress().publishAddress().toString()).distinct()
@@ -312,23 +308,64 @@ public class LicensingTests extends SecurityIntegTestCase {
         assertThat(ee.status(), is(RestStatus.FORBIDDEN));
     }
 
-    public static void disableLicensing() {
-        disableLicensing(License.OperationMode.BASIC);
+    private void disableLicensing() throws InterruptedException {
+        // This method first makes sure licensing is enabled everywhere so that we can execute
+        // monitoring actions to ensure we have a stable cluster and only then do we disable.
+        // This is done in an await busy since there is a chance that the enabling of the license
+        // is overwritten by some other cluster activity and the node throws an exception while we
+        // wait for things to stabilize!
+        final boolean success = awaitBusy(() -> {
+            try {
+                for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                    if (licenseState.isAuthAllowed() == false) {
+                        enableLicensing(OperationMode.BASIC);
+                        break;
+                    }
+                }
+
+                ensureGreen();
+                ensureClusterSizeConsistency();
+                ensureClusterStateConsistency();
+
+                // apply the disabling of the license once the cluster is stable
+                for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                    licenseState.update(OperationMode.BASIC, false, null);
+                }
+            } catch (Exception e) {
+                logger.error("Caught exception while disabling license", e);
+                return false;
+            }
+            return true;
+        }, 30L, TimeUnit.SECONDS);
+        assertTrue(success);
     }
 
-    public static void disableLicensing(License.OperationMode operationMode) {
-        for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false, null);
-        }
-    }
+    private void enableLicensing(License.OperationMode operationMode) throws InterruptedException {
+        // do this in an await busy since there is a chance that the enabling of the license is
+        // overwritten by some other cluster activity and the node throws an exception while we
+        // wait for things to stabilize!
+        final boolean success = awaitBusy(() -> {
+            try {
+                // first update the license so we can execute monitoring actions
+                for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                    licenseState.update(operationMode, true, null);
+                }
 
-    public static void enableLicensing() {
-        enableLicensing(License.OperationMode.BASIC);
-    }
+                ensureGreen();
+                ensureClusterSizeConsistency();
+                ensureClusterStateConsistency();
 
-    public static void enableLicensing(License.OperationMode operationMode) {
-        for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true, null);
-        }
+                // re-apply the update in case any node received an updated cluster state that triggered the license state
+                // to change
+                for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                    licenseState.update(operationMode, true, null);
+                }
+            } catch (Exception e) {
+                logger.error("Caught exception while enabling license", e);
+                return false;
+            }
+            return true;
+        }, 30L, TimeUnit.SECONDS);
+        assertTrue(success);
     }
 }

@@ -20,11 +20,12 @@ rem now set the path to java
 if defined JAVA_HOME (
   set JAVA="%JAVA_HOME%\bin\java.exe"
 ) else (
+  echo warning: Falling back to java on path. This behavior is deprecated. Specify JAVA_HOME
   for %%I in (java.exe) do set JAVA="%%~$PATH:I"
 )
 
 if not exist %JAVA% (
-  echo could not find java; set JAVA_HOME or ensure java is in PATH 1>&2
+  echo could not find java; set JAVA_HOME 1>&2
   exit /b 1
 )
 
@@ -57,8 +58,5 @@ set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 set ES_DISTRIBUTION_TYPE=${es.distribution.type}
 
 if not defined ES_TMPDIR (
-  set ES_TMPDIR=!TMP!\elasticsearch
-  if not exist "!ES_TMPDIR!" (
-    mkdir "!ES_TMPDIR!"
-  )
+  for /f "tokens=* usebackq" %%a in (`CALL %JAVA% -cp "!ES_CLASSPATH!" "org.elasticsearch.tools.launchers.TempDirectory"`) do set  ES_TMPDIR=%%a
 )

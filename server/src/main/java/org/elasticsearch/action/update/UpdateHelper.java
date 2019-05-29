@@ -22,10 +22,12 @@ package org.elasticsearch.action.update;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -41,6 +43,7 @@ import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
@@ -52,6 +55,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 /**
@@ -62,17 +66,26 @@ public class UpdateHelper {
     private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
 
     private final ScriptService scriptService;
+    private final BooleanSupplier canUseIfSeqNo;
 
-    public UpdateHelper(ScriptService scriptService) {
+    public UpdateHelper(ScriptService scriptService, ClusterService clusterService) {
+        this(scriptService, () -> clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_6_0));
+    }
+
+    UpdateHelper(ScriptService scriptService, BooleanSupplier canUseIfSeqNo) {
         this.scriptService = scriptService;
+        this.canUseIfSeqNo = canUseIfSeqNo;
     }
 
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
     public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
-        final GetResult getResult = indexShard.getService().getForUpdate(request.type(), request.id(), request.version(),
-            request.versionType());
+        if (canUseIfSeqNo.getAsBoolean() == false) {
+            ensureIfSeqNoNotProvided(request.ifSeqNo(), request.ifPrimaryTerm());
+        }
+        final GetResult getResult = indexShard.getService().getForUpdate(
+            request.type(), request.id(), request.version(), request.versionType(), request.ifSeqNo(), request.ifPrimaryTerm());
         return prepare(indexShard.shardId(), request, getResult, nowInMillis);
     }
 
@@ -211,7 +224,6 @@ public class UpdateHelper {
      * containing a new {@code IndexRequest} to be executed on the primary and replicas.
      */
     Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
-        final long updateVersion = calculateUpdateVersion(request, getResult);
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final String parent = calculateParent(getResult, currentRequest);
@@ -226,15 +238,20 @@ public class UpdateHelper {
         if (detectNoop && noop) {
             UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                     getResult.getVersion(), DocWriteResponse.Result.NOOP);
-            update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap,
-                            updateSourceContentType, getResult.internalSourceRef()));
+            update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),
+                getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             final IndexRequest finalIndexRequest = Requests.indexRequest(request.index())
                     .type(request.type()).id(request.id()).routing(routing).parent(parent)
-                    .source(updatedSourceAsMap, updateSourceContentType).version(updateVersion).versionType(request.versionType())
+                    .source(updatedSourceAsMap, updateSourceContentType)
                     .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
+            if (canUseIfSeqNo.getAsBoolean()) {
+                finalIndexRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
+            } else {
+                finalIndexRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
+            }
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
     }
@@ -245,7 +262,6 @@ public class UpdateHelper {
      * primary and replicas.
      */
     Result prepareUpdateScriptRequest(ShardId shardId, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
-        final long updateVersion = calculateUpdateVersion(request, getResult);
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final String parent = calculateParent(getResult, currentRequest);
@@ -274,24 +290,33 @@ public class UpdateHelper {
             case INDEX:
                 final IndexRequest indexRequest = Requests.indexRequest(request.index())
                         .type(request.type()).id(request.id()).routing(routing).parent(parent)
-                        .source(updatedSourceAsMap, updateSourceContentType).version(updateVersion).versionType(request.versionType())
+                        .source(updatedSourceAsMap, updateSourceContentType)
                         .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                         .setRefreshPolicy(request.getRefreshPolicy());
+                if (canUseIfSeqNo.getAsBoolean()) {
+                    indexRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
+                } else {
+                    indexRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
+                }
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             case DELETE:
                 DeleteRequest deleteRequest = Requests.deleteRequest(request.index())
                         .type(request.type()).id(request.id()).routing(routing).parent(parent)
-                        .version(updateVersion).versionType(request.versionType()).waitForActiveShards(request.waitForActiveShards())
+                        .waitForActiveShards(request.waitForActiveShards())
                         .timeout(request.timeout()).setRefreshPolicy(request.getRefreshPolicy());
+                if (canUseIfSeqNo.getAsBoolean()) {
+                    deleteRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
+                } else {
+                    deleteRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
+                }
                 return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
             default:
                 // If it was neither an INDEX or DELETE operation, treat it as a noop
                 UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
                         getResult.getVersion(), DocWriteResponse.Result.NOOP);
-                update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap,
-                                updateSourceContentType, getResult.internalSourceRef()));
+                update.setGetResult(extractGetResult(request, request.index(), getResult.getSeqNo(), getResult.getPrimaryTerm(),
+                    getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
                 return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
-
         }
     }
 
@@ -312,7 +337,7 @@ public class UpdateHelper {
      * Applies {@link UpdateRequest#fetchSource()} to the _source of the updated document to be returned in a update response.
      * For BWC this function also extracts the {@link UpdateRequest#fields()} from the updated document to be returned in a update response
      */
-    public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version,
+    public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long seqNo, long primaryTerm, long version,
                                              final Map<String, Object> source, XContentType sourceContentType,
                                              @Nullable final BytesReference sourceAsBytes) {
         if ((request.fields() == null || request.fields().length == 0) &&
@@ -363,8 +388,16 @@ public class UpdateHelper {
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
-        return new GetResult(concreteIndex, request.type(), request.id(), version, true,
+        return new GetResult(concreteIndex, request.type(), request.id(), seqNo, primaryTerm, version, true,
                 sourceRequested ? sourceFilteredAsBytes : null, fields);
+    }
+
+    private void ensureIfSeqNoNotProvided(long ifSeqNo, long ifPrimaryTerm) {
+        if (ifSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO || ifPrimaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+            assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
+            throw new IllegalStateException(
+                "sequence number based compare and write is not supported until all nodes are on version 6.6.0 or higher.");
+        }
     }
 
     public static class Result {

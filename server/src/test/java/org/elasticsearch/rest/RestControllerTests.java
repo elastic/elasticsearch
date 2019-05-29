@@ -473,7 +473,6 @@ public class RestControllerTests extends ESTestCase {
         HttpServerTransport {
 
         TestHttpServerTransport() {
-            super(Settings.EMPTY);
         }
 
         @Override
@@ -569,7 +568,7 @@ public class RestControllerTests extends ESTestCase {
         }
 
         @Override
-        public BytesReference content() {
+        public BytesReference innerContent() {
             return content;
         }
 

@@ -24,6 +24,9 @@
 
 ---
 "update_by_query fails to update documents with version number equal to zero":
+  - skip:
+      version: "6.7.0 - "
+      reason: reindex moved to rely on sequence numbers for concurrency control
   - do:
       index:
         index:        index1

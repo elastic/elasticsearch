@@ -44,6 +44,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.bucketSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -192,6 +193,26 @@ public class BucketSortIT extends ESIntegTestCase {
         }
     }
 
+    public void testSortTermsOnKeyWithSize() {
+        SearchResponse response = client().prepareSearch(INDEX)
+            .setSize(0)
+            .addAggregation(terms("foos").field(TERM_FIELD)
+                .subAggregation(bucketSort("bucketSort", Arrays.asList(new FieldSortBuilder("_key"))).size(3)))
+            .get();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("foos");
+        assertThat(terms, notNullValue());
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
+        assertEquals(3, termsBuckets.size());
+        String previousKey = (String) termsBuckets.get(0).getKey();
+        for (Terms.Bucket termBucket : termsBuckets) {
+            assertThat(previousKey, lessThanOrEqualTo((String) termBucket.getKey()));
+            previousKey = (String) termBucket.getKey();
+        }
+    }
+
     public void testSortTermsOnSubAggregation() {
         SearchResponse response = client().prepareSearch(INDEX)
                 .setSize(0)
@@ -229,6 +250,29 @@ public class BucketSortIT extends ESIntegTestCase {
         List<? extends Terms.Bucket> size2From3TermsBuckets = size2From3Terms.getBuckets();
         for (int i = 0; i < size2From3TermsBuckets.size(); ++i) {
             assertThat(size2From3TermsBuckets.get(i).getKey(), equalTo(termsBuckets.get(i + 3).getKey()));
+        }
+    }
+
+    public void testSortTermsOnSubAggregationPreservesOrderOnEquals() {
+        SearchResponse response = client().prepareSearch(INDEX)
+            .setSize(0)
+            .addAggregation(terms("foos").field(TERM_FIELD)
+                .subAggregation(bucketSort("keyBucketSort", Arrays.asList(new FieldSortBuilder("_key"))))
+                .subAggregation(max("max").field("missingValue").missing(1))
+                .subAggregation(bucketSort("maxBucketSort", Arrays.asList(new FieldSortBuilder("max")))))
+            .get();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("foos");
+        assertThat(terms, notNullValue());
+        List<? extends Terms.Bucket> termsBuckets = terms.getBuckets();
+
+        // Since all max values are equal, we expect the order of keyBucketSort to have been preserved
+        String previousKey = (String) termsBuckets.get(0).getKey();
+        for (Terms.Bucket termBucket : termsBuckets) {
+            assertThat(previousKey, lessThanOrEqualTo((String) termBucket.getKey()));
+            previousKey = (String) termBucket.getKey();
         }
     }
 

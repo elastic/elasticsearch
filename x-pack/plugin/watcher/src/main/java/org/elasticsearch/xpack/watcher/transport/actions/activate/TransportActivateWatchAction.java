@@ -94,7 +94,7 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
                         ActionListener.<GetResponse>wrap(getResponse -> {
                             if (getResponse.isExists()) {
                                 Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(), now,
-                                        XContentType.JSON);
+                                        XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
                                 watch.version(getResponse.getVersion());
                                 watch.status().version(getResponse.getVersion());
                                 // if we are not yet running in distributed mode, only call triggerservice, if we are on the master node

@@ -36,5 +36,5 @@ dependenciesInfo.enabled = false
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
 // no unit tests
-test.enabled = false
+unitTest.enabled = false
 integTest.enabled = false

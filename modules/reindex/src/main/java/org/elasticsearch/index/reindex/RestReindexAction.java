@@ -40,10 +40,10 @@ import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
@@ -56,7 +56,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
     static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
-    private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)(?<pathPrefix>/.*)?");
 
     static {
         ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
@@ -136,15 +135,27 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         String username = extractString(remote, "username");
         String password = extractString(remote, "password");
         String hostInRequest = requireNonNull(extractString(remote, "host"), "[host] must be specified to reindex from a remote cluster");
-        Matcher hostMatcher = HOST_PATTERN.matcher(hostInRequest);
-        if (false == hostMatcher.matches()) {
+        URI uri;
+        try {
+            uri = new URI(hostInRequest);
+            // URI has less stringent URL parsing than our code. We want to fail if all values are not provided.
+            if (uri.getPort() == -1) {
+                throw new URISyntaxException(hostInRequest, "The port was not defined in the [host]");
+            }
+        } catch (URISyntaxException ex) {
             throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was ["
-                + hostInRequest + "]");
+                + hostInRequest + "]", ex);
         }
-        String scheme = hostMatcher.group("scheme");
-        String host = hostMatcher.group("host");
-        String pathPrefix = hostMatcher.group("pathPrefix");
-        int port = Integer.parseInt(hostMatcher.group("port"));
+
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        int port = uri.getPort();
+
+        String pathPrefix = null;
+        if (uri.getPath().isEmpty() == false) {
+            pathPrefix = uri.getPath();
+        }
+
         Map<String, String> headers = extractStringStringMap(remote, "headers");
         TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);

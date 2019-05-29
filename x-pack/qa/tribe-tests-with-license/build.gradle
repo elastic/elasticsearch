@@ -24,9 +24,8 @@ dependencies {
 }
 
 compileTestJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"
-namingConventions.skipIntegTestInDisguise = true
 
-test {
+unitTest {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
    * other if we allow them to set the number of available processors as it's set-once in Netty.
@@ -35,13 +34,8 @@ test {
   include '**/*Tests.class'
 }
 
-String licensePath = xpackProject('license-tools').projectDir.toPath().resolve('src/test/resources').toString()
-sourceSets {
-  test {
-    resources {
-      srcDirs += [licensePath]
-    }
-  }
+processTestResources {
+    from xpackProject('license-tools').file('src/test/resources')
 }
 
 project.forbiddenPatterns {

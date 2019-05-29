@@ -21,7 +21,6 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursors;
@@ -33,7 +32,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSqlQueryAction extends BaseRestHandler {
-
     public RestSqlQueryAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, Protocol.SQL_QUERY_REST_ENDPOINT, this);
@@ -41,12 +39,13 @@ public class RestSqlQueryAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
+            throws IOException {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            sqlRequest = SqlQueryRequest.fromXContent(parser,Mode.fromString(request.param("mode")));
+            sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
-
+        
         /*
          * Since we support {@link TextFormat} <strong>and</strong>
          * {@link XContent} outputs we can't use {@link RestToXContentListener}

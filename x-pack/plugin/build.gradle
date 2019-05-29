@@ -133,10 +133,12 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._local.type', 'local'
   setting 'xpack.monitoring.exporters._local.enabled', 'false'
   setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.key', nodeKey.name
   setting 'xpack.security.transport.ssl.certificate', nodeCert.name
   setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
+  setting 'xpack.security.transport.ssl.supported_protocols', 'TLSv1.2,TLSv1.1,TLSv1'
   setting 'xpack.security.audit.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   keystoreSetting 'bootstrap.password', 'x-pack-test-password'

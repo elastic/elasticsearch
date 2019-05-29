@@ -22,8 +22,8 @@ public class FIPS140JKSKeystoreBootstrapCheck implements BootstrapCheck {
     @Override
     public BootstrapCheckResult check(BootstrapContext context) {
 
-        if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings)) {
-            final Settings settings = context.settings;
+        if (XPackSettings.FIPS_MODE_ENABLED.get(context.settings())) {
+            final Settings settings = context.settings();
             Settings keystoreTypeSettings = settings.filter(k -> k.endsWith("keystore.type"))
                 .filter(k -> settings.get(k).equalsIgnoreCase("jks"));
             if (keystoreTypeSettings.isEmpty() == false) {

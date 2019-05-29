@@ -50,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -69,6 +70,14 @@ import static org.elasticsearch.common.settings.Setting.timeSetting;
  */
 public final class RemoteClusterService extends RemoteClusterAware implements Closeable {
     private static final Logger logger = LogManager.getLogger(RemoteClusterService.class);
+
+    private static final ActionListener<Void> noopListener = ActionListener.wrap((x) -> {}, (x) -> {});
+
+    static {
+        // remove search.remote.* settings in 8.0.0
+        // TODO
+        // assert Version.CURRENT.major < 8;
+    }
 
     public static final Setting<Integer> SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER =
             Setting.intSetting("search.remote.connections_per_cluster", 3, 1, Setting.Property.NodeScope, Setting.Property.Deprecated);
@@ -168,13 +177,13 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public static final Setting.AffixSetting<TimeValue> REMOTE_CLUSTER_PING_SCHEDULE = Setting.affixKeySetting(
             "cluster.remote.",
             "transport.ping_schedule",
-            key -> timeSetting(key, TcpTransport.PING_SCHEDULE, Setting.Property.NodeScope),
+            key -> timeSetting(key, TransportSettings.PING_SCHEDULE, Setting.Property.Dynamic, Setting.Property.NodeScope),
             REMOTE_CLUSTERS_SEEDS);
 
     public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS = Setting.affixKeySetting(
         "cluster.remote.",
         "transport.compress",
-        key -> boolSetting(key, Transport.TRANSPORT_TCP_COMPRESS, Setting.Property.NodeScope),
+        key -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS, Setting.Property.Dynamic, Setting.Property.NodeScope),
         REMOTE_CLUSTERS_SEEDS);
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
@@ -183,6 +192,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     private final TransportService transportService;
     private final int numRemoteConnections;
     private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
+    private volatile Map<String, ConnectionProfile> remoteClusterConnectionProfiles = Collections.emptyMap();
 
     RemoteClusterService(Settings settings, TransportService transportService) {
         super(settings);
@@ -195,7 +205,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      * @param seeds a cluster alias to discovery node mapping representing the remote clusters seeds nodes
      * @param connectionListener a listener invoked once every configured cluster has been connected to
      */
-    private synchronized void updateRemoteClusters(Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> seeds,
+    private synchronized void updateRemoteClusters(Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> seeds,
                                                    ActionListener<Void> connectionListener) {
         if (seeds.containsKey(LOCAL_CLUSTER_GROUP_KEY)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
@@ -206,28 +216,37 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         } else {
             CountDown countDown = new CountDown(seeds.size());
             remoteClusters.putAll(this.remoteClusters);
-            for (Map.Entry<String, Tuple<String, List<Supplier<DiscoveryNode>>>> entry : seeds.entrySet()) {
-                List<Supplier<DiscoveryNode>> seedList = entry.getValue().v2();
+            for (Map.Entry<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> entry : seeds.entrySet()) {
+                List<Tuple<String, Supplier<DiscoveryNode>>> seedList = entry.getValue().v2();
                 String proxyAddress = entry.getValue().v1();
 
-                RemoteClusterConnection remote = this.remoteClusters.get(entry.getKey());
+                String clusterAlias = entry.getKey();
+                RemoteClusterConnection remote = this.remoteClusters.get(clusterAlias);
+                ConnectionProfile connectionProfile = this.remoteClusterConnectionProfiles.get(clusterAlias);
                 if (seedList.isEmpty()) { // with no seed nodes we just remove the connection
                     try {
                         IOUtils.close(remote);
                     } catch (IOException e) {
-                        logger.warn("failed to close remote cluster connections for cluster: " + entry.getKey(), e);
+                        logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
                     }
-                    remoteClusters.remove(entry.getKey());
+                    remoteClusters.remove(clusterAlias);
                     continue;
                 }
 
                 if (remote == null) { // this is a new cluster we have to add a new representation
-                    String clusterAlias = entry.getKey();
-                    TimeValue pingSchedule = REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings);
-                    ConnectionManager connectionManager = new ConnectionManager(settings, transportService.transport,
-                        transportService.threadPool, pingSchedule);
-                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, connectionManager,
-                        numRemoteConnections, getNodePredicate(settings), proxyAddress);
+                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
+                        getNodePredicate(settings), proxyAddress, connectionProfile);
+                    remoteClusters.put(clusterAlias, remote);
+                } else if (connectionProfileChanged(remote.getConnectionManager().getConnectionProfile(), connectionProfile)) {
+                    // New ConnectionProfile. Must tear down existing connection
+                    try {
+                        IOUtils.close(remote);
+                    } catch (IOException e) {
+                        logger.warn("failed to close remote cluster connections for cluster: " + clusterAlias, e);
+                    }
+                    remoteClusters.remove(clusterAlias);
+                    remote = new RemoteClusterConnection(settings, clusterAlias, seedList, transportService, numRemoteConnections,
+                        getNodePredicate(settings), proxyAddress, connectionProfile);
                     remoteClusters.put(clusterAlias, remote);
                 }
 
@@ -244,7 +263,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
                                 connectionListener.onFailure(exception);
                             }
                             if (finalRemote.isClosed() == false) {
-                                logger.warn("failed to update seed list for cluster: " + entry.getKey(), exception);
+                                logger.warn("failed to update seed list for cluster: " + clusterAlias, exception);
                             }
                         }));
             }
@@ -275,7 +294,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, Predicate<String> indexExists) {
         Map<String, OriginalIndices> originalIndicesMap = new HashMap<>();
         if (isCrossClusterSearchEnabled()) {
-            final Map<String, List<String>> groupedIndices = groupClusterIndices(indices, indexExists);
+            final Map<String, List<String>> groupedIndices = groupClusterIndices(getRemoteClusterNames(), indices, indexExists);
             if (groupedIndices.isEmpty()) {
                 //search on _all in the local cluster if neither local indices nor remote indices were specified
                 originalIndicesMap.put(LOCAL_CLUSTER_GROUP_KEY, new OriginalIndices(Strings.EMPTY_ARRAY, indicesOptions));
@@ -300,6 +319,14 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         return remoteClusters.containsKey(clusterName);
     }
 
+    /**
+     * Returns the registered remote cluster names.
+     */
+    public Set<String> getRegisteredRemoteClusterNames() {
+        // remoteClusters is unmodifiable so its key set will be unmodifiable too
+        return remoteClusters.keySet();
+    }
+
     public void collectSearchShards(IndicesOptions indicesOptions, String preference, String routing,
                                     Map<String, OriginalIndices> remoteIndicesByCluster,
                                     ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
@@ -310,7 +337,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             final String clusterName = entry.getKey();
             RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
             if (remoteClusterConnection == null) {
-                throw new IllegalArgumentException("no such remote cluster: " + clusterName);
+                throw new NoSuchRemoteClusterException(clusterName);
             }
             final String[] indices = entry.getValue().indices();
             ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices)
@@ -372,13 +399,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     RemoteClusterConnection getRemoteClusterConnection(String cluster) {
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
-            throw new IllegalArgumentException("no such remote cluster: " + cluster);
+            throw new NoSuchRemoteClusterException(cluster);
         }
         return connection;
     }
 
-    @Override
-    protected Set<String> getRemoteClusterNames() {
+    Set<String> getRemoteClusterNames() {
         return this.remoteClusters.keySet();
     }
 
@@ -397,18 +423,36 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     }
 
     @Override
-    protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress) {
-        updateRemoteCluster(clusterAlias, addresses, proxyAddress, ActionListener.wrap((x) -> {}, (x) -> {}));
+    protected void updateRemoteCluster(String clusterAlias, List<String> addresses, String proxyAddress, boolean compressionEnabled,
+                                       TimeValue pingSchedule) {
+        if (LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+            throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
+        }
+        ConnectionProfile oldProfile = remoteClusterConnectionProfiles.get(clusterAlias);
+        ConnectionProfile newProfile;
+        if (oldProfile != null) {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(oldProfile);
+            builder.setCompressionEnabled(compressionEnabled);
+            builder.setPingInterval(pingSchedule);
+            newProfile = builder.build();
+        } else {
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(buildConnectionProfileFromSettings(clusterAlias));
+            builder.setCompressionEnabled(compressionEnabled);
+            builder.setPingInterval(pingSchedule);
+            newProfile = builder.build();
+        }
+        updateRemoteCluster(clusterAlias, addresses, proxyAddress, newProfile, noopListener);
     }
 
-    void updateRemoteCluster(
-            final String clusterAlias,
-            final List<String> addresses,
-            final String proxyAddress,
-            final ActionListener<Void> connectionListener) {
-        final List<Supplier<DiscoveryNode>> nodes = addresses.stream().<Supplier<DiscoveryNode>>map(address -> () ->
-                buildSeedNode(clusterAlias, address, Strings.hasLength(proxyAddress))
-        ).collect(Collectors.toList());
+    void updateRemoteCluster(final String clusterAlias, final List<String> addresses, final String proxyAddress,
+                             final ConnectionProfile connectionProfile, final ActionListener<Void> connectionListener) {
+        HashMap<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusterConnectionProfiles);
+        connectionProfiles.put(clusterAlias, connectionProfile);
+        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
+        final List<Tuple<String, Supplier<DiscoveryNode>>> nodes =
+            addresses.stream().<Tuple<String, Supplier<DiscoveryNode>>>map(address -> Tuple.tuple(address, () ->
+                buildSeedNode(clusterAlias, address, Strings.hasLength(proxyAddress)))
+            ).collect(Collectors.toList());
         updateRemoteClusters(Collections.singletonMap(clusterAlias, new Tuple<>(proxyAddress, nodes)), connectionListener);
     }
 
@@ -419,7 +463,9 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Map<String, Tuple<String, List<Supplier<DiscoveryNode>>>> seeds = RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
+        Map<String, Tuple<String, List<Tuple<String, Supplier<DiscoveryNode>>>>> seeds =
+                RemoteClusterAware.buildRemoteClustersDynamicConfig(settings);
+        initializeConnectionProfiles(seeds.keySet());
         updateRemoteClusters(seeds, future);
         try {
             future.get(timeValue.millis(), TimeUnit.MILLISECONDS);
@@ -430,6 +476,32 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         } catch (Exception e) {
             throw new IllegalStateException("failed to connect to remote clusters", e);
         }
+    }
+
+    private synchronized void initializeConnectionProfiles(Set<String> remoteClusters) {
+        Map<String, ConnectionProfile> connectionProfiles = new HashMap<>(remoteClusters.size());
+        for (String clusterName : remoteClusters) {
+            connectionProfiles.put(clusterName, buildConnectionProfileFromSettings(clusterName));
+        }
+        this.remoteClusterConnectionProfiles = Collections.unmodifiableMap(connectionProfiles);
+    }
+
+    private ConnectionProfile buildConnectionProfileFromSettings(String clusterName) {
+        return buildConnectionProfileFromSettings(settings, clusterName);
+    }
+
+    static ConnectionProfile buildConnectionProfileFromSettings(Settings settings, String clusterName) {
+        return new ConnectionProfile.Builder()
+            .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
+            .addConnections(6, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING) // TODO make this configurable?
+            // we don't want this to be used for anything else but search
+            .addConnections(0, TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.STATE,
+                TransportRequestOptions.Type.RECOVERY)
+            .setCompressionEnabled(REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterName).get(settings))
+            .setPingInterval(REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterName).get(settings))
+            .build();
     }
 
     @Override
@@ -450,6 +522,11 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         }
     }
 
+    private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
+        return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
+            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
+    }
+
     /**
      * Collects all nodes of the given clusters and returns / passes a (clusterAlias, nodeId) to {@link DiscoveryNode}
      * function on success.
@@ -458,7 +535,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
         for (String cluster : clusters) {
             if (remoteClusters.containsKey(cluster) == false) {
-                listener.onFailure(new IllegalArgumentException("no such remote cluster: [" + cluster + "]"));
+                listener.onFailure(new NoSuchRemoteClusterException(cluster));
                 return;
             }
         }
@@ -499,7 +576,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
      */
     public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
-            throw new IllegalArgumentException("unknown cluster alias [" + clusterAlias + "]");
+            throw new NoSuchRemoteClusterException(clusterAlias);
         }
         return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
     }

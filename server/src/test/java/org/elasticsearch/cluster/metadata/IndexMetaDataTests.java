@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
@@ -227,7 +228,7 @@ public class IndexMetaDataTests extends ESTestCase {
         assertEquals("the number of target shards (0) must be greater than the shard id: 0",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 0)).getMessage());
 
-        assertEquals("the number of source shards [2] must be a must be a factor of [3]",
+        assertEquals("the number of source shards [2] must be a factor of [3]",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectSplitShard(0, metaData, 3)).getMessage());
 
         assertEquals("the number of routing shards [4] must be a multiple of the target shards [8]",
@@ -285,6 +286,48 @@ public class IndexMetaDataTests extends ESTestCase {
         Settings notAFactorySettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_routing_shards", 3).build();
         iae = expectThrows(IllegalArgumentException.class,
             () -> IndexMetaData.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.get(notAFactorySettings));
-        assertEquals("the number of source shards [2] must be a must be a factor of [3]", iae.getMessage());
+        assertEquals("the number of source shards [2] must be a factor of [3]", iae.getMessage());
+    }
+
+    public void testResolveDocumentType() throws IOException {
+        Settings settings = Settings.builder()
+                .put("index.number_of_shards", 5)
+                .put("index.number_of_replicas", 1)
+                .put("index.version.created", Version.CURRENT).build();
+
+        IndexMetaData emptyMetaData = IndexMetaData.builder("index")
+                .settings(settings)
+                .build();
+        assertEquals("_doc", emptyMetaData.resolveDocumentType("_doc"));
+        assertEquals("my_type", emptyMetaData.resolveDocumentType("my_type"));
+        assertEquals("_default_", emptyMetaData.resolveDocumentType("_default_"));
+
+        IndexMetaData singleMetaData = IndexMetaData.builder("index")
+                .settings(settings)
+                .putMapping("my_type", "{}")
+                .build();
+        assertEquals("my_type", singleMetaData.resolveDocumentType("_doc"));
+        assertEquals("my_type", singleMetaData.resolveDocumentType("my_type"));
+        assertEquals("other_type", singleMetaData.resolveDocumentType("other_type"));
+        assertEquals("_default_", singleMetaData.resolveDocumentType("_default_"));
+
+        IndexMetaData onlyDefaultMetaData = IndexMetaData.builder("index")
+                .settings(settings)
+                .putMapping("_default_", "{}")
+                .build();
+        assertEquals("_doc", onlyDefaultMetaData.resolveDocumentType("_doc"));
+        assertEquals("my_type", onlyDefaultMetaData.resolveDocumentType("my_type"));
+        assertEquals("other_type", onlyDefaultMetaData.resolveDocumentType("other_type"));
+        assertEquals("_default_", onlyDefaultMetaData.resolveDocumentType("_default_"));
+
+        IndexMetaData defaultAndTypeMetaData = IndexMetaData.builder("index")
+                .settings(settings)
+                .putMapping("_default_", "{}")
+                .putMapping("my_type", "{}")
+                .build();
+        assertEquals("my_type", defaultAndTypeMetaData.resolveDocumentType("_doc"));
+        assertEquals("my_type", defaultAndTypeMetaData.resolveDocumentType("my_type"));
+        assertEquals("other_type", defaultAndTypeMetaData.resolveDocumentType("other_type"));
+        assertEquals("_default_", defaultAndTypeMetaData.resolveDocumentType("_default_"));
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.common.bytes;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.FutureObjects;
 import org.apache.lucene.util.RamUsageEstimator;
 
 import java.io.IOException;
@@ -77,10 +78,16 @@ public final class CompositeBytesReference extends BytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
+        FutureObjects.checkFromIndexSize(from, length, this.length);
+
+        if (length == 0) {
+            return BytesArray.EMPTY;
+        }
+
         // for slices we only need to find the start and the end reference
         // adjust them and pass on the references in between as they are fully contained
         final int to = from + length;
-        final int limit = getOffsetIndex(from + length);
+        final int limit = getOffsetIndex(to - 1);
         final int start = getOffsetIndex(from);
         final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
         for (int i = 0, j = start; i < inSlice.length; i++) {

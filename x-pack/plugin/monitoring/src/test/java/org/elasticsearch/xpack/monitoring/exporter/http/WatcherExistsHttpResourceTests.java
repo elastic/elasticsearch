@@ -14,9 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.GET_EXISTS;
@@ -42,28 +40,29 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
     public void testDoCheckIgnoresClientWhenNotElectedMaster() {
         whenNotElectedMaster();
 
-        assertThat(resource.doCheck(client), is(CheckResponse.EXISTS));
+        resource.doCheck(client, listener);
 
+        verify(listener).onResponse(true);
         verifyZeroInteractions(client);
     }
 
-    public void testDoCheckExistsFor404() throws IOException {
+    public void testDoCheckExistsFor404() {
         whenElectedMaster();
 
         // /_xpack returning a 404 means ES didn't handle the request properly and X-Pack doesn't exist
         doCheckWithStatusCode(resource, "", "_xpack", notFoundCheckStatus(),
-                              GET_EXISTS, XPACK_DOES_NOT_EXIST, CheckResponse.EXISTS);
+                              GET_EXISTS, XPACK_DOES_NOT_EXIST, true);
     }
 
-    public void testDoCheckExistsFor400() throws IOException {
+    public void testDoCheckExistsFor400() {
         whenElectedMaster();
 
         // /_xpack returning a 400 means X-Pack does not exist
         doCheckWithStatusCode(resource, "", "_xpack", RestStatus.BAD_REQUEST,
-                              GET_EXISTS, XPACK_DOES_NOT_EXIST, CheckResponse.EXISTS);
+                              GET_EXISTS, XPACK_DOES_NOT_EXIST, true);
     }
 
-    public void testDoCheckExistsAsElectedMaster() throws IOException {
+    public void testDoCheckExistsAsElectedMaster() {
         whenElectedMaster();
 
         final String[] noWatcher = {
@@ -82,12 +81,12 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         when(response.getEntity()).thenReturn(responseEntity);
 
         // returning EXISTS implies that we CANNOT use Watcher to avoid running the publish phase
-        doCheckWithStatusCode(resource, expectedParameters, endpoint, CheckResponse.EXISTS, response);
+        doCheckWithStatusCode(resource, expectedParameters, endpoint, true, response);
 
         verify(response).getEntity();
     }
 
-    public void testDoCheckDoesNotExist() throws IOException {
+    public void testDoCheckDoesNotExist() {
         whenElectedMaster();
 
         final String[] hasWatcher = {
@@ -103,12 +102,12 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
         when(response.getEntity()).thenReturn(responseEntity);
 
         // returning DOES_NOT_EXIST implies that we CAN use Watcher and need to run the publish phase
-        doCheckWithStatusCode(resource, expectedParameters, endpoint, CheckResponse.DOES_NOT_EXIST, response);
+        doCheckWithStatusCode(resource, expectedParameters, endpoint, false, response);
 
         verify(response).getEntity();
     }
 
-    public void testDoCheckErrorWithDataException() throws IOException {
+    public void testDoCheckErrorWithDataException() {
         whenElectedMaster();
 
         final String[] errorWatcher = {
@@ -124,39 +123,55 @@ public class WatcherExistsHttpResourceTests extends AbstractPublishableHttpResou
 
         when(response.getEntity()).thenReturn(responseEntity);
 
-        // returning DOES_NOT_EXIST implies that we CAN use Watcher and need to run the publish phase
-        doCheckWithStatusCode(resource, endpoint, CheckResponse.ERROR, response);
+        // returning an error implies that we CAN use Watcher and need to run the publish phase
+        doCheckWithStatusCode(resource, expectedParameters, endpoint, null, response);
     }
 
-    public void testDoCheckErrorWithResponseException() throws IOException {
+    public void testDoCheckErrorWithResponseException() {
         whenElectedMaster();
 
-        assertCheckWithException(resource, "", "_xpack");
+        assertCheckWithException(resource, expectedParameters, "", "_xpack");
     }
 
-    public void testDoPublishTrue() throws IOException {
-        final CheckResponse checkResponse = randomFrom(CheckResponse.EXISTS, CheckResponse.DOES_NOT_EXIST);
-        final boolean publish = checkResponse == CheckResponse.DOES_NOT_EXIST;
+    public void testDoPublishTrue() {
+        final boolean checkResponse = randomBoolean();
+        final boolean publish = checkResponse == false;
         final MockHttpResource mockWatch = new MockHttpResource(owner, randomBoolean(), checkResponse, publish);
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        assertTrue(resource.doPublish(client));
+        resource.doPublish(client, listener);
+
+        verifyListener(true);
 
         assertThat(mockWatch.checked, is(1));
         assertThat(mockWatch.published, is(publish ? 1 : 0));
     }
 
-    public void testDoPublishFalse() throws IOException {
-        final CheckResponse checkResponse = randomFrom(CheckResponse.DOES_NOT_EXIST, CheckResponse.ERROR);
-        final MockHttpResource mockWatch = new MockHttpResource(owner, true, checkResponse, false);
+    public void testDoPublishFalse() {
+        final MockHttpResource mockWatch = new MockHttpResource(owner, true, false, false);
         final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
         final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
 
-        assertFalse(resource.doPublish(client));
+        resource.doPublish(client, listener);
+
+        verifyListener(false);
 
         assertThat(mockWatch.checked, is(1));
-        assertThat(mockWatch.published, is(checkResponse == CheckResponse.DOES_NOT_EXIST ? 1 : 0));
+        assertThat(mockWatch.published, is(1));
+    }
+
+    public void testDoPublishException() {
+        final MockHttpResource mockWatch = new MockHttpResource(owner, true, false, null);
+        final MultiHttpResource watches = new MultiHttpResource(owner, Collections.singletonList(mockWatch));
+        final WatcherExistsHttpResource resource = new WatcherExistsHttpResource(owner, clusterService, watches);
+
+        resource.doPublish(client, listener);
+
+        verifyListener(null);
+
+        assertThat(mockWatch.checked, is(1));
+        assertThat(mockWatch.published, is(1));
     }
 
     public void testParameters() {

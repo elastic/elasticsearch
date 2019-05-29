@@ -29,8 +29,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -324,6 +324,58 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         });
     }
 
+    public void testSimpleDateHistoWithOverlappingDelay() throws Exception {
+        String rollupIndex = randomAlphaOfLengthBetween(5, 10);
+        String field = "the_histo";
+        DateHistogramGroupConfig dateHistoConfig =
+            new DateHistogramGroupConfig(field, new DateHistogramInterval("1h"), new DateHistogramInterval("15m"), null);
+        RollupJobConfig job = createJob(rollupIndex, new GroupConfig(dateHistoConfig), Collections.emptyList());
+        final List<Map<String, Object>> dataset = new ArrayList<>();
+        long now = asLong("2015-04-01T10:30:00.000Z");
+        dataset.addAll(
+            Arrays.asList(
+                asMap("the_histo", now - TimeValue.timeValueMinutes(135).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(120).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(105).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(90).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(75).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueHours(1).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(45).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(30).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(15).getMillis()),
+                asMap("the_histo", now)
+            )
+        );
+        final Rounding rounding = dateHistoConfig.createRounding();
+        executeTestCase(dataset, job, now, (resp) -> {
+            assertThat(resp.size(), equalTo(2));
+            IndexRequest request = resp.get(0);
+            assertThat(request.index(), equalTo(rollupIndex));
+            assertThat(request.sourceAsMap(), equalTo(
+                asMap(
+                    "_rollup.version", newIDScheme ? 2 : 1,
+                    "the_histo.date_histogram.timestamp", rounding.round(now - TimeValue.timeValueHours(2).getMillis()),
+                    "the_histo.date_histogram.interval", "1h",
+                    "the_histo.date_histogram._count", 3,
+                    "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                    "_rollup.id", job.getId()
+                )
+            ));
+            request = resp.get(1);
+            assertThat(request.index(), equalTo(rollupIndex));
+            assertThat(request.sourceAsMap(), equalTo(
+                asMap(
+                    "_rollup.version", newIDScheme ? 2 : 1,
+                    "the_histo.date_histogram.timestamp", rounding.round(now - TimeValue.timeValueHours(1).getMillis()),
+                    "the_histo.date_histogram.interval", "1h",
+                    "the_histo.date_histogram._count", 4,
+                    "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                    "_rollup.id", job.getId()
+                )
+            ));
+        });
+    }
+
     public void testSimpleDateHistoWithTimeZone() throws Exception {
         final List<Map<String, Object>> dataset = new ArrayList<>();
         long now = asLong("2015-04-01T10:00:00");
@@ -450,7 +502,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     }
 
     private static long asLong(String dateTime) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(dateTime).getMillis();
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(dateTime).getMillis();
     }
 
     /**
@@ -489,7 +541,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     private Map<String, MappedFieldType> createFieldTypes(RollupJobConfig job) {
         Map<String, MappedFieldType> fieldTypes = new HashMap<>();
         MappedFieldType fieldType = new DateFieldMapper.Builder(job.getGroupConfig().getDateHistogram().getField())
-                .dateTimeFormatter(Joda.forPattern(randomFrom("basic_date", "date_optional_time", "epoch_second")))
+                .dateTimeFormatter(DateFormatter.forPattern(randomFrom("basic_date", "date_optional_time", "epoch_second")))
                 .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
                 .fieldType();
         fieldTypes.put(fieldType.name(), fieldType);
@@ -602,7 +654,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             RangeQueryBuilder range = (RangeQueryBuilder) request.source().query();
             final DateTimeZone timeZone = range.timeZone() != null ? DateTimeZone.forID(range.timeZone()) : null;
             Query query = timestampField.rangeQuery(range.from(), range.to(), range.includeLower(), range.includeUpper(),
-                    null, timeZone, Joda.forPattern(range.format()).toDateMathParser(), queryShardContext);
+                    null, timeZone, DateFormatter.forPattern(range.format()).toDateMathParser(), queryShardContext);
 
             // extract composite agg
             assertThat(request.source().aggregations().getAggregatorFactories().size(), equalTo(1));

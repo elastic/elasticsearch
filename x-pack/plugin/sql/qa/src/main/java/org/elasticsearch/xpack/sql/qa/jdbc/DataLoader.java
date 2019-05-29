@@ -105,6 +105,10 @@ public class DataLoader {
 
                     if (extraFields) {
                         createIndex.startObject("extra_gender").field("type", "keyword").endObject();
+                        createIndex.startObject("extra.info.gender")
+                            .field("type", "alias")
+                            .field("path", "gender")
+                          .endObject();
                     }
 
                     createIndex.startObject("birth_date").field("type", "date").endObject();

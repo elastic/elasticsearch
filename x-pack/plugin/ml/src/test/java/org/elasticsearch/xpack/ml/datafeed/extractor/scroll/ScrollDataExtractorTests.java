@@ -297,6 +297,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(createErrorResponse());
         assertThat(extractor.hasNext(), is(true));
         expectThrows(IOException.class, extractor::next);
+
+        List<String> capturedClearScrollIds = getCapturedClearScrollIds();
+        assertThat(capturedClearScrollIds.size(), equalTo(1));
     }
 
     public void testExtractionGivenInitSearchResponseHasShardFailures() throws IOException {
@@ -306,6 +309,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         assertThat(extractor.hasNext(), is(true));
         expectThrows(IOException.class, extractor::next);
+
+        List<String> capturedClearScrollIds = getCapturedClearScrollIds();
+        // We should clear the scroll context twice: once for the first search when we retry
+        // and once after the retry where we'll have an exception
+        assertThat(capturedClearScrollIds.size(), equalTo(2));
     }
 
     public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() throws IOException {
@@ -342,6 +350,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         // A second failure is not tolerated
         assertThat(extractor.hasNext(), is(true));
         expectThrows(IOException.class, extractor::next);
+
+        List<String> capturedClearScrollIds = getCapturedClearScrollIds();
+        assertThat(capturedClearScrollIds.size(), equalTo(2));
     }
 
     public void testResetScollUsesLastResultTimestamp() throws IOException {
@@ -398,6 +409,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         // A second failure is not tolerated
         assertThat(extractor.hasNext(), is(true));
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
+
+        List<String> capturedClearScrollIds = getCapturedClearScrollIds();
+        assertThat(capturedClearScrollIds.size(), equalTo(2));
     }
 
     public void testSearchPhaseExecutionExceptionOnInitScroll() throws IOException {
@@ -409,7 +423,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         expectThrows(IOException.class, extractor::next);
 
         List<String> capturedClearScrollIds = getCapturedClearScrollIds();
-        assertThat(capturedClearScrollIds.isEmpty(), is(true));
+        // We should clear the scroll context twice: once for the first search when we retry
+        // and once after the retry where we'll have an exception
+        assertThat(capturedClearScrollIds.size(), equalTo(2));
     }
 
     public void testDomainSplitScriptField() throws IOException {
@@ -496,6 +512,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private SearchResponse createErrorResponse() {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.INTERNAL_SERVER_ERROR);
+        when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         return searchResponse;
     }
 
@@ -505,6 +522,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         when(searchResponse.getShardFailures()).thenReturn(
                 new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("shard failed"))});
         when(searchResponse.getFailedShards()).thenReturn(1);
+        when(searchResponse.getScrollId()).thenReturn(randomAlphaOfLength(1000));
         return searchResponse;
     }
 

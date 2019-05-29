@@ -26,6 +26,15 @@ is not set. A deprecation warning will be issued when an analyzed text exceeds 1
 `index.highlight.max_analyzed_offset`.
 
 [float]
+[[_literal_standard_literal_filter_has_been_deprecated]]
 ==== `standard` filter has been deprecated
  The `standard` token filter has been deprecated because it doesn't change anything in
  the stream. It will be removed in the next major version.
+
+[float]
+==== Deprecated standard_html_strip analyzer
+
+The `standard_html_strip` analyzer has been deprecated, and should be replaced
+with a combination of the `standard` tokenizer and `html_strip` char_filter.
+Indexes created using this analyzer will still be readable in elasticsearch 7.0,
+but it will not be possible to create new indexes using it.

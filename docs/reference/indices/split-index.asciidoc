@@ -40,6 +40,7 @@ Splitting works as follows:
   had just been re-opened.
 
 [float]
+[[incremental-resharding]]
 === Why doesn't Elasticsearch support incremental resharding?
 
 Going from `N` shards to `N+1` shards, aka. incremental resharding, is indeed a
@@ -83,7 +84,7 @@ PUT my_source_index
         "index.number_of_routing_shards" : 2 <1>
     }
 }
--------------------------------------------------
+--------------------------------------------------
 // CONSOLE
 
 <1> Allows to split the index into two shards or in other words, it allows
@@ -178,8 +179,13 @@ from the source index can be copied to the target index by adding the URL
 parameter `copy_settings=true` to the request. Note that `copy_settings` can not
 be set to `false`. The parameter `copy_settings` will be removed in 8.0.0
 
+ifdef::asciidoctor[]
+deprecated:[6.4.0, "not copying settings is deprecated, copying settings will be the default behavior in 7.x"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.4.0, not copying settings is deprecated, copying settings will be
 the default behavior in 7.x]
+endif::[]
 
 [float]
 === Monitoring the split process

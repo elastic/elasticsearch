@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasItems;
 
 public class ScriptDocValuesDatesTests extends ESTestCase {
@@ -122,6 +123,60 @@ public class ScriptDocValuesDatesTests extends ESTestCase {
             @Override
             public long nextValue() {
                 return current[i++];
+            }
+        }, deprecationHandler);
+    }
+
+    public void testGetValues() {
+        Set<String> keys = new HashSet<>();
+        Set<String> warnings = new HashSet<>();
+
+        Dates dates = biconsumerWrap((deprecationKey, deprecationMessage) -> {
+            keys.add(deprecationKey);
+            warnings.add(deprecationMessage);
+
+            // Create a temporary directory to prove we are running with the server's permissions.
+            createTempDir();
+        });
+
+        /*
+         * Invoke getValues() without any permissions to verify it still works.
+         * This is done using the callback created above, which creates a temp
+         * directory, which is not possible with "noPermission".
+         */
+        PermissionCollection noPermissions = new Permissions();
+        AccessControlContext noPermissionsAcc = new AccessControlContext(
+            new ProtectionDomain[] {
+                new ProtectionDomain(null, noPermissions)
+            }
+        );
+
+        AccessController.doPrivileged(new PrivilegedAction<Void>(){
+            public Void run() {
+                dates.getValues();
+                return null;
+            }
+        }, noPermissionsAcc);
+
+        assertThat(warnings, contains(
+            "Deprecated getValues used, the field is a list and should be accessed directly."
+           + " For example, use doc['foo'] instead of doc['foo'].values."));
+        assertThat(keys, contains("ScriptDocValues#getValues"));
+    }
+
+    private Dates biconsumerWrap(BiConsumer<String, String> deprecationHandler) {
+        return new Dates(new AbstractSortedNumericDocValues() {
+            @Override
+            public boolean advanceExact(int doc) {
+                return true;
+            }
+            @Override
+            public int docValueCount() {
+                return 0;
+            }
+            @Override
+            public long nextValue() {
+                return 0L;
             }
         }, deprecationHandler);
     }

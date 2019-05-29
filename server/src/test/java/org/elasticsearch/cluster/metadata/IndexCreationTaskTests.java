@@ -348,6 +348,36 @@ public class IndexCreationTaskTests extends ESTestCase {
             + "you must manage this on the create index request or with an index template");
     }
 
+    public void testTypelessTemplateWithTypedIndexCreation() throws Exception {
+        reqSettings.put(SETTING_NUMBER_OF_SHARDS, 1);
+        addMatchingTemplate(builder -> builder.putMapping("type", "{\"type\": {}}"));
+        setupRequestMapping(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent("{\"_doc\":{}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
+    }
+
+    public void testTypedTemplateWithTypelessIndexCreation() throws Exception {
+        reqSettings.put(SETTING_NUMBER_OF_SHARDS, 1);
+        addMatchingTemplate(builder -> builder.putMapping(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\": {}}"));
+        setupRequestMapping("type", new CompressedXContent("{\"type\":{}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
+    }
+
+    public void testTypedTemplate() throws Exception {
+        reqSettings.put(SETTING_NUMBER_OF_SHARDS, 1);
+        addMatchingTemplate(builder -> builder.putMapping("type", "{\"type\": {}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey("type"));
+    }
+
+    public void testTypelessTemplate() throws Exception {
+        reqSettings.put(SETTING_NUMBER_OF_SHARDS, 1);
+        addMatchingTemplate(builder -> builder.putMapping(MapperService.SINGLE_MAPPING_NAME, "{\"_doc\": {}}"));
+        executeTask();
+        assertThat(getMappingsFromResponse(), Matchers.hasKey(MapperService.SINGLE_MAPPING_NAME));
+    }
+
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {
         final IndexRoutingTable idxRoutingTable = mock(IndexRoutingTable.class);
 

@@ -95,6 +95,8 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.seqno.RetentionLeaseStats;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -210,7 +212,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     protected void doStart() {
         // Start thread that will manage cleaning the field data cache periodically
-        threadPool.schedule(this.cleanInterval, ThreadPool.Names.SAME, this.cacheCleaner);
+        threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
     }
 
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
@@ -220,7 +222,6 @@ public class IndicesService extends AbstractLifecycleComponent
                           ScriptService scriptService, Client client, MetaStateService metaStateService,
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
                           Map<String, Function<IndexSettings, IndexStore>> indexStoreFactories) {
-        super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -381,23 +382,29 @@ public class IndicesService extends AbstractLifecycleComponent
 
         CommitStats commitStats;
         SeqNoStats seqNoStats;
+        RetentionLeaseStats retentionLeaseStats;
         try {
             commitStats = indexShard.commitStats();
             seqNoStats = indexShard.seqNoStats();
+            retentionLeaseStats = indexShard.getRetentionLeaseStats();
         } catch (AlreadyClosedException e) {
             // shard is closed - no stats is fine
             commitStats = null;
             seqNoStats = null;
+            retentionLeaseStats = null;
         }
 
-        return new IndexShardStats(indexShard.shardId(),
-                                   new ShardStats[] {
-                                       new ShardStats(indexShard.routingEntry(),
-                                                      indexShard.shardPath(),
-                                                      new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
-                                                      commitStats,
-                                                      seqNoStats)
-                                   });
+        return new IndexShardStats(
+                indexShard.shardId(),
+                new ShardStats[]{
+                        new ShardStats(
+                                indexShard.routingEntry(),
+                                indexShard.shardPath(),
+                                new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                                commitStats,
+                                seqNoStats,
+                                retentionLeaseStats)
+                });
     }
 
     /**
@@ -601,13 +608,19 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Override
-    public IndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
-                                  PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                                  Consumer<IndexShard.ShardFailure> onShardFailure,
-                                  Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+    public IndexShard createShard(
+            final ShardRouting shardRouting,
+            final RecoveryState recoveryState,
+            final PeerRecoveryTargetService recoveryTargetService,
+            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            final RepositoriesService repositoriesService,
+            final Consumer<IndexShard.ShardFailure> onShardFailure,
+            final Consumer<ShardId> globalCheckpointSyncer,
+            final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
+        Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer);
+        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService,
             (type, mapping) -> {
@@ -869,6 +882,9 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexMetaData metaData;
             try {
                 metaData = metaStateService.loadIndexState(index);
+                if (metaData == null) {
+                    return null;
+                }
             } catch (Exception e) {
                 logger.warn(() -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, " +
                     "folders will be left on disk", index), e);
@@ -1165,7 +1181,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             // Reschedule itself to run again if not closed
             if (closed.get() == false) {
-                threadPool.schedule(interval, ThreadPool.Names.SAME, this);
+                threadPool.schedule(this, interval, ThreadPool.Names.SAME);
             }
         }
 
@@ -1213,7 +1229,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag
         // then we can't cache based on "now" key within the search request, as it is not deterministic
-        if (context.getQueryShardContext().isCachable() == false) {
+        if (context.getQueryShardContext().isCacheable() == false) {
             return false;
         }
         return true;
@@ -1232,7 +1248,8 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(), out -> {
+        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(),
+            out -> {
             queryPhase.execute(context);
             try {
                 context.queryResult().writeToNoId(out);
@@ -1338,7 +1355,7 @@ public class IndicesService extends AbstractLifecycleComponent
         (Index index, IndexSettings indexSettings) -> canDeleteIndexContents(index, indexSettings);
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
+    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
         CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
@@ -1347,8 +1364,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 return parseInnerQueryBuilder(parser);
             }
         };
-        String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, expressions);
         IndexMetaData indexMetaData = state.metaData().index(index);
+        String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
         return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliases), aliases);
     }
 

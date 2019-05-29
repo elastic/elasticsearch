@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.sql.expression.predicate.operator.comparison;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class Equals extends BinaryComparison implements Negatable<BinaryComparison> {
 
-    public Equals(Location location, Expression left, Expression right) {
-        super(location, left, right, BinaryComparisonOperation.EQ);
+    public Equals(Source source, Expression left, Expression right) {
+        super(source, left, right, BinaryComparisonOperation.EQ);
     }
 
     @Override
@@ -24,16 +24,16 @@ public class Equals extends BinaryComparison implements Negatable<BinaryComparis
 
     @Override
     protected Equals replaceChildren(Expression newLeft, Expression newRight) {
-        return new Equals(location(), newLeft, newRight);
+        return new Equals(source(), newLeft, newRight);
     }
 
     @Override
     public Equals swapLeftAndRight() {
-        return new Equals(location(), right(), left());
+        return new Equals(source(), right(), left());
     }
 
     @Override
     public BinaryComparison negate() {
-        return new NotEquals(location(), left(), right());
+        return new NotEquals(source(), left(), right());
     }
 }

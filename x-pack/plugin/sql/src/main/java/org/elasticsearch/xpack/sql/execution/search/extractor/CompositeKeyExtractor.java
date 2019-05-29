@@ -16,52 +16,42 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TimeZone;
 
 public class CompositeKeyExtractor implements BucketExtractor {
 
     /**
-     * Key or Komposite extractor.
+     * Key or Composite extractor.
      */
     static final String NAME = "k";
 
     private final String key;
     private final Property property;
-    private final TimeZone timeZone;
     private final ZoneId zoneId;
+    private final boolean isDateTimeBased;
 
     /**
      * Constructs a new <code>CompositeKeyExtractor</code> instance.
-     * The time-zone parameter is used to indicate a date key.
      */
-    public CompositeKeyExtractor(String key, Property property, TimeZone timeZone) {
+    public CompositeKeyExtractor(String key, Property property, ZoneId zoneId, boolean isDateTimeBased) {
         this.key = key;
         this.property = property;
-        this.timeZone = timeZone;
-        this.zoneId = timeZone != null ? timeZone.toZoneId() : null;
+        this.zoneId = zoneId;
+        this.isDateTimeBased = isDateTimeBased;
     }
 
     CompositeKeyExtractor(StreamInput in) throws IOException {
         key = in.readString();
         property = in.readEnum(Property.class);
-        if (in.readBoolean()) {
-            timeZone = TimeZone.getTimeZone(in.readString());
-        } else {
-            timeZone = null;
-        }
-        this.zoneId = timeZone != null ? timeZone.toZoneId() : null;
+        zoneId = ZoneId.of(in.readString());
+        isDateTimeBased = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(key);
         out.writeEnum(property);
-        if (timeZone == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(timeZone.getID());
-        }
+        out.writeString(zoneId.getId());
+        out.writeBoolean(isDateTimeBased);
     }
 
     String key() {
@@ -72,8 +62,12 @@ public class CompositeKeyExtractor implements BucketExtractor {
         return property;
     }
 
-    TimeZone timeZone() {
-        return timeZone;
+    ZoneId zoneId() {
+        return zoneId;
+    }
+
+    public boolean isDateTimeBased() {
+        return isDateTimeBased;
     }
 
     @Override
@@ -95,11 +89,11 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
         Object object = ((Map<?, ?>) m).get(key);
 
-        if (timeZone != null) {
+        if (isDateTimeBased) {
             if (object == null) {
                 return object;
             } else if (object instanceof Long) {
-                object = DateUtils.of(((Long) object).longValue(), zoneId);
+                object = DateUtils.asDateTime(((Long) object).longValue(), zoneId);
             } else {
                 throw new SqlIllegalArgumentException("Invalid date key returned: {}", object);
             }
@@ -110,7 +104,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, property, timeZone);
+        return Objects.hash(key, property, zoneId, isDateTimeBased);
     }
 
     @Override
@@ -126,7 +120,8 @@ public class CompositeKeyExtractor implements BucketExtractor {
         CompositeKeyExtractor other = (CompositeKeyExtractor) obj;
         return Objects.equals(key, other.key)
                 && Objects.equals(property, other.property)
-                && Objects.equals(timeZone, other.timeZone);
+                && Objects.equals(zoneId, other.zoneId)
+                && Objects.equals(isDateTimeBased, other.isDateTimeBased);
     }
 
     @Override

@@ -230,7 +230,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             10,
             fetchExceptions,
             2,
-            null);
+            new ElasticsearchException("fatal error"));
         XContentBuilder builder = jsonBuilder();
         builder.value(status);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
@@ -266,6 +266,11 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                     assertThat(exceptionFieldMapping.size(), equalTo(2));
                     assertThat(XContentMapValues.extractValue("type.type", exceptionFieldMapping), equalTo("keyword"));
                     assertThat(XContentMapValues.extractValue("reason.type", exceptionFieldMapping), equalTo("text"));
+                } else if (fieldName.equals("fatal_exception")) {
+                    assertThat(fieldType, equalTo("object"));
+                    assertThat(((Map<?, ?>) fieldMapping.get("properties")).size(), equalTo(2));
+                    assertThat(XContentMapValues.extractValue("properties.type.type", fieldMapping), equalTo("keyword"));
+                    assertThat(XContentMapValues.extractValue("properties.reason.type", fieldMapping), equalTo("text"));
                 } else {
                     fail("unexpected field value type [" + fieldValue.getClass() + "] for field [" + fieldName + "]");
                 }

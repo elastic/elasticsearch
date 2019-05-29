@@ -300,13 +300,22 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public static final String NAME = "cluster:admin/persistent/test";
         private final ClusterService clusterService;
 
+        private static volatile boolean nonClusterStateCondition = true;
+
         public TestPersistentTasksExecutor(ClusterService clusterService) {
             super(NAME, ThreadPool.Names.GENERIC);
             this.clusterService = clusterService;
         }
 
+        public static void setNonClusterStateCondition(boolean nonClusterStateCondition) {
+            TestPersistentTasksExecutor.nonClusterStateCondition = nonClusterStateCondition;
+        }
+
         @Override
         public Assignment getAssignment(TestParams params, ClusterState clusterState) {
+            if (nonClusterStateCondition == false) {
+                return new Assignment(null, "non cluster state condition prevents assignment");
+            }
             if (params == null || params.getExecutorNodeAttr() == null) {
                 return super.getAssignment(params, clusterState);
             } else {
@@ -317,7 +326,6 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                 } else {
                     return NO_NODE_FOUND;
                 }
-
             }
         }
 
@@ -454,9 +462,8 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         public TestTasksRequest() {
         }
 
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public TestTasksRequest(StreamInput in) throws IOException {
+            super(in);
             operation = in.readOptionalString();
         }
 

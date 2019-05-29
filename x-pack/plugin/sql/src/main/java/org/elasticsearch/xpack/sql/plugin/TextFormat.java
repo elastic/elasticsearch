@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.sql.action.CliFormatter;
+import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.session.Cursor;
@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
+
+import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
 
 /**
  * Templating class for displaying SQL responses in text formats.
@@ -40,21 +42,21 @@ enum TextFormat {
     PLAIN_TEXT() {
         @Override
         String format(Cursor cursor, RestRequest request, SqlQueryResponse response) {
-            final CliFormatter formatter;
-            if (cursor instanceof CliFormatterCursor) {
-                formatter = ((CliFormatterCursor) cursor).getCliFormatter();
+            final BasicFormatter formatter;
+            if (cursor instanceof TextFormatterCursor) {
+                formatter = ((TextFormatterCursor) cursor).getFormatter();
                 return formatter.formatWithoutHeader(response.rows());
             } else {
-                formatter = new CliFormatter(response.columns(), response.rows());
+                formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
                 return formatter.formatWithHeader(response.columns(), response.rows());
             }
         }
 
         @Override
         Cursor wrapCursor(Cursor oldCursor, SqlQueryResponse response) {
-            CliFormatter formatter = (oldCursor instanceof CliFormatterCursor) ?
-                    ((CliFormatterCursor) oldCursor).getCliFormatter() : new CliFormatter(response.columns(), response.rows());
-            return CliFormatterCursor.wrap(super.wrapCursor(oldCursor, response), formatter);
+            BasicFormatter formatter = (oldCursor instanceof TextFormatterCursor) ?
+                    ((TextFormatterCursor) oldCursor).getFormatter() : new BasicFormatter(response.columns(), response.rows(), TEXT);
+            return TextFormatterCursor.wrap(super.wrapCursor(oldCursor, response), formatter);
         }
 
         @Override

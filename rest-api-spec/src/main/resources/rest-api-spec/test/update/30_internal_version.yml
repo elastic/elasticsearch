@@ -1,5 +1,9 @@
 ---
 "Internal version":
+ - skip:
+      version: " - 6.6.99"
+      reason:  versioned operations were deprecated in 6.7
+      features: warnings
 
  - do:
       catch:        missing
@@ -10,6 +14,8 @@
           version:  1
           body:
             doc:    { foo: baz }
+      warnings:
+        - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_1], type [test], id [1])"
 
  - do:
       index:
@@ -28,3 +34,5 @@
           version:  2
           body:
             doc:    { foo: baz }
+      warnings:
+        - "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [test_1], type [test], id [1])"

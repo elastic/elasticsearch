@@ -127,7 +127,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         when(electMasterService.hasEnoughMasterNodes(any(Iterable.class))).thenReturn(true);
 
         final AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.deassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class)))
+        when(allocationService.disassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class)))
             .thenAnswer(im -> im.getArguments()[0]);
 
         final Consumer<String> submitRejoin = source -> fail("rejoin should not be invoked");
@@ -162,7 +162,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);
 
-        verify(allocationService).deassociateDeadNodes(eq(remainingNodesClusterState.get()), eq(true), any(String.class));
+        verify(allocationService).disassociateDeadNodes(eq(remainingNodesClusterState.get()), eq(true), any(String.class));
 
         for (final ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
             assertNull(result.resultingState.nodes().get(task.node().getId()));

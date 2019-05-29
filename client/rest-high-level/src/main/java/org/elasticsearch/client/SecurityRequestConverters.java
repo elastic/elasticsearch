@@ -26,17 +26,25 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
-import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.InvalidateTokenRequest;
-import org.elasticsearch.client.security.PutRoleMappingRequest;
-import org.elasticsearch.client.security.HasPrivilegesRequest;
+import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
+import org.elasticsearch.client.security.GetApiKeyRequest;
+import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
+import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetUsersRequest;
+import org.elasticsearch.client.security.HasPrivilegesRequest;
+import org.elasticsearch.client.security.InvalidateApiKeyRequest;
+import org.elasticsearch.client.security.InvalidateTokenRequest;
+import org.elasticsearch.client.security.PutPrivilegesRequest;
+import org.elasticsearch.client.security.PutRoleMappingRequest;
+import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.SetUserEnabledRequest;
 import org.elasticsearch.common.Strings;
@@ -63,6 +71,15 @@ final class SecurityRequestConverters {
         return request;
     }
 
+    static Request getUsers(GetUsersRequest getUsersRequest) {
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/user");
+        if (getUsersRequest.getUsernames().size() > 0) {
+            builder.addPathPart(Strings.collectionToCommaDelimitedString(getUsersRequest.getUsernames()));
+        }
+        return new Request(HttpGet.METHOD_NAME, builder.build());
+    }
+
     static Request putUser(PutUserRequest putUserRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack/security/user")
@@ -72,6 +89,17 @@ final class SecurityRequestConverters {
         request.setEntity(createEntity(putUserRequest, REQUEST_BODY_CONTENT_TYPE));
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(putUserRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request deleteUser(DeleteUserRequest deleteUserRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack","security", "user")
+            .addPathPart(deleteUserRequest.getName())
+            .build();
+        Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(deleteUserRequest.getRefreshPolicy());
         return request;
     }
 
@@ -170,6 +198,15 @@ final class SecurityRequestConverters {
         return request;
     }
 
+    static Request getRoles(GetRolesRequest getRolesRequest) {
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder();
+        builder.addPathPartAsIs("_xpack/security/role");
+        if (getRolesRequest.getRoleNames().size() > 0) {
+            builder.addPathPart(Strings.collectionToCommaDelimitedString(getRolesRequest.getRoleNames()));
+        }
+        return new Request(HttpGet.METHOD_NAME, builder.build());
+    }
+
     static Request createToken(CreateTokenRequest createTokenRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_xpack/security/oauth2/token");
         request.setEntity(createEntity(createTokenRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -191,6 +228,14 @@ final class SecurityRequestConverters {
         return new Request(HttpGet.METHOD_NAME, endpoint);
     }
 
+    static Request putPrivileges(final PutPrivilegesRequest putPrivilegesRequest) throws IOException {
+        Request request = new Request(HttpPut.METHOD_NAME, "/_xpack/security/privilege");
+        request.setEntity(createEntity(putPrivilegesRequest, REQUEST_BODY_CONTENT_TYPE));
+        RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(putPrivilegesRequest.getRefreshPolicy());
+        return request;
+    }
+
     static Request deletePrivileges(DeletePrivilegesRequest deletePrivilegeRequest) {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_xpack/security/privilege")
@@ -200,6 +245,50 @@ final class SecurityRequestConverters {
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params(request);
         params.withRefreshPolicy(deletePrivilegeRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request putRole(final PutRoleRequest putRoleRequest) throws IOException {
+        final String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_xpack/security/role")
+            .addPathPart(putRoleRequest.getRole().getName())
+            .build();
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+        request.setEntity(createEntity(putRoleRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(putRoleRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request createApiKey(final CreateApiKeyRequest createApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_security/api_key");
+        request.setEntity(createEntity(createApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params(request);
+        params.withRefreshPolicy(createApiKeyRequest.getRefreshPolicy());
+        return request;
+    }
+
+    static Request getApiKey(final GetApiKeyRequest getApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpGet.METHOD_NAME, "/_security/api_key");
+        if (Strings.hasText(getApiKeyRequest.getId())) {
+            request.addParameter("id", getApiKeyRequest.getId());
+        }
+        if (Strings.hasText(getApiKeyRequest.getName())) {
+            request.addParameter("name", getApiKeyRequest.getName());
+        }
+        if (Strings.hasText(getApiKeyRequest.getUserName())) {
+            request.addParameter("username", getApiKeyRequest.getUserName());
+        }
+        if (Strings.hasText(getApiKeyRequest.getRealmName())) {
+            request.addParameter("realm_name", getApiKeyRequest.getRealmName());
+        }
+        return request;
+    }
+
+    static Request invalidateApiKey(final InvalidateApiKeyRequest invalidateApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
+        request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        final RequestConverters.Params params = new RequestConverters.Params(request);
         return request;
     }
 }

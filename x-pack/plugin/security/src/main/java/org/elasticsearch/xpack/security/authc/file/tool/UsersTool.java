@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.file.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.LoggingAwareMultiCommand;
@@ -221,7 +222,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
 
             Path file = FileUserPasswdStore.resolveFile(env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(file);
-            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null, env.settings()));
+            Map<String, char[]> users = FileUserPasswdStore.parseFile(file, null, env.settings());
             if (users == null) {
                 throw new UserException(ExitCodes.CONFIG, "Configuration file [" + file + "] is missing");
             }
@@ -229,6 +230,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
             final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
+            users = new HashMap<>(users); // make modifiable
             users.put(username, hasher.hash(new SecureString(password)));
             FileUserPasswdStore.writeFile(users, file);
 

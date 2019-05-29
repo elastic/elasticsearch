@@ -44,6 +44,7 @@ public class RestSamlLogoutAction extends SamlBaseRestHandler {
     public RestSamlLogoutAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/saml/logout", this);
+        controller.registerHandler(POST, "/_security/saml/logout", this);
     }
 
     @Override

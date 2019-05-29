@@ -40,3 +40,13 @@ singleNodeIntegTestCluster {
 integTestCluster.dependsOn(singleNodeIntegTestRunner, 'singleNodeIntegTestCluster#stop')
 
 check.dependsOn(integTest)
+
+
+testingConventions {
+    naming.clear()
+    naming {
+        IT {
+            baseClass 'org.elasticsearch.smoketest.ESSmokeClientTestCase'
+        }
+    }
+}

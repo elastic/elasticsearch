@@ -31,6 +31,7 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
     public RestGetCertificateInfoAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_xpack/ssl/certificates", this);
+        controller.registerHandler(GET, "/_ssl/certificates", this);
     }
 
     @Override

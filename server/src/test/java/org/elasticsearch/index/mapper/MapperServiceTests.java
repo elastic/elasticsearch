@@ -180,24 +180,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
     }
 
-    public void testMergeWithMap() throws Throwable {
-        IndexService indexService1 = createIndex("index1");
-        MapperService mapperService = indexService1.mapperService();
-        Map<String, Map<String, Object>> mappings = new HashMap<>();
-
-        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping(xContentRegistry(), "{}"));
-        MapperException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
-
-        mappings.clear();
-        mappings.put("type1", MapperService.parseMapping(xContentRegistry(), "{}"));
-
-        e = expectThrows( MapperParsingException.class,
-            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
-        assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
-    }
-
     public void testMergeParentTypesSame() {
         // Verifies that a merge (absent a DocumentMapper change)
         // doesn't change the parentTypes reference.
@@ -231,7 +213,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                         "you can use [copy_to] on mapping fields to create your own catch all field.");
     }
 
-     public void testPartitionedConstraints() {
+    public void testPartitionedConstraints() {
         // partitioned index must have routing
          IllegalArgumentException noRoutingException = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate("test-index")
@@ -390,4 +372,60 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 "cannot have more than one type");
     }
 
+    public void testResolveDocumentType() throws IOException {
+        MapperService mapperService = createIndex("test").mapperService();
+        assertEquals("_doc", mapperService.resolveDocumentType("_doc"));
+        assertEquals("my_type", mapperService.resolveDocumentType("my_type"));
+        assertEquals("_default_", mapperService.resolveDocumentType("_default_"));
+        
+        String mapping = Strings.toString(
+                XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
+        mapperService.merge("type1", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+
+        assertEquals("type1", mapperService.resolveDocumentType("_doc"));
+        assertEquals("type1", mapperService.resolveDocumentType("type1"));
+        assertEquals("my_type", mapperService.resolveDocumentType("my_type"));
+
+        MapperService mapperService2 = createIndex("test2").mapperService();
+        mapperService2.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+        assertWarnings("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
+                "cannot have more than one type");
+
+        assertEquals("_doc", mapperService2.resolveDocumentType("_doc"));
+        assertEquals("my_type", mapperService2.resolveDocumentType("my_type"));
+
+        mapperService2.merge("type1", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+        assertEquals("type1", mapperService2.resolveDocumentType("_doc"));
+        assertEquals("type1", mapperService2.resolveDocumentType("type1"));
+        assertEquals("my_type", mapperService2.resolveDocumentType("my_type"));
+    }
+
+    public void testResolveDocumentType5x() throws IOException {
+        MapperService mapperService = createIndex("test", Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_16).build()).mapperService();
+        assertEquals("_doc", mapperService.resolveDocumentType("_doc"));
+        assertEquals("my_type", mapperService.resolveDocumentType("my_type"));
+        
+        String mapping = Strings.toString(
+                XContentFactory.jsonBuilder().startObject().startObject("properties").endObject().endObject());
+        mapperService.merge("type1", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+
+        assertEquals("_doc", mapperService.resolveDocumentType("_doc"));
+        assertEquals("type1", mapperService.resolveDocumentType("type1"));
+        assertEquals("my_type", mapperService.resolveDocumentType("my_type"));
+
+        mapperService.merge("type2", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+        assertEquals("_doc", mapperService.resolveDocumentType("_doc"));
+        assertEquals("type1", mapperService.resolveDocumentType("type1"));
+        assertEquals("type2", mapperService.resolveDocumentType("type2"));
+        assertEquals("my_type", mapperService.resolveDocumentType("my_type"));
+
+        MapperService mapperService2 = createIndex("test2").mapperService();
+        mapperService2.merge("_default_", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, randomBoolean());
+        assertWarnings("[_default_] mapping is deprecated since it is not useful anymore now that indexes " +
+                "cannot have more than one type");
+
+        assertEquals("_doc", mapperService2.resolveDocumentType("_doc"));
+        assertEquals("my_type", mapperService2.resolveDocumentType("my_type"));
+    }
 }

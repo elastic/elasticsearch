@@ -168,7 +168,7 @@ public final class WatcherTestUtils {
                 null,
                 new ArrayList<>(),
                 null,
-                new WatchStatus(new DateTime(0, UTC), emptyMap()), 1L);
+                new WatchStatus(new DateTime(0, UTC), emptyMap()), 1L, 1L);
         TriggeredExecutionContext context = new TriggeredExecutionContext(watch.id(),
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
@@ -214,7 +214,7 @@ public final class WatcherTestUtils {
                 new TimeValue(0),
                 actions,
                 Collections.singletonMap("foo", "bar"),
-                new WatchStatus(now, statuses), 1L);
+                new WatchStatus(now, statuses), 1L, 1L);
     }
 
     public static ScriptService createScriptService(ThreadPool tp) throws Exception {

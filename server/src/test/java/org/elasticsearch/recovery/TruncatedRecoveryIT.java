@@ -89,7 +89,8 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         // we have no replicas so far and make sure that we allocate the primary on the lucky node
         assertAcked(prepareCreate("test")
             .addMapping("type1", "field1", "type=text", "the_id", "type=text")
-            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
+            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numberOfShards())
                 .put("index.routing.allocation.include._name", primariesNode.getNode().getName()))); // only allocate on the lucky node
 
         // index some docs and check if they are coming back
@@ -112,7 +113,8 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
         for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster()
+                    .getInstance(TransportService.class, dataNode.getNode().getName()));
             mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
                 (connection, requestId, action, request, options) -> {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {

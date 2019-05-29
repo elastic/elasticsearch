@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -894,29 +895,40 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(10, 100);
         int numUnique = randomIntBetween(1, numDocs);
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        int[] weights = new int[numUnique];
+        Integer[] termIds = new Integer[numUnique];
         for (int i = 1; i <= numDocs; i++) {
             int id = i % numUnique;
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            termIds[id] = id;
+            int weight = randomIntBetween(0, 100);
+            weights[id] = Math.max(weight, weights[id]);
+            String suggestion = "suggestion-" + String.format(Locale.ENGLISH, "%03d" , id);
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE)
                 .setSource(jsonBuilder()
                     .startObject()
                         .startObject(FIELD)
-                            .field("input", "suggestion" + id)
-                            .field("weight", id)
+                            .field("input", suggestion)
+                            .field("weight", weight)
                         .endObject()
                     .endObject()
                 ));
         }
-        String[] expected = new String[numUnique];
-        int sugg = numUnique - 1;
-        for (int i = 0; i < numUnique; i++) {
-            expected[i] = "suggestion" + sugg--;
-        }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder completionSuggestionBuilder =
-            SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").skipDuplicates(true).size(numUnique);
+
+        Arrays.sort(termIds,
+            Comparator.comparingInt(o -> weights[(int) o]).reversed().thenComparingInt(a -> (int) a));
+        String[] expected = new String[numUnique];
+        for (int i = 0; i < termIds.length; i++) {
+            expected[i] = "suggestion-" + String.format(Locale.ENGLISH, "%03d" , termIds[i]);
+        }
+        CompletionSuggestionBuilder completionSuggestionBuilder = SuggestBuilders.completionSuggestion(FIELD)
+            .prefix("sugg")
+            .skipDuplicates(true)
+            .size(numUnique);
 
         SearchResponse searchResponse = client().prepareSearch(INDEX)
-            .suggest(new SuggestBuilder().addSuggestion("suggestions", completionSuggestionBuilder)).execute().actionGet();
+            .suggest(new SuggestBuilder().addSuggestion("suggestions", completionSuggestionBuilder))
+            .get();
         assertSuggestions(searchResponse, true, "suggestions", expected);
     }
 

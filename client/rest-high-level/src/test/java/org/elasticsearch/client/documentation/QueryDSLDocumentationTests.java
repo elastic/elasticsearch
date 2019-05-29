@@ -23,7 +23,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilders;
+import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -190,7 +190,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             // tag::geo_shape
             GeoShapeQueryBuilder qb = geoShapeQuery(
                     "pin.location",                                      // <1>
-                    ShapeBuilders.newMultiPoint(                         // <2>
+                    new MultiPointBuilder(                         // <2>
                             new CoordinatesBuilder()
                         .coordinate(0, 0)
                         .coordinate(0, 10)

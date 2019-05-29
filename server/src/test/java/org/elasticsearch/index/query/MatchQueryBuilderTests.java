@@ -28,7 +28,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -49,7 +48,6 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -60,13 +58,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
+public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuilder> {
+    @Override
+    protected boolean isCacheable(MatchQueryBuilder queryBuilder) {
+        return queryBuilder.fuzziness() != null
+                ||  isCacheable(singletonList(queryBuilder.fieldName()), queryBuilder.value().toString());
+    }
+
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(STRING_FIELD_NAME, STRING_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME,
@@ -385,13 +390,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             context.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha1));
 
         {
-            // field boost is applied on a single term query
+            // field boost is ignored on a single term query
             MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo");
             Query query = builder.toQuery(context);
-            assertThat(query, instanceOf(BoostQuery.class));
-            assertThat(((BoostQuery) query).getBoost(), equalTo(4f));
-            Query innerQuery = ((BoostQuery) query).getQuery();
-            assertThat(innerQuery, instanceOf(MultiPhrasePrefixQuery.class));
+            assertThat(query, instanceOf(MultiPhrasePrefixQuery.class));
         }
 
         {

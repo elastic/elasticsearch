@@ -33,7 +33,7 @@ fi
 
 # Sets the default values for elasticsearch variables used in this script
 ES_HOME="/usr/share/elasticsearch"
-MAX_OPEN_FILES=65536
+MAX_OPEN_FILES=65535
 MAX_MAP_COUNT=262144
 ES_PATH_CONF="${path.conf}"
 
@@ -90,7 +90,7 @@ start() {
     if [ -n "$MAX_LOCKED_MEMORY" ]; then
         ulimit -l $MAX_LOCKED_MEMORY
     fi
-    if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count -a "$MAX_MAP_COUNT" -gt $(cat /proc/sys/vm/max_map_count) ]; then
+    if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count ] && [ "$MAX_MAP_COUNT" -gt $(cat /proc/sys/vm/max_map_count) ]; then
         sysctl -q -w vm.max_map_count=$MAX_MAP_COUNT
     fi
 

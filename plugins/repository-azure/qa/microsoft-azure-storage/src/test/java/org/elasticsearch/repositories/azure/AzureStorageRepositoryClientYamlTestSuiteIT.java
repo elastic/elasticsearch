@@ -41,7 +41,6 @@ public class AzureStorageRepositoryClientYamlTestSuiteIT extends ESClientYamlSui
     protected Settings restClientSettings() {
         // Give more time to repository-azure to complete the snapshot operations
         return Settings.builder().put(super.restClientSettings())
-            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "60s")
             .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "60s")
             .build();
     }

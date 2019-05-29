@@ -91,11 +91,11 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -300,21 +300,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void renameTempFilesSafe(Map<String, String> tempFileMap) throws IOException {
         // this works just like a lucene commit - we rename all temp files and once we successfully
         // renamed all the segments we rename the commit to ensure we don't leave half baked commits behind.
-        final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[tempFileMap.size()]);
-        ArrayUtil.timSort(entries, new Comparator<Map.Entry<String, String>>() {
-            @Override
-            public int compare(Map.Entry<String, String> o1, Map.Entry<String, String> o2) {
-                String left = o1.getValue();
-                String right = o2.getValue();
-                if (left.startsWith(IndexFileNames.SEGMENTS) || right.startsWith(IndexFileNames.SEGMENTS)) {
-                    if (left.startsWith(IndexFileNames.SEGMENTS) == false) {
-                        return -1;
-                    } else if (right.startsWith(IndexFileNames.SEGMENTS) == false) {
-                        return 1;
-                    }
+        final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[0]);
+        ArrayUtil.timSort(entries, (o1, o2) -> {
+            String left = o1.getValue();
+            String right = o2.getValue();
+            if (left.startsWith(IndexFileNames.SEGMENTS) || right.startsWith(IndexFileNames.SEGMENTS)) {
+                if (left.startsWith(IndexFileNames.SEGMENTS) == false) {
+                    return -1;
+                } else if (right.startsWith(IndexFileNames.SEGMENTS) == false) {
+                    return 1;
                 }
-                return left.compareTo(right);
             }
+            return left.compareTo(right);
         });
         metadataLock.writeLock().lock();
         // we make sure that nobody fetches the metadata while we do this rename operation here to ensure we don't
@@ -452,22 +449,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             logger.info(() -> new ParameterizedMessage("{}: failed to obtain shard lock", shardId), ex);
         }
         return MetadataSnapshot.EMPTY;
-    }
-
-    /**
-     * Returns <code>true</code> iff the given location contains an index an the index
-     * can be successfully opened. This includes reading the segment infos and possible
-     * corruption markers.
-     */
-    public static boolean canOpenIndex(Logger logger, Path indexLocation,
-                                            ShardId shardId, NodeEnvironment.ShardLocker shardLocker) throws IOException {
-        try {
-            tryOpenIndex(indexLocation, shardId, shardLocker, logger);
-        } catch (Exception ex) {
-            logger.trace(() -> new ParameterizedMessage("Can't open index for path [{}]", indexLocation), ex);
-            return false;
-        }
-        return true;
     }
 
     /**
@@ -754,6 +735,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public String toString() {
             return "store(" + in.toString() + ")";
         }
+
+        @Override
+        public Set<String> getPendingDeletions() throws IOException {
+            // FilterDirectory.getPendingDeletions does not delegate, working around it here.
+            // to be removed once fixed in FilterDirectory.
+            return unwrap(this).getPendingDeletions();
+        }
     }
 
     /**
@@ -961,7 +949,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         private static final String DEL_FILE_EXTENSION = "del"; // legacy delete file
         private static final String LIV_FILE_EXTENSION = "liv"; // lucene 5 delete file
-        private static final String FIELD_INFOS_FILE_EXTENSION = "fnm";
         private static final String SEGMENT_INFO_EXTENSION = "si";
 
         /**
@@ -1015,12 +1002,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // only treat del files as per-commit files fnm files are generational but only for upgradable DV
                     perCommitStoreFiles.add(meta);
                 } else {
-                    List<StoreFileMetaData> perSegStoreFiles = perSegment.get(segmentId);
-                    if (perSegStoreFiles == null) {
-                        perSegStoreFiles = new ArrayList<>();
-                        perSegment.put(segmentId, perSegStoreFiles);
-                    }
-                    perSegStoreFiles.add(meta);
+                    perSegment.computeIfAbsent(segmentId, k -> new ArrayList<>()).add(meta);
                 }
             }
             final ArrayList<StoreFileMetaData> identicalFiles = new ArrayList<>();
@@ -1070,13 +1052,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public String getHistoryUUID() {
             return commitUserData.get(Engine.HISTORY_UUID_KEY);
-        }
-
-        /**
-         * returns the translog uuid the store points at
-         */
-        public String getTranslogUUID() {
-            return commitUserData.get(Translog.TRANSLOG_UUID_KEY);
         }
 
         /**
@@ -1459,30 +1434,36 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void bootstrapNewHistory() throws IOException {
         metadataLock.writeLock().lock();
         try {
-            Map<String, String> userData = readLastCommittedSegmentsInfo().getUserData();
+            final SegmentInfos segmentCommitInfos = readLastCommittedSegmentsInfo();
+            final Map<String, String> userData = segmentCommitInfos.getUserData();
+            final String rawLocalCheckpoint = userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY);
+            final String rawMaxSeqNo = userData.get(SequenceNumbers.MAX_SEQ_NO);
+            assert (rawLocalCheckpoint == null) == (rawMaxSeqNo == null) :
+                "local checkpoint was " + rawLocalCheckpoint + " but max seq no was " + rawMaxSeqNo;
+
+            assert rawLocalCheckpoint != null || segmentCommitInfos.getCommitLuceneVersion().major < 7 :
+                "Found Lucene version: " + segmentCommitInfos.getCommitLuceneVersion().major;
             final SequenceNumbers.CommitInfo seqno = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
-            bootstrapNewHistory(seqno.maxSeqNo);
+            bootstrapNewHistory(seqno.localCheckpoint, seqno.maxSeqNo);
         } finally {
             metadataLock.writeLock().unlock();
         }
     }
 
     /**
-     * Marks an existing lucene index with a new history uuid and sets the given maxSeqNo as the local checkpoint
+     * Marks an existing lucene index with a new history uuid and sets the given local checkpoint
      * as well as the maximum sequence number.
-     * This is used to make sure no existing shard will recovery from this index using ops based recovery.
+     * This is used to make sure no existing shard will recover from this index using ops based recovery.
      * @see SequenceNumbers#LOCAL_CHECKPOINT_KEY
      * @see SequenceNumbers#MAX_SEQ_NO
      */
-    public void bootstrapNewHistory(long maxSeqNo) throws IOException {
+    public void bootstrapNewHistory(long localCheckpoint, long maxSeqNo) throws IOException {
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, null)) {
-            final Map<String, String> userData = getUserData(writer);
             final Map<String, String> map = new HashMap<>();
             map.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+            map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
             map.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
-            map.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
-            logger.debug("bootstrap a new history_uuid [{}], user_data [{}]", map, userData);
             updateCommitData(writer, map);
         } finally {
             metadataLock.writeLock().unlock();
@@ -1574,7 +1555,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             if (existingCommits.isEmpty()) {
                 throw new IllegalArgumentException("No index found to trim");
             }
-            final String translogUUID = existingCommits.get(existingCommits.size() - 1).getUserData().get(Translog.TRANSLOG_UUID_KEY);
+            final IndexCommit lastIndexCommitCommit = existingCommits.get(existingCommits.size() - 1);
+            final String translogUUID = lastIndexCommitCommit.getUserData().get(Translog.TRANSLOG_UUID_KEY);
             final IndexCommit startingIndexCommit;
             // We may not have a safe commit if an index was create before v6.2; and if there is a snapshotted commit whose translog
             // are not retained but max_seqno is at most the global checkpoint, we may mistakenly select it as a starting commit.
@@ -1606,7 +1588,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     + translogUUID + "]");
             }
             logger.debug("starting index commit [{}]", startingIndexCommit.getUserData());
-            if (startingIndexCommit.equals(existingCommits.get(existingCommits.size() - 1)) == false) {
+            if (startingIndexCommit.equals(lastIndexCommitCommit) == false) {
                 try (IndexWriter writer = newIndexWriter(IndexWriterConfig.OpenMode.APPEND, directory, startingIndexCommit)) {
                     // this achieves two things:
                     // - by committing a new commit based on the starting commit, it make sure the starting commit will be opened
@@ -1626,15 +1608,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-
-    private void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
+    private static void updateCommitData(IndexWriter writer, Map<String, String> keysToUpdate) throws IOException {
         final Map<String, String> userData = getUserData(writer);
         userData.putAll(keysToUpdate);
         writer.setLiveCommitData(userData.entrySet());
         writer.commit();
     }
 
-    private Map<String, String> getUserData(IndexWriter writer) {
+    private static Map<String, String> getUserData(IndexWriter writer) {
         final Map<String, String> userData = new HashMap<>();
         writer.getLiveCommitData().forEach(e -> userData.put(e.getKey(), e.getValue()));
         return userData;

@@ -25,8 +25,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -75,6 +75,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
@@ -107,6 +108,8 @@ final class RequestConverters {
         parameters.withTimeout(deleteRequest.timeout());
         parameters.withVersion(deleteRequest.version());
         parameters.withVersionType(deleteRequest.versionType());
+        parameters.withIfSeqNo(deleteRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(deleteRequest.ifPrimaryTerm());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
         return request;
@@ -191,6 +194,11 @@ final class RequestConverters {
                         }
                     }
 
+                    if (action.ifSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                        metadata.field("if_seq_no", action.ifSeqNo());
+                        metadata.field("if_primary_term", action.ifPrimaryTerm());
+                    }
+
                     if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
                         IndexRequest indexRequest = (IndexRequest) action;
                         if (Strings.hasLength(indexRequest.getPipeline())) {
@@ -242,7 +250,7 @@ final class RequestConverters {
                 content.write(separator);
             }
         }
-        request.setEntity(new ByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
+        request.setEntity(new NByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
         return request;
     }
 
@@ -307,13 +315,15 @@ final class RequestConverters {
         parameters.withTimeout(indexRequest.timeout());
         parameters.withVersion(indexRequest.version());
         parameters.withVersionType(indexRequest.versionType());
+        parameters.withIfSeqNo(indexRequest.ifSeqNo());
+        parameters.withIfPrimaryTerm(indexRequest.ifPrimaryTerm());
         parameters.withPipeline(indexRequest.getPipeline());
         parameters.withRefreshPolicy(indexRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(indexRequest.waitForActiveShards(), ActiveShardCount.DEFAULT);
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
-        request.setEntity(new ByteArrayEntity(source.bytes, source.offset, source.length, contentType));
+        request.setEntity(new NByteArrayEntity(source.bytes, source.offset, source.length, contentType));
         return request;
     }
 
@@ -361,8 +371,15 @@ final class RequestConverters {
         return request;
     }
 
-    static Request search(SearchRequest searchRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), "_search"));
+    /**
+     * Convert a {@linkplain SearchRequest} into a {@linkplain Request}.
+     * @param searchRequest the request to convert
+     * @param searchEndpoint the name of the search endpoint. {@literal _search}
+     *    for standard searches and {@literal _rollup_search} for rollup
+     *    searches.
+     */
+    static Request search(SearchRequest searchRequest, String searchEndpoint) throws IOException {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchRequest.types(), searchEndpoint));
 
         Params params = new Params(request);
         addSearchRequestParams(params, searchRequest);
@@ -414,7 +431,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -447,7 +464,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
 
@@ -667,7 +684,7 @@ final class RequestConverters {
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
         throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
-        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
+        return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
     static String endpoint(String index, String type, String id) {
@@ -874,23 +891,54 @@ final class RequestConverters {
             return this;
         }
 
-        Params withIndicesOptions(IndicesOptions indicesOptions) {
-            withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
-            putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
-            String expandWildcards;
-            if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
-                expandWildcards = "none";
-            } else {
-                StringJoiner joiner = new StringJoiner(",");
-                if (indicesOptions.expandWildcardsOpen()) {
-                    joiner.add("open");
-                }
-                if (indicesOptions.expandWildcardsClosed()) {
-                    joiner.add("closed");
-                }
-                expandWildcards = joiner.toString();
+        Params withIfSeqNo(long ifSeqNo) {
+            if (ifSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+                return putParam("if_seq_no", Long.toString(ifSeqNo));
             }
-            putParam("expand_wildcards", expandWildcards);
+            return this;
+        }
+
+        Params withIfPrimaryTerm(long ifPrimaryTerm) {
+            if (ifPrimaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+                return putParam("if_primary_term", Long.toString(ifPrimaryTerm));
+            }
+            return this;
+        }
+
+        Params withWaitForActiveShards(ActiveShardCount activeShardCount) {
+            return withWaitForActiveShards(activeShardCount, ActiveShardCount.DEFAULT);
+        }
+
+        /**
+         * @deprecated <code>copy_settings</code> can not be set to false. If unset, behaves as <code>false</code> and won't copy settings.
+         */
+        @Deprecated
+        Params withCopySettings(Boolean setCopySettings) {
+            if (setCopySettings != null) {
+                return putParam("copy_settings", setCopySettings.toString());
+            }
+            return this;
+        }
+
+        Params withIndicesOptions(IndicesOptions indicesOptions) {
+            if (indicesOptions != null) {
+                withIgnoreUnavailable(indicesOptions.ignoreUnavailable());
+                putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+                String expandWildcards;
+                if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
+                    expandWildcards = "none";
+                } else {
+                    StringJoiner joiner = new StringJoiner(",");
+                    if (indicesOptions.expandWildcardsOpen()) {
+                        joiner.add("open");
+                    }
+                    if (indicesOptions.expandWildcardsClosed()) {
+                        joiner.add("closed");
+                    }
+                    expandWildcards = joiner.toString();
+                }
+                putParam("expand_wildcards", expandWildcards);
+            }
             return this;
         }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.join.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -240,6 +239,7 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
                 "      \"from\" : 0,\n" +
                 "      \"size\" : 100,\n" +
                 "      \"version\" : false,\n" +
+                "      \"seq_no_primary_term\" : false,\n" +
                 "      \"explain\" : false,\n" +
                 "      \"track_scores\" : false,\n" +
                 "      \"sort\" : [ {\n" +

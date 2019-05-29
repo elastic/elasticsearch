@@ -54,13 +54,8 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Request, S
 
         public Request() {}
 
-        public String getId() {
-            return id;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        public Request(StreamInput in) throws IOException {
+            super(in);
             id = in.readString();
         }
 
@@ -68,6 +63,10 @@ public class StartRollupJobAction extends Action<StartRollupJobAction.Request, S
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+        }
+
+        public String getId() {
+            return id;
         }
 
         @Override

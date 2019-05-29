@@ -25,6 +25,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.StorageClass;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -40,8 +41,6 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final S3Service service;
 
-    private final String clientName;
-
     private final String bucket;
 
     private final ByteSizeValue bufferSize;
@@ -52,15 +51,18 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final StorageClass storageClass;
 
-    S3BlobStore(S3Service service, String clientName, String bucket, boolean serverSideEncryption,
-                ByteSizeValue bufferSize, String cannedACL, String storageClass) {
+    private final RepositoryMetaData repositoryMetaData;
+
+    S3BlobStore(S3Service service, String bucket, boolean serverSideEncryption,
+                ByteSizeValue bufferSize, String cannedACL, String storageClass,
+                RepositoryMetaData repositoryMetaData) {
         this.service = service;
-        this.clientName = clientName;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
+        this.repositoryMetaData = repositoryMetaData;
     }
 
     @Override
@@ -69,7 +71,7 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
     }
 
     public AmazonS3Reference clientReference() {
-        return service.client(clientName);
+        return service.client(repositoryMetaData);
     }
 
     public String bucket() {

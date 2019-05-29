@@ -48,6 +48,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
         assertThat(parsedAction.action(), is(action));
 
         verify(account, times(1)).validateParsedTemplate("_w1", "_a1", action.message);
+        assertWarnings("hipchat actions are deprecated and will be removed in 7.0");
     }
 
     public void testParseActionUnknownAccount() throws Exception {
@@ -59,5 +60,6 @@ public class HipChatActionFactoryTests extends ESTestCase {
         XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
         expectThrows(IllegalArgumentException.class, () -> factory.parseExecutable("_w1", "_a1", parser));
+        assertWarnings("hipchat actions are deprecated and will be removed in 7.0");
     }
 }

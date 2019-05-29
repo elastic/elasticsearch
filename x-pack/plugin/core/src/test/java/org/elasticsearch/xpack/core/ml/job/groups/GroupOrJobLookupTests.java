@@ -6,46 +6,35 @@
 package org.elasticsearch.xpack.core.ml.job.groups;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.groups.GroupOrJobLookup;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.contains;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class GroupOrJobLookupTests extends ESTestCase {
 
-    public void testEmptyLookup_GivenAllowNoJobs() {
+    public void testEmptyLookup() {
         GroupOrJobLookup lookup = new GroupOrJobLookup(Collections.emptyList());
 
-        assertThat(lookup.expandJobIds("_all", true).isEmpty(), is(true));
-        assertThat(lookup.expandJobIds("*", true).isEmpty(), is(true));
-        assertThat(lookup.expandJobIds("foo*", true).isEmpty(), is(true));
-        expectThrows(ResourceNotFoundException.class, () -> lookup.expandJobIds("foo", true));
-    }
-
-    public void testEmptyLookup_GivenNotAllowNoJobs() {
-        GroupOrJobLookup lookup = new GroupOrJobLookup(Collections.emptyList());
-
-        expectThrows(ResourceNotFoundException.class, () -> lookup.expandJobIds("_all", false));
-        expectThrows(ResourceNotFoundException.class, () -> lookup.expandJobIds("*", false));
-        expectThrows(ResourceNotFoundException.class, () -> lookup.expandJobIds("foo*", false));
-        expectThrows(ResourceNotFoundException.class, () -> lookup.expandJobIds("foo", true));
+        assertThat(lookup.expandJobIds("_all").isEmpty(), is(true));
+        assertThat(lookup.expandJobIds("*").isEmpty(), is(true));
+        assertThat(lookup.expandJobIds("foo*").isEmpty(), is(true));
+        assertThat(lookup.expandJobIds("foo").isEmpty(), is(true));
     }
 
     public void testAllIsNotExpandedInCommaSeparatedExpression() {
         GroupOrJobLookup lookup = new GroupOrJobLookup(Collections.emptyList());
-        ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> lookup.expandJobIds("foo-*,_all", true));
-        assertThat(e.getMessage(), equalTo("No known job with id '_all'"));
+        assertThat(lookup.expandJobIds("foo*,_all").isEmpty(), is(true));
     }
 
     public void testConstructor_GivenJobWithSameIdAsPreviousGroupName() {
@@ -75,19 +64,19 @@ public class GroupOrJobLookupTests extends ESTestCase {
         jobs.add(mockJob("nogroup", Collections.emptyList()));
         GroupOrJobLookup groupOrJobLookup = new GroupOrJobLookup(jobs);
 
-        assertThat(groupOrJobLookup.expandJobIds("_all", false), contains("bar-1", "bar-2", "foo-1", "foo-2", "nogroup"));
-        assertThat(groupOrJobLookup.expandJobIds("*", false), contains("bar-1", "bar-2", "foo-1", "foo-2", "nogroup"));
-        assertThat(groupOrJobLookup.expandJobIds("bar-1", false), contains("bar-1"));
-        assertThat(groupOrJobLookup.expandJobIds("foo-1", false), contains("foo-1"));
-        assertThat(groupOrJobLookup.expandJobIds("foo-2, bar-1", false), contains("bar-1", "foo-2"));
-        assertThat(groupOrJobLookup.expandJobIds("foo-group", false), contains("foo-1", "foo-2"));
-        assertThat(groupOrJobLookup.expandJobIds("bar-group", false), contains("bar-1", "bar-2"));
-        assertThat(groupOrJobLookup.expandJobIds("ones", false), contains("bar-1", "foo-1"));
-        assertThat(groupOrJobLookup.expandJobIds("twos", false), contains("bar-2", "foo-2"));
-        assertThat(groupOrJobLookup.expandJobIds("foo-group, nogroup", false), contains("foo-1", "foo-2", "nogroup"));
-        assertThat(groupOrJobLookup.expandJobIds("*-group", false), contains("bar-1", "bar-2", "foo-1", "foo-2"));
-        assertThat(groupOrJobLookup.expandJobIds("foo-group,foo-1,foo-2", false), contains("foo-1", "foo-2"));
-        assertThat(groupOrJobLookup.expandJobIds("foo-group,*-2", false), contains("bar-2", "foo-1", "foo-2"));
+        assertThat(groupOrJobLookup.expandJobIds("_all"), contains("bar-1", "bar-2", "foo-1", "foo-2", "nogroup"));
+        assertThat(groupOrJobLookup.expandJobIds("*"), contains("bar-1", "bar-2", "foo-1", "foo-2", "nogroup"));
+        assertThat(groupOrJobLookup.expandJobIds("bar-1"), contains("bar-1"));
+        assertThat(groupOrJobLookup.expandJobIds("foo-1"), contains("foo-1"));
+        assertThat(groupOrJobLookup.expandJobIds("foo-2, bar-1"), contains("bar-1", "foo-2"));
+        assertThat(groupOrJobLookup.expandJobIds("foo-group"), contains("foo-1", "foo-2"));
+        assertThat(groupOrJobLookup.expandJobIds("bar-group"), contains("bar-1", "bar-2"));
+        assertThat(groupOrJobLookup.expandJobIds("ones"), contains("bar-1", "foo-1"));
+        assertThat(groupOrJobLookup.expandJobIds("twos"), contains("bar-2", "foo-2"));
+        assertThat(groupOrJobLookup.expandJobIds("foo-group, nogroup"), contains("foo-1", "foo-2", "nogroup"));
+        assertThat(groupOrJobLookup.expandJobIds("*-group"), contains("bar-1", "bar-2", "foo-1", "foo-2"));
+        assertThat(groupOrJobLookup.expandJobIds("foo-group,foo-1,foo-2"), contains("foo-1", "foo-2"));
+        assertThat(groupOrJobLookup.expandJobIds("foo-group,*-2"), contains("bar-2", "foo-1", "foo-2"));
     }
 
     public void testIsGroupOrJob() {
@@ -102,6 +91,21 @@ public class GroupOrJobLookupTests extends ESTestCase {
         assertTrue(groupOrJobLookup.isGroupOrJob("twos"));
         assertTrue(groupOrJobLookup.isGroupOrJob("nogroup"));
         assertFalse(groupOrJobLookup.isGroupOrJob("missing"));
+    }
+
+    public void testExpandGroupIds() {
+        List<Job> jobs = new ArrayList<>();
+        jobs.add(mockJob("foo-1", Arrays.asList("foo-group")));
+        jobs.add(mockJob("foo-2", Arrays.asList("foo-group")));
+        jobs.add(mockJob("bar-1", Arrays.asList("bar-group")));
+        jobs.add(mockJob("nogroup", Collections.emptyList()));
+
+        GroupOrJobLookup groupOrJobLookup = new GroupOrJobLookup(jobs);
+        assertThat(groupOrJobLookup.expandGroupIds("foo*"), contains("foo-group"));
+        assertThat(groupOrJobLookup.expandGroupIds("bar-group,nogroup"), contains("bar-group"));
+        assertThat(groupOrJobLookup.expandGroupIds("*"), contains("bar-group", "foo-group"));
+        assertThat(groupOrJobLookup.expandGroupIds("foo-group"), contains("foo-group"));
+        assertThat(groupOrJobLookup.expandGroupIds("no-group"), empty());
     }
 
     private static Job mockJob(String jobId, List<String> groups) {

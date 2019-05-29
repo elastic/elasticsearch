@@ -80,7 +80,7 @@ public final class CertificateInfo {
         return serialNumber;
     }
 
-    public boolean isHasPrivateKey() {
+    public boolean hasPrivateKey() {
         return hasPrivateKey;
     }
 

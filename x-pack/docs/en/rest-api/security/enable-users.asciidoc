@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-enable-user]]
 === Enable users API
+++++
+<titleabbrev>Enable users</titleabbrev>
+++++
 
 Enables users in the native realm. 
 

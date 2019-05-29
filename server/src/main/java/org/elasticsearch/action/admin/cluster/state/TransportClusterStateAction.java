@@ -20,11 +20,14 @@
 package org.elasticsearch.action.admin.cluster.state;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -33,16 +36,38 @@ import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.discovery.zen.PublishClusterStateAction.serializeFullClusterState;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
 
+    private final Logger logger = LogManager.getLogger(getClass());
+    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
+    public static final boolean CLUSTER_STATE_SIZE;
+
+    static {
+        final String property = System.getProperty("es.cluster_state.size");
+        if (property == null) {
+            CLUSTER_STATE_SIZE = false;
+        } else {
+            final boolean clusterStateSize = Boolean.parseBoolean(property);
+            if (clusterStateSize) {
+                CLUSTER_STATE_SIZE = true;
+            } else {
+                throw new IllegalArgumentException("es.cluster_state.size can only be unset or [true] but was [" + property + "]");
+            }
+        }
+    }
 
     @Inject
     public TransportClusterStateAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -75,11 +100,57 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     @Override
     protected void masterOperation(final ClusterStateRequest request, final ClusterState state,
                                    final ActionListener<ClusterStateResponse> listener) throws IOException {
-        ClusterState currentState = clusterService.state();
+
+        if (request.waitForMetaDataVersion() != null) {
+            final Predicate<ClusterState> metadataVersionPredicate = clusterState -> {
+              return clusterState.metaData().version() >= request.waitForMetaDataVersion();
+            };
+            final ClusterStateObserver observer =
+                new ClusterStateObserver(clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext());
+            final ClusterState clusterState = observer.setAndGetObservedState();
+            if (metadataVersionPredicate.test(clusterState)) {
+                buildResponse(request, clusterState, listener);
+            } else {
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        try {
+                            buildResponse(request, state, listener);
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        listener.onFailure(new NodeClosedException(clusterService.localNode()));
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        try {
+                            listener.onResponse(new ClusterStateResponse(clusterState.getClusterName(), null, 0L, true));
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }
+                }, metadataVersionPredicate);
+            }
+        } else {
+            ClusterState currentState = clusterService.state();
+            buildResponse(request, currentState, listener);
+        }
+    }
+
+    private void buildResponse(final ClusterStateRequest request,
+                               final ClusterState currentState,
+                               final ActionListener<ClusterStateResponse> listener) throws IOException {
         logger.trace("Serving cluster state request using version {}", currentState.version());
         ClusterState.Builder builder = ClusterState.builder(currentState.getClusterName());
         builder.version(currentState.version());
         builder.stateUUID(currentState.stateUUID());
+        builder.minimumMasterNodesOnPublishingMaster(currentState.getMinimumMasterNodesOnPublishingMaster());
+
         if (request.nodes()) {
             builder.nodes(currentState.nodes());
         }
@@ -106,6 +177,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         if (request.metaData()) {
             if (request.indices().length > 0) {
+                mdBuilder.version(currentState.metaData().version());
                 String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
@@ -133,8 +205,16 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 }
             }
         }
-        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(),
-                                                        serializeFullClusterState(currentState, Version.CURRENT).length()));
+
+        final long sizeInBytes;
+        if (CLUSTER_STATE_SIZE) {
+            deprecationLogger.deprecated("es.cluster_state.size is deprecated and will be removed in 7.0.0");
+            sizeInBytes = serializeFullClusterState(currentState, Version.CURRENT).length();
+        } else {
+            sizeInBytes = 0;
+        }
+
+        listener.onResponse(new ClusterStateResponse(currentState.getClusterName(), builder.build(), sizeInBytes, false));
     }
 
 

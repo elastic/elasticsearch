@@ -707,7 +707,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public boolean routingRequired(String concreteIndex, String type) {
         IndexMetaData indexMetaData = indices.get(concreteIndex);
         if (indexMetaData != null) {
-            MappingMetaData mappingMetaData = indexMetaData.getMappings().get(type);
+            MappingMetaData mappingMetaData = indexMetaData.getMappings().get(indexMetaData.resolveDocumentType(type));
             if (mappingMetaData != null) {
                 return mappingMetaData.routing().required();
             }

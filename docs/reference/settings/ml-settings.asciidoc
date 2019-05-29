@@ -77,6 +77,9 @@ opening spend more time in the `opening` state. Defaults to `2`.
 These settings are for advanced use cases; the default values are generally 
 sufficient:
 
+`xpack.ml.enable_config_migration` (<<cluster-update-settings,Dynamic>>)::
+Reserved.
+
 `xpack.ml.max_anomaly_records` (<<cluster-update-settings,Dynamic>>)::
 The maximum number of records that are output per bucket. The default value is 
 `500`.

@@ -30,9 +30,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.joda.FormatDateTimeFormatter;
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -77,7 +76,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     private boolean includeUpper = DEFAULT_INCLUDE_UPPER;
 
-    private FormatDateTimeFormatter format;
+    private DateFormatter format;
 
     private ShapeRelation relation;
 
@@ -106,7 +105,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         timeZone = in.readOptionalTimeZone();
         String formatString = in.readOptionalString();
         if (formatString != null) {
-            format = Joda.forPattern(formatString);
+            format = DateFormatter.forPattern(formatString);
         }
         if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             String relationString = in.readOptionalString();
@@ -136,7 +135,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         out.writeOptionalTimeZone(timeZone);
         String formatString = null;
         if (this.format != null) {
-            formatString = this.format.format();
+            formatString = this.format.pattern();
         }
         out.writeOptionalString(formatString);
         if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
@@ -295,7 +294,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (format == null) {
             throw new IllegalArgumentException("format cannot be null");
         }
-        this.format = Joda.forPattern(format);
+        this.format = DateFormatter.forPattern(format);
         return this;
     }
 
@@ -303,7 +302,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * Gets the format field to parse the from/to fields
      */
     public String format() {
-        return this.format == null ? null : this.format.format();
+        return this.format == null ? null : this.format.pattern();
     }
 
     DateMathParser getForceDateParser() { // pkg private for testing
@@ -343,7 +342,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             builder.field(TIME_ZONE_FIELD.getPreferredName(), timeZone.getID());
         }
         if (format != null) {
-            builder.field(FORMAT_FIELD.getPreferredName(), format.format());
+            builder.field(FORMAT_FIELD.getPreferredName(), format.pattern());
         }
         if (relation != null) {
             builder.field(RELATION_FIELD.getPreferredName(), relation.getRelationName());
@@ -538,14 +537,14 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     @Override
     protected int doHashCode() {
         String timeZoneId = timeZone == null ? null : timeZone.getID();
-        String formatString = format == null ? null : format.format();
+        String formatString = format == null ? null : format.pattern();
         return Objects.hash(fieldName, from, to, timeZoneId, includeLower, includeUpper, formatString);
     }
 
     @Override
     protected boolean doEquals(RangeQueryBuilder other) {
         String timeZoneId = timeZone == null ? null : timeZone.getID();
-        String formatString = format == null ? null : format.format();
+        String formatString = format == null ? null : format.pattern();
         return Objects.equals(fieldName, other.fieldName) &&
                Objects.equals(from, other.from) &&
                Objects.equals(to, other.to) &&

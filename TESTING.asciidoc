@@ -16,6 +16,15 @@ following:
 ./gradlew assemble
 -----------------------------
 
+To create a platform-specific build including the x-pack modules, use the
+following depending on your operating system:
+
+-----------------------------
+./gradlew :distribution:archives:linux-tar:assemble --parallel
+./gradlew :distribution:archives:darwin-tar:assemble --parallel
+./gradlew :distribution:archives:windows-zip:assemble --parallel
+-----------------------------
+
 === Running Elasticsearch from a checkout
 
 In order to run Elasticsearch from source without building a package, you can
@@ -250,6 +259,9 @@ If you want to just run the precommit checks:
 ---------------------------------------------------------------------------
 ./gradlew precommit
 ---------------------------------------------------------------------------
+
+Some of these checks will require `docker-compose` installed for bringing up
+test fixtures. If it's not present those checks will be skipped automatically.
 
 == Testing the REST layer
 
@@ -614,3 +626,13 @@ included as part of the build by checking the projects of the build.
 ---------------------------------------------------------------------------
 ./gradlew projects
 ---------------------------------------------------------------------------
+
+== Benchmarking
+
+For changes that might affect the performance characteristics of Elasticsearch
+you should also run macrobenchmarks. We maintain a macrobenchmarking tool
+called https://github.com/elastic/rally[Rally]
+which you can use to measure the performance impact. It comes with a set of
+default benchmarks that we also
+https://elasticsearch-benchmarks.elastic.co/[run every night]. To get started,
+please see https://esrally.readthedocs.io/en/stable/[Rally's documentation].

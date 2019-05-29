@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
 import javax.net.ssl.SSLEngine;
-
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;
@@ -45,11 +44,11 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         Path testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
+        secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
             .put("xpack.security.transport.ssl.enabled", true)
-            .put("xpack.ssl.key", testnodeKey)
-            .put("xpack.ssl.certificate", testnodeCert)
+            .put("xpack.security.transport.ssl.key", testnodeKey)
+            .put("xpack.security.transport.ssl.certificate", testnodeCert)
             .setSecureSettings(secureSettings)
             .put("path.home", createTempDir())
             .build();
@@ -72,7 +71,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
                 Version.CURRENT,
                 mock(ThreadPool.class),
                 new NetworkService(Collections.emptyList()),
-                mock(BigArrays.class),
+                mock(PageCacheRecycler.class),
                 mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class),
                 null,
@@ -98,7 +97,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
-                .put("xpack.ssl.client_authentication", value)
+                .put("xpack.security.transport.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
@@ -112,7 +111,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
-                .put("xpack.ssl.client_authentication", value)
+                .put("xpack.security.transport.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
@@ -126,7 +125,7 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
-                .put("xpack.ssl.client_authentication", value)
+                .put("xpack.security.transport.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
@@ -149,6 +148,8 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(true));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(false));
+        assertWarnings("SSL configuration [transport.profiles.client.xpack.security.ssl] relies upon fallback to another configuration " +
+            "for [key configuration, trust configuration], which is deprecated.");
     }
 
     public void testProfileNoClientAuth() throws Exception {
@@ -164,6 +165,8 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(false));
+        assertWarnings("SSL configuration [transport.profiles.client.xpack.security.ssl] relies upon fallback to another configuration " +
+            "for [key configuration, trust configuration], which is deprecated.");
     }
 
     public void testProfileOptionalClientAuth() throws Exception {
@@ -179,12 +182,15 @@ public class SecurityNetty4ServerTransportTests extends ESTestCase {
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(true));
+        assertWarnings("SSL configuration [transport.profiles.client.xpack.security.ssl] relies upon fallback to another configuration " +
+            "for [key configuration, trust configuration], which is deprecated.");
     }
 
     public void testTransportSSLOverridesGlobalSSL() throws Exception {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.secure_key_passphrase", "testnode");
         Settings.Builder builder = Settings.builder()
+            .put("xpack.watcher.enabled", false) // to avoid warnings for xpack.http.ssl
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.transport.ssl.key",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))

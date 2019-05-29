@@ -1,0 +1,63 @@
+[role="xpack"]
+[testenv="platinum"]
+[[sql-client-apps-excel]]
+=== Microsoft Excel
+
+[quote, https://www.techopedia.com/definition/5430/microsoft-excel]
+____
+https://products.office.com/en/excel[Microsoft Excel] is a software program [...] that allows users to organize, format and calculate data
+with formulas using a spreadsheet system.
+____
+
+IMPORTANT: Elastic does not endorse, promote or provide support for this application; for native Elasticsearch integration in this product, please reach out to its vendor.
+
+==== Prerequisites
+
+* Microsoft Office 2016 or higher
+* {es-sql} <<sql-odbc, ODBC driver>>
+* A preconfigured User or System DSN (see <<dsn-configuration,Configuration>> section on how to configure a DSN).
+
+==== Load data into a spreadsheet
+
+First, you'll need to choose ODBC as the source to load data from. To do so, click on the _Data_ tab, then _New Query_ button, in the
+drop-down menu expand _From Other Sources_, then choose _From ODBC_:
+
+[[apps_excel_fromodbc]]
+.ODBC as data source
+image:images/sql/odbc/apps_excel_fromodbc.png[]
+
+This will open a new window with a drop down menu populated with the DSNs that Excel found on the system. Choose a DSN configured to
+connect to your {es} instance and press the _OK_ button:
+
+[[apps_excel_dsn]]
+.Choose a DSN
+image:images/sql/odbc/apps_excel_dsn.png[]
+
+This will lead to a new window, allowing the user to input the connection credentials.
+
+A username might be required by Excel even if the {es} instance has no security enabled. Providing a bogus username with no password in
+this case will not hinder the connectivity. Note however that Excel will cache these credentials (so in case you do have security enabled,
+you won't be prompted for the credentials a second time).
+
+Fill in the username and the password and press
+_Connect_.
+
+[[apps_excel_cred]]
+.Provide connection credentials
+image:images/sql/odbc/apps_excel_cred.png[]
+
+Once connected, Excel will read {es}'s catalog and offer the user a choice of tables (indices) to load data from. Clicking on one of the
+tables will load a preview of the data within:
+
+[[apps_excel_picktable]]
+.Pick table to load
+image:images/sql/odbc/apps_excel_picktable.png[]
+
+Now click the _Load_ button, which will have Excel load all the data from the table into a spreadsheet:
+
+[[apps_excel_loaded]]
+.Data loaded in spreadsheet
+image:images/sql/odbc/apps_excel_loaded.png[]
+
+
+// vim: set noet fenc=utf-8 ff=dos sts=0 sw=4 ts=4 tw=138 columns=140

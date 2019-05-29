@@ -24,6 +24,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
@@ -71,15 +72,16 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
                             // so that it indicates the the status is managed by watcher itself.
                             DateTime now = new DateTime(clock.millis(), UTC);
                             Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now,
-                                    XContentType.JSON);
+                                    XContentType.JSON, getResponse.getSeqNo(), getResponse.getPrimaryTerm());
+                            watch.version(getRequest.version());
                             watch.toXContent(builder, WatcherParams.builder()
                                     .hideSecrets(true)
                                     .includeStatus(false)
                                     .build());
-                            watch.version(getResponse.getVersion());
                             watch.status().version(getResponse.getVersion());
-                            listener.onResponse(new GetWatchResponse(watch.id(), getResponse.getVersion(), watch.status(),
-                                            BytesReference.bytes(builder), XContentType.JSON));
+                            listener.onResponse(new GetWatchResponse(watch.id(), getResponse.getVersion(),
+                                watch.getSourceSeqNo(), watch.getSourcePrimaryTerm(),
+                                watch.status(), new XContentSource(BytesReference.bytes(builder), XContentType.JSON)));
                         }
                     } else {
                         listener.onResponse(new GetWatchResponse(request.getId()));

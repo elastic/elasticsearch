@@ -35,4 +35,4 @@ integTestCluster {
   distribution = 'zip'
 }
 
-test.enabled = false
+unitTest.enabled = false

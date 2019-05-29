@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -53,6 +54,7 @@ import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -60,6 +62,7 @@ import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -109,6 +112,7 @@ import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolve;
+import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolveNext;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
 /**
@@ -127,9 +131,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private static final IndexNameResolver.Rollover DEFAULT_ROLLOVER = IndexNameResolver.Rollover.DAILY;
     private static final Setting<IndexNameResolver.Rollover> ROLLOVER_SETTING =
             new Setting<>(setting("audit.index.rollover"), (s) -> DEFAULT_ROLLOVER.name(),
-                    s -> IndexNameResolver.Rollover.valueOf(s.toUpperCase(Locale.ENGLISH)), Property.NodeScope);
+                    s -> IndexNameResolver.Rollover.valueOf(s.toUpperCase(Locale.ENGLISH)), Property.NodeScope, Property.Deprecated);
     private static final Setting<Integer> QUEUE_SIZE_SETTING =
-            Setting.intSetting(setting("audit.index.queue_max_size"), DEFAULT_MAX_QUEUE_SIZE, 1, Property.NodeScope);
+            Setting.intSetting(setting("audit.index.queue_max_size"), DEFAULT_MAX_QUEUE_SIZE, 1, Property.NodeScope, Property.Deprecated);
     private static final String DEFAULT_CLIENT_NAME = "security-audit-client";
 
     private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(
@@ -148,22 +152,22 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
     private static final Setting<Settings> INDEX_SETTINGS =
-            Setting.groupSetting(setting("audit.index.settings.index."), Property.NodeScope);
+            Setting.groupSetting(setting("audit.index.settings.index."), Property.NodeScope, Property.Deprecated);
     private static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
             Setting.listSetting(setting("audit.index.events.include"), DEFAULT_EVENT_INCLUDES, Function.identity(),
-                    Property.NodeScope);
+                    Property.NodeScope, Property.Deprecated);
     private static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS =
             Setting.listSetting(setting("audit.index.events.exclude"), Collections.emptyList(),
-                    Function.identity(), Property.NodeScope);
+                    Function.identity(), Property.NodeScope, Property.Deprecated);
     private static final Setting<Boolean> INCLUDE_REQUEST_BODY =
-            Setting.boolSetting(setting("audit.index.events.emit_request_body"), false, Property.NodeScope);
+            Setting.boolSetting(setting("audit.index.events.emit_request_body"), false, Property.NodeScope, Property.Deprecated);
     private static final Setting<Settings> REMOTE_CLIENT_SETTINGS =
-            Setting.groupSetting(setting("audit.index.client."), Property.NodeScope);
-    private static final Setting<Integer> BULK_SIZE_SETTING =
-            Setting.intSetting(setting("audit.index.bulk_size"), DEFAULT_BULK_SIZE, 1, MAX_BULK_SIZE, Property.NodeScope);
+            Setting.groupSetting(setting("audit.index.client."), Property.NodeScope, Property.Deprecated);
+    private static final Setting<Integer> BULK_SIZE_SETTING = Setting.intSetting(setting("audit.index.bulk_size"), DEFAULT_BULK_SIZE, 1,
+            MAX_BULK_SIZE, Property.NodeScope, Property.Deprecated);
     private static final Setting<TimeValue> FLUSH_TIMEOUT_SETTING =
             Setting.timeSetting(setting("audit.index.flush_interval"), DEFAULT_FLUSH_INTERVAL,
-                    TimeValue.timeValueMillis(1L), Property.NodeScope);
+                    TimeValue.timeValueMillis(1L), Property.NodeScope, Property.Deprecated);
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final Settings settings;
@@ -277,7 +281,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         }
 
         if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME, SECURITY_VERSION_STRING,
-                clusterState, logger, Version.CURRENT::onOrAfter) == false) {
+                clusterState, logger, Version.CURRENT::onOrBefore) == false) {
             logger.debug("security audit index template [{}] is not up to date", INDEX_TEMPLATE_NAME);
             return false;
         }
@@ -308,6 +312,26 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         return index;
     }
 
+    private String getNextIndexName() {
+        final Message first = peek();
+        final String index;
+        if (first == null) {
+            index = resolveNext(IndexAuditTrailField.INDEX_NAME_PREFIX, DateTime.now(DateTimeZone.UTC), rollover);
+        } else {
+            index = resolveNext(IndexAuditTrailField.INDEX_NAME_PREFIX, first.timestamp, rollover);
+        }
+        return index;
+    }
+
+    private boolean hasStaleMessage() {
+        final Message first = peek();
+        if (first == null) {
+            return false;
+        }
+        return false == IndexNameResolver.resolve(first.timestamp, rollover)
+                .equals(IndexNameResolver.resolve(DateTime.now(DateTimeZone.UTC), rollover));
+    }
+
     /**
      * Starts the service. The state is moved to {@link org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.State#STARTING}
      * at the beginning of the method. The service's components are initialized and if the current node is the master, the index
@@ -328,7 +352,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                             updateCurrentIndexMappingsIfNecessary(clusterStateResponse.getState());
                         } else if (TemplateUtils.checkTemplateExistsAndVersionMatches(INDEX_TEMPLATE_NAME,
                                 SECURITY_VERSION_STRING, clusterStateResponse.getState(), logger,
-                                Version.CURRENT::onOrAfter) == false) {
+                                Version.CURRENT::onOrBefore) == false) {
                             putTemplate(customAuditIndexSettings(settings, logger),
                                     e -> {
                                         logger.error("failed to put audit trail template", e);
@@ -368,6 +392,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     // pkg private for tests
     void updateCurrentIndexMappingsIfNecessary(ClusterState state) {
+        final String nextIndex = getNextIndexName();
         final String index = getIndexName();
 
         AliasOrIndex aliasOrIndex = state.getMetaData().getAliasAndIndexLookup().get(index);
@@ -381,32 +406,37 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             IndexMetaData indexMetaData = indices.get(0);
             MappingMetaData docMapping = indexMetaData.mapping("doc");
             if (docMapping == null) {
-                if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster()) {
-                    putAuditIndexMappingsAndStart(index);
+                if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
+                    putAuditIndexMappingsAndStart(index, nextIndex);
                 } else {
-                    logger.trace("audit index [{}] is missing mapping for type [{}]", index, DOC_TYPE);
+                    logger.debug("audit index [{}] is missing mapping for type [{}]", index, DOC_TYPE);
                     transitionStartingToInitialized();
                 }
             } else {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> meta = (Map<String, Object>) docMapping.sourceAsMap().get("_meta");
                 if (meta == null) {
-                    logger.info("Missing _meta field in mapping [{}] of index [{}]", docMapping.type(), index);
-                    throw new IllegalStateException("Cannot read security-version string in index " + index);
-                }
-
-                final String versionString = (String) meta.get(SECURITY_VERSION_STRING);
-                if (versionString != null && Version.fromString(versionString).onOrAfter(Version.CURRENT)) {
-                    innerStart();
-                } else {
-                    if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster()) {
-                        putAuditIndexMappingsAndStart(index);
-                    } else if (versionString == null) {
-                        logger.trace("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);
-                        transitionStartingToInitialized();
+                    logger.warn("Missing _meta field in mapping [{}] of index [{}]", docMapping.type(), index);
+                    if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
+                        putAuditIndexMappingsAndStart(index, nextIndex);
                     } else {
-                        logger.trace("audit index [{}] has the incorrect version [{}]", index, versionString);
+                        logger.debug("audit index [{}] is missing _meta for type [{}]", index, DOC_TYPE);
                         transitionStartingToInitialized();
+                    }
+                } else {
+                    final String versionString = (String) meta.get(SECURITY_VERSION_STRING);
+                    if (versionString != null && Version.fromString(versionString).onOrAfter(Version.CURRENT)) {
+                        innerStart();
+                    } else {
+                        if (indexToRemoteCluster || state.nodes().isLocalNodeElectedMaster() || hasStaleMessage()) {
+                            putAuditIndexMappingsAndStart(index, nextIndex);
+                        } else if (versionString == null) {
+                            logger.debug("audit index [{}] mapping is missing meta field [{}]", index, SECURITY_VERSION_STRING);
+                            transitionStartingToInitialized();
+                        } else {
+                            logger.debug("audit index [{}] has the incorrect version [{}]", index, versionString);
+                            transitionStartingToInitialized();
+                        }
                     }
                 }
             }
@@ -415,15 +445,22 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         }
     }
 
-    private void putAuditIndexMappingsAndStart(String index) {
-        putAuditIndexMappings(index, getPutIndexTemplateRequest(Settings.EMPTY).mappings().get(DOC_TYPE),
-                ActionListener.wrap(ignore -> {
-                    logger.trace("updated mappings on audit index [{}]", index);
+    private void putAuditIndexMappingsAndStart(String index, String nextIndex) {
+        final String docMapping = getPutIndexTemplateRequest(Settings.EMPTY).mappings().get(DOC_TYPE);
+        putAuditIndexMappings(index, docMapping, ActionListener.wrap(ignore -> {
+                logger.debug("updated mappings on audit index [{}]", index);
+                putAuditIndexMappings(nextIndex, docMapping, ActionListener.wrap(ignoreToo -> {
+                    logger.debug("updated mappings on next audit index [{}]", nextIndex);
                     innerStart();
-                }, e -> {
-                    logger.error(new ParameterizedMessage("failed to update mappings on audit index [{}]", index), e);
-                    transitionStartingToInitialized(); // reset to initialized so we can retry
+                }, e2 -> {
+                    // best effort only
+                    logger.debug("Failed to update mappings on next audit index [{}]", nextIndex);
+                    innerStart();
                 }));
+            }, e -> {
+                logger.error(new ParameterizedMessage("failed to update mappings on audit index [{}]", index), e);
+                transitionStartingToInitialized(); // reset to initialized so we can retry
+            }));
     }
 
     private void transitionStartingToInitialized() {
@@ -442,7 +479,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             assert false : message;
             logger.error(message);
         } else {
-            logger.trace("successful state transition from starting to started, current value: [{}]", state.get());
+            logger.debug("successful state transition from starting to started, current value: [{}]", state.get());
         }
     }
 
@@ -470,7 +507,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationSuccess(String realm, User user, RestRequest request) {
+    public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             try {
                 enqueue(message("authentication_success", new Tuple<>(realm, realm), user, null, request), "authentication_success");
@@ -481,7 +518,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationSuccess(String realm, User user, String action, TransportMessage message) {
+    public void authenticationSuccess(String requestId, String realm, User user, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             try {
                 enqueue(message("authentication_success", action, user, null, new Tuple<>(realm, realm), null, message),
@@ -493,7 +530,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void anonymousAccessDenied(String action, TransportMessage message) {
+    public void anonymousAccessDenied(String requestId, String action, TransportMessage message) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             try {
                 enqueue(message("anonymous_access_denied", action, (User) null, null, null, indices(message), message),
@@ -505,7 +542,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void anonymousAccessDenied(RestRequest request) {
+    public void anonymousAccessDenied(String requestId, RestRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             try {
                 enqueue(message("anonymous_access_denied", null, null, null, null, request), "anonymous_access_denied");
@@ -516,7 +553,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationFailed(String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             try {
                 enqueue(message("authentication_failed", action, (User) null, null, null, indices(message), message),
@@ -528,7 +565,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationFailed(RestRequest request) {
+    public void authenticationFailed(String requestId, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             try {
                 enqueue(message("authentication_failed", null, null, null, null, request), "authentication_failed");
@@ -539,7 +576,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             if (XPackUser.is(token.principal()) == false) {
                 try {
@@ -552,7 +589,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             if (XPackUser.is(token.principal()) == false) {
                 try {
@@ -565,7 +602,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             if (XPackUser.is(token.principal()) == false) {
                 try {
@@ -579,7 +616,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             if (XPackUser.is(token.principal()) == false) {
                 try {
@@ -592,7 +629,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void accessGranted(String requestId, Authentication authentication, String action, TransportMessage msg,
+                              AuthorizationInfo authorizationInfo) {
         final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         final boolean logSystemAccessGranted = isSystem && events.contains(SYSTEM_ACCESS_GRANTED);
@@ -602,8 +640,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
-                enqueue(message("access_granted", action, user, roleNames, new Tuple(authRealmName, lookRealmName), indices(message),
-                        message), "access_granted");
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
+                enqueue(message("access_granted", action, user, roleNames, new Tuple(authRealmName, lookRealmName), indices(msg),
+                        msg), "access_granted");
             } catch (final Exception e) {
                 logger.warn("failed to index audit event: [access_granted]", e);
             }
@@ -611,12 +650,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void accessDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+                             AuthorizationInfo authorizationInfo) {
         if (events.contains(ACCESS_DENIED) && (XPackUser.is(authentication.getUser()) == false)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 enqueue(message("access_denied", action, authentication.getUser(), roleNames, new Tuple(authRealmName, lookRealmName),
                         indices(message), message), "access_denied");
             } catch (final Exception e) {
@@ -626,7 +667,31 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void tamperedRequest(RestRequest request) {
+    public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String index,
+                                         String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
+        assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
+        final User user = authentication.getUser();
+        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        if (isSystem && eventType == ACCESS_GRANTED) {
+            eventType = SYSTEM_ACCESS_GRANTED;
+        }
+        if (events.contains(eventType)) {
+            try {
+                assert authentication.getAuthenticatedBy() != null;
+                final String eventTypeString = eventType == ACCESS_DENIED ? "access_denied" : "access_granted";
+                final String authRealmName = authentication.getAuthenticatedBy().getName();
+                final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
+                enqueue(message(eventTypeString, action, user, roleNames, new Tuple(authRealmName, lookRealmName), Sets.newHashSet(index),
+                        remoteAddress, requestName), eventTypeString);
+            } catch (final Exception e) {
+                logger.warn("failed to index audit event: [access_denied]", e);
+            }
+        }
+    }
+
+    @Override
+    public void tamperedRequest(String requestId, RestRequest request) {
         if (events.contains(TAMPERED_REQUEST)) {
             try {
                 enqueue(message("tampered_request", null, null, null, null, request), "tampered_request");
@@ -637,7 +702,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void tamperedRequest(String action, TransportMessage message) {
+    public void tamperedRequest(String requestId, String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             try {
                 enqueue(message("tampered_request", action, (User) null, null, null, indices(message), message), "tampered_request");
@@ -648,7 +713,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void tamperedRequest(User user, String action, TransportMessage request) {
+    public void tamperedRequest(String requestId, User user, String action, TransportMessage request) {
         if (events.contains(TAMPERED_REQUEST) && XPackUser.is(user) == false) {
             try {
                 enqueue(message("tampered_request", action, user, null, null, indices(request), request), "tampered_request");
@@ -681,12 +746,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void runAsGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message,
+                             AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_GRANTED)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 enqueue(message("run_as_granted", action, authentication.getUser(), roleNames, new Tuple<>(authRealmName, lookRealmName),
                         null, message), "run_as_granted");
             } catch (final Exception e) {
@@ -696,12 +763,14 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void runAsDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+                            AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 enqueue(message("run_as_denied", action, authentication.getUser(), roleNames, new Tuple<>(authRealmName, lookRealmName),
                         null, message), "run_as_denied");
             } catch (final Exception e) {
@@ -711,12 +780,13 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     @Override
-    public void runAsDenied(Authentication authentication, RestRequest request, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             try {
                 assert authentication.getAuthenticatedBy() != null;
                 final String authRealmName = authentication.getAuthenticatedBy().getName();
                 final String lookRealmName = authentication.getLookedUpBy() == null ? null : authentication.getLookedUpBy().getName();
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 enqueue(message("run_as_denied", new Tuple<>(authRealmName, lookRealmName), authentication.getUser(), roleNames, request),
                         "run_as_denied");
             } catch (final Exception e) {
@@ -728,10 +798,15 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private Message message(String type, @Nullable String action, @Nullable User user, @Nullable String[] roleNames,
                             @Nullable Tuple<String, String> realms, @Nullable Set<String> indices, TransportMessage message)
             throws Exception {
+        return message(type, action, user, roleNames, realms, indices, message.remoteAddress(), message.getClass().getSimpleName());
+    }
 
+    private Message message(String type, @Nullable String action, @Nullable User user, @Nullable String[] roleNames,
+                            @Nullable Tuple<String, String> realms, @Nullable Set<String> indices,
+                            TransportAddress address, String requestName) throws Exception {
         Message msg = new Message().start();
         common("transport", type, msg.builder);
-        originAttributes(message, msg.builder, clusterService.localNode(), threadPool.getThreadContext());
+        originAttributes(address, msg.builder, clusterService.localNode(), threadPool.getThreadContext());
 
         if (action != null) {
             msg.builder.field(Field.ACTION, action);
@@ -743,7 +818,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (indices != null) {
             msg.builder.array(Field.INDICES, indices.toArray(Strings.EMPTY_ARRAY));
         }
-        msg.builder.field(Field.REQUEST, message.getClass().getSimpleName());
+        msg.builder.field(Field.REQUEST, requestName);
 
         return msg.end();
     }
@@ -898,6 +973,11 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     private static XContentBuilder originAttributes(TransportMessage message, XContentBuilder builder,
                                                     DiscoveryNode localNode, ThreadContext threadContext) throws IOException {
+        return originAttributes(message.remoteAddress(), builder, localNode, threadContext);
+    }
+
+    private static XContentBuilder originAttributes(TransportAddress address, XContentBuilder builder,
+                                                    DiscoveryNode localNode, ThreadContext threadContext) throws IOException {
 
         // first checking if the message originated in a rest call
         InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
@@ -908,7 +988,6 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         }
 
         // we'll see if was originated in a remote node
-        TransportAddress address = message.remoteAddress();
         if (address != null) {
             builder.field(Field.ORIGIN_TYPE, "transport");
             builder.field(Field.ORIGIN_ADDRESS,

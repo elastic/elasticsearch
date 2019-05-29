@@ -39,9 +39,16 @@ public class FeatureTest {
         return x + y;
     }
 
+    /** static method with a type parameter Number */
+    public static int staticNumberTest(Number number) {
+        return number.intValue();
+    }
+
     private int x;
     private int y;
     public int z;
+
+    private Integer i;
 
     /** empty ctor */
     public FeatureTest() {
@@ -71,6 +78,20 @@ public class FeatureTest {
     /** setter for y */
     public void setY(int y) {
         this.y = y;
+    }
+
+    /** getter for i */
+    public Integer getI() {
+        return i;
+    }
+
+    /** setter for y */
+    public void setI(Integer i) {
+        this.i = i;
+    }
+
+    public Double mixedAdd(int i, Byte b, char c, Float f) {
+        return (double)(i + b + c + f);
     }
 
     /** method taking two functions! */

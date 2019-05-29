@@ -26,19 +26,17 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
@@ -55,6 +53,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.IndexShard;
@@ -86,7 +85,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -122,6 +120,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
+    private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -198,6 +197,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.refreshTask = new AsyncRefreshTask(this);
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
+        this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -287,7 +287,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         refreshTask,
                         fsyncTask,
                         trimTranslogTask,
-                        globalCheckpointTask);
+                        globalCheckpointTask,
+                        retentionLeaseSyncTask);
             }
         }
     }
@@ -312,7 +313,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public synchronized IndexShard createShard(ShardRouting routing, Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+    public synchronized IndexShard createShard(
+            final ShardRouting routing,
+            final Consumer<ShardId> globalCheckpointSyncer,
+            final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
+        Objects.requireNonNull(retentionLeaseSyncer);
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
@@ -382,11 +387,26 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             DirectoryService directoryService = indexStore.newDirectoryService(path);
             store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
-            indexShard = new IndexShard(routing, this.indexSettings, path, store, indexSortSupplier,
-                indexCache, mapperService, similarityService, engineFactory,
-                eventListener, searcherWrapper, threadPool, bigArrays, engineWarmer,
-                searchOperationListeners, indexingOperationListeners, () -> globalCheckpointSyncer.accept(shardId),
-                circuitBreakerService);
+            indexShard = new IndexShard(
+                    routing,
+                    this.indexSettings,
+                    path,
+                    store,
+                    indexSortSupplier,
+                    indexCache,
+                    mapperService,
+                    similarityService,
+                    engineFactory,
+                    eventListener,
+                    searcherWrapper,
+                    threadPool,
+                    bigArrays,
+                    engineWarmer,
+                    searchOperationListeners,
+                    indexingOperationListeners,
+                    () -> globalCheckpointSyncer.accept(shardId),
+                    retentionLeaseSyncer,
+                    circuitBreakerService);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
@@ -747,6 +767,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     private void maybeSyncGlobalCheckpoints() {
+        sync(is -> is.maybeSyncGlobalCheckpoint("background"), "global checkpoint");
+    }
+
+    private void syncRetentionLeases() {
+        if (indexSettings.isSoftDeleteEnabled()) {
+            sync(IndexShard::syncRetentionLeases, "retention lease");
+        }
+    }
+
+    private void sync(final Consumer<IndexShard> sync, final String source) {
         for (final IndexShard shard : this.shards.values()) {
             if (shard.routingEntry().active() && shard.routingEntry().primary()) {
                 switch (shard.state()) {
@@ -759,23 +789,22 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         continue;
                     case STARTED:
                         try {
-                            shard.acquirePrimaryOperationPermit(
-                                    ActionListener.wrap(
-                                            releasable -> {
-                                                try (Releasable ignored = releasable) {
-                                                        shard.maybeSyncGlobalCheckpoint("background");
-                                                }
-                                            },
-                                            e -> {
-                                                if (!(e instanceof AlreadyClosedException || e instanceof IndexShardClosedException)) {
-                                                    logger.info(
-                                                            new ParameterizedMessage(
-                                                                    "{} failed to execute background global checkpoint sync",
-                                                                    shard.shardId()),
-                                                            e);
-                                                }
-                                            }),
-                                    ThreadPool.Names.SAME, "background global checkpoint sync");
+                            shard.runUnderPrimaryPermit(
+                                    () -> {
+                                        if (shard.isRelocatedPrimary() == false) {
+                                            sync.accept(shard);
+                                        }
+                                    },
+                                    e -> {
+                                        if (e instanceof AlreadyClosedException == false
+                                                && e instanceof IndexShardClosedException == false) {
+                                            logger.warn(
+                                                    new ParameterizedMessage(
+                                                            "{} failed to execute {} sync", shard.shardId(), source), e);
+                                        }
+                                    },
+                                    ThreadPool.Names.SAME,
+                                    source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {
                             // the shard was closed concurrently, continue
                         }
@@ -787,100 +816,18 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    abstract static class BaseAsyncTask implements Runnable, Closeable {
+    abstract static class BaseAsyncTask extends AbstractAsyncTask {
         protected final IndexService indexService;
-        protected final ThreadPool threadPool;
-        private final TimeValue interval;
-        private ScheduledFuture<?> scheduledFuture;
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-        private volatile Exception lastThrownException;
 
         BaseAsyncTask(IndexService indexService, TimeValue interval) {
+            super(indexService.logger, indexService.threadPool, interval, true);
             this.indexService = indexService;
-            this.threadPool = indexService.getThreadPool();
-            this.interval = interval;
-            onTaskCompletion();
+            rescheduleIfNecessary();
         }
 
-        boolean mustReschedule() {
+        protected boolean mustReschedule() {
             // don't re-schedule if its closed or if we don't have a single shard here..., we are done
-            return indexService.closed.get() == false
-                && closed.get() == false && interval.millis() > 0;
-        }
-
-        private synchronized void onTaskCompletion() {
-            if (mustReschedule()) {
-                if (indexService.logger.isTraceEnabled()) {
-                    indexService.logger.trace("scheduling {} every {}", toString(), interval);
-                }
-                this.scheduledFuture = threadPool.schedule(interval, getThreadPool(), BaseAsyncTask.this);
-            } else {
-                indexService.logger.trace("scheduled {} disabled", toString());
-                this.scheduledFuture = null;
-            }
-        }
-
-        boolean isScheduled() {
-            return scheduledFuture != null;
-        }
-
-        @Override
-        public final void run() {
-            try {
-                runInternal();
-            } catch (Exception ex) {
-                if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
-                    // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
-                    indexService.logger.warn(
-                        () -> new ParameterizedMessage(
-                            "failed to run task {} - suppressing re-occurring exceptions unless the exception changes",
-                            toString()),
-                        ex);
-                    lastThrownException = ex;
-                }
-            } finally {
-                onTaskCompletion();
-            }
-        }
-
-        private static boolean sameException(Exception left, Exception right) {
-            if (left.getClass() == right.getClass()) {
-                if (Objects.equals(left.getMessage(), right.getMessage())) {
-                    StackTraceElement[] stackTraceLeft = left.getStackTrace();
-                    StackTraceElement[] stackTraceRight = right.getStackTrace();
-                    if (stackTraceLeft.length == stackTraceRight.length) {
-                        for (int i = 0; i < stackTraceLeft.length; i++) {
-                            if (stackTraceLeft[i].equals(stackTraceRight[i]) == false) {
-                                return false;
-                            }
-                        }
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        protected abstract void runInternal();
-
-        protected String getThreadPool() {
-            return ThreadPool.Names.SAME;
-        }
-
-        @Override
-        public synchronized void close() {
-            if (closed.compareAndSet(false, true)) {
-                FutureUtils.cancel(scheduledFuture);
-                scheduledFuture = null;
-            }
-        }
-
-        TimeValue getInterval() {
-            return interval;
-        }
-
-        boolean isClosed() {
-            return this.closed.get();
+            return indexService.closed.get() == false;
         }
     }
 
@@ -963,6 +910,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     Property.Dynamic,
                     Property.IndexScope);
 
+    // this setting is intentionally not registered, it is only used in tests
+    public static final Setting<TimeValue> RETENTION_LEASE_SYNC_INTERVAL_SETTING =
+            Setting.timeSetting(
+                    "index.soft_deletes.retention_lease.sync_interval",
+                    new TimeValue(30, TimeUnit.SECONDS),
+                    new TimeValue(0, TimeUnit.MILLISECONDS),
+                    Property.Dynamic,
+                    Property.IndexScope);
+
     /**
      * Background task that syncs the global checkpoint to replicas.
      */
@@ -987,6 +943,29 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         public String toString() {
             return "global_checkpoint_sync";
         }
+    }
+
+    final class AsyncRetentionLeaseSyncTask extends BaseAsyncTask {
+
+        AsyncRetentionLeaseSyncTask(final IndexService indexService) {
+            super(indexService, RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(indexService.getIndexSettings().getSettings()));
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.syncRetentionLeases();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.MANAGEMENT;
+        }
+
+        @Override
+        public String toString() {
+            return "retention_lease_sync";
+        }
+
     }
 
     AsyncRefreshTask getRefreshTask() { // for tests

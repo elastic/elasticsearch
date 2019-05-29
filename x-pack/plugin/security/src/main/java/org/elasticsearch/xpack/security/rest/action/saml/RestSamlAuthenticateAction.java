@@ -59,6 +59,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
                                       XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/saml/authenticate", this);
+        controller.registerHandler(POST, "/_security/saml/authenticate", this);
     }
 
     @Override

@@ -341,7 +341,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
-        clusterState = service.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = service.disassociateDeadNodes(clusterState, true, "reroute");
 
         logger.info("start all the primary shards, replicas will start initializing");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();

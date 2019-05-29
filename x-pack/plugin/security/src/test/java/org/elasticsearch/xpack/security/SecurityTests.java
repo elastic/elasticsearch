@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -56,7 +57,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -189,6 +189,9 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
                 containsInAnyOrder(IndexAuditTrail.NAME));
+        assertWarnings("The [index] audit type is deprecated and will be removed in 7.0",
+                "[xpack.security.audit.outputs] setting was deprecated in Elasticsearch and will be removed "
+                        + "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexAndLoggingAuditTrail() throws Exception {
@@ -200,6 +203,9 @@ public class SecurityTests extends ESTestCase {
         assertNotNull(service);
         assertThat(service.getAuditTrails().stream().map(x -> x.name()).collect(Collectors.toList()),
                 containsInAnyOrder(LoggingAuditTrail.NAME, DeprecatedLoggingAuditTrail.NAME, IndexAuditTrail.NAME));
+        assertWarnings("The [index] audit type is deprecated and will be removed in 7.0",
+                "[xpack.security.audit.outputs] setting was deprecated in Elasticsearch and will be removed "
+                        + "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testUnknownOutput() {
@@ -208,6 +214,8 @@ public class SecurityTests extends ESTestCase {
             .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "foo").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createComponents(settings));
         assertEquals("Unknown audit trail output [foo]", e.getMessage());
+        assertWarnings("[xpack.security.audit.outputs] setting was deprecated in Elasticsearch and will be removed "
+                        + "in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testHttpSettingDefaults() throws Exception {
@@ -267,17 +275,45 @@ public class SecurityTests extends ESTestCase {
         int numIters = randomIntBetween(1,10);
         for (int i = 0; i < numIters; i++) {
             boolean tlsOn = randomBoolean();
+            boolean securityExplicitlyEnabled = randomBoolean();
             String discoveryType = randomFrom("single-node", "zen", randomAlphaOfLength(4));
-            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType);
+
+            final Settings settings;
+            if (securityExplicitlyEnabled) {
+                settings = Settings.builder().put("xpack.security.enabled", true).build();
+            } else {
+                settings = Settings.EMPTY;
+            }
+            Security.ValidateTLSOnJoin validator = new Security.ValidateTLSOnJoin(tlsOn, discoveryType, settings);
             MetaData.Builder builder = MetaData.builder();
-            License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
+            License.OperationMode licenseMode = randomFrom(License.OperationMode.values());
+            License license = TestUtils.generateSignedLicense(licenseMode.description(), TimeValue.timeValueHours(24));
             TestUtils.putLicense(builder, license);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metaData(builder.build()).build();
-            EnumSet<License.OperationMode> productionModes = EnumSet.of(License.OperationMode.GOLD, License.OperationMode.PLATINUM,
-                    License.OperationMode.STANDARD);
-            if (productionModes.contains(license.operationMode()) && tlsOn == false && "single-node".equals(discoveryType) == false) {
+
+            final boolean expectFailure;
+            switch (licenseMode) {
+                case PLATINUM:
+                case GOLD:
+                case STANDARD:
+                    expectFailure = tlsOn == false && "single-node".equals(discoveryType) == false;
+                    break;
+                case BASIC:
+                    expectFailure = tlsOn == false && "single-node".equals(discoveryType) == false && securityExplicitlyEnabled;
+                    break;
+                case MISSING:
+                case TRIAL:
+                    expectFailure = false;
+                    break;
+                default:
+                    throw new AssertionError("unknown operation mode [" + license.operationMode() + "]");
+            }
+            logger.info("Test TLS join; Lic:{} TLS:{} Disco:{} Settings:{}  ; Expect Failure: {}",
+                licenseMode, tlsOn, discoveryType, settings.toDelimitedString(','), expectFailure);
+            if (expectFailure) {
                 IllegalStateException ise = expectThrows(IllegalStateException.class, () -> validator.accept(node, state));
-                assertEquals("TLS setup is required for license type [" + license.operationMode().name() + "]", ise.getMessage());
+                assertEquals("Transport TLS ([xpack.security.transport.ssl.enabled]) is required for license type ["
+                    + license.operationMode().description() + "] when security is enabled", ise.getMessage());
             } else {
                 validator.accept(node, state);
             }
@@ -395,13 +431,13 @@ public class SecurityTests extends ESTestCase {
         FieldPermissions permissions = new FieldPermissions(
                 new FieldPermissionsDefinition(new String[]{"field_granted"}, Strings.EMPTY_ARRAY));
         IndicesAccessControl.IndexAccessControl indexGrantedAccessControl = new IndicesAccessControl.IndexAccessControl(true, permissions,
-                Collections.emptySet());
+                DocumentPermissions.allowAll());
         permissionsMap.put("index_granted", indexGrantedAccessControl);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(false,
-                FieldPermissions.DEFAULT, Collections.emptySet());
+                FieldPermissions.DEFAULT, DocumentPermissions.allowAll());
         permissionsMap.put("index_not_granted", indexAccessControl);
         IndicesAccessControl.IndexAccessControl nullFieldPermissions =
-                new IndicesAccessControl.IndexAccessControl(true, null, Collections.emptySet());
+                new IndicesAccessControl.IndexAccessControl(true, null, DocumentPermissions.allowAll());
         permissionsMap.put("index_null", nullFieldPermissions);
         IndicesAccessControl index = new IndicesAccessControl(true, permissionsMap);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, index);
@@ -437,7 +473,7 @@ public class SecurityTests extends ESTestCase {
         FieldPermissions fieldPermissions = new FieldPermissions(new FieldPermissionsDefinition(
                 new String[]{"field_granted"}, Strings.EMPTY_ARRAY));
         Map<String, IndicesAccessControl.IndexAccessControl> permissionsMap = Collections.singletonMap(index, new
-                IndicesAccessControl.IndexAccessControl(true, fieldPermissions, Collections.emptySet()));
+                IndicesAccessControl.IndexAccessControl(true, fieldPermissions, DocumentPermissions.allowAll()));
         IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, permissionsMap);
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
         Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();

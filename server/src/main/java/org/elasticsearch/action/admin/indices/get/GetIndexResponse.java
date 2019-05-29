@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
@@ -34,6 +35,8 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,6 +47,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * A response for a get index action.
@@ -56,7 +60,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
     private String[] indices;
 
-    GetIndexResponse(String[] indices,
+    public GetIndexResponse(String[] indices,
                      ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings,
                      ImmutableOpenMap<String, List<AliasMetaData>> aliases,
                      ImmutableOpenMap<String, Settings> settings,
@@ -249,15 +253,34 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
                     }
                     builder.endObject();
 
-                    builder.startObject("mappings");
                     ImmutableOpenMap<String, MappingMetaData> indexMappings = mappings.get(index);
-                    if (indexMappings != null) {
+                    // the default on 6.x should be true to include types in the response
+                    boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+                            BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+                    if (includeTypeName) {
+                        builder.startObject("mappings");
+                        if (indexMappings != null) {
+                            for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
+                                builder.field(typeEntry.key);
+                                builder.map(typeEntry.value.sourceAsMap());
+                            }
+                        }
+                        builder.endObject();
+                    } else {
+                        MappingMetaData mappings = null;
                         for (final ObjectObjectCursor<String, MappingMetaData> typeEntry : indexMappings) {
-                            builder.field(typeEntry.key);
-                            builder.map(typeEntry.value.sourceAsMap());
+                            if (typeEntry.key.equals(MapperService.DEFAULT_MAPPING) == false) {
+                                assert mappings == null;
+                                mappings = typeEntry.value;
+                            }
+                        }
+                        if (mappings == null) {
+                            // no mappings yet
+                            builder.startObject("mappings").endObject();
+                        } else {
+                            builder.field("mappings", mappings.sourceAsMap());
                         }
                     }
-                    builder.endObject();
 
                     builder.startObject("settings");
                     Settings indexSettings = settings.get(index);

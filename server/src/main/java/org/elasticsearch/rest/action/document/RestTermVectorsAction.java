@@ -19,9 +19,11 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
@@ -43,18 +45,19 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
+        LogManager.getLogger(RestTermVectorsAction.class));
+
     public RestTermVectorsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvectors", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvectors", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvectors", this);
-
-        // we keep usage of _termvector as alias for now
-        controller.registerHandler(GET, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/_termvector", this);
-        controller.registerHandler(GET, "/{index}/{type}/{id}/_termvector", this);
-        controller.registerHandler(POST, "/{index}/{type}/{id}/_termvector", this);
+        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}/_termvectors", this,
+            GET, "/{index}/{type}/_termvector", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}/_termvectors", this,
+            POST, "/{index}/{type}/_termvector", deprecationLogger);
+        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}/{id}/_termvectors", this,
+            GET, "/{index}/{type}/{id}/_termvector", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}/{id}/_termvectors", this,
+            POST, "/{index}/{type}/{id}/_termvector", deprecationLogger);
     }
 
     @Override

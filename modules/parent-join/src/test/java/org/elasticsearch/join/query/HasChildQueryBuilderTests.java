@@ -256,6 +256,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "      \"from\" : 0,\n" +
                 "      \"size\" : 100,\n" +
                 "      \"version\" : false,\n" +
+                "      \"seq_no_primary_term\" : false,\n" +
                 "      \"explain\" : false,\n" +
                 "      \"track_scores\" : false,\n" +
                 "      \"sort\" : [ {\n" +
@@ -369,5 +370,13 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         Query query = queryBuilder.rewrite(queryShardContext).toQuery(queryShardContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testExtractInnerHitBuildersWithDuplicate() {
+        final HasChildQueryBuilder queryBuilder
+            = new HasChildQueryBuilder(CHILD_DOC, new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), ScoreMode.None);
+        queryBuilder.innerHit(new InnerHitBuilder("some_name"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> InnerHitContextBuilder.extractInnerHits(queryBuilder, Collections.singletonMap("some_name", null)));
     }
 }

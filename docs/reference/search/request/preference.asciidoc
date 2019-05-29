@@ -13,25 +13,48 @@ The `preference` is a query string parameter which can be set to:
 
 [horizontal]
 `_primary`::
-	The operation will be executed only on primary shards.  deprecated[6.1.0,
-	will be removed in 7.0. See the warning below for more information.]
+The operation will be executed only on primary shards. 
+ifdef::asciidoctor[]
+deprecated:[6.1.0, "will be removed in 7.0. See the warning below for more information."]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[6.1.0,
+will be removed in 7.0. See the warning below for more information.]
+endif::[]
 
 `_primary_first`::
-	The operation will be executed on primary shards if possible, but will fall
-	back to other shards if not. deprecated[6.1.0, will be removed in 7.0. See
-	the warning below for more information.]
+The operation will be executed on primary shards if possible, but will fall
+back to other shards if not. 
+ifdef::asciidoctor[]
+deprecated:[6.1.0, "will be removed in 7.0. See the warning below for more information."]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[6.1.0,
+will be removed in 7.0. See the warning below for more information.]
+endif::[]
 
 `_replica`::
-	The operation will be executed only on replica shards. If there are multiple
-	replicas then the order of preference between them is unspecified.
-	deprecated[6.1.0, will be removed in 7.0. See the warning below for more
-	information.]
+The operation will be executed only on replica shards. If there are multiple
+replicas then the order of preference between them is unspecified. 
+ifdef::asciidoctor[]
+deprecated:[6.1.0, "will be removed in 7.0. See the warning below for more information."]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[6.1.0,
+will be removed in 7.0. See the warning below for more information.]
+endif::[]
 
 `_replica_first`::
-	The operation will be executed on replica shards if possible, but will fall
-	back to other shards if not. If there are multiple replicas then the order of
-	preference between them is unspecified.  deprecated[6.1.0, will be removed in
-	7.0. See the warning below for more information.]
+The operation will be executed on replica shards if possible, but will fall
+back to other shards if not. If there are multiple replicas then the order of
+preference between them is unspecified. 
+ifdef::asciidoctor[]
+deprecated:[6.1.0, "will be removed in 7.0. See the warning below for more information."]
+endif::[]
+ifndef::asciidoctor[]
+deprecated[6.1.0,
+will be removed in 7.0. See the warning below for more information.]
+endif::[]
 
 `_only_local`::
 	The operation will be executed only on shards allocated to the local

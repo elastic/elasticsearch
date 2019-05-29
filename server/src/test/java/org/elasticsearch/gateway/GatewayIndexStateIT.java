@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -124,7 +125,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
+            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -168,7 +169,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> trying to index into a closed index ...");
         try {
-            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimeout("1s").execute().actionGet();
+            client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
             fail();
         } catch (IndexClosedException e) {
             // all is well
@@ -229,7 +230,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
 
-        client().prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
+        client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
     }
 
     public void testTwoNodesSingleDoc() throws Exception {
@@ -316,6 +317,40 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> verify the doc is there");
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+    }
+
+    public void testDanglingIndicesIgnoredWhenObsolete() throws Exception {
+        logger.info("--> starting first node");
+        internalCluster().startNode();
+
+        logger.info("--> indexing a simple document");
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
+
+        internalCluster().fullRestart(new RestartCallback() {
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                return Settings.builder()
+                    .put(Node.NODE_DATA_SETTING.getKey(), false)
+                    .put(Node.NODE_MASTER_SETTING.getKey(), false)
+                    // avoid waiting for discovery.
+                    .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0)
+                    .build();
+            }
+
+            @Override
+            public boolean validateClusterForming() {
+                return false;
+            }
+        });
+
+        logger.info("--> starting second node (master)");
+        internalCluster().startNode();
+
+        logger.info("--> verify green status");
+        ensureGreen();
+
+        logger.info("--> verify that the dangling index does not exists");
+        assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(false));
     }
 
     /**

@@ -283,7 +283,11 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     }
 
     IndicesShardStoresResponse() {
-        this(ImmutableOpenMap.<String, ImmutableOpenIntMap<List<StoreStatus>>>of(), Collections.<Failure>emptyList());
+        this(ImmutableOpenMap.of(), Collections.emptyList());
+    }
+
+    public IndicesShardStoresResponse(StreamInput in) throws IOException {
+        readFrom(in);
     }
 
     /**

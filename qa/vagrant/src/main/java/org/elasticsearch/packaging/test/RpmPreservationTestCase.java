@@ -58,7 +58,7 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
     protected abstract Distribution distribution();
 
     @BeforeClass
-    public static void cleanup() {
+    public static void cleanup() throws Exception {
         installation = null;
         cleanEverything();
     }
@@ -69,14 +69,14 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test10Install() {
+    public void test10Install() throws Exception {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution());
     }
 
-    public void test20Remove() {
+    public void test20Remove() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         remove(distribution());
@@ -91,7 +91,7 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
         assertFalse(Files.exists(installation.envFile));
     }
 
-    public void test30PreserveConfig() {
+    public void test30PreserveConfig() throws Exception {
         final Shell sh = new Shell();
 
         installation = install(distribution());
@@ -100,10 +100,22 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
 
         sh.run("echo foobar | " + installation.executables().elasticsearchKeystore + " add --stdin foo.bar");
         Stream.of(
-            installation.config("elasticsearch.yml"),
-            installation.config("jvm.options"),
-            installation.config("log4j2.properties")
-        ).forEach(path -> append(path, "# foo"));
+            "elasticsearch.yml",
+            "jvm.options",
+            "log4j2.properties"
+        )
+            .map(each -> installation.config(each))
+            .forEach(path -> append(path, "# foo"));
+        if (distribution().isDefault()) {
+            Stream.of(
+                "role_mapping.yml",
+                "roles.yml",
+                "users",
+                "users_roles"
+            )
+                .map(each -> installation.config(each))
+                .forEach(path -> append(path, "# foo"));
+        }
 
         remove(distribution());
         assertRemoved(distribution());
@@ -131,11 +143,22 @@ public abstract class RpmPreservationTestCase extends PackagingTestCase {
             "elasticsearch.yml",
             "jvm.options",
             "log4j2.properties"
-        ).forEach(configFile -> {
-            final Path original = installation.config(configFile);
-            final Path saved = installation.config(configFile + ".rpmsave");
-            assertFalse(original + " should not exist", Files.exists(original));
-            assertTrue(saved + " should exist", Files.exists(saved));
-        });
+        ).forEach(this::assertConfFilePreserved);
+
+        if (distribution().isDefault()) {
+            Stream.of(
+                "role_mapping.yml",
+                "roles.yml",
+                "users",
+                "users_roles"
+            ).forEach(this::assertConfFilePreserved);
+        }
+    }
+
+    private void assertConfFilePreserved(String configFile) {
+        final Path original = installation.config(configFile);
+        final Path saved = installation.config(configFile + ".rpmsave");
+        assertFalse(original + " should not exist", Files.exists(original));
+        assertTrue(saved + " should exist", Files.exists(saved));
     }
 }

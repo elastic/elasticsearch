@@ -72,13 +72,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitShowSchemas(SqlBaseParser.ShowSchemasContext ctx);
   /**
-   * Visit a parse tree produced by the {@code sysCatalogs}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSysCatalogs(SqlBaseParser.SysCatalogsContext ctx);
-  /**
    * Visit a parse tree produced by the {@code sysTables}
    * labeled alternative in {@link SqlBaseParser#statement}.
    * @param ctx the parse tree
@@ -99,13 +92,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitSysTypes(SqlBaseParser.SysTypesContext ctx);
-  /**
-   * Visit a parse tree produced by the {@code sysTableTypes}
-   * labeled alternative in {@link SqlBaseParser#statement}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitSysTableTypes(SqlBaseParser.SysTableTypesContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#query}.
    * @param ctx the parse tree
@@ -373,6 +359,13 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitExtract(SqlBaseParser.ExtractContext ctx);
   /**
+   * Visit a parse tree produced by the {@code currentDateTimeFunction}
+   * labeled alternative in {@link SqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCurrentDateTimeFunction(SqlBaseParser.CurrentDateTimeFunctionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code constantDefault}
    * labeled alternative in {@link SqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -414,6 +407,12 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitParenthesizedExpression(SqlBaseParser.ParenthesizedExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link SqlBaseParser#builtinDateTimeFunction}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitBuiltinDateTimeFunction(SqlBaseParser.BuiltinDateTimeFunctionContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#castExpression}.
    * @param ctx the parse tree
@@ -550,12 +549,6 @@ interface SqlBaseVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInterval(SqlBaseParser.IntervalContext ctx);
-  /**
-   * Visit a parse tree produced by {@link SqlBaseParser#intervalValue}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitIntervalValue(SqlBaseParser.IntervalValueContext ctx);
   /**
    * Visit a parse tree produced by {@link SqlBaseParser#intervalField}.
    * @param ctx the parse tree

@@ -70,6 +70,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -83,6 +84,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndTerm;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -104,9 +106,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.MockTransportClient;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -135,7 +136,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -158,6 +158,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 
@@ -364,7 +365,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TcpTransport.PORT.getKey(), 0);
+        builder.put(TransportSettings.PORT.getKey(), 0);
         builder.put("http.port", 0);
         builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
@@ -395,6 +396,8 @@ public final class InternalTestCluster extends TestCluster {
         // always reduce this - it can make tests really slow
         builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(), TimeValue.timeValueMillis(
                 RandomNumbers.randomIntBetween(random, 20, 50)));
+        builder.put(RecoverySettings.INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING.getKey(),
+            RandomNumbers.randomIntBetween(random, 1, 5));
         defaultSettings = builder.build();
         executor = EsExecutors.newScaling("internal_test_cluster_executor", 0, Integer.MAX_VALUE, 0, TimeUnit.SECONDS,
                 EsExecutors.daemonThreadFactory("test_" + clusterName), new ThreadContext(Settings.EMPTY));
@@ -442,7 +445,7 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.builder();
-        builder.put(Transport.TRANSPORT_TCP_COMPRESS.getKey(), rarely(random));
+        builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), rarely(random));
         if (random.nextBoolean()) {
             builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));
         }
@@ -464,9 +467,9 @@ public final class InternalTestCluster extends TestCluster {
 
         // randomize tcp settings
         if (random.nextBoolean()) {
-            builder.put(TransportService.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
-            builder.put(TransportService.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
-            builder.put(TransportService.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
+            builder.put(TransportSettings.CONNECTIONS_PER_NODE_RECOVERY.getKey(), random.nextInt(2) + 1);
+            builder.put(TransportSettings.CONNECTIONS_PER_NODE_BULK.getKey(), random.nextInt(3) + 1);
+            builder.put(TransportSettings.CONNECTIONS_PER_NODE_REG.getKey(), random.nextInt(6) + 1);
         }
 
         if (random.nextBoolean()) {
@@ -490,7 +493,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(TcpTransport.PING_SCHEDULE.getKey(), RandomNumbers.randomIntBetween(random, 100, 2000) + "ms");
+            builder.put(TransportSettings.PING_SCHEDULE.getKey(), RandomNumbers.randomIntBetween(random, 100, 2000) + "ms");
         }
 
         if (random.nextBoolean()) {
@@ -659,8 +662,9 @@ public final class InternalTestCluster extends TestCluster {
             // we clone this here since in the case of a node restart we might need it again
             secureSettings = ((MockSecureSettings) secureSettings).clone();
         }
+        final Settings nodeSettings = finalSettings.build();
         MockNode node = new MockNode(
-                finalSettings.build(),
+                nodeSettings,
                 plugins,
                 nodeConfigurationSource.nodeConfigPath(nodeId),
                 forbidPrivateIndexSettings);
@@ -675,7 +679,7 @@ public final class InternalTestCluster extends TestCluster {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new NodeAndClient(name, node, nodeId);
+        return new NodeAndClient(name, node, nodeSettings, nodeId);
     }
 
     private String buildNodeName(int id, Settings settings) {
@@ -841,15 +845,17 @@ public final class InternalTestCluster extends TestCluster {
 
     private final class NodeAndClient implements Closeable {
         private MockNode node;
+        private final Settings originalNodeSettings;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
         private final int nodeAndClientId;
 
-        NodeAndClient(String name, MockNode node, int nodeAndClientId) {
+        NodeAndClient(String name, MockNode node, Settings originalNodeSettings, int nodeAndClientId) {
             this.node = node;
             this.name = name;
+            this.originalNodeSettings = originalNodeSettings;
             this.nodeAndClientId = nodeAndClientId;
             markNodeDataDirsAsNotEligableForWipe(node);
         }
@@ -975,7 +981,7 @@ public final class InternalTestCluster extends TestCluster {
             // use a new seed to make sure we have new node id
             final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1;
             Settings finalSettings = Settings.builder()
-                    .put(node.originalSettings())
+                    .put(originalNodeSettings)
                     .put(newSettings)
                     .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                     .build();
@@ -1191,6 +1197,7 @@ public final class InternalTestCluster extends TestCluster {
         //check that shards that have same sync id also contain same number of documents
         assertSameSyncIdSameDocs();
         assertOpenTranslogReferences();
+        assertNoSnapshottedIndexCommit();
     }
 
     private void assertSameSyncIdSameDocs() {
@@ -1261,6 +1268,28 @@ public final class InternalTestCluster extends TestCluster {
         });
     }
 
+    private void assertNoSnapshottedIndexCommit() throws Exception {
+        assertBusy(() -> {
+            final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            for (NodeAndClient nodeAndClient : nodesAndClients) {
+                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+                for (IndexService indexService : indexServices) {
+                    for (IndexShard indexShard : indexService) {
+                        try {
+                            Engine engine = IndexShardTestCase.getEngine(indexShard);
+                            if (engine instanceof InternalEngine) {
+                                assertFalse(indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
+                                    EngineTestCase.hasSnapshottedCommits(engine));
+                            }
+                        } catch (AlreadyClosedException ignored) {
+
+                        }
+                    }
+                }
+            }
+        });
+    }
+
     /**
      * Asserts that the document history in Lucene index is consistent with Translog's on every index shard of the cluster.
      * This assertion might be expensive, thus we prefer not to execute on every test but only interesting tests.
@@ -1281,26 +1310,24 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    private IndexShard getShardOrNull(ClusterState clusterState, ShardRouting shardRouting) {
+        if (shardRouting == null || shardRouting.assignedToNode() == false) {
+            return null;
+        }
+        final DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
+        if (assignedNode == null) {
+            return null;
+        }
+        return getInstance(IndicesService.class, assignedNode.getName()).getShardOrNull(shardRouting.shardId());
+    }
+
     public void assertSeqNos() throws Exception {
-        final BiFunction<ClusterState, ShardRouting, IndexShard> getInstanceShardInstance = (clusterState, shardRouting) -> {
-            if (shardRouting.assignedToNode() == false) {
-                return null;
-            }
-            final DiscoveryNode assignedNode = clusterState.nodes().get(shardRouting.currentNodeId());
-            if (assignedNode == null) {
-                return null;
-            }
-            return getInstance(IndicesService.class, assignedNode.getName()).getShardOrNull(shardRouting.shardId());
-        };
         assertBusy(() -> {
             final ClusterState state = clusterService().state();
             for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
                 for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
-                    if (primaryShardRouting == null) {
-                        continue;
-                    }
-                    final IndexShard primaryShard = getInstanceShardInstance.apply(state, primaryShardRouting);
+                    final IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
                         continue; //just ignore - shard movement
                     }
@@ -1315,7 +1342,7 @@ public final class InternalTestCluster extends TestCluster {
                     assertThat(primaryShardRouting + " should have set the global checkpoint",
                         primarySeqNoStats.getGlobalCheckpoint(), not(equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO)));
                     for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
-                        final IndexShard replicaShard = getInstanceShardInstance.apply(state, replicaShardRouting);
+                        final IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
                         if (replicaShard == null) {
                             continue; //just ignore - shard movement
                         }
@@ -1344,12 +1371,10 @@ public final class InternalTestCluster extends TestCluster {
             for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
                 for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
-                    if (primaryShardRouting == null || primaryShardRouting.assignedToNode() == false) {
+                    IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
+                    if (primaryShard == null) {
                         continue;
                     }
-                    DiscoveryNode primaryNode = state.nodes().get(primaryShardRouting.currentNodeId());
-                    IndexShard primaryShard = getInstance(IndicesService.class, primaryNode.getName())
-                        .indexServiceSafe(primaryShardRouting.index()).getShard(primaryShardRouting.id());
                     final List<DocIdSeqNoAndTerm> docsOnPrimary;
                     try {
                         docsOnPrimary = IndexShardTestCase.getDocIdAndSeqNos(primaryShard);
@@ -1357,12 +1382,10 @@ public final class InternalTestCluster extends TestCluster {
                         continue;
                     }
                     for (ShardRouting replicaShardRouting : indexShardRoutingTable.value.replicaShards()) {
-                        if (replicaShardRouting.assignedToNode() == false) {
+                        IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
+                        if (replicaShard == null) {
                             continue;
                         }
-                        DiscoveryNode replicaNode = state.nodes().get(replicaShardRouting.currentNodeId());
-                        IndexShard replicaShard = getInstance(IndicesService.class, replicaNode.getName())
-                            .indexServiceSafe(replicaShardRouting.index()).getShard(replicaShardRouting.id());
                         final List<DocIdSeqNoAndTerm> docsOnReplica;
                         try {
                             docsOnReplica = IndexShardTestCase.getDocIdAndSeqNos(replicaShard);
@@ -1388,8 +1411,7 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    private void wipePendingDataDirectories() {
-        assert Thread.holdsLock(this);
+    public synchronized void wipePendingDataDirectories() {
         if (!dataDirToClean.isEmpty()) {
             try {
                 for (Path path : dataDirToClean) {
@@ -1452,6 +1474,10 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized <T> Iterable<T> getDataNodeInstances(Class<T> clazz) {
         return getInstances(clazz, new DataNodePredicate());
+    }
+
+    public synchronized <T> T getCurrentMasterNodeInstance(Class<T> clazz) {
+        return getInstance(clazz, new NodeNamePredicate(getMasterName()));
     }
 
     /**
@@ -2208,23 +2234,24 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Returns a predicate that only accepts settings of nodes with one of the given names.
      */
-    public static Predicate<Settings> nameFilter(String... nodeName) {
-        return new NodeNamePredicate(new HashSet<>(Arrays.asList(nodeName)));
+    public static Predicate<Settings> nameFilter(String... nodeNames) {
+        final Set<String> nodes = Sets.newHashSet(nodeNames);
+        return settings -> nodes.contains(settings.get("node.name"));
     }
 
-    private static final class NodeNamePredicate implements Predicate<Settings> {
+    private static final class NodeNamePredicate implements Predicate<NodeAndClient> {
         private final HashSet<String> nodeNames;
 
-        NodeNamePredicate(HashSet<String> nodeNames) {
-            this.nodeNames = nodeNames;
+        NodeNamePredicate(String... nodeNames) {
+            this.nodeNames = Sets.newHashSet(nodeNames);
         }
 
         @Override
-        public boolean test(Settings settings) {
-            return nodeNames.contains(settings.get("node.name"));
-
+        public boolean test(NodeAndClient nodeAndClient) {
+            return nodeNames.contains(nodeAndClient.getName());
         }
     }
+
 
 
     /**
@@ -2280,10 +2307,18 @@ public final class InternalTestCluster extends TestCluster {
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
                 CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
                 assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
-                // TODO: This is commented out while Lee looks into the failures
-                // See: https://github.com/elastic/elasticsearch/issues/30290
-                // CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
-                // assertThat("Accounting breaker not reset to 0 on node: " + name, acctBreaker.getUsed(), equalTo(0L));
+
+                // Mute this assertion until we have a new Lucene snapshot with https://issues.apache.org/jira/browse/LUCENE-8809.
+                // try {
+                //    assertBusy(() -> {
+                //        CircuitBreaker acctBreaker = breakerService.getBreaker(CircuitBreaker.ACCOUNTING);
+                //        assertThat("Accounting breaker not reset to 0 on node: " + name + ", are there still Lucene indices around?",
+                //            acctBreaker.getUsed(), equalTo(0L));
+                //    });
+                // } catch (Exception e) {
+                //    throw new AssertionError("Exception during check for accounting breaker reset to 0", e);
+                // }
+
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of
                 // that the breaker can sometimes be incremented from ping

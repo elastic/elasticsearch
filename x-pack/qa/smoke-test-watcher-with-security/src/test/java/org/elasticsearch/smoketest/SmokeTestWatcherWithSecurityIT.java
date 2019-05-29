@@ -6,6 +6,7 @@
 package org.elasticsearch.smoketest;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/35361")
 public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
@@ -146,7 +148,7 @@ public class SmokeTestWatcherWithSecurityIT extends ESRestTestCase {
             builder.startObject("condition").startObject("compare").startObject("ctx.payload.hits.total").field("gte", 1)
                     .endObject().endObject().endObject();
             builder.startObject("actions").startObject("logging").startObject("logging")
-                    .field("text", "successfully ran " + watchId + "to test for search inpput").endObject().endObject().endObject();
+                    .field("text", "successfully ran " + watchId + "to test for search input").endObject().endObject().endObject();
             builder.endObject();
 
             indexWatch(watchId, builder);

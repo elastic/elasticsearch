@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[get-trial-status]]
-=== Get Trial Status API
+=== Get trial status API
+++++
+<titleabbrev>Get trial status</titleabbrev>
+++++
 
 This API enables you to check the status of your trial license.
 

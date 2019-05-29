@@ -334,7 +334,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         IndexShardRoutingTable indexShardRoutingTable = clusterState.routingTable().index("test").shard(0);
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
             .remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
-        clusterState = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+        clusterState = strategy.disassociateDeadNodes(clusterState, true, "reroute");
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(assertShardStats(routingNodes), equalTo(true));

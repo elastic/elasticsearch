@@ -12,9 +12,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import java.util.Locale;
-
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -24,7 +23,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
 
     private String error(String pattern) {
         ParsingException ex = expectThrows(ParsingException.class,
-                () -> parser.createExpression(String.format(Locale.ROOT, "exp LIKE %s", pattern)));
+                () -> parser.createExpression(format(null, "exp LIKE {}", pattern)));
 
         return ex.getMessage();
     }
@@ -33,9 +32,9 @@ public class LikeEscapingParsingTests extends ESTestCase {
         Expression exp = null;
         boolean parameterized = randomBoolean();
         if (parameterized) {
-            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(DataType.KEYWORD.esType, pattern)));
+            exp = parser.createExpression("exp LIKE ?", singletonList(new SqlTypedParamValue(DataType.KEYWORD.typeName, pattern)));
         } else {
-            exp = parser.createExpression(String.format(Locale.ROOT, "exp LIKE '%s'", pattern));
+            exp = parser.createExpression(format(null, "exp LIKE '{}'", pattern));
         }
         assertThat(exp, instanceOf(Like.class));
         Like l = (Like) exp;

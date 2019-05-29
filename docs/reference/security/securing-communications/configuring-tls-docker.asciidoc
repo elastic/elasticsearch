@@ -1,8 +1,10 @@
 [role="xpack"]
 [[configuring-tls-docker]]
-=== Encrypting Communications in an {es} Docker Container
+=== Encrypting communications in an {es} Docker Container
 
-Starting with version 6.0.0, {security} (Gold, Platinum or Enterprise subscriptions) https://www.elastic.co/guide/en/elasticsearch/reference/6.0/breaking-6.0.0-xes.html[requires SSL/TLS]
+Starting with version 6.0.0, {stack} {security-features}
+(Gold, Platinum or Enterprise subscriptions)
+https://www.elastic.co/guide/en/elasticsearch/reference/6.0/breaking-6.0.0-xes.html[require SSL/TLS]
 encryption for the transport networking layer.
 
 This section demonstrates an easy path to get started with SSL/TLS for both
@@ -10,7 +12,7 @@ HTTPS and transport using the {es} Docker image. The example uses
 Docker Compose to manage the containers.
 
 For further details, please refer to
-{xpack-ref}/encrypting-communications.html[Encrypting Communications] and
+{stack-ov}/encrypting-communications.html[Encrypting communications] and
 https://www.elastic.co/subscriptions[available subscriptions].
 
 [float]
@@ -59,6 +61,8 @@ WARNING: Version {version} of {es} has not yet been released, so a
 endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
+
+ifdef::asciidoctor[]
 ["source","yaml",subs="attributes"]
 ----
 version: '2.2'
@@ -66,7 +70,32 @@ version: '2.2'
 services:
   create_certs:
     container_name: create_certs
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
+    image: {docker-image}
+    command: >
+      bash -c '
+        if [[ ! -d config/certificates/certs ]]; then
+          mkdir config/certificates/certs;
+        fi;
+        if [[ ! -f /local/certs/bundle.zip ]]; then
+          bin/elasticsearch-certgen --silent --in config/certificates/instances.yml --out config/certificates/certs/bundle.zip;
+          unzip config/certificates/certs/bundle.zip -d config/certificates/certs; <1>
+        fi;
+        chgrp -R 0 config/certificates/certs
+      '
+    user: ${UID:-1000}
+    working_dir: /usr/share/elasticsearch
+    volumes: ['.:/usr/share/elasticsearch/config/certificates']
+----
+endif::[]
+ifndef::asciidoctor[]
+["source","yaml",subs="attributes"]
+----
+version: '2.2'
+
+services:
+  create_certs:
+    container_name: create_certs
+    image: {docker-image}
     command: >
       bash -c '
         if [[ ! -d config/certificates/certs ]]; then
@@ -82,6 +111,7 @@ services:
     working_dir: /usr/share/elasticsearch
     volumes: ['.:/usr/share/elasticsearch/config/certificates']
 ----
+endif::[]
 
 <1> The new node certificates and CA certificate+key are placed under the local directory `certs`.
 endif::[]
@@ -103,7 +133,7 @@ version: '2.2'
 services:
   es01:
     container_name: es01
-    image: docker.elastic.co/elasticsearch/elasticsearch-platinum:{version}
+    image: {docker-image}
     environment:
       - node.name=es01
       - discovery.zen.minimum_master_nodes=2
@@ -128,7 +158,7 @@ services:
 
   es02:
     container_name: es02
-    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
+    image: {docker-image}
     environment:
       - node.name=es02
       - discovery.zen.minimum_master_nodes=2
@@ -146,7 +176,7 @@ services:
     volumes: ['esdata_02:/usr/share/elasticsearch/data', './certs:$CERTS_DIR']
 
   wait_until_ready:
-    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
+    image: {docker-image}
     command: /usr/bin/true
     depends_on: {"es01": {"condition": "service_healthy"}}
 
@@ -156,7 +186,7 @@ volumes: {"esdata_01": {"driver": "local"}, "esdata_02": {"driver": "local"}}
 <1> Bootstrap `elastic` with the password defined in `.env`. See
 {stack-ov}/built-in-users.html#bootstrap-elastic-passwords[the Elastic Bootstrap Password].
 <2> Automatically generate and apply a trial subscription, in order to enable
-{security}.
+{security-features}.
 <3> Disable verification of authenticity for inter-node communication. Allows
 creating self-signed certificates without having to pin specific internal IP addresses.
 endif::[]

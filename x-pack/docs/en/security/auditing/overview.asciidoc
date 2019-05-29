@@ -13,7 +13,8 @@ Audit logs are **disabled** by default. To enable this functionality, you
 must set `xpack.security.audit.enabled` to `true` in `elasticsearch.yml`.
 ============================================================================
 
-{Security} provides two ways to persist audit logs:
+The {es} {security-features} provide two ways to persist audit logs, but only
+the first one is recommended and the other is deprecated:
 
 * The <<audit-log-output, `logfile`>> output, which persists events to
   a dedicated `<clustername>_audit.log` file on the host's file system.
@@ -21,11 +22,12 @@ must set `xpack.security.audit.enabled` to `true` in `elasticsearch.yml`.
   is also generated.
 * The <<audit-index, `index`>> output, which persists events to an Elasticsearch
   index. The audit index can reside on the same cluster, or a separate cluster.
+  deprecated[6.7.0]
 
 By default, only the `logfile` output is used when enabling auditing,
-implicitly outputing to both `<clustername>_audit.log` and `<clustername>_access.log`.
+implicitly outputting to both `<clustername>_audit.log` and `<clustername>_access.log`.
 To facilitate browsing and analyzing the events, you can also enable
-indexing by setting `xpack.security.audit.outputs` in `elasticsearch.yml`:
+indexing by setting `xpack.security.audit.outputs` in `elasticsearch.yml`: deprecated[6.7.0]
 
 [source,yaml]
 ----------------------------
@@ -33,6 +35,6 @@ xpack.security.audit.outputs: [ index, logfile ]
 ----------------------------
 
 TIP: If you choose to enable the `index` output type, we strongly recommend that 
-you still use the `logfile` output as the official record of events. If the 
+you still use the `logfile` output as the official record of events. If the
 target index is unavailable (for example, during a rolling upgrade), the `index` 
-output can lose messages.
+output can lose messages. This is one reason why this output type has been deprecated.

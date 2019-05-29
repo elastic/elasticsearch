@@ -20,19 +20,22 @@ package org.elasticsearch.client;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
 import org.elasticsearch.client.ml.DeleteDatafeedRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataRequest;
+import org.elasticsearch.client.ml.DeleteExpiredDataResponse;
 import org.elasticsearch.client.ml.DeleteFilterRequest;
 import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
@@ -60,6 +63,8 @@ import org.elasticsearch.client.ml.GetJobStatsRequest;
 import org.elasticsearch.client.ml.GetJobStatsResponse;
 import org.elasticsearch.client.ml.GetModelSnapshotsRequest;
 import org.elasticsearch.client.ml.GetModelSnapshotsResponse;
+import org.elasticsearch.client.ml.MlInfoRequest;
+import org.elasticsearch.client.ml.MlInfoResponse;
 import org.elasticsearch.client.ml.OpenJobRequest;
 import org.elasticsearch.client.ml.OpenJobResponse;
 import org.elasticsearch.client.ml.PostCalendarEventRequest;
@@ -79,6 +84,7 @@ import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -108,8 +114,10 @@ import org.elasticsearch.client.ml.job.process.ModelSnapshot;
 import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.junit.After;
 
 import java.io.IOException;
@@ -130,8 +138,10 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
@@ -519,7 +529,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -530,7 +549,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         while(pastCopy < now) {
             IndexRequest doc = new IndexRequest();
             doc.index(indexName);
-            doc.type("doc");
+            doc.type("_doc");
             doc.id("id" + i);
             doc.source("{\"total\":" +randomInt(1000) + ",\"timestamp\":"+ pastCopy +"}", XContentType.JSON);
             bulk.add(doc);
@@ -550,7 +569,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Arrays.asList("doc"))
+            .setTypes(Arrays.asList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
@@ -595,7 +614,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
@@ -659,7 +687,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
 
         // create the job and the datafeed
@@ -728,7 +765,16 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Set up the index and docs
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-        createIndexRequest.mapping("doc", "timestamp", "type=date", "total", "type=long");
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         BulkRequest bulk = new BulkRequest();
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -740,7 +786,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             Integer total = randomInt(1000);
             IndexRequest doc = new IndexRequest();
             doc.index(indexName);
-            doc.type("doc");
+            doc.type("_doc");
             doc.id("id" + i);
             doc.source("{\"total\":" + total + ",\"timestamp\":"+ thePast +"}", XContentType.JSON);
             bulk.add(doc);
@@ -760,7 +806,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Collections.singletonList("doc"))
+            .setTypes(Collections.singletonList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         machineLearningClient.putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
 
@@ -770,6 +816,164 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         Integer[] totals = response.getDataList().stream().map(map -> (Integer)map.get("total")).toArray(Integer[]::new);
         assertThat(totalTotals, containsInAnyOrder(totals));
+    }
+
+    public void testDeleteExpiredDataGivenNothingToDelete() throws Exception {
+        // Tests that nothing goes wrong when there's nothing to delete
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        DeleteExpiredDataResponse response = execute(new DeleteExpiredDataRequest(),
+            machineLearningClient::deleteExpiredData,
+            machineLearningClient::deleteExpiredDataAsync);
+
+        assertTrue(response.getDeleted());
+    }
+
+    private  String createExpiredData(String jobId) throws Exception {
+        String indexId = jobId + "-data";
+        // Set up the index and docs
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexId);
+        createIndexRequest.mapping(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("timestamp")
+                    .field("type", "date")
+                    .field("format", "epoch_millis")
+                .endObject()
+                .startObject("total")
+                    .field("type", "long")
+                .endObject()
+            .endObject()
+        .endObject());
+        highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
+        BulkRequest bulk = new BulkRequest();
+        bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        long nowMillis = System.currentTimeMillis();
+        int totalBuckets = 2 * 24;
+        int normalRate = 10;
+        int anomalousRate = 100;
+        int anomalousBucket = 30;
+        for (int bucket = 0; bucket < totalBuckets; bucket++) {
+            long timestamp = nowMillis - TimeValue.timeValueHours(totalBuckets - bucket).getMillis();
+            int bucketRate = bucket == anomalousBucket ? anomalousRate : normalRate;
+            for (int point = 0; point < bucketRate; point++) {
+                IndexRequest indexRequest = new IndexRequest(indexId, "_doc");
+                indexRequest.source(XContentType.JSON, "timestamp", timestamp, "total", randomInt(1000));
+                bulk.add(indexRequest);
+            }
+        }
+        highLevelClient().bulk(bulk, RequestOptions.DEFAULT);
+
+        {
+            // Index a randomly named unused state document
+            String docId = "non_existing_job_" + randomFrom("model_state_1234567#1", "quantiles", "categorizer_state#1");
+            IndexRequest indexRequest = new IndexRequest(".ml-state", "doc", docId);
+            indexRequest.source(Collections.emptyMap(), XContentType.JSON);
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+        }
+
+        Job job = buildJobForExpiredDataTests(jobId);
+        putJob(job);
+        openJob(job);
+        String datafeedId = createAndPutDatafeed(jobId, indexId);
+
+        startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis - TimeValue.timeValueHours(24).getMillis()));
+
+        waitForJobToClose(jobId);
+
+        long prevJobTimeStamp = System.currentTimeMillis() / 1000;
+
+        // Check that the current timestamp component, in seconds, differs from previously.
+        // Note that we used to use an 'awaitBusy(() -> false, 1, TimeUnit.SECONDS);'
+        // for the same purpose but the new approach...
+        // a) explicitly checks that the timestamps, in seconds, are actually different and
+        // b) is slightly more efficient since we may not need to wait an entire second for the timestamp to increment
+        assertBusy(() -> {
+            long timeNow = System.currentTimeMillis() / 1000;
+            assertFalse(prevJobTimeStamp >= timeNow);
+        });
+
+        // Update snapshot timestamp to force it out of snapshot retention window
+        long oneDayAgo = nowMillis - TimeValue.timeValueHours(24).getMillis() - 1;
+        updateModelSnapshotTimestamp(jobId, String.valueOf(oneDayAgo));
+
+        openJob(job);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        ForecastJobRequest forecastJobRequest = new ForecastJobRequest(jobId);
+        forecastJobRequest.setDuration(TimeValue.timeValueHours(3));
+        forecastJobRequest.setExpiresIn(TimeValue.timeValueSeconds(1));
+        ForecastJobResponse forecastJobResponse = machineLearningClient.forecastJob(forecastJobRequest, RequestOptions.DEFAULT);
+
+        waitForForecastToComplete(jobId, forecastJobResponse.getForecastId());
+
+        // Wait for the forecast to expire
+        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+
+        // Run up to now
+        startDatafeed(datafeedId, String.valueOf(0), String.valueOf(nowMillis));
+
+        waitForJobToClose(jobId);
+
+        return forecastJobResponse.getForecastId();
+    }
+
+    public void testDeleteExpiredData() throws Exception {
+
+        String jobId = "test-delete-expired-data";
+
+        String forecastId = createExpiredData(jobId);
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);
+        GetModelSnapshotsResponse getModelSnapshotsResponse = execute(getModelSnapshotsRequest, machineLearningClient::getModelSnapshots,
+            machineLearningClient::getModelSnapshotsAsync);
+
+        assertEquals(2L, getModelSnapshotsResponse.count());
+
+        assertTrue(forecastExists(jobId, forecastId));
+
+        {
+            // Verify .ml-state contains the expected unused state document
+            Iterable<SearchHit> hits = searchAll(".ml-state");
+            List<SearchHit> target = new ArrayList<>();
+            hits.forEach(target::add);
+            long numMatches = target.stream()
+                .filter(c -> c.getId().startsWith("non_existing_job"))
+                .count();
+
+            assertThat(numMatches, equalTo(1L));
+        }
+
+        DeleteExpiredDataRequest request = new DeleteExpiredDataRequest();
+        DeleteExpiredDataResponse response = execute(request, machineLearningClient::deleteExpiredData,
+            machineLearningClient::deleteExpiredDataAsync);
+
+        assertTrue(response.getDeleted());
+
+        awaitBusy(() -> false, 1, TimeUnit.SECONDS);
+
+        GetModelSnapshotsRequest getModelSnapshotsRequest1 = new GetModelSnapshotsRequest(jobId);
+        GetModelSnapshotsResponse getModelSnapshotsResponse1 = execute(getModelSnapshotsRequest1, machineLearningClient::getModelSnapshots,
+            machineLearningClient::getModelSnapshotsAsync);
+
+        assertEquals(1L, getModelSnapshotsResponse1.count());
+
+        assertFalse(forecastExists(jobId, forecastId));
+
+        {
+            // Verify .ml-state doesn't contain unused state documents
+            Iterable<SearchHit> hits = searchAll(".ml-state");
+            List<SearchHit> hitList = new ArrayList<>();
+            hits.forEach(hitList::add);
+            long numMatches = hitList.stream()
+                .filter(c -> c.getId().startsWith("non_existing_job"))
+                .count();
+
+            assertThat(numMatches, equalTo(0L));
+        }
     }
 
     public void testDeleteForecast() throws Exception {
@@ -1141,9 +1345,40 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(exception.status().getStatus(), equalTo(404));
     }
 
+    public void testGetMlInfo() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        MlInfoResponse infoResponse = execute(new MlInfoRequest(), machineLearningClient::getMlInfo, machineLearningClient::getMlInfoAsync);
+        Map<String, Object> info = infoResponse.getInfo();
+        assertThat(info, notNullValue());
+        assertTrue(info.containsKey("defaults"));
+        assertTrue(info.containsKey("limits"));
+    }
+
     public static String randomValidJobId() {
         CodepointSetGenerator generator = new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz0123456789".toCharArray());
         return generator.ofCodePointsLength(random(), 10, 10);
+    }
+
+    private static Job buildJobForExpiredDataTests(String jobId) {
+        Job.Builder builder = new Job.Builder(jobId);
+        builder.setDescription(randomAlphaOfLength(10));
+
+        Detector detector = new Detector.Builder()
+            .setFunction("count")
+            .setDetectorDescription(randomAlphaOfLength(10))
+            .build();
+        AnalysisConfig.Builder configBuilder = new AnalysisConfig.Builder(Arrays.asList(detector));
+        //should not be random, see:https://github.com/elastic/ml-cpp/issues/208
+        configBuilder.setBucketSpan(new TimeValue(1, TimeUnit.HOURS));
+        builder.setAnalysisConfig(configBuilder);
+
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
+        dataDescription.setTimeField("timestamp");
+        builder.setDataDescription(dataDescription);
+
+        return builder.build();
     }
 
     public static Job buildJob(String jobId) {
@@ -1176,12 +1411,57 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         highLevelClient().machineLearning().openJob(new OpenJobRequest(job.getId()), RequestOptions.DEFAULT);
     }
 
+    private void waitForJobToClose(String jobId) throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        assertBusy(() -> {
+            JobStats stats = machineLearningClient.getJobStats(new GetJobStatsRequest(jobId), RequestOptions.DEFAULT).jobStats().get(0);
+            assertEquals(JobState.CLOSED, stats.getState());
+        }, 30, TimeUnit.SECONDS);
+    }
+
+    private void startDatafeed(String datafeedId, String start, String end) throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        StartDatafeedRequest startDatafeedRequest = new StartDatafeedRequest(datafeedId);
+        startDatafeedRequest.setStart(start);
+        startDatafeedRequest.setEnd(end);
+        StartDatafeedResponse response = execute(startDatafeedRequest,
+            machineLearningClient::startDatafeed,
+            machineLearningClient::startDatafeedAsync);
+
+        assertTrue(response.isStarted());
+    }
+
+    private void updateModelSnapshotTimestamp(String jobId, String timestamp) throws Exception {
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        GetModelSnapshotsRequest getModelSnapshotsRequest = new GetModelSnapshotsRequest(jobId);
+        GetModelSnapshotsResponse getModelSnapshotsResponse = execute(getModelSnapshotsRequest, machineLearningClient::getModelSnapshots,
+            machineLearningClient::getModelSnapshotsAsync);
+
+        assertThat(getModelSnapshotsResponse.count(), greaterThanOrEqualTo(1L));
+
+        ModelSnapshot modelSnapshot = getModelSnapshotsResponse.snapshots().get(0);
+
+        String snapshotId = modelSnapshot.getSnapshotId();
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
+
+        String snapshotUpdate = "{ \"timestamp\": " + timestamp + "}";
+        UpdateRequest updateSnapshotRequest = new UpdateRequest(".ml-anomalies-" + jobId, "doc", documentId);
+        updateSnapshotRequest.doc(snapshotUpdate.getBytes(StandardCharsets.UTF_8), XContentType.JSON);
+        highLevelClient().update(updateSnapshotRequest, RequestOptions.DEFAULT);
+    }
+
+
+
     private String createAndPutDatafeed(String jobId, String indexName) throws IOException {
         String datafeedId = jobId + "-feed";
         DatafeedConfig datafeed = DatafeedConfig.builder(datafeedId, jobId)
             .setIndices(indexName)
             .setQueryDelay(TimeValue.timeValueSeconds(1))
-            .setTypes(Arrays.asList("doc"))
+            .setTypes(Arrays.asList("_doc"))
             .setFrequency(TimeValue.timeValueSeconds(1)).build();
         highLevelClient().machineLearning().putDatafeed(new PutDatafeedRequest(datafeed), RequestOptions.DEFAULT);
         return datafeedId;
@@ -1349,5 +1629,31 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertEquals(Collections.singletonList("UNIX_MS"), structure.getJodaTimestampFormats());
         assertEquals("timestamp", structure.getTimestampField());
         assertFalse(structure.needClientTimezone());
+    }
+
+    public void testEnableUpgradeMode() throws Exception {
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+
+        MlInfoResponse mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
+        assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(false));
+
+        AcknowledgedResponse setUpgrademodeResponse = execute(new SetUpgradeModeRequest(true),
+            machineLearningClient::setUpgradeMode,
+            machineLearningClient::setUpgradeModeAsync);
+
+        assertThat(setUpgrademodeResponse.isAcknowledged(), is(true));
+
+
+        mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
+        assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(true));
+
+        setUpgrademodeResponse = execute(new SetUpgradeModeRequest(false),
+            machineLearningClient::setUpgradeMode,
+            machineLearningClient::setUpgradeModeAsync);
+
+        assertThat(setUpgrademodeResponse.isAcknowledged(), is(true));
+
+        mlInfoResponse = machineLearningClient.getMlInfo(new MlInfoRequest(), RequestOptions.DEFAULT);
+        assertThat(mlInfoResponse.getInfo().get("upgrade_mode"), equalTo(false));
     }
 }

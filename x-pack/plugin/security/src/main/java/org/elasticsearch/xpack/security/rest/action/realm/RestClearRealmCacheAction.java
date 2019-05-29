@@ -29,6 +29,7 @@ public final class RestClearRealmCacheAction extends SecurityBaseRestHandler {
     public RestClearRealmCacheAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/realm/{realms}/_clear_cache", this);
+        controller.registerHandler(POST, "/_security/realm/{realms}/_clear_cache", this);
 
         // @deprecated: Remove in 6.0
         controller.registerAsDeprecatedHandler(POST, "/_shield/realm/{realms}/_cache/clear", this,

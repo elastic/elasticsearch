@@ -55,6 +55,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -158,6 +159,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         Setting.intSetting("index.number_of_routing_shards", INDEX_NUMBER_OF_SHARDS_SETTING,
                            1, new Setting.Validator<Integer>() {
             @Override
+            public void validate(Integer value) {
+            }
+
+            @Override
             public void validate(Integer numRoutingShards, Map<Setting<Integer>, Integer> settings) {
                 Integer numShards = settings.get(INDEX_NUMBER_OF_SHARDS_SETTING);
                 if (numRoutingShards < numShards) {
@@ -223,14 +228,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
     public static final String INDEX_ROUTING_INCLUDE_GROUP_PREFIX = "index.routing.allocation.include";
     public static final String INDEX_ROUTING_EXCLUDE_GROUP_PREFIX = "index.routing.allocation.exclude";
     public static final Setting.AffixSetting<String> INDEX_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.prefixKeySetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", (key) ->
-            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+        Setting.prefixKeySetting(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".", key ->
+            Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
     public static final Setting.AffixSetting<String> INDEX_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.prefixKeySetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", (key) ->
-            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+        Setting.prefixKeySetting(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".", key ->
+            Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
     public static final Setting.AffixSetting<String> INDEX_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.prefixKeySetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", (key) ->
-            Setting.simpleString(key, (value, map) -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
+        Setting.prefixKeySetting(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + ".", key ->
+            Setting.simpleString(key, value -> IP_VALIDATOR.accept(key, value), Property.Dynamic, Property.IndexScope));
     public static final Setting.AffixSetting<String> INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING =
         Setting.prefixKeySetting("index.routing.allocation.initial_recovery.", key -> Setting.simpleString(key));
         // this is only setable internally not a registered setting!!
@@ -491,6 +496,29 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             return mapping;
         }
         return mappings.get(MapperService.DEFAULT_MAPPING);
+    }
+
+    /**
+     * Resolves a type from a mapping-related request into the type that should be used when
+     * merging and updating mappings.
+     *
+     * If the special `_doc` type is provided, then we replace it with the actual type that is
+     * being used in the mappings. This allows typeless APIs such as 'index' or 'put mappings'
+     * to work against indices with a custom type name.
+     */
+    public String resolveDocumentType(String type) {
+        if (MapperService.SINGLE_MAPPING_NAME.equals(type) &&
+                mappings.containsKey(type) == false &&
+                getCreationVersion().onOrAfter(Version.V_6_0_0)) {
+            // If the type is _doc and we have a 6.x index, then _doc is an alias
+            // for the actual type of the index (if any)
+            for (ObjectCursor<String> cursor : mappings.keys()) {
+                if (cursor.value.equals(MapperService.DEFAULT_MAPPING) == false) {
+                    return cursor.value;
+                }
+            }
+        }
+        return type;
     }
 
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {
@@ -1090,6 +1118,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
                 throw new IllegalStateException("you must set the number of shards before setting/reading primary terms");
             }
             primaryTerms = new long[numberOfShards()];
+            Arrays.fill(primaryTerms, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
         }
 
 
@@ -1120,7 +1149,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
             }
             int numberOfReplicas = maybeNumberOfReplicas;
             if (numberOfReplicas < 0) {
-                throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
+                throw new IllegalArgumentException("must specify non-negative number of replicas for index [" + index + "]");
             }
 
             int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
@@ -1534,14 +1563,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContentFragmen
         if (sourceNumberOfShards < targetNumberOfShards) { // split
             factor = targetNumberOfShards / sourceNumberOfShards;
             if (factor * sourceNumberOfShards != targetNumberOfShards || factor <= 1) {
-                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
+                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a " +
                     "factor of ["
                     + targetNumberOfShards + "]");
             }
         } else if (sourceNumberOfShards > targetNumberOfShards) { // shrink
             factor = sourceNumberOfShards / targetNumberOfShards;
             if (factor * targetNumberOfShards != sourceNumberOfShards || factor <= 1) {
-                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a must be a " +
+                throw new IllegalArgumentException("the number of source shards [" + sourceNumberOfShards + "] must be a " +
                     "multiple of ["
                     + targetNumberOfShards + "]");
             }

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-valid-detector]]
-=== Validate Detectors API
+=== Validate detectors API
 ++++
-<titleabbrev>Validate Detectors </titleabbrev>
+<titleabbrev>Validate detectors </titleabbrev>
 ++++
 
 Validates detector configuration information.

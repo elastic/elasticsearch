@@ -40,15 +40,14 @@ public class RestActivateWatchAction extends WatcherRestHandler {
 
         final DeactivateRestHandler deactivateRestHandler = new DeactivateRestHandler(settings);
 
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}/_activate", this,
-                                                 POST, "/_watcher/watch/{id}/_activate", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/{id}/_activate", this,
-                                                 PUT, "/_watcher/watch/{id}/_activate", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler,
-                                                 POST, "/_watcher/watch/{id}/_deactivate", deprecationLogger);
-        controller.registerWithDeprecatedHandler(PUT, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler,
-                                                 PUT, "/_watcher/watch/{id}/_deactivate", deprecationLogger);
+        controller.registerHandler(POST, URI_BASE + "/watch/{id}/_activate", this);
+        controller.registerHandler(POST, "/_watcher/watch/{id}/_activate", this);
+        controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_activate", this);
+        controller.registerHandler(PUT, "/_watcher/watch/{id}/_activate", this);
+        controller.registerHandler(POST, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
+        controller.registerHandler(POST, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler);
+        controller.registerHandler(PUT, URI_BASE + "/watch/{id}/_deactivate", deactivateRestHandler);
+        controller.registerHandler(PUT, "/_watcher/watch/{id}/_deactivate", deactivateRestHandler);
     }
 
     @Override

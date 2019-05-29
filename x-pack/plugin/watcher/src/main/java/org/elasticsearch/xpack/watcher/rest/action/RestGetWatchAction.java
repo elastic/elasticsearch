@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -22,7 +21,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchReques
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 
-
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -34,9 +32,8 @@ public class RestGetWatchAction extends WatcherRestHandler {
     public RestGetWatchAction(Settings settings, RestController controller) {
         super(settings);
 
-        // @deprecated Remove deprecations in 6.0
-        controller.registerWithDeprecatedHandler(GET, URI_BASE + "/watch/{id}", this,
-                                                 GET, "/_watcher/watch/{id}", deprecationLogger);
+        controller.registerHandler(GET, URI_BASE + "/watch/{id}", this);
+        controller.registerHandler(GET, "/_watcher/watch/{id}", this);
     }
 
     @Override
@@ -50,17 +47,9 @@ public class RestGetWatchAction extends WatcherRestHandler {
         return channel -> client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetWatchResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject()
-                        .field("found", response.isFound())
-                        .field("_id", response.getId());
-                        if (response.isFound()) {
-                            builder.field("_version", response.getVersion());
-                            ToXContent.MapParams xContentParams = new ToXContent.MapParams(request.params());
-                            builder.field("status", response.getStatus(), xContentParams);
-                            builder.field("watch", response.getSource(), xContentParams);
-                        }
-                        builder.endObject();
-
+                builder.startObject();
+                response.toXContent(builder, request);
+                builder.endObject();
                 RestStatus status = response.isFound() ? OK : NOT_FOUND;
                 return new BytesRestResponse(status, builder);
             }

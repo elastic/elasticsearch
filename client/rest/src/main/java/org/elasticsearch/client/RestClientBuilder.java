@@ -42,7 +42,7 @@ import java.util.Objects;
 public final class RestClientBuilder {
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
     public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
-    public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = DEFAULT_SOCKET_TIMEOUT_MILLIS;
+    public static final int DEFAULT_MAX_RETRY_TIMEOUT_MILLIS = 90000;
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
@@ -105,9 +105,10 @@ public final class RestClientBuilder {
     /**
      * Sets the maximum timeout (in milliseconds) to honour in case of multiple retries of the same request.
      * {@link #DEFAULT_MAX_RETRY_TIMEOUT_MILLIS} if not specified.
-     *
+     * @deprecated this setting is deprecated and will be removed in the future in favour of relying on socket and connect timeout
      * @throws IllegalArgumentException if {@code maxRetryTimeoutMillis} is not greater than 0
      */
+    @Deprecated
     public RestClientBuilder setMaxRetryTimeoutMillis(int maxRetryTimeoutMillis) {
         if (maxRetryTimeoutMillis <= 0) {
             throw new IllegalArgumentException("maxRetryTimeoutMillis must be greater than 0");

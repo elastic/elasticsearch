@@ -12,13 +12,16 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
+
+import javax.net.ssl.SSLSession;
+import java.util.function.Consumer;
 
 public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
@@ -29,12 +32,12 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
             final Version version,
             final ThreadPool threadPool,
             final NetworkService networkService,
-            final BigArrays bigArrays,
+            final PageCacheRecycler pageCacheRecycler,
             final NamedWriteableRegistry namedWriteableRegistry,
             final CircuitBreakerService circuitBreakerService,
             @Nullable final IPFilter authenticator,
             final SSLService sslService) {
-        super(settings, version, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, sslService);
+        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService);
         this.authenticator = authenticator;
     }
 
@@ -53,7 +56,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     @Override
     protected ServerChannelInitializer getSslChannelInitializer(final String name, final SSLConfiguration configuration) {
-        return new SecurityServerChannelInitializer(name, configuration);
+        return new SecurityServerChannelInitializer(name, configuration, getSslHandshakeListenerForProfile(name));
     }
 
     public class IPFilterServerChannelInitializer extends ServerChannelInitializer {
@@ -71,8 +74,8 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     public class SecurityServerChannelInitializer extends SslChannelInitializer {
 
-        SecurityServerChannelInitializer(final String name, final SSLConfiguration configuration) {
-            super(name, configuration);
+        SecurityServerChannelInitializer(final String name, final SSLConfiguration configuration, Consumer<SSLSession> handshakeListener) {
+            super(name, configuration, handshakeListener);
         }
 
         @Override

@@ -47,6 +47,7 @@ task cleanJira(type: DefaultTask) {
 // require network access for this one, exit early instead of starting up the cluster if we dont have network
 if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
     integTest.enabled = false
+    testingConventions.enabled = false
 } else {
     integTestRunner.finalizedBy cleanJira
 }

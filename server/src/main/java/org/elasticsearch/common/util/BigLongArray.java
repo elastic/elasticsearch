@@ -24,7 +24,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.BigArrays.LONG_PAGE_SIZE;
+import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
 
 /**
  * Long array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of

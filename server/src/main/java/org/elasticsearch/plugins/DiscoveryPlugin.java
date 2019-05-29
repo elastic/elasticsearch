@@ -66,7 +66,10 @@ public interface DiscoveryPlugin {
      * @param clusterApplier Use to locally apply cluster state updates
      * @param clusterSettings Use to get cluster settings
      * @param hostsProvider Use to find configured hosts which should be pinged for initial discovery
+     *
+     * @deprecated Future versions will not support pluggable discovery implementations.
      */
+    @Deprecated
     default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
                                                                NamedWriteableRegistry namedWriteableRegistry,
                                                                MasterService masterService,

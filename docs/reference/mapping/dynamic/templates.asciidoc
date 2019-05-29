@@ -48,7 +48,7 @@ reordered or deleted after they were initially added.
 
 The `match_mapping_type` is the datatype detected by the json parser. Since
 JSON doesn't allow to distinguish a `long` from an `integer` or a `double` from
-a `float`, it will always choose the wider datatype, ie. `long` for integers
+a `float`, it will always choose the wider datatype, i.e. `long` for integers
 and `double` for floating-point numbers.
 
 The following datatypes may be automatically detected:
@@ -204,13 +204,36 @@ PUT my_index
 PUT my_index/_doc/1
 {
   "name": {
-    "first":  "Alice",
-    "middle": "Mary",
-    "last":   "White"
+    "first":  "John",
+    "middle": "Winston",
+    "last":   "Lennon"
   }
 }
 --------------------------------------------------
 // CONSOLE
+
+Note that the `path_match` and `path_unmatch` parameters match on object paths
+in addition to leaf fields. As an example, indexing the following document will
+result in an error because the `path_match` setting also matches the object
+field `name.title`, which can't be mapped as text:
+
+[source,js]
+--------------------------------------------------
+PUT my_index/_doc/2
+{
+  "name": {
+    "first":  "Paul",
+    "last":   "McCartney",
+    "title": {
+      "value": "Sir",
+      "category": "order of chivalry"
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+// TEST[catch:bad_request]
 
 [[template-variables]]
 ==== `{name}` and `{dynamic_type}`
@@ -296,6 +319,7 @@ PUT my_index
 --------------------------------------------------
 // CONSOLE
 
+[[text-only-mappings-strings]]
 ===== `text`-only mappings for strings
 
 On the contrary to the previous example, if the only thing that you care about

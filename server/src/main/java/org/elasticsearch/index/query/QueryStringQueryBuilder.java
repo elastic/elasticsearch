@@ -184,7 +184,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         defaultField = in.readOptionalString();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            fieldsAndWeights.put(in.readString(), in.readFloat());
+            String field = in.readString();
+            Float weight = in.readFloat();
+            checkNegativeBoost(weight);
+            fieldsAndWeights.put(field, weight);
         }
         defaultOperator = Operator.readFromStream(in);
         analyzer = in.readOptionalString();
@@ -339,6 +342,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Adds a field to run the query string against with a specific boost.
      */
     public QueryStringQueryBuilder field(String field, float boost) {
+        checkNegativeBoost(boost);
         this.fieldsAndWeights.put(field, boost);
         return this;
     }
@@ -347,6 +351,9 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Add several fields to run the query against with a specific boost.
      */
     public QueryStringQueryBuilder fields(Map<String, Float> fields) {
+        for (float fieldBoost : fields.values()) {
+            checkNegativeBoost(fieldBoost);
+        }
         this.fieldsAndWeights.putAll(fields);
         return this;
     }

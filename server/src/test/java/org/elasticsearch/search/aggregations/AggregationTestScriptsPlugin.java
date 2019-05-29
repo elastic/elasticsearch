@@ -38,7 +38,7 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
 
     // Equivalent to:
     //
-    // List values = doc['values'].values;
+    // List values = doc['values'];
     // double[] res = new double[values.size()];
     // for (int i = 0; i < res.length; i++) {
     //      res[i] = values.get(i) - dec;
@@ -86,8 +86,8 @@ public class AggregationTestScriptsPlugin extends MockScriptPlugin {
             return value.getValue() + inc;
         });
 
-        scripts.put("doc['values'].values", vars -> {
-            Map<?, ?> doc = (Map) vars.get("doc");
+        scripts.put("doc['values']", vars -> {
+            Map<?, ?> doc = (Map<?,?>) vars.get("doc");
             return doc.get("values");
         });
 

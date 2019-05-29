@@ -53,7 +53,7 @@ public class IpTermsIT extends AbstractTermsTestCase {
                 return doc.get("ip");
             });
 
-            scripts.put("doc['ip'].values", vars -> {
+            scripts.put("doc['ip']", vars -> {
                 Map<?, ?> doc = (Map<?,?>) vars.get("doc");
                 return ((ScriptDocValues<?>) doc.get("ip")).get(0);
             });
@@ -96,7 +96,7 @@ public class IpTermsIT extends AbstractTermsTestCase {
                 client().prepareIndex("index", "type", "3").setSource("ip", "2001:db8::2:1"));
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
-                "doc['ip'].values", Collections.emptyMap());
+                "doc['ip']", Collections.emptyMap());
         SearchResponse response = client().prepareSearch("index").addAggregation(
                 AggregationBuilders.terms("my_terms").script(script).executionHint(randomExecutionHint())).get();
         assertSearchResponse(response);

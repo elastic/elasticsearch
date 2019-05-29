@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,17 +31,24 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
         List<Object[]> tests = new ArrayList<>();
-        tests.addAll(readScriptSpec("/select.csv-spec", parser));
-        tests.addAll(readScriptSpec("/command.csv-spec", parser));
-        tests.addAll(readScriptSpec("/fulltext.csv-spec", parser));
         tests.addAll(readScriptSpec("/agg.csv-spec", parser));
-        tests.addAll(readScriptSpec("/columns.csv-spec", parser));
-        tests.addAll(readScriptSpec("/datetime.csv-spec", parser));
         tests.addAll(readScriptSpec("/alias.csv-spec", parser));
+        tests.addAll(readScriptSpec("/arithmetic.csv-spec", parser));
+        tests.addAll(readScriptSpec("/columns.csv-spec", parser));
+        tests.addAll(readScriptSpec("/command.csv-spec", parser));
+        tests.addAll(readScriptSpec("/date.csv-spec", parser));
+        tests.addAll(readScriptSpec("/datetime.csv-spec", parser));
+        tests.addAll(readScriptSpec("/datetime-interval.csv-spec", parser));
+        tests.addAll(readScriptSpec("/field-alias.csv-spec", parser));
+        tests.addAll(readScriptSpec("/filter.csv-spec", parser));
+        tests.addAll(readScriptSpec("/fulltext.csv-spec", parser));
+        tests.addAll(readScriptSpec("/functions.csv-spec", parser));
+        tests.addAll(readScriptSpec("/ip.csv-spec", parser));
+        tests.addAll(readScriptSpec("/math.csv-spec", parser));
         tests.addAll(readScriptSpec("/null.csv-spec", parser));
         tests.addAll(readScriptSpec("/nested.csv-spec", parser));
-        tests.addAll(readScriptSpec("/functions.csv-spec", parser));
-        tests.addAll(readScriptSpec("/math.csv-spec", parser));
+        tests.addAll(readScriptSpec("/select.csv-spec", parser));
+        
         return tests;
     }
 
@@ -57,5 +66,11 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
             ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
             assertResults(expected, elasticResults);
         }
+    }
+
+    @Override
+    protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
+        Logger log = logEsResultSet() ? logger : null;
+        JdbcAssert.assertResultSets(expected, elastic, log, false, false);
     }
 }

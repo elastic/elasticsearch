@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
 
@@ -95,7 +94,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
     public void testIndexName() {
         final long timestamp = new DateTime(2017, 8, 3, 13, 47, 58, DateTimeZone.UTC).getMillis();
 
-        DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY.MM.dd").withZoneUTC();
+        DateFormatter formatter = DateFormatter.forPattern("YYYY.MM.dd");
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
                 equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017.08.03"));
         assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),
@@ -104,8 +103,10 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
                 equalTo(".monitoring-logstash-" + TEMPLATE_VERSION + "-2017.08.03"));
         assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017.08.03"));
+        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. " +
+            "Prefix your date format with '8' to use the new specifier.");
 
-        formatter = DateTimeFormat.forPattern("YYYY-dd-MM-HH.mm.ss").withZoneUTC();
+        formatter = DateFormatter.forPattern("YYYY-dd-MM-HH.mm.ss");
         assertThat(indexName(formatter, MonitoredSystem.ES, timestamp),
                 equalTo(".monitoring-es-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.KIBANA, timestamp),
@@ -114,5 +115,8 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
                 equalTo(".monitoring-logstash-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
         assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
+
+        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. " +
+            "Prefix your date format with '8' to use the new specifier.");
     }
 }

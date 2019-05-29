@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.session.Executable;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.type.KeywordEsField;
@@ -20,8 +20,8 @@ import static java.util.Collections.emptyMap;
 
 public abstract class Command extends LogicalPlan implements Executable {
 
-    protected Command(Location location) {
-        super(location, emptyList());
+    protected Command(Source source) {
+        super(source, emptyList());
     }
 
     @Override
@@ -49,6 +49,6 @@ public abstract class Command extends LogicalPlan implements Executable {
     }
 
     private FieldAttribute field(String name, EsField field) {
-        return new FieldAttribute(location(), name, field);
+        return new FieldAttribute(source(), name, field);
     }
 }

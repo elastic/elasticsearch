@@ -12,4 +12,48 @@ setup:
   - length: { cluster_settings: 0 }
   - length: { node_settings: 0 }
   - length: { index_settings: 0 }
+  - length: { ml_settings: 0 }
 
+---
+"Test ml":
+  - skip:
+      features: ["headers", "warnings"]
+      reason: testing a deprecated field
+
+# Index the config directly to prevent the deprecated
+# use_dis_max field being rewritten by the parser. This
+# simulates the config being created in an older version
+# of elasticsearch
+  - do:
+      headers:
+        Content-Type: application/json
+      index:
+        index: .ml-config
+        type: doc
+        id: deprecation-datafeed-datafeed
+        body:  >
+          {
+            "datafeed_id" : "deprecation-datafeed",
+            "config_type" : "datafeed",
+            "job_id" : "deprecation-job",
+            "indices" : ["index-foo"],
+            "query" : {
+              "query_string" : {
+                "query" : "foo",
+                "use_dis_max" : true
+              }
+            }
+          }
+
+  - do:
+      indices.refresh:
+        index: [.ml-config]
+
+  - do:
+      warnings:
+        - Deprecated field [use_dis_max] used, replaced by [Set [tie_breaker] to 1 instead]
+      xpack.migration.deprecations:
+        index: "*"
+  - length: { ml_settings: 1 }
+  - match: { ml_settings.0.level : warning }
+  - match: { ml_settings.0.message : "Datafeed [deprecation-datafeed] uses deprecated query options" }

@@ -4,7 +4,11 @@
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/security/privilege/{application}/{name}",
-      "paths": [ "/_xpack/security/privilege/{application}/{name}" ],
+      "paths": [
+        "/_xpack/security/privilege",
+        "/_xpack/security/privilege/{application}",
+        "/_xpack/security/privilege/{application}/{name}"
+      ],
       "parts": {
         "application": {
           "type" : "string",

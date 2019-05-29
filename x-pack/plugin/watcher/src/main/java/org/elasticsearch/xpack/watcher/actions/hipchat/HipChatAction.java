@@ -20,6 +20,10 @@ import org.elasticsearch.xpack.watcher.notification.hipchat.SentMessages;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * @deprecated Hipchat actions will be removed in Elasticsearch 7.0 since Hipchat is defunct
+ */
+@Deprecated
 public class HipChatAction implements Action {
 
     public static final String TYPE = "hipchat";

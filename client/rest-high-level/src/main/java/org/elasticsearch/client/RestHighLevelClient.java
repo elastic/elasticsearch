@@ -59,10 +59,10 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.CountResponse;
-import org.elasticsearch.client.core.TermVectorsResponse;
-import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
+import org.elasticsearch.client.core.TermVectorsRequest;
+import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
@@ -138,6 +138,8 @@ import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregat
 import org.elasticsearch.search.aggregations.metrics.geobounds.ParsedGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.ParsedGeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.mad.MedianAbsoluteDeviationAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.mad.ParsedMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.ParsedMax;
 import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
@@ -162,8 +164,8 @@ import org.elasticsearch.search.aggregations.metrics.tophits.ParsedTopHits;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ParsedValueCount;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.mad.MedianAbsoluteDeviationAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.mad.ParsedMedianAbsoluteDeviation;
+import org.elasticsearch.search.aggregations.metrics.weighted_avg.ParsedWeightedAvg;
+import org.elasticsearch.search.aggregations.metrics.weighted_avg.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
@@ -201,13 +203,33 @@ import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toList;
 
 /**
- * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses.
- * The {@link RestClient} instance is internally built based on the provided {@link RestClientBuilder} and it gets closed automatically
- * when closing the {@link RestHighLevelClient} instance that wraps it.
+ * High level REST client that wraps an instance of the low level {@link RestClient} and allows to build requests and read responses. The
+ * {@link RestClient} instance is internally built based on the provided {@link RestClientBuilder} and it gets closed automatically when
+ * closing the {@link RestHighLevelClient} instance that wraps it.
+ * <p>
+ *
  * In case an already existing instance of a low-level REST client needs to be provided, this class can be subclassed and the
- * {@link #RestHighLevelClient(RestClient, CheckedConsumer, List)}  constructor can be used.
- * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through
- * plugins, or to add support for custom response sections, again added to Elasticsearch through plugins.
+ * {@link #RestHighLevelClient(RestClient, CheckedConsumer, List)} constructor can be used.
+ * <p>
+ *
+ * This class can also be sub-classed to expose additional client methods that make use of endpoints added to Elasticsearch through plugins,
+ * or to add support for custom response sections, again added to Elasticsearch through plugins.
+ * <p>
+ *
+ * The majority of the methods in this class come in two flavors, a blocking and an asynchronous version (e.g.
+ * {@link #search(SearchRequest, RequestOptions)} and {@link #searchAsync(SearchRequest, RequestOptions, ActionListener)}, where the later
+ * takes an implementation of an {@link ActionListener} as an argument that needs to implement methods that handle successful responses and
+ * failure scenarios. Most of the blocking calls can throw an {@link IOException} or an unchecked {@link ElasticsearchException} in the
+ * following cases:
+ *
+ * <ul>
+ * <li>an {@link IOException} is usually thrown in case of failing to parse the REST response in the high-level REST client, the request
+ * times out or similar cases where there is no response coming back from the Elasticsearch server</li>
+ * <li>an {@link ElasticsearchException} is usually thrown in case where the server returns a 4xx or 5xx error code. The high-level client
+ * then tries to parse the response body error details into a generic ElasticsearchException and suppresses the original
+ * {@link ResponseException}</li>
+ * </ul>
+ *
  */
 public class RestHighLevelClient implements Closeable {
 
@@ -445,7 +467,6 @@ public class RestHighLevelClient implements Closeable {
      * @param bulkRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final BulkResponse bulk(BulkRequest bulkRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(bulkRequest, RequestConverters::bulk, options, BulkResponse::fromXContent, emptySet());
@@ -490,7 +511,6 @@ public class RestHighLevelClient implements Closeable {
      * @param reindexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final BulkByScrollResponse reindex(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
@@ -504,7 +524,6 @@ public class RestHighLevelClient implements Closeable {
      * @param reindexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the submission response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final TaskSubmissionResponse submitReindexTask(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
@@ -532,7 +551,6 @@ public class RestHighLevelClient implements Closeable {
      * @param updateByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final BulkByScrollResponse updateByQuery(UpdateByQueryRequest updateByQueryRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
@@ -562,7 +580,6 @@ public class RestHighLevelClient implements Closeable {
      * @param deleteByQueryRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final BulkByScrollResponse deleteByQuery(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(
@@ -592,7 +609,6 @@ public class RestHighLevelClient implements Closeable {
      * @param rethrottleRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ListTasksResponse deleteByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleDeleteByQuery, options,
@@ -620,7 +636,6 @@ public class RestHighLevelClient implements Closeable {
      * @param rethrottleRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ListTasksResponse updateByQueryRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleUpdateByQuery, options,
@@ -649,7 +664,6 @@ public class RestHighLevelClient implements Closeable {
      * @param rethrottleRequest the request
      * @param options           the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ListTasksResponse reindexRethrottle(RethrottleRequest rethrottleRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(rethrottleRequest, RequestConverters::rethrottleReindex, options,
@@ -675,7 +689,6 @@ public class RestHighLevelClient implements Closeable {
      * Pings the remote Elasticsearch cluster and returns true if the ping succeeded, false otherwise
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the ping succeeded, false otherwise
-     * @throws IOException in case there is a problem sending the request
      */
     public final boolean ping(RequestOptions options) throws IOException {
         return performRequest(new MainRequest(), (request) -> RequestConverters.ping(), options, RestHighLevelClient::convertExistsResponse,
@@ -696,7 +709,6 @@ public class RestHighLevelClient implements Closeable {
      * Get the cluster info otherwise provided when sending an HTTP request to '/'
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final MainResponse info(RequestOptions options) throws IOException {
         return performRequestAndParseEntity(new MainRequest(), (request) -> RequestConverters.info(), options,
@@ -719,7 +731,6 @@ public class RestHighLevelClient implements Closeable {
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final GetResponse get(GetRequest getRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(getRequest, RequestConverters::get, options, GetResponse::fromXContent, singleton(404));
@@ -766,7 +777,6 @@ public class RestHighLevelClient implements Closeable {
      * @param multiGetRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      * @deprecated use {@link #mget(MultiGetRequest, RequestOptions)} instead
      */
     @Deprecated
@@ -781,7 +791,6 @@ public class RestHighLevelClient implements Closeable {
      * @param multiGetRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final MultiGetResponse mget(MultiGetRequest multiGetRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiGetRequest, RequestConverters::multiGet, options, MultiGetResponse::fromXContent,
@@ -843,7 +852,6 @@ public class RestHighLevelClient implements Closeable {
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document exists, <code>false</code> otherwise
-     * @throws IOException in case there is a problem sending the request
      */
     public final boolean exists(GetRequest getRequest, RequestOptions options) throws IOException {
         return performRequest(getRequest, RequestConverters::exists, options, RestHighLevelClient::convertExistsResponse, emptySet());
@@ -886,20 +894,19 @@ public class RestHighLevelClient implements Closeable {
 
     /**
      * Checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API 
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
      * on elastic.co</a>
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return <code>true</code> if the document and _source field exists, <code>false</code> otherwise
-     * @throws IOException in case there is a problem sending the request
      */
     public boolean existsSource(GetRequest getRequest, RequestOptions options) throws IOException {
         return performRequest(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, emptySet());
-    }     
-    
+    }
+
     /**
      * Asynchronously checks for the existence of a document with a "_source" field. Returns true if it exists, false otherwise.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API 
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-get.html#_source">Source exists API
      * on elastic.co</a>
      * @param getRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -908,15 +915,14 @@ public class RestHighLevelClient implements Closeable {
     public final void existsSourceAsync(GetRequest getRequest, RequestOptions options, ActionListener<Boolean> listener) {
         performRequestAsync(getRequest, RequestConverters::sourceExists, options, RestHighLevelClient::convertExistsResponse, listener,
                 emptySet());
-    }    
-    
+    }
+
     /**
      * Index a document using the Index API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-index_.html">Index API on elastic.co</a>
      * @param indexRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final IndexResponse index(IndexRequest indexRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(indexRequest, RequestConverters::index, options, IndexResponse::fromXContent, emptySet());
@@ -963,7 +969,6 @@ public class RestHighLevelClient implements Closeable {
      * @param countRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final CountResponse count(CountRequest countRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(countRequest, RequestConverters::count, options, CountResponse::fromXContent,
@@ -988,7 +993,6 @@ public class RestHighLevelClient implements Closeable {
      * @param updateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final UpdateResponse update(UpdateRequest updateRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(updateRequest, RequestConverters::update, options, UpdateResponse::fromXContent, emptySet());
@@ -1032,10 +1036,9 @@ public class RestHighLevelClient implements Closeable {
     /**
      * Deletes a document by id using the Delete API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete.html">Delete API on elastic.co</a>
-     * @param deleteRequest the reuqest
+     * @param deleteRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final DeleteResponse delete(DeleteRequest deleteRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(deleteRequest, RequestConverters::delete, options, DeleteResponse::fromXContent,
@@ -1084,10 +1087,14 @@ public class RestHighLevelClient implements Closeable {
      * @param searchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final SearchResponse search(SearchRequest searchRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, emptySet());
+        return performRequestAndParseEntity(
+                searchRequest,
+                r -> RequestConverters.search(r, "_search"),
+                options,
+                SearchResponse::fromXContent,
+                emptySet());
     }
 
     /**
@@ -1098,7 +1105,12 @@ public class RestHighLevelClient implements Closeable {
      */
     @Deprecated
     public final SearchResponse search(SearchRequest searchRequest, Header... headers) throws IOException {
-        return performRequestAndParseEntity(searchRequest, RequestConverters::search, SearchResponse::fromXContent, emptySet(), headers);
+        return performRequestAndParseEntity(
+                searchRequest,
+                r -> RequestConverters.search(r, "_search"),
+                SearchResponse::fromXContent,
+                emptySet(),
+                headers);
     }
 
     /**
@@ -1109,7 +1121,12 @@ public class RestHighLevelClient implements Closeable {
      * @param listener the listener to be notified upon request completion
      */
     public final void searchAsync(SearchRequest searchRequest, RequestOptions options, ActionListener<SearchResponse> listener) {
-        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::search, options, SearchResponse::fromXContent, listener,
+        performRequestAsyncAndParseEntity(
+                searchRequest,
+                r -> RequestConverters.search(r, "_search"),
+                options,
+                SearchResponse::fromXContent,
+                listener,
                 emptySet());
     }
 
@@ -1121,8 +1138,13 @@ public class RestHighLevelClient implements Closeable {
      */
     @Deprecated
     public final void searchAsync(SearchRequest searchRequest, ActionListener<SearchResponse> listener, Header... headers) {
-        performRequestAsyncAndParseEntity(searchRequest, RequestConverters::search, SearchResponse::fromXContent, listener,
-                emptySet(), headers);
+        performRequestAsyncAndParseEntity(
+                searchRequest,
+                r -> RequestConverters.search(r, "_search"),
+                SearchResponse::fromXContent,
+                listener,
+                emptySet(),
+                headers);
     }
 
     /**
@@ -1132,7 +1154,6 @@ public class RestHighLevelClient implements Closeable {
      * @param multiSearchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      * @deprecated use {@link #msearch(MultiSearchRequest, RequestOptions)} instead
      */
     @Deprecated
@@ -1147,7 +1168,6 @@ public class RestHighLevelClient implements Closeable {
      * @param multiSearchRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final MultiSearchResponse msearch(MultiSearchRequest multiSearchRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(multiSearchRequest, RequestConverters::multiSearch, options, MultiSearchResponse::fromXContext,
@@ -1216,7 +1236,6 @@ public class RestHighLevelClient implements Closeable {
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      * @deprecated use {@link #scroll(SearchScrollRequest, RequestOptions)} instead
      */
     @Deprecated
@@ -1231,7 +1250,6 @@ public class RestHighLevelClient implements Closeable {
      * @param searchScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final SearchResponse scroll(SearchScrollRequest searchScrollRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(searchScrollRequest, RequestConverters::searchScroll, options, SearchResponse::fromXContent,
@@ -1301,7 +1319,6 @@ public class RestHighLevelClient implements Closeable {
      * @param clearScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(clearScrollRequest, RequestConverters::clearScroll, options, ClearScrollResponse::fromXContent,
@@ -1325,7 +1342,7 @@ public class RestHighLevelClient implements Closeable {
      * Asynchronously clears one or more scroll ids using the Clear Scroll API.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
      * Clear Scroll API on elastic.co</a>
-     * @param clearScrollRequest the reuqest
+     * @param clearScrollRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
@@ -1356,7 +1373,6 @@ public class RestHighLevelClient implements Closeable {
      * @param searchTemplateRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final SearchTemplateResponse searchTemplate(SearchTemplateRequest searchTemplateRequest,
                                                        RequestOptions options) throws IOException {
@@ -1382,7 +1398,6 @@ public class RestHighLevelClient implements Closeable {
      * @param explainRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final ExplainResponse explain(ExplainRequest explainRequest, RequestOptions options) throws IOException {
         return performRequest(explainRequest, RequestConverters::explain, options,
@@ -1480,7 +1495,6 @@ public class RestHighLevelClient implements Closeable {
      * @param rankEvalRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final RankEvalResponse rankEval(RankEvalRequest rankEvalRequest, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(rankEvalRequest, RequestConverters::rankEval, options, RankEvalResponse::fromXContent,
@@ -1558,7 +1572,6 @@ public class RestHighLevelClient implements Closeable {
      * @param fieldCapabilitiesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public final FieldCapabilitiesResponse fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest,
                                                      RequestOptions options) throws IOException {
@@ -1573,7 +1586,6 @@ public class RestHighLevelClient implements Closeable {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public GetStoredScriptResponse getScript(GetStoredScriptRequest request, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(request, RequestConverters::getScript, options,
@@ -1601,7 +1613,6 @@ public class RestHighLevelClient implements Closeable {
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse deleteScript(DeleteStoredScriptRequest request, RequestOptions options) throws IOException {
         return performRequestAndParseEntity(request, RequestConverters::deleteScript, options,
@@ -1629,7 +1640,6 @@ public class RestHighLevelClient implements Closeable {
      * @param putStoredScriptRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
-     * @throws IOException in case there is a problem sending the request or parsing back the response
      */
     public AcknowledgedResponse putScript(PutStoredScriptRequest putStoredScriptRequest,
                                              RequestOptions options) throws IOException {
@@ -1773,9 +1783,9 @@ public class RestHighLevelClient implements Closeable {
             throw new IOException("Unable to parse response body for " + response, e);
         }
     }
-    
+
     /**
-     * Defines a helper method for requests that can 404 and in which case will return an empty Optional 
+     * Defines a helper method for requests that can 404 and in which case will return an empty Optional
      * otherwise tries to parse the response body
      */
     protected final <Req extends Validatable, Resp> Optional<Resp> performRequestAndParseOptionalEntity(Req request,
@@ -1804,7 +1814,7 @@ public class RestHighLevelClient implements Closeable {
         } catch (Exception e) {
             throw new IOException("Unable to parse response body for " + response, e);
         }
-    }      
+    }
 
     @Deprecated
     protected final <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
@@ -1942,9 +1952,9 @@ public class RestHighLevelClient implements Closeable {
             }
         };
     }
-    
+
     /**
-     * Async request which returns empty Optionals in the case of 404s or parses entity into an Optional
+     * Asynchronous request which returns empty {@link Optional}s in the case of 404s or parses entity into an Optional
      */
     protected final <Req extends Validatable, Resp> void performRequestAsyncAndParseOptionalEntity(Req request,
             CheckedFunction<Req, Request, IOException> requestConverter,
@@ -1964,11 +1974,11 @@ public class RestHighLevelClient implements Closeable {
             return;
         }
         req.setOptions(options);
-        ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(), 
+        ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(),
                 entityParser), listener);
-        client.performRequestAsync(req, responseListener);        
-    }    
-    
+        client.performRequestAsync(req, responseListener);
+    }
+
     final <Resp> ResponseListener wrapResponseListener404sOptional(CheckedFunction<Response, Resp, IOException> responseConverter,
             ActionListener<Optional<Resp>> actionListener) {
         return new ResponseListener() {
@@ -1997,7 +2007,7 @@ public class RestHighLevelClient implements Closeable {
                 }
             }
         };
-    }    
+    }
 
     /**
      * Converts a {@link ResponseException} obtained from the low level REST client into an {@link ElasticsearchException}.
@@ -2010,15 +2020,16 @@ public class RestHighLevelClient implements Closeable {
         Response response = responseException.getResponse();
         HttpEntity entity = response.getEntity();
         ElasticsearchStatusException elasticsearchException;
+        RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
+
         if (entity == null) {
             elasticsearchException = new ElasticsearchStatusException(
-                    responseException.getMessage(), RestStatus.fromCode(response.getStatusLine().getStatusCode()), responseException);
+                    responseException.getMessage(), restStatus, responseException);
         } else {
             try {
                 elasticsearchException = parseEntity(entity, BytesRestResponse::errorFromXContent);
                 elasticsearchException.addSuppressed(responseException);
             } catch (Exception e) {
-                RestStatus restStatus = RestStatus.fromCode(response.getStatusLine().getStatusCode());
                 elasticsearchException = new ElasticsearchStatusException("Unable to parse response body", restStatus, responseException);
                 elasticsearchException.addSuppressed(e);
             }
@@ -2052,7 +2063,7 @@ public class RestHighLevelClient implements Closeable {
         return options.build();
     }
 
-    static boolean convertExistsResponse(Response response) {
+    protected static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
     }
 
@@ -2067,6 +2078,8 @@ public class RestHighLevelClient implements Closeable {
         public void usedDeprecatedName(String usedName, String modernName) {}
         @Override
         public void usedDeprecatedField(String usedName, String replacedWith) {}
+        @Override
+        public void deprecated(String message, Object... params) {}
     };
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
@@ -2082,6 +2095,7 @@ public class RestHighLevelClient implements Closeable {
         map.put(MaxAggregationBuilder.NAME, (p, c) -> ParsedMax.fromXContent(p, (String) c));
         map.put(SumAggregationBuilder.NAME, (p, c) -> ParsedSum.fromXContent(p, (String) c));
         map.put(AvgAggregationBuilder.NAME, (p, c) -> ParsedAvg.fromXContent(p, (String) c));
+        map.put(WeightedAvgAggregationBuilder.NAME, (p, c) -> ParsedWeightedAvg.fromXContent(p, (String) c));
         map.put(ValueCountAggregationBuilder.NAME, (p, c) -> ParsedValueCount.fromXContent(p, (String) c));
         map.put(InternalSimpleValue.NAME, (p, c) -> ParsedSimpleValue.fromXContent(p, (String) c));
         map.put(DerivativePipelineAggregationBuilder.NAME, (p, c) -> ParsedDerivative.fromXContent(p, (String) c));

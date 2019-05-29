@@ -134,8 +134,7 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
     @SuppressWarnings("unchecked")
     public void testSimpleGetFieldMappingsWithDefaults() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", getMappingForType("type")));
-
-        client().prepareIndex("test", "type", "1").setSource("num", 1).get();
+        client().admin().indices().preparePutMapping("test").setType("type").setSource("num", "type=long").get();
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
             .setFields("num", "field1", "obj.subfield").includeDefaults(true).get();

@@ -108,8 +108,13 @@ public class EnvelopeBuilder extends ShapeBuilder<Rectangle, EnvelopeBuilder> {
     }
 
     @Override
-    public Rectangle build() {
+    public Rectangle buildS4J() {
         return SPATIAL_CONTEXT.makeRectangle(topLeft.x, bottomRight.x, bottomRight.y, topLeft.y);
+    }
+
+    @Override
+    public org.apache.lucene.geo.Rectangle buildLucene() {
+        return new org.apache.lucene.geo.Rectangle(bottomRight.y, topLeft.y, topLeft.x, bottomRight.x);
     }
 
     @Override

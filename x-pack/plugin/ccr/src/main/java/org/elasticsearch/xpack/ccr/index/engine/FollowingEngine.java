@@ -16,6 +16,7 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.index.VersionType;
@@ -23,6 +24,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 
 import java.io.IOException;
@@ -56,24 +58,24 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     private void preFlight(final Operation operation) {
-        /*
-         * We assert here so that this goes uncaught in unit tests and fails nodes in standalone tests (we want a harsh failure so that we
-         * do not have a situation where a shard fails and is recovered elsewhere and a test subsequently passes). We throw an exception so
-         * that we also prevent issues in production code.
-         */
-        assert operation.seqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
+        assert FollowingEngineAssertions.preFlight(operation);
         if (operation.seqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
-            throw new IllegalStateException("a following engine does not accept operations without an assigned sequence number");
+            throw new ElasticsearchStatusException("a following engine does not accept operations without an assigned sequence number",
+                RestStatus.FORBIDDEN);
         }
     }
 
     @Override
     protected InternalEngine.IndexingStrategy indexingStrategyForOperation(final Index index) throws IOException {
         preFlight(index);
+        markSeqNoAsSeen(index.seqNo());
         // NOTES: refer Engine#getMaxSeqNoOfUpdatesOrDeletes for the explanation of the optimization using sequence numbers.
         final long maxSeqNoOfUpdatesOrDeletes = getMaxSeqNoOfUpdatesOrDeletes();
         assert maxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "max_seq_no_of_updates is not initialized";
         if (hasBeenProcessedBefore(index)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("index operation [id={} seq_no={} origin={}] was processed before", index.id(), index.seqNo(), index.origin());
+            }
             if (index.origin() == Operation.Origin.PRIMARY) {
                 /*
                  * The existing operation in this engine was probably assigned the term of the previous primary shard which is different
@@ -102,6 +104,7 @@ public final class FollowingEngine extends InternalEngine {
     @Override
     protected InternalEngine.DeletionStrategy deletionStrategyForOperation(final Delete delete) throws IOException {
         preFlight(delete);
+        markSeqNoAsSeen(delete.seqNo());
         if (delete.origin() == Operation.Origin.PRIMARY && hasBeenProcessedBefore(delete)) {
             // See the comment in #indexingStrategyForOperation for the explanation why we can safely skip this operation.
             final AlreadyProcessedFollowingEngineException error = new AlreadyProcessedFollowingEngineException(
@@ -131,8 +134,7 @@ public final class FollowingEngine extends InternalEngine {
 
     @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
-        // sequence number should be set when operation origin is primary
-        assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations on a following index must have an assigned sequence number";
+        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
         return true;
     }
 
@@ -149,32 +151,33 @@ public final class FollowingEngine extends InternalEngine {
     }
 
     private OptionalLong lookupPrimaryTerm(final long seqNo) throws IOException {
+        // Don't need to look up term for operations before the global checkpoint for they were processed on every copies already.
+        if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
+            return OptionalLong.empty();
+        }
         refreshIfNeeded("lookup_primary_term", seqNo);
         try (Searcher engineSearcher = acquireSearcher("lookup_primary_term", SearcherScope.INTERNAL)) {
-            // We have to acquire a searcher before execute this check to ensure that the requesting seq_no is always found in the else
-            // branch. If the operation is at most the global checkpoint, we should not look up its term as we may have merged away the
-            // operation. Moreover, we won't need to replicate this operation to replicas since it was processed on every copies already.
-            if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
-                return OptionalLong.empty();
-            } else {
-                final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
-                final IndexSearcher searcher = new IndexSearcher(reader);
-                searcher.setQueryCache(null);
-                final Query query = new BooleanQuery.Builder()
-                    .add(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo), BooleanClause.Occur.FILTER)
-                    // excludes the non-root nested documents which don't have primary_term.
-                    .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
-                    .build();
-                final TopDocs topDocs = searcher.search(query, 1);
-                if (topDocs.scoreDocs.length == 1) {
-                    final int docId = topDocs.scoreDocs[0].doc;
-                    final LeafReaderContext leaf = reader.leaves().get(ReaderUtil.subIndex(docId, reader.leaves()));
-                    final NumericDocValues primaryTermDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                    if (primaryTermDV != null && primaryTermDV.advanceExact(docId - leaf.docBase)) {
-                        assert primaryTermDV.longValue() > 0 : "invalid term [" + primaryTermDV.longValue() + "]";
-                        return OptionalLong.of(primaryTermDV.longValue());
-                    }
+            final DirectoryReader reader = Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader());
+            final IndexSearcher searcher = new IndexSearcher(reader);
+            searcher.setQueryCache(null);
+            final Query query = new BooleanQuery.Builder()
+                .add(LongPoint.newExactQuery(SeqNoFieldMapper.NAME, seqNo), BooleanClause.Occur.FILTER)
+                // excludes the non-root nested documents which don't have primary_term.
+                .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
+                .build();
+            final TopDocs topDocs = searcher.search(query, 1);
+            if (topDocs.scoreDocs.length == 1) {
+                final int docId = topDocs.scoreDocs[0].doc;
+                final LeafReaderContext leaf = reader.leaves().get(ReaderUtil.subIndex(docId, reader.leaves()));
+                final NumericDocValues primaryTermDV = leaf.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+                if (primaryTermDV != null && primaryTermDV.advanceExact(docId - leaf.docBase)) {
+                    assert primaryTermDV.longValue() > 0 : "invalid term [" + primaryTermDV.longValue() + "]";
+                    return OptionalLong.of(primaryTermDV.longValue());
                 }
+            }
+            if (seqNo <= engineConfig.getGlobalCheckpointSupplier().getAsLong()) {
+                return OptionalLong.empty(); // we have merged away the looking up operation.
+            } else {
                 assert false : "seq_no[" + seqNo + "] does not have primary_term, total_hits=[" + topDocs.totalHits + "]";
                 throw new IllegalStateException("seq_no[" + seqNo + "] does not have primary_term (total_hits=" + topDocs.totalHits + ")");
             }
@@ -194,5 +197,13 @@ public final class FollowingEngine extends InternalEngine {
      */
     public long getNumberOfOptimizedIndexing() {
         return numOfOptimizedIndexing.count();
+    }
+
+    @Override
+    public void verifyEngineBeforeIndexClosing() throws IllegalStateException {
+        // the value of the global checkpoint is not verified when the following engine is closed,
+        // allowing it to be closed even in the case where all operations have not been fetched and
+        // processed from the leader and the operations history has gaps. This way the following
+        // engine can be closed and reopened in order to bootstrap the follower index again.
     }
 }

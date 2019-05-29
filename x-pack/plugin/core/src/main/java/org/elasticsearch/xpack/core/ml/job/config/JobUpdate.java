@@ -29,6 +29,7 @@ import java.util.TreeSet;
 
 public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
+    public static final ParseField CLEAR_JOB_FINISH_TIME = new ParseField("clear_job_finish_time");
 
     // For internal updates
     static final ConstructingObjectParser<Builder, Void> INTERNAL_PARSER = new ConstructingObjectParser<>(
@@ -58,6 +59,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         INTERNAL_PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
         INTERNAL_PARSER.declareLong(Builder::setEstablishedModelMemory, Job.ESTABLISHED_MODEL_MEMORY);
         INTERNAL_PARSER.declareString(Builder::setJobVersion, Job.JOB_VERSION);
+        INTERNAL_PARSER.declareBoolean(Builder::setClearFinishTime, CLEAR_JOB_FINISH_TIME);
     }
 
     private final String jobId;
@@ -75,6 +77,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
     private final String modelSnapshotId;
     private final Long establishedModelMemory;
     private final Version jobVersion;
+    private final Boolean clearJobFinishTime;
 
     private JobUpdate(String jobId, @Nullable List<String> groups, @Nullable String description,
                       @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
@@ -82,7 +85,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
                       @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
                       @Nullable Long modelSnapshotRetentionDays, @Nullable List<String> categorisationFilters,
                       @Nullable Map<String, Object> customSettings, @Nullable String modelSnapshotId,
-                      @Nullable Long establishedModelMemory, @Nullable Version jobVersion) {
+                      @Nullable Long establishedModelMemory, @Nullable Version jobVersion, @Nullable Boolean clearJobFinishTime) {
         this.jobId = jobId;
         this.groups = groups;
         this.description = description;
@@ -98,6 +101,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         this.modelSnapshotId = modelSnapshotId;
         this.establishedModelMemory = establishedModelMemory;
         this.jobVersion = jobVersion;
+        this.clearJobFinishTime = clearJobFinishTime;
     }
 
     public JobUpdate(StreamInput in) throws IOException {
@@ -121,7 +125,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         modelSnapshotRetentionDays = in.readOptionalLong();
         resultsRetentionDays = in.readOptionalLong();
         if (in.readBoolean()) {
-            categorizationFilters = in.readList(StreamInput::readString);
+            categorizationFilters = in.readStringList();
         } else {
             categorizationFilters = null;
         }
@@ -136,6 +140,11 @@ public class JobUpdate implements Writeable, ToXContentObject {
             jobVersion = Version.readVersion(in);
         } else {
             jobVersion = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_6_0)) {
+            clearJobFinishTime = in.readOptionalBoolean();
+        } else {
+            clearJobFinishTime = null;
         }
     }
 
@@ -159,7 +168,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         out.writeOptionalLong(resultsRetentionDays);
         out.writeBoolean(categorizationFilters != null);
         if (categorizationFilters != null) {
-            out.writeStringList(categorizationFilters);
+            out.writeStringCollection(categorizationFilters);
         }
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
@@ -173,6 +182,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
             } else {
                 out.writeBoolean(false);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
+            out.writeOptionalBoolean(clearJobFinishTime);
         }
     }
 
@@ -236,6 +248,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
         return jobVersion;
     }
 
+    public Boolean getClearJobFinishTime() {
+        return clearJobFinishTime;
+    }
+
     public boolean isAutodetectProcessUpdate() {
         return modelPlotConfig != null || detectorUpdates != null || groups != null;
     }
@@ -285,6 +301,9 @@ public class JobUpdate implements Writeable, ToXContentObject {
         }
         if (jobVersion != null) {
             builder.field(Job.JOB_VERSION.getPreferredName(), jobVersion);
+        }
+        if (clearJobFinishTime != null) {
+            builder.field(CLEAR_JOB_FINISH_TIME.getPreferredName(), clearJobFinishTime);
         }
         builder.endObject();
         return builder;
@@ -415,6 +434,10 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setJobVersion(jobVersion);
         }
 
+        if (clearJobFinishTime != null && clearJobFinishTime) {
+            builder.setFinishedTime(null);
+        }
+
         builder.setAnalysisConfig(newAnalysisConfig);
         return builder.build();
     }
@@ -434,7 +457,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && (customSettings == null || Objects.equals(customSettings, job.getCustomSettings()))
                 && (modelSnapshotId == null || Objects.equals(modelSnapshotId, job.getModelSnapshotId()))
                 && (establishedModelMemory == null || Objects.equals(establishedModelMemory, job.getEstablishedModelMemory()))
-                && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()));
+                && (jobVersion == null || Objects.equals(jobVersion, job.getJobVersion()))
+                && ((clearJobFinishTime == null || clearJobFinishTime == false) || job.getFinishedTime() == null);
     }
 
     boolean updatesDetectors(Job job) {
@@ -481,14 +505,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
                 && Objects.equals(this.customSettings, that.customSettings)
                 && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
                 && Objects.equals(this.establishedModelMemory, that.establishedModelMemory)
-                && Objects.equals(this.jobVersion, that.jobVersion);
+                && Objects.equals(this.jobVersion, that.jobVersion)
+                && Objects.equals(this.clearJobFinishTime, that.clearJobFinishTime);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, categorizationFilters, customSettings,
-                modelSnapshotId, establishedModelMemory, jobVersion);
+                modelSnapshotId, establishedModelMemory, jobVersion, clearJobFinishTime);
     }
 
     public static class DetectorUpdate implements Writeable, ToXContentObject {
@@ -599,6 +624,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
         private String modelSnapshotId;
         private Long establishedModelMemory;
         private Version jobVersion;
+        private Boolean clearJobFinishTime;
 
         public Builder(String jobId) {
             this.jobId = jobId;
@@ -684,10 +710,15 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
+        public Builder setClearFinishTime(boolean clearJobFinishTime) {
+            this.clearJobFinishTime = clearJobFinishTime;
+            return this;
+        }
+
         public JobUpdate build() {
             return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
                     renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays, categorizationFilters, customSettings,
-                    modelSnapshotId, establishedModelMemory, jobVersion);
+                    modelSnapshotId, establishedModelMemory, jobVersion, clearJobFinishTime);
         }
     }
 }

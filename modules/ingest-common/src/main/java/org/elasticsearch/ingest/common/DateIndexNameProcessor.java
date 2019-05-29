@@ -19,15 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IllformedLocaleException;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.function.Function;
-
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -36,8 +29,14 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IllformedLocaleException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Function;
 
 public final class DateIndexNameProcessor extends AbstractProcessor {
 
@@ -90,12 +89,12 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
         String indexNameFormat = ingestDocument.renderTemplate(indexNameFormatTemplate);
         String dateRounding = ingestDocument.renderTemplate(dateRoundingTemplate);
 
-        DateTimeFormatter formatter = DateTimeFormat.forPattern(indexNameFormat);
+        DateFormatter formatter = DateFormatter.forPattern(indexNameFormat);
         StringBuilder builder = new StringBuilder()
                 .append('<')
                 .append(indexNamePrefix)
                     .append('{')
-                        .append(formatter.print(dateTime)).append("||/").append(dateRounding)
+                        .append(formatter.formatJoda(dateTime)).append("||/").append(dateRounding)
                             .append('{').append(indexNameFormat).append('|').append(timezone).append('}')
                     .append('}')
                 .append('>');

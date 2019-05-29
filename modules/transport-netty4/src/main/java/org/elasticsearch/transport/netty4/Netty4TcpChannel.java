@@ -20,9 +20,7 @@
 package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPromise;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -32,18 +30,20 @@ import org.elasticsearch.common.concurrent.CompletableContext;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TransportException;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 
 public class Netty4TcpChannel implements TcpChannel {
 
     private final Channel channel;
+    private final boolean isServer;
     private final String profile;
     private final CompletableContext<Void> connectContext;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
+    private final ChannelStats stats = new ChannelStats();
 
-    Netty4TcpChannel(Channel channel, String profile, @Nullable ChannelFuture connectFuture) {
+    Netty4TcpChannel(Channel channel, boolean isServer, String profile, @Nullable ChannelFuture connectFuture) {
         this.channel = channel;
+        this.isServer = isServer;
         this.profile = profile;
         this.connectContext = new CompletableContext<>();
         this.channel.closeFuture().addListener(f -> {
@@ -81,6 +81,11 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
+    public boolean isServerChannel() {
+        return isServer;
+    }
+
+    @Override
     public String getProfile() {
         return profile;
     }
@@ -96,14 +101,8 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
-    public void setSoLinger(int value) throws IOException {
-        if (channel.isOpen()) {
-            try {
-                channel.config().setOption(ChannelOption.SO_LINGER, value);
-            } catch (ChannelException e) {
-                throw new IOException(e);
-            }
-        }
+    public ChannelStats getChannelStats() {
+        return stats;
     }
 
     @Override

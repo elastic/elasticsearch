@@ -7,16 +7,21 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.security.SecurityField;
+import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 
 import javax.net.ssl.HostnameVerifier;
@@ -52,6 +57,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -60,7 +66,8 @@ import java.util.stream.Collectors;
  */
 public class SSLService extends AbstractComponent {
 
-    private final Settings settings;
+    private static final Logger logger = LogManager.getLogger(SSLService.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     /**
      * This is a mapping from "context name" (in general use, the name of a setting key)
@@ -82,6 +89,7 @@ public class SSLService extends AbstractComponent {
     private final SSLConfiguration globalSSLConfiguration;
     private final SetOnce<SSLConfiguration> transportSSLConfiguration = new SetOnce<>();
     private final Environment env;
+    private final Settings settings;
 
     /**
      * Create a new SSLService that parses the settings for the ssl contexts that need to be created, creates them, and then caches them
@@ -118,6 +126,13 @@ public class SSLService extends AbstractComponent {
                 return Collections.emptyMap();
             }
 
+            @Override
+            SSLConfiguration sslConfiguration(Settings settings) {
+                SSLConfiguration sslConfiguration = super.sslConfiguration(settings);
+                SSLService.this.checkSSLConfigurationForFallback("monitoring.exporters", settings, sslConfiguration);
+                return sslConfiguration;
+            }
+
             /**
              * Returns the existing {@link SSLContextHolder} for the configuration
              * @throws IllegalArgumentException if not found
@@ -140,18 +155,20 @@ public class SSLService extends AbstractComponent {
      *
      * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
      *                 a context created from the default configuration
+     * @param tlsDeprecationHandler a handler in case TLSv1.0 is used for an SSL connection under this strategy
      * @return Never {@code null}.
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
      * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #getSSLConfiguration(String)}
-     * and {@link #sslIOSessionStrategy(SSLConfiguration)} (Deprecated, but not removed because monitoring uses dynamic SSL settings)
+     * and {@link #sslIOSessionStrategy(SSLConfiguration, TLSv1DeprecationHandler)}
+     * (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
-    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settings) {
+    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settings, TLSv1DeprecationHandler tlsDeprecationHandler) {
         SSLConfiguration config = sslConfiguration(settings);
-        return sslIOSessionStrategy(config);
+        return sslIOSessionStrategy(config, tlsDeprecationHandler);
     }
 
-    public SSLIOSessionStrategy sslIOSessionStrategy(SSLConfiguration config) {
+    public SSLIOSessionStrategy sslIOSessionStrategy(SSLConfiguration config, TLSv1DeprecationHandler tlsDeprecationHandler) {
         SSLContext sslContext = sslContext(config);
         String[] ciphers = supportedCiphers(sslParameters(sslContext).getCipherSuites(), config.cipherSuites(), false);
         String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
@@ -162,8 +179,22 @@ public class SSLService extends AbstractComponent {
         } else {
             verifier = NoopHostnameVerifier.INSTANCE;
         }
+        verifier = wrapHostnameVerifier(verifier, tlsDeprecationHandler);
 
         return sslIOSessionStrategy(sslContext, supportedProtocols, ciphers, verifier);
+    }
+
+    public HostnameVerifier wrapHostnameVerifier(final HostnameVerifier verifier, TLSv1DeprecationHandler tlsDeprecationHandler) {
+        // Using the hostname verifier for this is just ugly, but HTTP client doesn't expose the SSLSession in many places
+        // and this is the easiest one to hook into in a non-intrusive way
+        if (tlsDeprecationHandler.shouldLogWarnings()) {
+            return (hostname, session) -> {
+                tlsDeprecationHandler.checkAndLog(session, () -> "http connection to " + hostname);
+                return verifier.verify(hostname, session);
+            };
+        } else {
+            return verifier;
+        }
     }
 
     /**
@@ -179,8 +210,8 @@ public class SSLService extends AbstractComponent {
     }
 
     /**
-     * This method only exists to simplify testing of {@link #sslIOSessionStrategy(Settings)} because {@link SSLIOSessionStrategy} does
-     * not expose any of the parameters that you give it.
+     * This method only exists to simplify testing of {@link #sslIOSessionStrategy(Settings, TLSv1DeprecationHandler)} because
+     * {@link SSLIOSessionStrategy} does not expose any of the parameters that you give it.
      *
      * @param sslContext SSL Context used to handle SSL / TCP requests
      * @param protocols Supported protocols
@@ -199,9 +230,14 @@ public class SSLService extends AbstractComponent {
      * @return Never {@code null}.
      */
     public SSLSocketFactory sslSocketFactory(SSLConfiguration configuration) {
-        SSLSocketFactory socketFactory = sslContext(configuration).getSocketFactory();
-        return new SecuritySSLSocketFactory(socketFactory, configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
-                supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.cipherSuites(), false));
+        final SSLContextHolder contextHolder = sslContextHolder(configuration);
+        SSLSocketFactory socketFactory = contextHolder.sslContext().getSocketFactory();
+        final SecuritySSLSocketFactory securitySSLSocketFactory = new SecuritySSLSocketFactory(
+            () -> contextHolder.sslContext().getSocketFactory(),
+            configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
+            supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.cipherSuites(), false));
+        contextHolder.addReloadListener(securitySSLSocketFactory::reload);
+        return securitySSLSocketFactory;
     }
 
     /**
@@ -399,9 +435,15 @@ public class SSLService extends AbstractComponent {
 
         sslSettingsMap.forEach((key, sslSettings) -> {
             if (sslSettings.isEmpty()) {
+                if (shouldCheckForFallbackDeprecation(key)) {
+                    checkSSLConfigurationForFallback(key, sslSettings, new SSLConfiguration(sslSettings, globalSSLConfiguration));
+                }
                 storeSslConfiguration(key, globalSSLConfiguration);
             } else {
                 final SSLConfiguration configuration = new SSLConfiguration(sslSettings, globalSSLConfiguration);
+                if (shouldCheckForFallbackDeprecation(key)) {
+                    checkSSLConfigurationForFallback(key, sslSettings, configuration);
+                }
                 storeSslConfiguration(key, configuration);
                 sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
             }
@@ -409,12 +451,19 @@ public class SSLService extends AbstractComponent {
 
         final Settings transportSSLSettings = settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
         final SSLConfiguration transportSSLConfiguration = new SSLConfiguration(transportSSLSettings, globalSSLConfiguration);
+        final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
+        if (transportSSLEnabled) {
+            checkSSLConfigurationForFallback(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLSettings, transportSSLConfiguration);
+        }
         this.transportSSLConfiguration.set(transportSSLConfiguration);
         storeSslConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX, transportSSLConfiguration);
         Map<String, Settings> profileSettings = getTransportProfileSSLSettings(settings);
         sslContextHolders.computeIfAbsent(transportSSLConfiguration, this::createSslContext);
         profileSettings.forEach((key, profileSetting) -> {
             final SSLConfiguration configuration = new SSLConfiguration(profileSetting, transportSSLConfiguration);
+            if (transportSSLEnabled && key.equals("transport.profiles.default.xpack.security.ssl") == false) {
+                checkSSLConfigurationForFallback(key, profileSetting, configuration);
+            }
             storeSslConfiguration(key, configuration);
             sslContextHolders.computeIfAbsent(configuration, this::createSslContext);
         });
@@ -429,6 +478,57 @@ public class SSLService extends AbstractComponent {
         sslConfigurations.put(key, configuration);
     }
 
+    private boolean shouldCheckForFallbackDeprecation(String name) {
+        if (name.startsWith("xpack.security.authc.realms.")) {
+            // try to see if this is actually using TLS
+            Settings realm = settings.getByPrefix(name.substring(0, name.indexOf(".ssl")));
+            String type = realm.get("type");
+            // only check the types we know use ssl. custom realms may but we don't want to cause confusion
+            if (LdapRealmSettings.LDAP_TYPE.equals(type) || LdapRealmSettings.AD_TYPE.equals(type)) {
+                List<String> urls = realm.getAsList("url");
+                return urls.isEmpty() == false && urls.stream().anyMatch(s -> s.startsWith("ldaps://"));
+            } else if (SamlRealmSettings.TYPE.equals(type)) {
+                final String idpMetadataPath = SamlRealmSettings.IDP_METADATA_PATH.get(realm);
+                return Strings.hasText(idpMetadataPath) && idpMetadataPath.startsWith("https://");
+            }
+        } else if (name.startsWith("xpack.monitoring.exporters.")) {
+            Settings exporterSettings = settings.getByPrefix(name.substring(0, name.indexOf(".ssl")));
+            List<String> hosts = exporterSettings.getAsList("host");
+            return hosts.stream().anyMatch(s -> s.startsWith("https"));
+        } else if (name.equals(XPackSettings.HTTP_SSL_PREFIX) && XPackSettings.HTTP_SSL_ENABLED.get(settings)) {
+            return true;
+        } else if (name.equals("xpack.http.ssl") && XPackSettings.WATCHER_ENABLED.get(settings)) {
+            return true;
+        }
+        return false;
+    }
+
+    private void checkSSLConfigurationForFallback(String name, Settings settings, SSLConfiguration config) {
+        final SSLConfiguration noFallBackConfig = new SSLConfiguration(settings);
+        if (config.equals(noFallBackConfig) == false) {
+            List<String> fallbackReliers = new ArrayList<>();
+            if (config.keyConfig().equals(noFallBackConfig.keyConfig()) == false) {
+                fallbackReliers.add("key configuration");
+            }
+            if (config.trustConfig().equals(noFallBackConfig.trustConfig()) == false) {
+                fallbackReliers.add("trust configuration");
+            }
+            if (config.cipherSuites().equals(noFallBackConfig.cipherSuites()) == false) {
+                fallbackReliers.add("enabled cipher suites");
+            }
+            if (config.sslClientAuth() != noFallBackConfig.sslClientAuth()) {
+                fallbackReliers.add("client authentication");
+            }
+            if (config.supportedProtocols().equals(noFallBackConfig.supportedProtocols()) == false) {
+                fallbackReliers.add("supported protocols");
+            }
+            if (config.verificationMode() != noFallBackConfig.verificationMode()) {
+                fallbackReliers.add("certificate verification mode");
+            }
+            deprecationLogger.deprecated("SSL configuration [{}] relies upon fallback to another configuration for {}, which is " +
+                "deprecated.", name, fallbackReliers);
+        }
+    }
 
     /**
      * Returns information about each certificate that is referenced by any SSL configuration.
@@ -453,12 +553,15 @@ public class SSLService extends AbstractComponent {
      */
     private static class SecuritySSLSocketFactory extends SSLSocketFactory {
 
-        private final SSLSocketFactory delegate;
+        private final Supplier<SSLSocketFactory> delegateSupplier;
         private final String[] supportedProtocols;
         private final String[] ciphers;
 
-        SecuritySSLSocketFactory(SSLSocketFactory delegate, String[] supportedProtocols, String[] ciphers) {
-            this.delegate = delegate;
+        private volatile SSLSocketFactory delegate;
+
+        SecuritySSLSocketFactory(Supplier<SSLSocketFactory> delegateSupplier, String[] supportedProtocols, String[] ciphers) {
+            this.delegateSupplier = delegateSupplier;
+            this.delegate = this.delegateSupplier.get();
             this.supportedProtocols = supportedProtocols;
             this.ciphers = ciphers;
         }
@@ -515,6 +618,11 @@ public class SSLService extends AbstractComponent {
             return sslSocket;
         }
 
+        public void reload() {
+            final SSLSocketFactory newDelegate = delegateSupplier.get();
+            this.delegate = newDelegate;
+        }
+
         private void configureSSLSocket(SSLSocket socket) {
             SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
             // we use the cipher suite order so that we can prefer the ciphers we set first in the list
@@ -533,12 +641,14 @@ public class SSLService extends AbstractComponent {
         private final KeyConfig keyConfig;
         private final TrustConfig trustConfig;
         private final SSLConfiguration sslConfiguration;
+        private final List<Runnable> reloadListeners;
 
         SSLContextHolder(SSLContext context, SSLConfiguration sslConfiguration) {
             this.context = context;
             this.sslConfiguration = sslConfiguration;
             this.keyConfig = sslConfiguration.keyConfig();
             this.trustConfig = sslConfiguration.trustConfig();
+            this.reloadListeners = new ArrayList<>();
         }
 
         SSLContext sslContext() {
@@ -549,6 +659,7 @@ public class SSLService extends AbstractComponent {
             invalidateSessions(context.getClientSessionContext());
             invalidateSessions(context.getServerSessionContext());
             reloadSslContext();
+            this.reloadListeners.forEach(Runnable::run);
         }
 
         private void reloadSslContext() {
@@ -581,6 +692,10 @@ public class SSLService extends AbstractComponent {
             TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance("X509");
             trustManagerFactory.init(keyStore);
             return (X509ExtendedTrustManager) trustManagerFactory.getTrustManagers()[0];
+        }
+
+        public void addReloadListener(Runnable listener) {
+            this.reloadListeners.add(listener);
         }
     }
 

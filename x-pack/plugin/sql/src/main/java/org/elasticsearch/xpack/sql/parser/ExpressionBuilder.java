@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Exists;
@@ -23,12 +24,13 @@ import org.elasticsearch.xpack.sql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.sql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.sql.expression.function.UnresolvedFunction.ResolutionType;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.IntervalDayTime;
+import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals.TimeUnit;
-import org.elasticsearch.xpack.sql.expression.literal.IntervalYearMonth;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -51,15 +53,18 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticBinaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BuiltinDateTimeFunctionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastExpressionContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ConstantDefaultContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ConvertTemplateContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DateEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
@@ -97,10 +102,12 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimeEscapedLiteralContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.TimestampEscapedLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -119,6 +126,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.type.DataTypeConversion.conversionFor;
 
@@ -175,23 +183,25 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression right = expression(ctx.right);
         TerminalNode op = (TerminalNode) ctx.comparisonOperator().getChild(0);
 
-        Location loc = source(ctx);
+        Source source = source(ctx);
 
         switch (op.getSymbol().getType()) {
             case SqlBaseParser.EQ:
-                return new Equals(loc, left, right);
+                return new Equals(source, left, right);
+            case SqlBaseParser.NULLEQ:
+                return new NullEquals(source, left, right);
             case SqlBaseParser.NEQ:
-                return new NotEquals(loc, left, right);
+                return new NotEquals(source, left, right);
             case SqlBaseParser.LT:
-                return new LessThan(loc, left, right);
+                return new LessThan(source, left, right);
             case SqlBaseParser.LTE:
-                return new LessThanOrEqual(loc, left, right);
+                return new LessThanOrEqual(source, left, right);
             case SqlBaseParser.GT:
-                return new GreaterThan(loc, left, right);
+                return new GreaterThan(source, left, right);
             case SqlBaseParser.GTE:
-                return new GreaterThanOrEqual(loc, left, right);
+                return new GreaterThanOrEqual(source, left, right);
             default:
-                throw new ParsingException(loc, "Unknown operator {}", op.getSymbol().getText());
+                throw new ParsingException(source, "Unknown operator {}", source.text());
         }
     }
 
@@ -205,37 +215,37 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         }
 
         PredicateContext pCtx = ctx.predicate();
-        Location loc = source(pCtx);
+        Source source = source(ctx.valueExpression(), ctx);
 
         Expression e = null;
         switch (pCtx.kind.getType()) {
             case SqlBaseParser.BETWEEN:
-                e = new Range(loc, exp, expression(pCtx.lower), true, expression(pCtx.upper), true);
+                e = new Range(source, exp, expression(pCtx.lower), true, expression(pCtx.upper), true);
                 break;
             case SqlBaseParser.IN:
                 if (pCtx.query() != null) {
-                    throw new ParsingException(loc, "IN query not supported yet");
+                    throw new ParsingException(source, "IN query not supported yet");
                 }
-                e = new In(loc, exp, expressions(pCtx.expression()));
+                e = new In(source, exp, expressions(pCtx.valueExpression()));
                 break;
             case SqlBaseParser.LIKE:
-                e = new Like(loc, exp, visitPattern(pCtx.pattern()));
+                e = new Like(source, exp, visitPattern(pCtx.pattern()));
                 break;
             case SqlBaseParser.RLIKE:
-                e = new RLike(loc, exp, new Literal(source(pCtx.regex), string(pCtx.regex), DataType.KEYWORD));
+                e = new RLike(source, exp, string(pCtx.regex));
                 break;
             case SqlBaseParser.NULL:
                 // shortcut to avoid double negation later on (since there's no IsNull (missing in ES is a negated exists))
                 if (pCtx.NOT() != null) {
-                    return new IsNotNull(loc, exp);
+                    return new IsNotNull(source, exp);
                 } else {
-                    return new IsNull(loc, exp);
+                    return new IsNull(source, exp);
                 }
             default:
-                throw new ParsingException(loc, "Unknown predicate {}", pCtx.kind.getText());
+                throw new ParsingException(source, "Unknown predicate {}", source.text());
         }
 
-        return pCtx.NOT() != null ? new Not(loc, e) : e;
+        return pCtx.NOT() != null ? new Not(source, e) : e;
     }
 
     @Override
@@ -291,7 +301,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
             }
         }
 
-        return new LikePattern(source(ctx), pattern, escape);
+        return new LikePattern(pattern, escape);
     }
 
 
@@ -301,7 +311,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Object visitArithmeticUnary(ArithmeticUnaryContext ctx) {
         Expression value = expression(ctx.valueExpression());
-        Location loc = source(ctx);
+        Source source = source(ctx);
 
         switch (ctx.operator.getType()) {
             case SqlBaseParser.PLUS:
@@ -310,9 +320,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 if (value instanceof Literal) { // Minus already processed together with literal number
                     return value;
                 }
-                return new Neg(source(ctx.operator), value);
+                return new Neg(source(ctx), value);
             default:
-                throw new ParsingException(loc, "Unknown arithmetic {}", ctx.operator.getText());
+                throw new ParsingException(source, "Unknown arithmetic {}", source.text());
         }
     }
 
@@ -321,21 +331,21 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
 
-        Location loc = source(ctx.operator);
+        Source source = source(ctx);
 
         switch (ctx.operator.getType()) {
             case SqlBaseParser.ASTERISK:
-                return new Mul(loc, left, right);
+                return new Mul(source, left, right);
             case SqlBaseParser.SLASH:
-                return new Div(loc, left, right);
+                return new Div(source, left, right);
             case SqlBaseParser.PERCENT:
-                return new Mod(loc, left, right);
+                return new Mod(source, left, right);
             case SqlBaseParser.PLUS:
-                return new Add(loc, left, right);
+                return new Add(source, left, right);
             case SqlBaseParser.MINUS:
-                return new Sub(loc, left, right);
+                return new Sub(source, left, right);
             default:
-                throw new ParsingException(loc, "Unknown arithmetic {}", ctx.operator.getText());
+                throw new ParsingException(source, "Unknown arithmetic {}", source.text());
         }
     }
 
@@ -376,42 +386,12 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public DataType visitPrimitiveDataType(PrimitiveDataTypeContext ctx) {
-        String type = visitIdentifier(ctx.identifier()).toLowerCase(Locale.ROOT);
-
-        switch (type) {
-            case "bit":
-            case "bool":
-            case "boolean":
-                return DataType.BOOLEAN;
-            case "tinyint":
-            case "byte":
-                return DataType.BYTE;
-            case "smallint":
-            case "short":
-                return DataType.SHORT;
-            case "int":
-            case "integer":
-                return DataType.INTEGER;
-            case "long":
-            case "bigint":
-                return DataType.LONG;
-            case "real":
-                return DataType.FLOAT;
-            case "float":
-            case "double":
-                return DataType.DOUBLE;
-            case "date":
-            case "timestamp":
-                return DataType.DATE;
-            case "char":
-            case "varchar":
-            case "string":
-                return DataType.KEYWORD;
-            case "ip":
-                return DataType.IP;
-            default:
-                throw new ParsingException(source(ctx), "Does not recognize type {}", type);
+        String type = visitIdentifier(ctx.identifier());
+        DataType dataType = DataType.fromSqlOrEsType(type);
+        if (dataType == null) {
+            throw new ParsingException(source(ctx), "Does not recognize type [{}]", type);
         }
+        return dataType;
     }
 
     //
@@ -451,6 +431,23 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Object visitBuiltinDateTimeFunction(BuiltinDateTimeFunctionContext ctx) {
+        // maps CURRENT_XXX to its respective function e.g: CURRENT_TIMESTAMP()
+        // since the functions need access to the Configuration, the parser only registers the definition and not the actual function
+        Source source = source(ctx);
+        String functionName = ctx.name.getText();
+
+        switch (ctx.name.getType()) {
+            case SqlBaseLexer.CURRENT_TIMESTAMP:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
+            case SqlBaseLexer.CURRENT_DATE:
+                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
+            default:
+                throw new ParsingException(source, "Unknown function [{}]", functionName);
+        }
+    }
+
+    @Override
     public Function visitFunctionExpression(FunctionExpressionContext ctx) {
         FunctionTemplateContext template = ctx.functionTemplate();
         String name = template.functionName().getText();
@@ -483,17 +480,17 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Object visitLogicalBinary(LogicalBinaryContext ctx) {
         int type = ctx.operator.getType();
-        Location loc = source(ctx);
+        Source source = source(ctx);
         Expression left = expression(ctx.left);
         Expression right = expression(ctx.right);
 
         if (type == SqlBaseParser.AND) {
-            return new And(loc, left, right);
+            return new And(source, left, right);
         }
         if (type == SqlBaseParser.OR) {
-            return new Or(loc, left, right);
+            return new Or(source, left, right);
         }
-        throw new ParsingException(loc, "Don't know how to parse {}", ctx);
+        throw new ParsingException(source, "Don't know how to parse {}", ctx);
     }
 
 
@@ -508,9 +505,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Literal visitIntervalLiteral(IntervalLiteralContext ctx) {
-
-        IntervalContext interval = ctx.interval();
+    public Literal visitInterval(IntervalContext interval) {
 
         TimeUnit leading = visitIntervalField(interval.leading);
         TimeUnit trailing = visitIntervalField(interval.trailing);
@@ -533,10 +528,31 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         DataType intervalType = Intervals.intervalType(source(interval), leading, trailing);
 
-        boolean negative = interval.sign != null && interval.sign.getType() == SqlBaseParser.MINUS;
+        // negation outside the interval - use xor
+        boolean negative = false;
+
+        ParserRuleContext parentCtx = interval.getParent();
+        if (parentCtx != null) {
+            if (parentCtx instanceof IntervalLiteralContext) {
+                parentCtx = parentCtx.getParent();
+                if (parentCtx instanceof ConstantDefaultContext) {
+                    parentCtx = parentCtx.getParent();
+                    if (parentCtx instanceof ValueExpressionDefaultContext) {
+                        parentCtx = parentCtx.getParent();
+                        if (parentCtx instanceof ArithmeticUnaryContext) {
+                            ArithmeticUnaryContext auc = (ArithmeticUnaryContext) parentCtx;
+                            negative = auc.MINUS() != null;
+                        }
+                    }
+                }
+            }
+        }
+
+
+        // negation inside the interval
+        negative ^= interval.sign != null && interval.sign.getType() == SqlBaseParser.MINUS;
 
         TemporalAmount value = null;
-        String valueAsText = null;
 
         if (interval.valueNumeric != null) {
             if (trailing != null) {
@@ -544,23 +560,20 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                         "Invalid interval declaration; trailing unit [{}] specified but the value is with numeric (single unit), "
                         + "use the string notation instead", trailing);
             }
-            value = of(interval.valueNumeric, negative, leading);
-            valueAsText = interval.valueNumeric.getText();
+            value = of(interval.valueNumeric, leading);
         } else {
-            value = visitIntervalValue(interval.valuePattern, negative, intervalType);
-            valueAsText = interval.valuePattern.getText();
+            value = of(interval.valuePattern, negative, intervalType);
         }
-
-        String name = "INTERVAL " + valueAsText + " " + leading.name() + (trailing != null ? " TO " + trailing.name() : "");
 
         Interval<?> timeInterval = value instanceof Period ? new IntervalYearMonth((Period) value,
                 intervalType) : new IntervalDayTime((Duration) value, intervalType);
 
-        return new Literal(source(ctx), name, timeInterval, intervalType);
+        return new Literal(source(interval), timeInterval, timeInterval.dataType());
     }
 
-    private TemporalAmount of(NumberContext valueNumeric, boolean negative, TimeUnit unit) {
+    private TemporalAmount of(NumberContext valueNumeric, TimeUnit unit) {
         // expect numbers for now
+        // as the number parsing handles the -, there's no need to look at that
         Literal value = (Literal) visit(valueNumeric);
         Number numeric = (Number) value.fold();
 
@@ -571,10 +584,10 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         return Intervals.of(source(valueNumeric), numeric.longValue(), unit);
     }
 
-    private TemporalAmount visitIntervalValue(StringContext valuePattern, boolean negative, DataType intervalType) {
+    private TemporalAmount of(StringContext valuePattern, boolean negative, DataType intervalType) {
         String valueString = string(valuePattern);
-        Location loc = source(valuePattern);
-        TemporalAmount interval = Intervals.parseInterval(loc, valueString, intervalType);
+        Source source = source(valuePattern);
+        TemporalAmount interval = Intervals.parseInterval(source, valueString, intervalType);
         if (negative) {
             interval = Intervals.negate(interval);
         }
@@ -633,58 +646,61 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitDecimalLiteral(DecimalLiteralContext ctx) {
-        String string = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
+        Tuple<Source, String> tuple = withMinus(ctx);
+
         try {
-            return new Literal(source(ctx), Double.valueOf(StringUtils.parseDouble(string)), DataType.DOUBLE);
+            return new Literal(tuple.v1(), Double.valueOf(StringUtils.parseDouble(tuple.v2())), DataType.DOUBLE);
         } catch (SqlIllegalArgumentException siae) {
-            throw new ParsingException(source(ctx), siae.getMessage());
+            throw new ParsingException(tuple.v1(), siae.getMessage());
         }
     }
 
     @Override
     public Literal visitIntegerLiteral(IntegerLiteralContext ctx) {
-        String string = (hasMinusFromParent(ctx) ? "-" : "") + ctx.getText();
+        Tuple<Source, String> tuple = withMinus(ctx);
 
         long value;
         try {
-            value = Long.valueOf(StringUtils.parseLong(string));
+            value = Long.valueOf(StringUtils.parseLong(tuple.v2()));
         } catch (SqlIllegalArgumentException siae) {
-            throw new ParsingException(source(ctx), siae.getMessage());
+            throw new ParsingException(tuple.v1(), siae.getMessage());
         }
 
+        Object val = Long.valueOf(value);
         DataType type = DataType.LONG;
         // try to downsize to int if possible (since that's the most common type)
         if ((int) value == value) {
             type = DataType.INTEGER;
+            val = Integer.valueOf((int) value);
         }
-        return new Literal(source(ctx), value, type);
+        return new Literal(tuple.v1(), val, type);
     }
 
     @Override
     public Literal visitParamLiteral(ParamLiteralContext ctx) {
         SqlTypedParamValue param = param(ctx.PARAM());
         DataType dataType = DataType.fromTypeName(param.type);
-        Location loc = source(ctx);
+        Source source = source(ctx);
         if (param.value == null) {
             // no conversion is required for null values
-            return new Literal(loc, null, dataType);
+            return new Literal(source, null, dataType);
         }
         final DataType sourceType;
         try {
             sourceType = DataTypes.fromJava(param.value);
         } catch (SqlIllegalArgumentException ex) {
-            throw new ParsingException(ex, loc, "Unexpected actual parameter type [{}] for type [{}]", param.value.getClass().getName(),
+            throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", param.value.getClass().getName(),
                     param.type);
         }
         if (sourceType == dataType) {
             // no conversion is required if the value is already have correct type
-            return new Literal(loc, param.value, dataType);
+            return new Literal(source, param.value, dataType);
         }
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
-            return new Literal(loc, conversionFor(sourceType, dataType).convert(param.value), dataType);
+            return new Literal(source, conversionFor(sourceType, dataType).convert(param.value), dataType);
         } catch (SqlIllegalArgumentException ex) {
-            throw new ParsingException(ex, loc, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
+            throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
         }
     }
 
@@ -725,28 +741,28 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Literal visitDateEscapedLiteral(DateEscapedLiteralContext ctx) {
         String string = string(ctx.string());
-        Location loc = source(ctx);
+        Source source = source(ctx);
         // parse yyyy-MM-dd
         DateTime dt = null;
         try {
             dt = ISODateTimeFormat.date().parseDateTime(string);
         } catch(IllegalArgumentException ex) {
-            throw new ParsingException(loc, "Invalid date received; {}", ex.getMessage());
+            throw new ParsingException(source, "Invalid date received; {}", ex.getMessage());
         }
-        return new Literal(loc, DateUtils.of(dt), DataType.DATE);
+        return new Literal(source, DateUtils.asDateOnly(dt), DataType.DATE);
     }
 
     @Override
     public Literal visitTimeEscapedLiteral(TimeEscapedLiteralContext ctx) {
         String string = string(ctx.string());
-        Location loc = source(ctx);
+        Source source = source(ctx);
 
         // parse HH:mm:ss
         DateTime dt = null;
         try {
             dt = ISODateTimeFormat.hourMinuteSecond().parseDateTime(string);
         } catch (IllegalArgumentException ex) {
-            throw new ParsingException(loc, "Invalid time received; {}", ex.getMessage());
+            throw new ParsingException(source, "Invalid time received; {}", ex.getMessage());
         }
 
         throw new SqlIllegalArgumentException("Time (only) literals are not supported; a date component is required as well");
@@ -756,7 +772,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     public Literal visitTimestampEscapedLiteral(TimestampEscapedLiteralContext ctx) {
         String string = string(ctx.string());
 
-        Location loc = source(ctx);
+        Source source = source(ctx);
         // parse yyyy-mm-dd hh:mm:ss(.f...)
         DateTime dt = null;
         try {
@@ -767,16 +783,16 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     .toFormatter();
             dt = formatter.parseDateTime(string);
         } catch (IllegalArgumentException ex) {
-            throw new ParsingException(loc, "Invalid timestamp received; {}", ex.getMessage());
+            throw new ParsingException(source, "Invalid timestamp received; {}", ex.getMessage());
         }
-        return new Literal(loc, DateUtils.of(dt), DataType.DATE);
+        return new Literal(source, DateUtils.asDateTime(dt), DataType.DATETIME);
     }
 
     @Override
     public Literal visitGuidEscapedLiteral(GuidEscapedLiteralContext ctx) {
         String string = string(ctx.string());
 
-        Location loc = source(ctx.string());
+        Source source = source(ctx.string());
         // basic validation
         String lowerCase = string.toLowerCase(Locale.ROOT);
         // needs to be format nnnnnnnn-nnnn-nnnn-nnnn-nnnnnnnnnnnn
@@ -786,13 +802,13 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         String errorPrefix = "Invalid GUID, ";
 
         if (lowerCase.length() != 36) {
-            throw new ParsingException(loc, "{}too {}", errorPrefix, lowerCase.length() > 36 ? "long" : "short");
+            throw new ParsingException(source, "{}too {}", errorPrefix, lowerCase.length() > 36 ? "long" : "short");
         }
 
         int[] separatorPos = { 8, 13, 18, 23 };
         for (int pos : separatorPos) {
             if (lowerCase.charAt(pos) != '-') {
-                throw new ParsingException(loc, "{}expected group separator at offset [{}], found [{}]",
+                throw new ParsingException(source, "{}expected group separator at offset [{}], found [{}]",
                         errorPrefix, pos, string.charAt(pos));
             }
         }
@@ -811,14 +827,37 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
             }
             if (inspect && HEXA.indexOf(lowerCase.charAt(i)) < 0) {
-                throw new ParsingException(loc, "{}expected hexadecimal at offset[{}], found [{}]", errorPrefix, i, string.charAt(i));
+                throw new ParsingException(source, "{}expected hexadecimal at offset[{}], found [{}]", errorPrefix, i, string.charAt(i));
             }
         }
 
         return new Literal(source(ctx), string, DataType.KEYWORD);
     }
 
-    private boolean hasMinusFromParent(SqlBaseParser.NumberContext ctx) {
+    /**
+     * Return the source and the value of the given number,
+     * taking into account MINUS (-) if needed.
+     */
+    private static Tuple<Source, String> withMinus(NumberContext ctx) {
+        String string = ctx.getText();
+        Source source = minusAwareSource(ctx);
+
+        if (source != null) {
+            string = "-" + string;
+        } else {
+            source = source(ctx);
+        }
+
+        return new Tuple<>(source, string);
+    }
+
+    /**
+     * Checks the presence of MINUS (-) in the parent and if found,
+     * returns the parent source or null otherwise.
+     * Parsing of the value should not depend on the returned source
+     * as it might contain extra spaces.
+     */
+    private static Source minusAwareSource(SqlBaseParser.NumberContext ctx) {
         ParserRuleContext parentCtx = ctx.getParent();
         if (parentCtx != null) {
             if (parentCtx instanceof SqlBaseParser.NumericLiteralContext) {
@@ -828,15 +867,23 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     if (parentCtx != null && parentCtx instanceof SqlBaseParser.ValueExpressionDefaultContext) {
                         parentCtx = parentCtx.getParent();
                         if (parentCtx != null && parentCtx instanceof SqlBaseParser.ArithmeticUnaryContext) {
-                            return ((ArithmeticUnaryContext) parentCtx).MINUS() != null;
+                            if (((ArithmeticUnaryContext) parentCtx).MINUS() != null) {
+                                return source(parentCtx);
+                            }
                         }
                     }
                 }
             } else if (parentCtx instanceof SqlBaseParser.IntervalContext) {
                 IntervalContext ic = (IntervalContext) parentCtx;
-                return ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS;
+                if (ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS) {
+                    return source(ic);
+                }
+            } else if (parentCtx instanceof SqlBaseParser.SysTypesContext) {
+                if (((SysTypesContext) parentCtx).MINUS() != null) {
+                    return source(parentCtx);
+                }
             }
         }
-        return false;
+        return null;
     }
 }

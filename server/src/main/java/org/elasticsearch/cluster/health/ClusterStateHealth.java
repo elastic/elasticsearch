@@ -100,7 +100,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
             }
         }
 
-        if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+        if (clusterState.blocks().hasGlobalBlockWithStatus(RestStatus.SERVICE_UNAVAILABLE)) {
             computeStatus = ClusterHealthStatus.RED;
         }
 

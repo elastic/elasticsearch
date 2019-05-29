@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.BinaryStringNumericProcessor.BinaryStringNumericOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 /**
@@ -15,8 +15,8 @@ import org.elasticsearch.xpack.sql.tree.NodeInfo;
  */
 public class Right extends BinaryStringNumericFunction {
 
-    public Right(Location location, Expression left, Expression right) {
-        super(location, left, right);
+    public Right(Source source, Expression left, Expression right) {
+        super(source, left, right);
     }
 
     @Override
@@ -26,7 +26,7 @@ public class Right extends BinaryStringNumericFunction {
 
     @Override
     protected Right replaceChildren(Expression newLeft, Expression newRight) {
-        return new Right(location(), newLeft, newRight);
+        return new Right(source(), newLeft, newRight);
     }
 
     @Override

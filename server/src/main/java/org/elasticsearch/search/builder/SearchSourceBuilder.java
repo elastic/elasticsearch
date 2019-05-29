@@ -89,6 +89,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField POST_FILTER_FIELD = new ParseField("post_filter");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
     public static final ParseField VERSION_FIELD = new ParseField("version");
+    public static final ParseField SEQ_NO_PRIMARY_TERM_FIELD = new ParseField("seq_no_primary_term");
     public static final ParseField EXPLAIN_FIELD = new ParseField("explain");
     public static final ParseField _SOURCE_FIELD = new ParseField("_source");
     public static final ParseField STORED_FIELDS_FIELD = new ParseField("stored_fields");
@@ -148,6 +149,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private Boolean explain;
 
     private Boolean version;
+
+    private Boolean seqNoAndPrimaryTerm;
 
     private List<SortBuilder<?>> sorts;
 
@@ -238,13 +241,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             }
         }
         if (in.readBoolean()) {
-            stats = in.readList(StreamInput::readString);
+            stats = in.readStringList();
         }
         suggestBuilder = in.readOptionalWriteable(SuggestBuilder::new);
         terminateAfter = in.readVInt();
         timeout = in.readOptionalTimeValue();
         trackScores = in.readBoolean();
         version = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
+            seqNoAndPrimaryTerm = in.readOptionalBoolean();
+        } else {
+            seqNoAndPrimaryTerm = null;
+        }
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
@@ -303,13 +311,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean hasStats = stats != null;
         out.writeBoolean(hasStats);
         if (hasStats) {
-            out.writeStringList(stats);
+            out.writeStringCollection(stats);
         }
         out.writeOptionalWriteable(suggestBuilder);
         out.writeVInt(terminateAfter);
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(trackScores);
         out.writeOptionalBoolean(version);
+        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
+            out.writeOptionalBoolean(seqNoAndPrimaryTerm);
+        }
         out.writeNamedWriteableList(extBuilders);
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
@@ -439,6 +450,23 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public Boolean version() {
         return version;
+    }
+
+    /**
+     * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
+     * sequence number and primary term of the last modification of the document.
+     */
+    public SearchSourceBuilder seqNoAndPrimaryTerm(Boolean seqNoAndPrimaryTerm) {
+        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
+        return this;
+    }
+
+    /**
+     * Indicates whether {@link org.elasticsearch.search.SearchHit}s should be returned with the
+     * sequence number and primary term of the last modification of the document.
+     */
+    public Boolean seqNoAndPrimaryTerm() {
+        return seqNoAndPrimaryTerm;
     }
 
     /**
@@ -986,6 +1014,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.trackScores = trackScores;
         rewrittenBuilder.trackTotalHits = trackTotalHits;
         rewrittenBuilder.version = version;
+        rewrittenBuilder.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         rewrittenBuilder.collapse = collapse;
         return rewrittenBuilder;
     }
@@ -1025,6 +1054,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     minScore = parser.floatValue();
                 } else if (VERSION_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     version = parser.booleanValue();
+                } else if (SEQ_NO_PRIMARY_TERM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    seqNoAndPrimaryTerm = parser.booleanValue();
                 } else if (EXPLAIN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     explain = parser.booleanValue();
                 } else if (TRACK_SCORES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1192,6 +1223,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
         if (version != null) {
             builder.field(VERSION_FIELD.getPreferredName(), version);
+        }
+
+        if (seqNoAndPrimaryTerm != null) {
+            builder.field(SEQ_NO_PRIMARY_TERM_FIELD.getPreferredName(), seqNoAndPrimaryTerm);
         }
 
         if (explain != null) {
@@ -1512,7 +1547,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
                 indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
                 sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-                profile, extBuilders, collapse, trackTotalHits);
+                seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHits);
     }
 
     @Override
@@ -1547,6 +1582,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(timeout, other.timeout)
                 && Objects.equals(trackScores, other.trackScores)
                 && Objects.equals(version, other.version)
+                && Objects.equals(seqNoAndPrimaryTerm, other.seqNoAndPrimaryTerm)
                 && Objects.equals(profile, other.profile)
                 && Objects.equals(extBuilders, other.extBuilders)
                 && Objects.equals(collapse, other.collapse)

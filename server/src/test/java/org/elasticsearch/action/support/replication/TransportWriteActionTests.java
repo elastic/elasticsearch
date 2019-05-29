@@ -65,6 +65,9 @@ import org.mockito.ArgumentCaptor;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -307,11 +310,9 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         AtomicReference<Object> failure = new AtomicReference<>();
-        AtomicReference<Object> ignoredFailure = new AtomicReference<>();
         AtomicBoolean success = new AtomicBoolean();
         proxy.failShardIfNeeded(replica, "test", new ElasticsearchException("simulated"),
-                () -> success.set(true), failure::set, ignoredFailure::set
-        );
+            ActionListener.wrap(r -> success.set(true), failure::set));
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         // A write replication action proxy should fail the shard
         assertEquals(1, shardFailedRequests.length);
@@ -325,8 +326,6 @@ public class TransportWriteActionTests extends ESTestCase {
             transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
             assertTrue(success.get());
             assertNull(failure.get());
-            assertNull(ignoredFailure.get());
-
         } else if (randomBoolean()) {
             // simulate the primary has been demoted
             transport.handleRemoteError(shardFailedRequest.requestId,
@@ -334,16 +333,58 @@ public class TransportWriteActionTests extends ESTestCase {
                     "shard-failed-test"));
             assertFalse(success.get());
             assertNotNull(failure.get());
-            assertNull(ignoredFailure.get());
-
         } else {
-            // simulated an "ignored" exception
+            // simulated a node closing exception
             transport.handleRemoteError(shardFailedRequest.requestId,
                 new NodeClosedException(state.nodes().getLocalNode()));
             assertFalse(success.get());
-            assertNull(failure.get());
-            assertNotNull(ignoredFailure.get());
+            assertNotNull(failure.get());
         }
+    }
+
+    public void testConcurrentWriteReplicaResultCompletion() throws InterruptedException {
+        IndexShard replica = mock(IndexShard.class);
+        when(replica.getTranslogDurability()).thenReturn(Translog.Durability.ASYNC);
+        TestRequest request = new TestRequest();
+        request.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+        TransportWriteAction.WriteReplicaResult<TestRequest> replicaResult = new TransportWriteAction.WriteReplicaResult<>(
+            request, new Translog.Location(0, 0, 0), null, replica, logger);
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        Runnable waitForBarrier = () -> {
+            try {
+                barrier.await();
+            } catch (InterruptedException | BrokenBarrierException e) {
+                throw new AssertionError(e);
+            }
+        };
+        CountDownLatch completionLatch = new CountDownLatch(1);
+        threadPool.generic().execute(() -> {
+            waitForBarrier.run();
+            replicaResult.respond(new ActionListener<TransportResponse.Empty>() {
+                @Override
+                public void onResponse(TransportResponse.Empty empty) {
+                    completionLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    completionLatch.countDown();
+                }
+            });
+        });
+        if (randomBoolean()) {
+            threadPool.generic().execute(() -> {
+                waitForBarrier.run();
+                replicaResult.onFailure(null);
+            });
+        } else {
+            threadPool.generic().execute(() -> {
+                waitForBarrier.run();
+                replicaResult.onSuccess(false);
+            });
+        }
+
+        assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {

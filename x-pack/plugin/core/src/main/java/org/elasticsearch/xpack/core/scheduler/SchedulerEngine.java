@@ -126,8 +126,12 @@ public class SchedulerEngine {
     public void stop() {
         scheduler.shutdownNow();
         try {
-            scheduler.awaitTermination(5, TimeUnit.SECONDS);
+            final boolean terminated = scheduler.awaitTermination(5L, TimeUnit.SECONDS);
+            if (terminated == false) {
+                logger.warn("scheduler engine was not terminated after waiting 5s");
+            }
         } catch (InterruptedException e) {
+            logger.warn("interrupted while waiting for scheduler engine termination");
             Thread.currentThread().interrupt();
         }
     }

@@ -16,6 +16,7 @@ eclipse.preferences.version=1
 # org.eclipse.jdt.core.compiler.problem.potentialNullReference=warning
 
 org.eclipse.jdt.core.compiler.problem.forbiddenReference=warning
+org.eclipse.jdt.core.formatter.comment.line_length=140
 org.eclipse.jdt.core.formatter.lineSplit=140
 org.eclipse.jdt.core.formatter.tabulation.char=space
 org.eclipse.jdt.core.formatter.tabulation.size=4

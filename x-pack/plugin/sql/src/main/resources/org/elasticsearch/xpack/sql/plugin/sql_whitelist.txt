@@ -26,6 +26,7 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 # Comparison
 #
   Boolean eq(Object, Object)
+  Boolean nulleq(Object, Object)
   Boolean neq(Object, Object)
   Boolean lt(Object, Object)
   Boolean lte(Object, Object)
@@ -45,8 +46,10 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
 # Null
 #
-  Object coalesce(java.util.List)
-  Object nullif(Object, Object)
+  def coalesce(java.util.List)
+  def greatest(java.util.List)
+  def least(java.util.List)
+  def nullif(Object, Object)
 
 #
 # Regex
@@ -61,7 +64,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   def div(Object, Object)
   def mod(Object, Object)
   def mul(Object, Object)
+  Number atan2(Number, Number)
   Number neg(Number)
+  Number power(Number, Number)
   Number round(Number, Number)
   Number truncate(Number, Number)
   
@@ -95,8 +100,10 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
 #
   Integer dateTimeChrono(Object, String, String)
   String  dayName(Object, String)
+  Integer dayOfWeek(Object, String)
   String  monthName(Object, String)
   Integer quarter(Object, String)
+  Integer weekOfYear(Object, String)
   IntervalDayTime intervalDayTime(String, String)
   IntervalYearMonth intervalYearMonth(String, String)
   ZonedDateTime asDateTime(Object)
@@ -125,4 +132,9 @@ class org.elasticsearch.xpack.sql.expression.function.scalar.whitelist.InternalS
   String  space(Number)
   String  substring(String, Number, Number)
   String  ucase(String)
+  
+#
+# Casting
+#
+  def cast(Object, String)
 }

@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-start-job]]
-=== Start Job API
+=== Start rollup job API
 ++++
-<titleabbrev>Start Job</titleabbrev>
+<titleabbrev>Start job</titleabbrev>
 ++++
 
 experimental[]

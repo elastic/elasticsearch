@@ -5,18 +5,15 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -24,12 +21,6 @@ import java.util.stream.Collectors;
  * It optionally supports aliases to the name set.
  */
 public abstract class NameResolver {
-
-    private final Function<String, ResourceNotFoundException> notFoundExceptionSupplier;
-
-    protected NameResolver(Function<String, ResourceNotFoundException> notFoundExceptionSupplier) {
-        this.notFoundExceptionSupplier = Objects.requireNonNull(notFoundExceptionSupplier);
-    }
 
     /**
      * Expands an expression into the set of matching names.
@@ -46,12 +37,9 @@ public abstract class NameResolver {
      * </ul>
      *
      * @param expression the expression to resolve
-     * @param allowNoMatch if {@code false}, an error is thrown when no name matches the {@code expression}.
-     *                     This only applies to wild card expressions, if {@code expression} is not a
-     *                     wildcard then setting this true will not suppress the exception
      * @return the sorted set of matching names
      */
-    public SortedSet<String> expand(String expression, boolean allowNoMatch) {
+    public SortedSet<String> expand(String expression) {
         SortedSet<String> result = new TreeSet<>();
         if (MetaData.ALL.equals(expression) || Regex.isMatchAllPattern(expression)) {
             result.addAll(nameSet());
@@ -64,23 +52,12 @@ public abstract class NameResolver {
                             .map(this::lookup)
                             .flatMap(List::stream)
                             .collect(Collectors.toList());
-                    if (expanded.isEmpty() && allowNoMatch == false) {
-                        throw notFoundExceptionSupplier.apply(token);
-                    }
                     result.addAll(expanded);
                 } else {
                     List<String> matchingNames = lookup(token);
-                    // allowNoMatch only applies to wildcard expressions,
-                    // this isn't so don't check the allowNoMatch here
-                    if (matchingNames.isEmpty()) {
-                        throw notFoundExceptionSupplier.apply(token);
-                    }
                     result.addAll(matchingNames);
                 }
             }
-        }
-        if (result.isEmpty() && allowNoMatch == false) {
-            throw notFoundExceptionSupplier.apply(expression);
         }
         return result;
     }
@@ -105,11 +82,10 @@ public abstract class NameResolver {
     /**
      * Creates a {@code NameResolver} that has no aliases
      * @param nameSet the set of all names
-     * @param notFoundExceptionSupplier a supplier of {@link ResourceNotFoundException} to be used when an expression matches no name
      * @return the unaliased {@code NameResolver}
      */
-    public static NameResolver newUnaliased(Set<String> nameSet, Function<String, ResourceNotFoundException> notFoundExceptionSupplier) {
-        return new NameResolver(notFoundExceptionSupplier) {
+    public static NameResolver newUnaliased(Set<String> nameSet) {
+        return new NameResolver() {
             @Override
             protected Set<String> keys() {
                 return nameSet;

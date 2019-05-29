@@ -49,6 +49,7 @@ import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.DeadHostState.TimeSupplier;
 
 import javax.net.ssl.SSLHandshakeException;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.ConnectException;
@@ -110,7 +111,7 @@ public class RestClient implements Closeable {
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;
     private volatile NodeTuple<List<Node>> nodeTuple;
-    private final boolean strictDeprecationMode;
+    private final WarningsHandler warningsHandler;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
             FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode) {
@@ -120,8 +121,11 @@ public class RestClient implements Closeable {
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
         this.nodeSelector = nodeSelector;
-        this.strictDeprecationMode = strictDeprecationMode;
+        this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         setNodes(nodes);
+        if (JavaVersion.current().compareTo(JavaVersion.parse("1.8.0")) < 0) {
+            logger.warn("use of the low-level REST client on JDK 7 is deprecated and will be removed in version 7.0.0 of the client");
+        }
     }
 
     /**
@@ -514,11 +518,13 @@ public class RestClient implements Closeable {
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(listener);
         long startTime = System.nanoTime();
         performRequestAsync(startTime, nextNode(), httpRequest, ignoreErrorCodes,
+                request.getOptions().getWarningsHandler() == null ? warningsHandler : request.getOptions().getWarningsHandler(),
                 request.getOptions().getHttpAsyncResponseConsumerFactory(), failureTrackingResponseListener);
     }
 
     private void performRequestAsync(final long startTime, final NodeTuple<Iterator<Node>> nodeTuple, final HttpRequestBase request,
                                      final Set<Integer> ignoreErrorCodes,
+                                     final WarningsHandler thisWarningsHandler,
                                      final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory,
                                      final FailureTrackingResponseListener listener) {
         final Node node = nodeTuple.nodes.next();
@@ -537,8 +543,8 @@ public class RestClient implements Closeable {
                     Response response = new Response(request.getRequestLine(), node.getHost(), httpResponse);
                     if (isSuccessfulResponse(statusCode) || ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
                         onResponse(node);
-                        if (strictDeprecationMode && response.hasWarnings()) {
-                            listener.onDefinitiveFailure(new ResponseException(response));
+                        if (thisWarningsHandler.warningsShouldFailRequest(response.getWarnings())) {
+                            listener.onDefinitiveFailure(new WarningFailureException(response));
                         } else {
                             listener.onSuccess(response);
                         }
@@ -577,12 +583,13 @@ public class RestClient implements Closeable {
                     long timeout = maxRetryTimeoutMillis - timeElapsedMillis;
                     if (timeout <= 0) {
                         IOException retryTimeoutException = new IOException(
-                                "request retries exceeded max retry timeout [" + maxRetryTimeoutMillis + "]");
+                                "request retries exceeded max retry timeout [" + maxRetryTimeoutMillis + "]", exception);
                         listener.onDefinitiveFailure(retryTimeoutException);
                     } else {
                         listener.trackFailure(exception);
                         request.reset();
-                        performRequestAsync(startTime, nodeTuple, request, ignoreErrorCodes, httpAsyncResponseConsumerFactory, listener);
+                        performRequestAsync(startTime, nodeTuple, request, ignoreErrorCodes,
+                                thisWarningsHandler, httpAsyncResponseConsumerFactory, listener);
                     }
                 } else {
                     listener.onDefinitiveFailure(exception);
@@ -922,6 +929,9 @@ public class RestClient implements Closeable {
                  * like the asynchronous API. We wrap the exception so that the caller's
                  * signature shows up in any exception we throw.
                  */
+                if (exception instanceof WarningFailureException) {
+                    throw new WarningFailureException((WarningFailureException) exception);
+                }
                 if (exception instanceof ResponseException) {
                     throw new ResponseException((ResponseException) exception);
                 }

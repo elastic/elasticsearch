@@ -10,15 +10,15 @@ import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 public class UnplannedExec extends LeafExec implements Unexecutable {
 
     private final LogicalPlan plan;
 
-    public UnplannedExec(Location location, LogicalPlan plan) {
-        super(location);
+    public UnplannedExec(Source source, LogicalPlan plan) {
+        super(source);
         this.plan = plan;
     }
 

@@ -1,9 +1,9 @@
 [[docs-multi-termvectors]]
 == Multi termvectors API
 
-Multi termvectors API allows to get multiple termvectors at once. The
+The multi termvectors API allows to get multiple termvectors at once. The
 documents from which to retrieve the term vectors are specified by an index,
-type and id. But the documents could also be artificially provided in the request itself.
+type, and id. But the documents could also be artificially provided in the request itself.
 
 The response includes a `docs`
 array with all the fetched termvectors, each element having the structure
@@ -86,7 +86,7 @@ POST /twitter/_doc/_mtermvectors
 // CONSOLE
 // TEST[setup:twitter]
 
-If all requested documents are on same index and have same type and also the parameters are the same, the request can be simplified:
+If all requested documents are on same index and have the same type and the same parameters, the request can be simplified:
 
 [source,js]
 --------------------------------------------------

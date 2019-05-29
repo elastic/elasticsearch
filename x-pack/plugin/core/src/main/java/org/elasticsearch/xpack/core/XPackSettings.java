@@ -100,7 +100,7 @@ public class XPackSettings {
     public static final Setting<Boolean> RESERVED_REALM_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.reserved_realm.enabled",
             true, Setting.Property.NodeScope);
 
-    /** Setting for enabling or disabling the token service. Defaults to true */
+    /** Setting for enabling or disabling the token service. Defaults to the value of https being enabled */
     public static final Setting<Boolean> TOKEN_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.token.enabled", (s) -> {
         if (NetworkModule.HTTP_ENABLED.get(s)) {
             return XPackSettings.HTTP_SSL_ENABLED.getRaw(s);
@@ -108,6 +108,10 @@ public class XPackSettings {
             return Boolean.TRUE.toString();
         }
     }, Setting.Property.NodeScope);
+
+    /** Setting for enabling or disabling the api key service. Defaults to the value of https being enabled */
+    public static final Setting<Boolean> API_KEY_SERVICE_ENABLED_SETTING = Setting.boolSetting("xpack.security.authc.api_key.enabled",
+        XPackSettings.HTTP_SSL_ENABLED::getRaw, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling FIPS mode. Defaults to false */
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
@@ -147,7 +151,7 @@ public class XPackSettings {
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
     public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
-        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), (v, s) -> {
+        "xpack.security.authc.password_hashing.algorithm", "bcrypt", Function.identity(), v -> {
         if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
                 Hasher.getAvailableAlgoStoredHash().toString());
@@ -197,6 +201,7 @@ public class XPackSettings {
         settings.add(HTTP_SSL_ENABLED);
         settings.add(RESERVED_REALM_ENABLED_SETTING);
         settings.add(TOKEN_SERVICE_ENABLED_SETTING);
+        settings.add(API_KEY_SERVICE_ENABLED_SETTING);
         settings.add(SQL_ENABLED);
         settings.add(USER_SETTING);
         settings.add(ROLLUP_ENABLED);

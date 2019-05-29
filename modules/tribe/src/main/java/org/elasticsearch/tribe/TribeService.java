@@ -63,7 +63,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -142,11 +142,11 @@ public class TribeService extends AbstractLifecycleComponent {
     // these settings should be passed through to each tribe client, if they are not set explicitly
     private static final List<Setting<?>> PASS_THROUGH_SETTINGS = Arrays.asList(
         NetworkService.GLOBAL_NETWORK_HOST_SETTING,
-        NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
-        NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
-        TcpTransport.HOST,
-        TcpTransport.BIND_HOST,
-        TcpTransport.PUBLISH_HOST
+        NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING,
+        NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING,
+        TransportSettings.HOST,
+        TransportSettings.BIND_HOST,
+        TransportSettings.PUBLISH_HOST
     );
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();

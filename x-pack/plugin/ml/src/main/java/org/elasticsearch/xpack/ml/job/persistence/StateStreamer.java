@@ -9,10 +9,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerState;
@@ -23,7 +24,6 @@ import java.io.OutputStream;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 /**
  * A {@code StateStreamer} fetches the various state documents and
@@ -62,7 +62,7 @@ public class StateStreamer {
      * @param restoreStream the stream to write the state to
      */
     public void restoreStateToStream(String jobId, ModelSnapshot modelSnapshot, OutputStream restoreStream) throws IOException {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
+        String indexName = AnomalyDetectorsIndex.jobStateIndexPattern();
 
         // First try to restore model state.
         for (String stateDocId : modelSnapshot.stateDocumentIds()) {
@@ -72,14 +72,17 @@ public class StateStreamer {
 
             LOGGER.trace("ES API CALL: get ID {} from index {}", stateDocId, indexName);
 
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
-                GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, stateDocId).get();
-                if (!stateResponse.isExists()) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+                SearchResponse stateResponse = client.prepareSearch(indexName)
+                    .setTypes(ElasticsearchMappings.DOC_TYPE)
+                    .setSize(1)
+                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocId)).get();
+                if (stateResponse.getHits().getHits().length == 0) {
                     LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
                             modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
                     break;
                 }
-                writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
+                writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
             }
         }
 
@@ -96,12 +99,15 @@ public class StateStreamer {
 
             LOGGER.trace("ES API CALL: get ID {} from index {}", docId, indexName);
 
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
-                GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, docId).get();
-                if (!stateResponse.isExists()) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+                SearchResponse stateResponse = client.prepareSearch(indexName)
+                    .setTypes(ElasticsearchMappings.DOC_TYPE)
+                    .setSize(1)
+                    .setQuery(QueryBuilders.idsQuery().addIds(docId)).get();
+                if (stateResponse.getHits().getHits().length == 0) {
                     break;
                 }
-                writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
+                writeStateToStream(stateResponse.getHits().getAt(0).getSourceRef(), restoreStream);
             }
         }
 

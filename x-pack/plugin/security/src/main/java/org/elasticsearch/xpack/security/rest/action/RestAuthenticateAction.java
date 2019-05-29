@@ -40,6 +40,7 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
         super(settings, licenseState);
         this.securityContext = securityContext;
         controller.registerHandler(GET, "/_xpack/security/_authenticate", this);
+        controller.registerHandler(GET, "/_security/_authenticate", this);
 
         // @deprecated: Remove in 6.0
         controller.registerAsDeprecatedHandler(GET, "/_shield/authenticate", this,
@@ -65,7 +66,7 @@ public class RestAuthenticateAction extends SecurityBaseRestHandler {
                 new RestBuilderListener<AuthenticateResponse>(channel) {
             @Override
             public RestResponse buildResponse(AuthenticateResponse authenticateResponse, XContentBuilder builder) throws Exception {
-                authenticateResponse.user().toXContent(builder, ToXContent.EMPTY_PARAMS);
+                authenticateResponse.authentication().toXContent(builder, ToXContent.EMPTY_PARAMS);
                 return new BytesRestResponse(RestStatus.OK, builder);
             }
         });

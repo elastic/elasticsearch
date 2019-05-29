@@ -1,0 +1,61 @@
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+    testCompile project(':x-pack:plugin:ccr:qa')
+    testCompile project(':x-pack:plugin:core')
+    testCompile project(':x-pack:plugin:ilm')
+}
+
+task leaderClusterTest(type: RestIntegTestTask) {
+    mustRunAfter(precommit)
+}
+
+leaderClusterTestCluster {
+    numNodes = 1
+    clusterName = 'leader-cluster'
+    setting 'xpack.ilm.enabled', 'true'
+    setting 'xpack.ccr.enabled', 'true'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'indices.lifecycle.poll_interval', '1000ms'
+}
+
+leaderClusterTestRunner {
+    systemProperty 'tests.target_cluster', 'leader'
+    /* To support taking index snapshots, we have to set path.repo setting */
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+}
+
+task followClusterTest(type: RestIntegTestTask) {}
+
+followClusterTestCluster {
+    dependsOn leaderClusterTestRunner
+    numNodes = 1
+    clusterName = 'follow-cluster'
+    setting 'xpack.ilm.enabled', 'true'
+    setting 'xpack.ccr.enabled', 'true'
+    setting 'xpack.security.enabled', 'false'
+    setting 'xpack.watcher.enabled', 'false'
+    setting 'xpack.monitoring.enabled', 'false'
+    setting 'xpack.ml.enabled', 'false'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'indices.lifecycle.poll_interval', '1000ms'
+    setting 'cluster.remote.leader_cluster.seeds', "\"${-> leaderClusterTest.nodes.get(0).transportUri()}\""
+}
+
+followClusterTestRunner {
+    systemProperty 'tests.target_cluster', 'follow'
+    systemProperty 'tests.leader_host', "${-> leaderClusterTest.nodes.get(0).httpUri()}"
+    systemProperty 'tests.leader_remote_cluster_seed', "${-> leaderClusterTest.nodes.get(0).transportUri()}"
+    /* To support taking index snapshots, we have to set path.repo setting */
+    systemProperty 'tests.path.repo', new File(buildDir, "cluster/shared/repo")
+    finalizedBy 'leaderClusterTestCluster#stop'
+}
+
+check.dependsOn followClusterTest
+unitTest.enabled = false // no unit tests for this module, only the rest integration test

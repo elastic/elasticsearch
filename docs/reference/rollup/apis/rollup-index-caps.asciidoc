@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[rollup-get-rollup-index-caps]]
-=== Get Rollup Index Capabilities
+=== Get rollup index capabilities API
 ++++
-<titleabbrev>Get Rollup Index Caps</titleabbrev>
+<titleabbrev>Get rollup index caps</titleabbrev>
 ++++
 
 experimental[]

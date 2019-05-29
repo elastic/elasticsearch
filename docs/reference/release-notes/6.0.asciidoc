@@ -1798,11 +1798,11 @@ Search::
 Security::
 * A new bootstrap check enforces that TLS/SSL is required for inter-node
 communication when running in
-{ref}/bootstrap-checks.html#_development_vs_production_mode[production mode]. See
+{ref}/bootstrap-checks.html#dev-vs-prod-mode[production mode]. See
 {stack-ov}/encrypting-communications.html[Encrypting Communications].
 * A new bootstrap check enforces that HTTPS is used by the built-in token
 service when running in
-{ref}/bootstrap-checks.html#_development_vs_production_mode[production mode].
+{ref}/bootstrap-checks.html#dev-vs-prod-mode[production mode].
 To disable the token service, set `xpack.security.authc.token.enabled`
 to `false` in your `elasticsearch.yml`. See
 <<token-service-settings>>.
@@ -2591,7 +2591,7 @@ Search::
 Security::
 * A new bootstrap check enforces that default passwords are disabled for the
 built-in users when running in
-{ref}/bootstrap-checks.html#_development_vs_production_mode[production mode].
+{ref}/bootstrap-checks.html#dev-vs-prod-mode[production mode].
 You must set `xpack.security.authc.accept_default_password` to `false` in your
 `elasticsearch.yml`. For more information, see <<security-settings>> and
 {stack-ov}/setting-up-authentication.html[User authentication].

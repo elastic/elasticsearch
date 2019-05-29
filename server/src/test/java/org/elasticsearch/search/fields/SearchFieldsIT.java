@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -131,12 +132,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
             scripts.put("return null", vars -> null);
 
-            scripts.put("doc['l'].values", vars -> docScript(vars, "l"));
-            scripts.put("doc['ml'].values", vars -> docScript(vars, "ml"));
-            scripts.put("doc['d'].values", vars -> docScript(vars, "d"));
-            scripts.put("doc['md'].values", vars -> docScript(vars, "md"));
-            scripts.put("doc['s'].values", vars -> docScript(vars, "s"));
-            scripts.put("doc['ms'].values", vars -> docScript(vars, "ms"));
+            scripts.put("doc['l']", vars -> docScript(vars, "l"));
+            scripts.put("doc['ml']", vars -> docScript(vars, "ml"));
+            scripts.put("doc['d']", vars -> docScript(vars, "d"));
+            scripts.put("doc['md']", vars -> docScript(vars, "md"));
+            scripts.put("doc['s']", vars -> docScript(vars, "s"));
+            scripts.put("doc['ms']", vars -> docScript(vars, "ms"));
 
             return scripts;
         }
@@ -918,8 +919,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("long_field").getValue(), equalTo("4.0"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("float_field").getValue(), equalTo("5.0"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("double_field").getValue(), equalTo("6.0"));
+        // TODO: switch to java date formatter, but will require special casing java 8 as there is a bug with epoch formatting there
         assertThat(searchResponse.getHits().getAt(0).getFields().get("date_field").getValue(),
-                equalTo(DateFormatters.forPattern("epoch_millis").format(date)));
+                equalTo(Joda.forPattern("epoch_millis").format(date)));
     }
 
     public void testScriptFields() throws Exception {
@@ -946,7 +948,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         SearchRequestBuilder req = client().prepareSearch("index");
         for (String field : Arrays.asList("s", "ms", "l", "ml", "d", "md")) {
             req.addScriptField(field,
-                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "'].values", Collections.emptyMap()));
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['" + field + "']", Collections.emptyMap()));
         }
         SearchResponse resp = req.get();
         assertSearchResponse(resp);

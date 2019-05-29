@@ -26,8 +26,11 @@ recovery.
 include::synced-flush.asciidoc[]
 --
 
-. *Stop any machine learning jobs that are running.* See
-{xpack-ref}/stopping-ml.html[Stopping Machine Learning].
+. *Stop any machine learning jobs that are running.* 
++
+--
+include::close-ml.asciidoc[]
+--
 
 . *Shutdown all nodes.*
 +
@@ -43,6 +46,9 @@ include::remove-xpack.asciidoc[]
 +
 --
 include::upgrade-node.asciidoc[]
+--
++
+--
 include::set-paths-tip.asciidoc[]
 --
 
@@ -139,3 +145,7 @@ you restore a pre-5.6 snapshot to a fresh 6.0 install.
 --
 
 . *Restart machine learning jobs.*
++
+--
+include::open-ml.asciidoc[]
+--

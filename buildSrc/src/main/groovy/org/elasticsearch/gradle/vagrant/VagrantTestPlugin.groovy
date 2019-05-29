@@ -166,6 +166,7 @@ class VagrantTestPlugin implements Plugin<Project> {
           which should work for 5.0.0+. This isn't a real ivy repository but gradle
           is fine with that */
         repos.ivy {
+            name "elasticsearch"
             artifactPattern "https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]"
         }
     }
@@ -460,9 +461,9 @@ class VagrantTestPlugin implements Plugin<Project> {
              * execution.
              */
             final String vagrantDestroyProperty = project.getProperties().get('vagrant.destroy', 'true')
-            final boolean vagrantDestroy
+            boolean vagrantDestroy
             if ("true".equals(vagrantDestroyProperty)) {
-                vagrantDestroy = true;
+                vagrantDestroy = true
             } else if ("false".equals(vagrantDestroyProperty)) {
                 vagrantDestroy = false
             } else {
@@ -609,7 +610,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             void afterExecute(Task task, TaskState state) {
                 final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                 if (state.failure != null) {
-                    println "REPRODUCE WITH: ${gradlew} ${reproTaskPath} -Dtests.seed=${project.testSeed} "
+                    println "REPRODUCE WITH: ${gradlew} \"${reproTaskPath}\" -Dtests.seed=${project.testSeed} "
                 }
             }
         }

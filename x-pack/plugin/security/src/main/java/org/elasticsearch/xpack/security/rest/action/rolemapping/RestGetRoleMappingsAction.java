@@ -32,7 +32,9 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
     public RestGetRoleMappingsAction(Settings settings, RestController controller, XPackLicenseState licenseState) {
         super(settings, licenseState);
         controller.registerHandler(GET, "/_xpack/security/role_mapping/", this);
+        controller.registerHandler(GET, "/_security/role_mapping/", this);
         controller.registerHandler(GET, "/_xpack/security/role_mapping/{name}", this);
+        controller.registerHandler(GET, "/_security/role_mapping/{name}", this);
     }
 
     @Override

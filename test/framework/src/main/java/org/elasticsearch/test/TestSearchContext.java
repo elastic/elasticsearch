@@ -505,6 +505,16 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean seqNoAndPrimaryTerm() {
+        return false;
+    }
+
+    @Override
+    public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+
+    }
+
+    @Override
     public int[] docIdsToLoad() {
         return new int[0];
     }

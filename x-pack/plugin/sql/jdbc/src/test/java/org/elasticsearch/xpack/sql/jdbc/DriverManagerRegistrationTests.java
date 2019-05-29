@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver;
 
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
@@ -32,7 +31,7 @@ public class DriverManagerRegistrationTests extends ESTestCase {
         });
     }
 
-    private static void driverManagerTemplate(Consumer<JdbcDriver> c) throws Exception {
+    private static void driverManagerTemplate(Consumer<EsDriver> c) throws Exception {
         String url = "jdbc:es:localhost:9200/";
         Driver driver = null;
         try {
@@ -44,7 +43,7 @@ public class DriverManagerRegistrationTests extends ESTestCase {
         boolean set = driver != null;
 
         try {
-            JdbcDriver d = JdbcDriver.register();
+            EsDriver d = EsDriver.register();
             if (driver != null) {
                 assertEquals(driver, d);
             }
@@ -53,7 +52,7 @@ public class DriverManagerRegistrationTests extends ESTestCase {
 
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                 // mimic DriverManager and unregister the driver
-                JdbcDriver.deregister();
+                EsDriver.deregister();
                 return null;
             });
 
@@ -61,7 +60,7 @@ public class DriverManagerRegistrationTests extends ESTestCase {
             assertEquals("No suitable driver", ex.getMessage());
         } finally {
             if (set) {
-                JdbcDriver.register();
+                EsDriver.register();
             }
         }
     }

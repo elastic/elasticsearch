@@ -52,6 +52,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -64,6 +65,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class FlushIT extends ESIntegTestCase {
     public void testWaitIfOngoing() throws InterruptedException {
         createIndex("test");
@@ -254,7 +256,8 @@ public class FlushIT extends ESIntegTestCase {
     private void indexDoc(Engine engine, String id) throws IOException {
         final ParsedDocument doc = InternalEngineTests.createParsedDoc(id, null);
         final Engine.IndexResult indexResult = engine.index(new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), doc,
-            engine.getLocalCheckpoint() + 1, 1L, 1L, VersionType.EXTERNAL, Engine.Operation.Origin.REPLICA, randomLong(), -1L, false));
+            engine.getLocalCheckpoint() + 1, 1L, 1L, VersionType.EXTERNAL, Engine.Operation.Origin.REPLICA, randomLong(), -1L, false,
+                SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
         assertThat(indexResult.getFailure(), nullValue());
     }
 

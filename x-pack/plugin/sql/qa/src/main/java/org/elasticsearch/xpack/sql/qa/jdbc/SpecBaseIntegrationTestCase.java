@@ -11,7 +11,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -20,6 +19,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -108,14 +108,14 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
     }
 
     protected int fetchSize() {
-        return between(1, 500);
+        return between(1, 150);
     }
 
     // TODO: use UTC for now until deciding on a strategy for handling date extraction
     @Override
     protected Properties connectionProperties() {
         Properties connectionProperties = new Properties();
-        connectionProperties.setProperty(JdbcConfiguration.TIME_ZONE, "UTC");
+        connectionProperties.setProperty("timezone", "UTC");
         return connectionProperties;
     }
 
@@ -196,6 +196,9 @@ public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCas
 
     @SuppressForbidden(reason = "test reads from jar")
     public static InputStream readFromJarUrl(URL source) throws IOException {
-        return source.openStream();
+        URLConnection con = source.openConnection();
+        // do not to cache files (to avoid keeping file handles around)
+        con.setUseCaches(false);
+        return con.getInputStream();
     }
 }

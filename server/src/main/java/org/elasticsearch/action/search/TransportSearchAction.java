@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -61,6 +62,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -94,9 +96,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,
                                                               Index[] concreteIndices, Map<String, AliasFilter> remoteAliasMap) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
+        final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
-            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), request.indices());
+            AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
             aliasFilterMap.put(index.getUUID(), aliasFilter);
         }
@@ -175,10 +178,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        final long absoluteStartMillis = System.currentTimeMillis();
         final long relativeStartNanos = System.nanoTime();
         final SearchTimeProvider timeProvider =
-                new SearchTimeProvider(absoluteStartMillis, relativeStartNanos, System::nanoTime);
+            new SearchTimeProvider(searchRequest.getOrCreateAbsoluteStartMillis(), relativeStartNanos, System::nanoTime);
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {
                 // only set it if it changed - we don't allow null values to be set but it might be already null be we want to catch
@@ -311,7 +313,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         GroupShardsIterator<ShardIterator> localShardsIterator = clusterService.operationRouting().searchShards(clusterState,
                 concreteIndices, routingMap, searchRequest.preference(), searchService.getResponseCollectorService(), nodeSearchCounts);
         GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardsIterator, localIndices,
-            remoteShardIterators);
+            searchRequest.getLocalClusterAlias(), remoteShardIterators);
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
@@ -338,28 +340,50 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         final DiscoveryNodes nodes = clusterState.nodes();
-        BiFunction<String, String, Transport.Connection> connectionLookup = (clusterName, nodeId) -> {
-            final DiscoveryNode discoveryNode = clusterName == null ? nodes.get(nodeId) : remoteConnections.apply(clusterName, nodeId);
-            if (discoveryNode == null) {
-                throw new IllegalStateException("no node found for id: " + nodeId);
-            }
-            return searchTransportService.getConnection(clusterName, discoveryNode);
-        };
-        if (searchRequest.isMaxConcurrentShardRequestsSet() == false) {
-            // we try to set a default of max concurrent shard requests based on
-            // the node count but upper-bound it by 256 by default to keep it sane. A single
-            // search request that fans out lots of shards should hit a cluster too hard while 256 is already a lot.
-            // we multiply it by the default number of shards such that a single request in a cluster of 1 would hit all shards of a
-            // default index.
-            searchRequest.setMaxConcurrentShardRequests(Math.min(256, nodeCount
-                * IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY)));
-        }
+        BiFunction<String, String, Transport.Connection> connectionLookup = buildConnectionLookup(searchRequest.getLocalClusterAlias(),
+            nodes::get, remoteConnections, searchTransportService::getConnection);
+        assert nodeCount > 0 || shardIterators.size() == 0 : "non empty search iterators but node count is 0";
+        setMaxConcurrentShardRequests(searchRequest, nodeCount);
         boolean preFilterSearchShards = shouldPreFilterSearchShards(searchRequest, shardIterators);
         searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, routingMap, listener, preFilterSearchShards, clusters).start();
     }
 
-    private boolean shouldPreFilterSearchShards(SearchRequest searchRequest, GroupShardsIterator<SearchShardIterator> shardIterators) {
+    static void setMaxConcurrentShardRequests(SearchRequest searchRequest, int nodeCount) {
+        if (searchRequest.isMaxConcurrentShardRequestsSet() == false) {
+            // we try to set a default of max concurrent shard requests based on the node count but upper-bound it by 256 by default to
+            // keep it sane. A single search request that fans out to lots of shards should hit a cluster too hard while 256 is already
+            // a lot. we multiply it by the default number of shards such that a single request in a cluster of 1 would hit all shards of
+            // a default index. We take into account that we may be in a cluster with no data nodes searching against no shards.
+            searchRequest.setMaxConcurrentShardRequests(Math.min(256, Math.max(nodeCount, 1)
+                * IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY)));
+        }
+    }
+
+    static BiFunction<String, String, Transport.Connection> buildConnectionLookup(String requestClusterAlias,
+                                                              Function<String, DiscoveryNode> localNodes,
+                                                              BiFunction<String, String, DiscoveryNode> remoteNodes,
+                                                              BiFunction<String, DiscoveryNode, Transport.Connection> nodeToConnection) {
+        return (clusterAlias, nodeId) -> {
+            final DiscoveryNode discoveryNode;
+            final boolean remoteCluster;
+            if (clusterAlias == null || requestClusterAlias != null) {
+                assert requestClusterAlias == null || requestClusterAlias.equals(clusterAlias);
+                discoveryNode = localNodes.apply(nodeId);
+                remoteCluster = false;
+            } else {
+                discoveryNode = remoteNodes.apply(clusterAlias, nodeId);
+                remoteCluster = true;
+            }
+            if (discoveryNode == null) {
+                throw new IllegalStateException("no node found for id: " + nodeId);
+            }
+            return nodeToConnection.apply(remoteCluster ? clusterAlias : null, discoveryNode);
+        };
+    }
+
+    private static boolean shouldPreFilterSearchShards(SearchRequest searchRequest,
+                                                       GroupShardsIterator<SearchShardIterator> shardIterators) {
         SearchSourceBuilder source = searchRequest.source();
         return searchRequest.searchType() == QUERY_THEN_FETCH && // we can't do this for DFS it needs to fan out to all shards all the time
                 SearchService.canRewriteToMatchNone(source) &&
@@ -368,10 +392,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,
                                                              OriginalIndices localIndices,
+                                                             @Nullable String localClusterAlias,
                                                              List<SearchShardIterator> remoteShardIterators) {
         List<SearchShardIterator> shards = new ArrayList<>(remoteShardIterators);
         for (ShardIterator shardIterator : localShardsIterator) {
-            shards.add(new SearchShardIterator(null, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
+            shards.add(new SearchShardIterator(localClusterAlias, shardIterator.shardId(), shardIterator.getShardRoutings(), localIndices));
         }
         return new GroupShardsIterator<>(shards);
     }

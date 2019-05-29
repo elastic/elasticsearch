@@ -335,7 +335,7 @@ public final class ConfigurationUtils {
             // installed for use by REST tests. `propertyValue` will not be
             // modified if templating is not available so a script that simply returns an unmodified `propertyValue`
             // is returned.
-            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG)) {
+            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG) && propertyValue.contains("{{")) {
                 Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, propertyValue, Collections.emptyMap());
                 return scriptService.compile(script, TemplateScript.CONTEXT);
             } else {

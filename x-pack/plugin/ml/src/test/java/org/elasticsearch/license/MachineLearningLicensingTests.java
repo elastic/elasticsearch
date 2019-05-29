@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
@@ -43,7 +44,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging("org.elasticsearch.xpack.ml.action:DEBUG")
+@TestLogging("org.elasticsearch.xpack.ml.action:DEBUG,org.elasticsearch.xpack.ml.MlConfigMigrator:DEBUG,"
+        + "org.elasticsearch.xpack.ml.process.MlMemoryTracker:DEBUG")
 public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
 
     @Before
@@ -54,7 +56,7 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         ensureYellow();
     }
 
-    public void testMachineLearningPutJobActionRestricted() throws Exception {
+    public void testMachineLearningPutJobActionRestricted() {
         String jobId = "testmachinelearningputjobactionrestricted";
         // Pick a license that does not allow machine learning
         License.OperationMode mode = randomInvalidLicenseType();
@@ -225,6 +227,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             disableLicensing();
         }
         assertMLAllowed(false);
+
+        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
 
         // now that the license is invalid, the job should be closed and datafeed stopped:
         assertBusy(() -> {

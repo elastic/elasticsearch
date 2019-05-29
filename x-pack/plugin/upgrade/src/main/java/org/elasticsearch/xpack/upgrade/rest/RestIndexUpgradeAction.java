@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.upgrade.rest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,9 +35,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class RestIndexUpgradeAction extends BaseRestHandler {
+    private static final Logger logger = LogManager.getLogger(RestIndexUpgradeAction.class);
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+
     public RestIndexUpgradeAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "_xpack/migration/upgrade/{index}", this);
+        controller.registerAsDeprecatedHandler(RestRequest.Method.POST, "_xpack/migration/upgrade/{index}", this,
+            "[_xpack/migration/upgrade] is deprecated. Use the Kibana Upgrade Assistant or the Reindex API instead.",
+            deprecationLogger);
     }
 
     @Override

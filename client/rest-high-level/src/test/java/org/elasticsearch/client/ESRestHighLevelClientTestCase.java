@@ -22,11 +22,11 @@ package org.elasticsearch.client;
 import org.apache.http.Header;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -76,14 +76,22 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
      */
     protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
                                        AsyncMethod<Req, Resp> asyncMethod) throws IOException {
+        return execute(request, syncMethod, asyncMethod, RequestOptions.DEFAULT);
+    }
+    
+    /**
+     * Executes the provided request using either the sync method or its async variant, both provided as functions
+     */
+    protected static <Req, Resp> Resp execute(Req request, SyncMethod<Req, Resp> syncMethod,
+                                       AsyncMethod<Req, Resp> asyncMethod, RequestOptions options) throws IOException {
         if (randomBoolean()) {
-            return syncMethod.execute(request, RequestOptions.DEFAULT);
+            return syncMethod.execute(request, options);
         } else {
             PlainActionFuture<Resp> future = PlainActionFuture.newFuture();
-            asyncMethod.execute(request, RequestOptions.DEFAULT, future);
+            asyncMethod.execute(request, options, future);
             return future.actionGet();
         }
-    }
+    }    
 
     /**
      * Executes the provided request using either the sync method or its async

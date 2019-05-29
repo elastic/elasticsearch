@@ -143,9 +143,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            datafeed.doXContentBody(builder, params);
-            builder.endObject();
+            datafeed.toXContent(builder, params);
             return builder;
         }
 

@@ -14,7 +14,7 @@ To shut down Elasticsearch, kill the process ID recorded in the `pid` file:
 
 [source,sh]
 --------------------------------------------
-kill `cat pid`
+pkill -F pid 
 --------------------------------------------
 
 NOTE: The startup scripts provided in the <<rpm,RPM>> and <<deb,Debian>>

@@ -58,6 +58,25 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     static final boolean EXCEPTION_FOR_MISSING_VALUE =
         parseBoolean(System.getProperty("es.scripting.exception_for_missing_value", "false"));
 
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScriptDocValues.class));
+    /**
+     * Callback for deprecated fields. In production this should always point to
+     * {@link #deprecationLogger} but tests will override it so they can test
+     * that we use the required permissions when calling it.
+     */
+    private final BiConsumer<String, String> deprecationCallback;
+
+    public ScriptDocValues() {
+        deprecationCallback = deprecationLogger::deprecatedAndMaybeLog;
+    }
+
+    /**
+     * Constructor for testing deprecation callback.
+     */
+    ScriptDocValues(BiConsumer<String, String> deprecationCallback) {
+        this.deprecationCallback = deprecationCallback;
+    }
+
     /**
      * Set the current doc ID.
      */
@@ -67,6 +86,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
      * Return a copy of the list of the values for the current document.
      */
     public final List<T> getValues() {
+        deprecated("ScriptDocValues#getValues", "Deprecated getValues used, the field is a list and should be accessed directly."
+                + " For example, use doc['foo'] instead of doc['foo'].values.");
         return this;
     }
 
@@ -96,15 +117,25 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
+    /**
+     * Log a deprecation log, with the server's permissions and not the permissions
+     * of the script calling this method. We need to do this to prevent errors
+     * when rolling the log file.
+     */
+    protected void deprecated(String key, String message) {
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                deprecationCallback.accept(key, message);
+                return null;
+            }
+        });
+    }
+
     public static final class Longs extends ScriptDocValues<Long> {
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Longs.class));
-        private final SortedNumericDocValues in;
-        /**
-         * Callback for deprecated fields. In production this should always point to
-         * {@link #deprecationLogger} but tests will override it so they can test that
-         * we use the required permissions when calling it.
-         */
         private final BiConsumer<String, String> deprecationCallback;
+        private final SortedNumericDocValues in;
         private long[] values = new long[0];
         private int count;
         private Dates dates;
@@ -118,11 +149,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         /**
-         * Constructor for testing the deprecation callback.
+         * Constructor for testing deprecation callback.
          */
         Longs(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
-            this.in = in;
+            super(deprecationCallback);
             this.deprecationCallback = deprecationCallback;
+            this.in = in;
         }
 
         @Override
@@ -154,19 +186,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return this.in;
         }
 
-        public long getValue() {
-            if (count == 0) {
-                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                deprecated("scripting_missing_value_deprecation",
-                    "returning default values for missing document values is deprecated. " +
-                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-                    "to make behaviour compatible with future major versions!");
-                return 0L;
-            }
-            return values[0];
+        public long getValue() {          
+            return get(0);
         }
 
         @Deprecated
@@ -191,28 +212,23 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public Long get(int index) {
+            if (count == 0) {
+                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
+                    throw new IllegalStateException("A document doesn't have a value for a field! " +
+                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                }
+                deprecated("scripting_missing_value_deprecation",
+                    "returning default values for missing document values is deprecated. " +
+                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                    "to make behaviour compatible with future major versions!");
+                return 0L;
+            }
             return values[index];
         }
 
         @Override
         public int size() {
             return count;
-        }
-
-        /**
-         * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method. We need to do this to prevent errors when rolling
-         * the log file.
-         */
-        private void deprecated(String key, String message) {
-            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    deprecationCallback.accept(key, message);
-                    return null;
-                }
-            });
         }
     }
 
@@ -223,8 +239,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private final JodaCompatibleZonedDateTime EPOCH = new JodaCompatibleZonedDateTime(Instant.EPOCH, ZoneOffset.UTC);
 
         private final SortedNumericDocValues in;
-
-        private final BiConsumer<String, String> deprecationCallback;
 
         /**
          * Values wrapped in {@link java.time.ZonedDateTime} objects.
@@ -240,11 +254,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         /**
-         * Constructor for testing with a deprecation callback.
+         * Constructor for testing deprecation callback.
          */
         Dates(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
             this.in = in;
-            this.deprecationCallback = deprecationCallback;
         }
 
         /**
@@ -252,17 +266,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
          * in.
          */
         public JodaCompatibleZonedDateTime getValue() {
-            if (count == 0) {
-                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                deprecated("scripting_missing_value_deprecation",
-                    "returning default values for missing document values is deprecated. " +
-                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-                    "to make behaviour compatible with future major versions!");
-                return EPOCH;
-            }
             return get(0);
         }
 
@@ -285,7 +288,18 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public JodaCompatibleZonedDateTime get(int index) {
+        public JodaCompatibleZonedDateTime get(int index) {   
+            if (count == 0) {
+                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
+                    throw new IllegalStateException("A document doesn't have a value for a field! " +
+                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                }
+                deprecated("scripting_missing_value_deprecation",
+                    "returning default values for missing document values is deprecated. " +
+                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                    "to make behaviour compatible with future major versions!");
+                return EPOCH;
+            }
             if (index >= count) {
                 throw new IndexOutOfBoundsException(
                         "attempted to fetch the [" + index + "] date when there are only ["
@@ -324,22 +338,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
             }
         }
-
-        /**
-         * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method. We need to do this to prevent errors when rolling
-         * the log file.
-         */
-        private void deprecated(String key, String message) {
-            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    deprecationCallback.accept(key, message);
-                    return null;
-                }
-            });
-        }
     }
 
     public static final class Doubles extends ScriptDocValues<Double> {
@@ -349,15 +347,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private int count;
 
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Doubles.class));
-        private final BiConsumer<String, String> deprecationCallback;
 
         public Doubles(SortedNumericDoubleValues in) {
             this(in, (key, message) -> deprecationLogger.deprecatedAndMaybeLog(key, message));
         }
 
         public Doubles(SortedNumericDoubleValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
             this.in = in;
-            this.deprecationCallback = deprecationCallback;
         }
 
         @Override
@@ -385,8 +382,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return this.in;
         }
 
-        public double getValue() {
-            if (count == 0) {
+        public double getValue() {      
+            return get(0);
+        }
+
+        @Override
+        public Double get(int index) {
+             if (count == 0) {
                 if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
                         "Use doc[<field>].size()==0 to check if a document is missing a field!");
@@ -397,33 +399,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     "to make behaviour compatible with future major versions!");
                 return 0d;
             }
-            return values[0];
-        }
-
-        @Override
-        public Double get(int index) {
             return values[index];
         }
 
         @Override
         public int size() {
             return count;
-        }
-
-        /**
-         * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method. We need to do this to prevent errors when rolling
-         * the log file.
-         */
-        private void deprecated(String key, String message) {
-            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    deprecationCallback.accept(key, message);
-                    return null;
-                }
-            });
         }
     }
 
@@ -434,15 +415,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private int count;
 
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(GeoPoints.class));
-        private final BiConsumer<String, String> deprecationCallback;
 
         public GeoPoints(MultiGeoPointValues in) {
             this(in, (key, message) -> deprecationLogger.deprecatedAndMaybeLog(key, message));
         }
 
-        public GeoPoints(MultiGeoPointValues in, BiConsumer<String, String> deprecationCallback) {
-            this.in = in;
-            this.deprecationCallback = deprecationCallback;
+        /**
+         * Constructor for testing deprecation callback.
+         */
+        GeoPoints(MultiGeoPointValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
+            this.in =  in;
         }
 
         @Override
@@ -474,18 +457,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public GeoPoint getValue() {
-            if (count == 0) {
-                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
-                    throw new IllegalStateException("A document doesn't have a value for a field! " +
-                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
-                }
-                deprecated("scripting_missing_value_deprecation",
-                    "returning default values for missing document values is deprecated. " +
-                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
-                    "to make behaviour compatible with future major versions!");
-                return null;
-            }
-            return values[0];
+            return get(0);
         }
 
         public double getLat() {
@@ -516,6 +488,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint get(int index) {
+            if (count == 0) {
+                if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
+                    throw new IllegalStateException("A document doesn't have a value for a field! " +
+                        "Use doc[<field>].size()==0 to check if a document is missing a field!");
+                }
+                deprecated("scripting_missing_value_deprecation",
+                    "returning default values for missing document values is deprecated. " +
+                    "Set system property '-Des.scripting.exception_for_missing_value=true' "  +
+                    "to make behaviour compatible with future major versions!");
+                return null;
+            }
             final GeoPoint point = values[index];
             return new GeoPoint(point.lat(), point.lon());
         }
@@ -561,22 +544,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
             return geohashDistance(geohash);
         }
-
-        /**
-         * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method. We need to do this to prevent errors when rolling
-         * the log file.
-         */
-        private void deprecated(String key, String message) {
-            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    deprecationCallback.accept(key, message);
-                    return null;
-                }
-            });
-        }
     }
 
     public static final class Booleans extends ScriptDocValues<Boolean> {
@@ -586,15 +553,14 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         private int count;
 
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Booleans.class));
-        private final BiConsumer<String, String> deprecationCallback;
 
         public Booleans(SortedNumericDocValues in) {
             this(in, (key, message) -> deprecationLogger.deprecatedAndMaybeLog(key, message));
         }
 
         public Booleans(SortedNumericDocValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
             this.in = in;
-            this.deprecationCallback = deprecationCallback;
         }
 
         @Override
@@ -619,6 +585,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         public boolean getValue() {
+            return get(0);
+        }
+
+        @Override
+        public Boolean get(int index) {
             if (count == 0) {
                 if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
@@ -630,11 +601,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     "to make behaviour compatible with future major versions!");
                 return false;
             }
-            return values[0];
-        }
-
-        @Override
-        public Boolean get(int index) {
             return values[index];
         }
 
@@ -651,23 +617,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             } else
                 return array;
         }
-
-        /**
-         * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method. We need to do this to prevent errors when rolling
-         * the log file.
-         */
-        private void deprecated(String key, String message) {
-            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    deprecationCallback.accept(key, message);
-                    return null;
-                }
-            });
-        }
-
     }
 
     abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
@@ -676,7 +625,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         protected BytesRefBuilder[] values = new BytesRefBuilder[0];
         protected int count;
 
-        BinaryScriptDocValues(SortedBinaryDocValues in) {
+        BinaryScriptDocValues(SortedBinaryDocValues in, BiConsumer<String, String> deprecationCallback) {
+            super(deprecationCallback);
             this.in = in;
         }
 
@@ -720,23 +670,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     public static final class Strings extends BinaryScriptDocValues<String> {
 
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Strings.class));
-        private final BiConsumer<String, String> deprecationCallback;
 
         public Strings(SortedBinaryDocValues in) {
             this(in, (key, message) -> deprecationLogger.deprecatedAndMaybeLog(key, message));
         }
 
         public Strings(SortedBinaryDocValues in, BiConsumer<String, String> deprecationCallback) {
-            super(in);
-            this.deprecationCallback = deprecationCallback;
+            super(in, deprecationCallback);
         }
 
         @Override
         public String get(int index) {
-            return values[index].get().utf8ToString();
-        }
-
-        public String getValue() {
             if (count == 0) {
                 if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
@@ -748,51 +692,28 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     "to make behaviour compatible with future major versions!");
                 return null;
             }
-            return get(0);
+            return values[index].get().utf8ToString();
         }
 
-        /**
-         * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method. We need to do this to prevent errors when rolling
-         * the log file.
-         */
-        private void deprecated(String key, String message) {
-            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    deprecationCallback.accept(key, message);
-                    return null;
-                }
-            });
+        public String getValue() {
+            return get(0);
         }
     }
 
     public static final class BytesRefs extends BinaryScriptDocValues<BytesRef> {
 
         protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Strings.class));
-        private final BiConsumer<String, String> deprecationCallback;
 
         public BytesRefs(SortedBinaryDocValues in) {
             this(in, (key, message) -> deprecationLogger.deprecatedAndMaybeLog(key, message));
         }
 
         public BytesRefs(SortedBinaryDocValues in, BiConsumer<String, String> deprecationCallback) {
-            super(in);
-            this.deprecationCallback = deprecationCallback;
+            super(in, deprecationCallback);
         }
 
         @Override
         public BytesRef get(int index) {
-            /**
-             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
-             * returned value and the same instance might be used to
-             * return values from multiple documents.
-             **/
-            return values[index].toBytesRef();
-        }
-
-        public BytesRef getValue() {
             if (count == 0) {
                 if (ScriptDocValues.EXCEPTION_FOR_MISSING_VALUE) {
                     throw new IllegalStateException("A document doesn't have a value for a field! " +
@@ -804,24 +725,16 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                     "to make behaviour compatible with future major versions!");
                 return new BytesRef();
             }
+            /**
+             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
+             * returned value and the same instance might be used to
+             * return values from multiple documents.
+             **/
+            return values[index].toBytesRef();
+        }
+
+        public BytesRef getValue() {
             return get(0);
         }
-
-        /**
-         * Log a deprecation log, with the server's permissions, not the permissions of the
-         * script calling this method. We need to do this to prevent errors when rolling
-         * the log file.
-         */
-        private void deprecated(String key, String message) {
-            // Intentionally not calling SpecialPermission.check because this is supposed to be called by scripts
-            AccessController.doPrivileged(new PrivilegedAction<Void>() {
-                @Override
-                public Void run() {
-                    deprecationCallback.accept(key, message);
-                    return null;
-                }
-            });
-        }
-
     }
 }

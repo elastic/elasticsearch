@@ -19,6 +19,8 @@
 package org.elasticsearch.indexing;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocWriteResponse.Result;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -70,8 +72,9 @@ public class IndexActionIT extends ESIntegTestCase {
                     logger.debug("running search with all types");
                     SearchResponse response = client().prepareSearch("test").get();
                     if (response.getHits().getTotalHits() != numOfDocs) {
-                        final String message = "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. "
-                            + ElasticsearchAssertions.formatShardStatus(response);
+                        final String message =
+                                "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. " +
+                                        ElasticsearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }
@@ -85,8 +88,9 @@ public class IndexActionIT extends ESIntegTestCase {
                     logger.debug("running search with a specific type");
                     SearchResponse response = client().prepareSearch("test").setTypes("type").get();
                     if (response.getHits().getTotalHits() != numOfDocs) {
-                        final String message = "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. "
-                            + ElasticsearchAssertions.formatShardStatus(response);
+                        final String message =
+                                "Count is " + response.getHits().getTotalHits() + " but " + numOfDocs + " was expected. " +
+                                        ElasticsearchAssertions.formatShardStatus(response);
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }
@@ -183,7 +187,8 @@ public class IndexActionIT extends ESIntegTestCase {
         createIndex("test");
         ensureGreen();
 
-        BulkResponse bulkResponse = client().prepareBulk().add(client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
+        BulkResponse bulkResponse = client().prepareBulk().add(
+                client().prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
@@ -250,5 +255,40 @@ public class IndexActionIT extends ESIntegTestCase {
         assertThat(e.getMessage(), containsString("failed to parse"));
         assertThat(e.getRootCause().getMessage(),
                 containsString("field name cannot be an empty string"));
+    }
+
+    public void test_docAsAliasOfActualTypeName() {
+        ElasticsearchAssertions.assertAcked(
+                client().admin().indices().prepareCreate("index").addMapping("some_type", "foo", "type=keyword").get());
+
+        // Index
+        client().prepareIndex("index", "_doc", "1").setSource("foo", "bar").get();
+        assertTrue(client().prepareGet("index", "some_type", "1").get().isExists());
+
+        // Get
+        assertTrue(client().prepareGet("index", "_doc", "1").get().isExists());
+
+        // Update
+        assertEquals(Result.UPDATED, client().prepareUpdate("index", "_doc", "1").setDoc("foo", "baz").get().getResult());
+        assertEquals(Result.CREATED, client().prepareUpdate("index", "_doc", "2").setDocAsUpsert(true).setDoc("foo", "quux")
+                .get().getResult());
+        assertEquals("baz", client().prepareGet("index", "some_type", "1").get().getSource().get("foo"));
+        assertEquals("quux", client().prepareGet("index", "some_type", "2").get().getSource().get("foo"));
+
+        // Delete
+        assertEquals(Result.DELETED, client().prepareDelete("index", "_doc", "1").get().getResult());
+        assertFalse(client().prepareGet("index", "some_type", "1").get().isExists());
+
+        // Bulk
+        BulkResponse response = client().prepareBulk("index", "_doc")
+            .add(client().prepareIndex("index", "_doc", "1").setSource("foo", "bar"))
+            .add(client().prepareDelete("index", "_doc", "2"))
+            .get();
+        assertFalse(response.hasFailures());
+        BulkItemResponse[] items = response.getItems();
+        assertEquals(Result.CREATED, items[0].getResponse().getResult());
+        assertEquals(Result.DELETED, items[1].getResponse().getResult());
+        assertTrue(client().prepareGet("index", "some_type", "1").get().isExists());
+        assertFalse(client().prepareGet("index", "some_type", "2").get().isExists());
     }
 }

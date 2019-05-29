@@ -58,7 +58,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<Del
         List<MlDataRemover> dataRemovers = Arrays.asList(
                 new ExpiredResultsRemover(client, clusterService, auditor),
                 new ExpiredForecastsRemover(client, threadPool),
-                new ExpiredModelSnapshotsRemover(client, threadPool, clusterService),
+                new ExpiredModelSnapshotsRemover(client, clusterService, threadPool),
                 new UnusedStateRemover(client, clusterService)
         );
         Iterator<MlDataRemover> dataRemoversIterator = new VolatileCursorIterator<>(dataRemovers);

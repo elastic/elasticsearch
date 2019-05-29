@@ -37,18 +37,18 @@ public abstract class WordScorer {
     protected final String field;
     protected final Terms terms;
     protected final long vocabluarySize;
-    protected final double realWordLikelyhood;
+    protected final double realWordLikelihood;
     protected final BytesRefBuilder spare = new BytesRefBuilder();
     protected final BytesRef separator;
     private final TermsEnum termsEnum;
     private final long numTerms;
     private final boolean useTotalTermFreq;
 
-    public WordScorer(IndexReader reader, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
-        this(reader, MultiFields.getTerms(reader, field), field, realWordLikelyHood, separator);
+    public WordScorer(IndexReader reader, String field, double realWordLikelihood, BytesRef separator) throws IOException {
+        this(reader, MultiFields.getTerms(reader, field), field, realWordLikelihood, separator);
     }
 
-    public WordScorer(IndexReader reader, Terms terms, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
+    public WordScorer(IndexReader reader, Terms terms, String field, double realWordLikelihood, BytesRef separator) throws IOException {
         this.field = field;
         if (terms == null) {
             throw new IllegalArgumentException("Field: [" + field + "] does not exist");
@@ -63,7 +63,7 @@ public abstract class WordScorer {
         this.numTerms = vocabluarySize + numTerms > 1 ? numTerms : 0;
         this.termsEnum = new FreqTermsEnum(reader, field, !useTotalTermFreq, useTotalTermFreq, null, BigArrays.NON_RECYCLING_INSTANCE); // non recycling for now
         this.reader = reader;
-        this.realWordLikelyhood = realWordLikelyHood;
+        this.realWordLikelihood = realWordLikelihood;
         this.separator = separator;
     }
 
@@ -76,7 +76,7 @@ public abstract class WordScorer {
 
    protected double channelScore(Candidate candidate, Candidate original) throws IOException {
        if (candidate.stringDistance == 1.0d) {
-           return realWordLikelyhood;
+           return realWordLikelihood;
        }
        return candidate.stringDistance;
    }
@@ -115,6 +115,6 @@ public abstract class WordScorer {
 
    public interface WordScorerFactory {
        WordScorer newScorer(IndexReader reader, Terms terms,
-                            String field, double realWordLikelyhood, BytesRef separator) throws IOException;
+                            String field, double realWordLikelihood, BytesRef separator) throws IOException;
    }
 }

@@ -58,7 +58,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 
@@ -77,7 +76,13 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
+public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStringQueryBuilder> {
+    @Override
+    protected boolean isCacheable(QueryStringQueryBuilder queryBuilder) {
+        return queryBuilder.fuzziness() != null
+                || isCacheable(queryBuilder.fields().keySet(), queryBuilder.queryString());
+    }
+
     @Override
     protected QueryStringQueryBuilder doCreateTestQueryBuilder() {
         int numTerms = randomIntBetween(0, 5);
@@ -683,16 +688,22 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             // span query with slop
             query = queryParser.parse("\"that guinea pig smells\"~2");
-            expectedQuery = new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
-                .addClause(
-                    new SpanOrQuery(
-                        new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
-                            .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
-                        new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
-                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+            PhraseQuery pq1 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "that"))
+                .add(new Term(STRING_FIELD_NAME, "guinea"))
+                .add(new Term(STRING_FIELD_NAME, "pig"))
+                .add(new Term(STRING_FIELD_NAME, "smells"))
                 .setSlop(2)
+                .build();
+            PhraseQuery pq2 = new PhraseQuery.Builder()
+                .add(new Term(STRING_FIELD_NAME, "that"))
+                .add(new Term(STRING_FIELD_NAME, "cavy"))
+                .add(new Term(STRING_FIELD_NAME, "smells"))
+                .setSlop(2)
+                .build();
+            expectedQuery = new BooleanQuery.Builder()
+                .add(pq1, Occur.SHOULD)
+                .add(pq2, Occur.SHOULD)
                 .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
         }
@@ -1205,25 +1216,52 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testUnmappedFieldRewriteToMatchNoDocs() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // Default unmapped field
         Query query = new QueryStringQueryBuilder("hello")
             .field("unmapped_field")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new MatchNoDocsQuery(), query);
 
         // Unmapped prefix field
         query = new QueryStringQueryBuilder("unmapped_field:hello")
             .lenient(true)
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new MatchNoDocsQuery(), query);
 
         // Unmapped fields
         query = new QueryStringQueryBuilder("hello")
             .lenient(true)
             .field("unmapped_field")
+            .field("another_field")
             .toQuery(createShardContext());
-        assertEquals(new MatchNoDocsQuery(""), query);
+        assertEquals(new MatchNoDocsQuery(), query);
+
+        // Multi block
+        query = new QueryStringQueryBuilder("first unmapped:second")
+            .field(STRING_FIELD_NAME)
+            .field("unmapped")
+            .field("another_unmapped")
+            .defaultOperator(Operator.AND)
+            .toQuery(createShardContext());
+        BooleanQuery expected = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term(STRING_FIELD_NAME, "first")), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .build();
+        assertEquals(expected, query);
+
+        query = new SimpleQueryStringBuilder("first unknown:second")
+            .field("unmapped")
+            .field("another_unmapped")
+            .defaultOperator(Operator.AND)
+            .toQuery(createShardContext());
+        expected = new BooleanQuery.Builder()
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .add(new MatchNoDocsQuery(), BooleanClause.Occur.MUST)
+            .build();
+        assertEquals(expected, query);
+
     }
 
     public void testDefaultField() throws Exception {
@@ -1479,6 +1517,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .toQuery(createShardContext());
         Query expected = new PrefixQuery(new Term(STRING_FIELD_NAME, "quick"));
         assertEquals(expected, query);
+    }
+
+    public void testNegativeFieldBoost() throws IOException {
+        Query query =  new QueryStringQueryBuilder("the quick fox")
+            .field(STRING_FIELD_NAME, -1.0f)
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(createShardContext());
+        assertWarnings("setting a negative [boost] on a query is deprecated and will throw an error in the next major " +
+            "version. You can use a value between 0 and 1 to deboost.");
     }
 
     private static IndexMetaData newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

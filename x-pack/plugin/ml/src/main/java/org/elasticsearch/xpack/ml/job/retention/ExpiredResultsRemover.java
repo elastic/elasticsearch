@@ -45,12 +45,11 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     private static final Logger LOGGER = LogManager.getLogger(ExpiredResultsRemover.class);
 
-    private final Client client;
+
     private final Auditor auditor;
 
     public ExpiredResultsRemover(Client client, ClusterService clusterService, Auditor auditor) {
-        super(clusterService);
-        this.client = Objects.requireNonNull(client);
+        super(client, clusterService);
         this.auditor = Objects.requireNonNull(auditor);
     }
 
@@ -64,7 +63,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
         DeleteByQueryRequest request = createDBQRequest(job, cutoffEpochMs);
 
-        client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
+        getClient().execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<BulkByScrollResponse>() {
             @Override
             public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
                 try {

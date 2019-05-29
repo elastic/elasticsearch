@@ -23,6 +23,7 @@ import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 
@@ -38,14 +39,17 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+@Ignore // Awaiting a fix in https://github.com/elastic/elasticsearch/issues/37889.
 public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
-    private static List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
+    private static final List<File> EXAMPLE_PLUGINS = Collections.unmodifiableList(
         Arrays.stream(
             Objects.requireNonNull(System.getProperty("test.build-tools.plugin.examples"))
                 .split(File.pathSeparator)
         ).map(File::new).collect(Collectors.toList())
     );
+
+    private static final String BUILD_TOOLS_VERSION = Objects.requireNonNull(System.getProperty("test.version_under_test"));
 
     @Rule
     public TemporaryFolder tmpDir = new TemporaryFolder();
@@ -96,16 +100,18 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
 
     private void adaptBuildScriptForTest() throws IOException {
         // Add the local repo as a build script URL so we can pull in build-tools and apply the plugin under test
-        // + is ok because we have no other repo and just want to pick up latest
+        // we need to specify the exact version of build-tools because gradle automatically adds its plugin portal
+        // which appears to mirror jcenter, opening us up to pulling a "later" version of build-tools
         writeBuildScript(
             "buildscript {\n" +
                 "    repositories {\n" +
                 "        maven {\n" +
+                "            name = \"test\"\n" +
                 "            url = '" + getLocalTestRepoPath() + "'\n" +
                 "        }\n" +
                 "    }\n" +
                 "    dependencies {\n" +
-                "        classpath \"org.elasticsearch.gradle:build-tools:+\"\n" +
+                "        classpath \"org.elasticsearch.gradle:build-tools:" + BUILD_TOOLS_VERSION + "\"\n" +
                 "    }\n" +
                 "}\n"
         );
@@ -119,12 +125,14 @@ public class BuildExamplePluginsIT extends GradleIntegrationTestCase {
         String luceneSnapshotRevision = System.getProperty("test.lucene-snapshot-revision");
         if (luceneSnapshotRevision != null) {
             luceneSnapshotRepo =  "  maven {\n" +
-                "    url \"http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision + "\"\n" +
+                "    name \"lucene-snapshots\"\n" +
+                "    url \"https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/" + luceneSnapshotRevision + "\"\n" +
                 "  }\n";
         }
         writeBuildScript("\n" +
                 "repositories {\n" +
                 "  maven {\n" +
+                "    name \"test\"\n" +
                 "    url \"" + getLocalTestRepoPath()  + "\"\n" +
                 "  }\n" +
                 luceneSnapshotRepo +

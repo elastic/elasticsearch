@@ -7,8 +7,12 @@
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
+import org.elasticsearch.xpack.sql.type.DataType;
+import org.elasticsearch.xpack.sql.type.DataTypeConversion;
 
 import java.util.List;
 
@@ -17,7 +21,30 @@ import java.util.List;
  */
 public abstract class ConditionalFunction extends ScalarFunction {
 
-    protected ConditionalFunction(Location location, List<Expression> fields) {
-        super(location, fields);
+    protected DataType dataType = null;
+
+    ConditionalFunction(Source source, List<Expression> fields) {
+        super(source, fields);
+    }
+
+    @Override
+    public DataType dataType() {
+        if (dataType == null) {
+            dataType = DataType.NULL;
+            for (Expression exp : children()) {
+                dataType = DataTypeConversion.commonType(dataType, exp.dataType());
+            }
+        }
+        return dataType;
+    }
+
+    @Override
+    public boolean foldable() {
+        return Expressions.foldable(children());
+    }
+
+    @Override
+    public Nullability nullable() {
+        return Nullability.UNKNOWN;
     }
 }

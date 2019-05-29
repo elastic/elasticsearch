@@ -76,12 +76,18 @@ TIP: Ensure the installation machine has access to the internet and that any cor
 [[msi-installer-selected-plugins]]
 image::images/msi_installer/msi_installer_selected_plugins.png[]
 
-As of version 6.3.0, X-Pack is now https://www.elastic.co/products/x-pack/open[bundled by default]. The final step allows a choice of the type of X-Pack license to install, in addition to security configuration and built-in user configuration:
+As of version 6.3.0, {xpack} is now https://www.elastic.co/products/x-pack/open[bundled by default].
+The final step allows a choice of the type of license to install, in addition to
+security configuration and built-in user configuration:
 
 [[msi-installer-xpack]]
 image::images/msi_installer/msi_installer_xpack.png[]
 
-NOTE: X-Pack includes a choice of a Trial or Basic license. A Trial license is valid for 30 days, after which you can obtain one of the available subscriptions. The Basic license is free and perpetual. Consult the https://www.elastic.co/subscriptions[available subscriptions] for further details on which features are available under which license.
+NOTE: {xpack} includes a choice of a Trial or Basic license. A Trial license is
+valid for 30 days, after which you can obtain one of the available subscriptions.
+The Basic license is free and perpetual. Consult the
+https://www.elastic.co/subscriptions[available subscriptions] for further
+details on which features are available under which license.
 
 After clicking the install button, the installation will begin:
 
@@ -260,7 +266,8 @@ as _properties_ within Windows Installer documentation) that can be passed to `m
 
 `PLUGINS`::
 
-  A comma separated list of the plugins to download and install as part of the installation. Defaults to `""`
+  A comma separated list of the plugins to download and install as part of the
+  installation. Defaults to `""`
 
 `HTTPSPROXYHOST`::
 
@@ -280,47 +287,47 @@ as _properties_ within Windows Installer documentation) that can be passed to `m
 
 `XPACKLICENSE`::
 
-  The type of X-Pack license to install, either `Basic` or `Trial`. Defaults to `Basic`
+  The type of license to install, either `Basic` or `Trial`. Defaults to `Basic`
 
 `XPACKSECURITYENABLED`::
 
-  When installing with a `Trial` license, whether X-Pack Security should be enabled.
-  Defaults to `true`
+  When installing with a `Trial` license, whether {security-features} are
+  enabled. Defaults to `true`
 
 `BOOTSTRAPPASSWORD`::
 
-  When installing with a `Trial` license and X-Pack Security enabled, the password to
-  used to bootstrap the cluster and persisted as the `bootstrap.password` setting in the keystore.
-  Defaults to a randomized value.
+  When installing with a `Trial` license and {security-features} are enabled,
+  the password to used to bootstrap the cluster and persisted as the
+  `bootstrap.password` setting in the keystore. Defaults to a randomized value.
 
 `SKIPSETTINGPASSWORDS`::
 
-  When installing with a `Trial` license and {security} enabled, whether the
-  installation should skip setting up the built-in users `elastic`, `kibana`, 
-  `logstash_system`, `apm_system`, and `beats_system`.
+  When installing with a `Trial` license and {security-features} enabled,
+  whether the installation should skip setting up the built-in users.
   Defaults to `false`
 
 `ELASTICUSERPASSWORD`::
 
-  When installing with a `Trial` license and X-Pack Security enabled, the password
-  to use for the built-in user `elastic`. Defaults to `""`
+  When installing with a `Trial` license and {security-features} are enabled,
+  the password to use for the built-in user `elastic`. Defaults to `""`
 
 `KIBANAUSERPASSWORD`::
 
-  When installing with a `Trial` license and X-Pack Security enabled, the password
-  to use for the built-in user `kibana`. Defaults to `""`
+  When installing with a `Trial` license and {security-features} are enabled,
+  the password to use for the built-in user `kibana`. Defaults to `""`
 
 `LOGSTASHSYSTEMUSERPASSWORD`::
 
-  When installing with a `Trial` license and X-Pack Security enabled, the password
-  to use for the built-in user `logstash_system`. Defaults to `""`
+  When installing with a `Trial` license and {security-features} are enabled,
+  the password to use for the built-in user `logstash_system`. Defaults to `""`
 
-To pass a value, simply append the property name and value using the format `<PROPERTYNAME>="<VALUE>"` to
-the installation command. For example, to use a different installation directory to the default one and to install https://www.elastic.co/products/x-pack[X-Pack]:
+To pass a value, simply append the property name and value using the format
+`<PROPERTYNAME>="<VALUE>"` to the installation command. For example, to use a
+different installation directory to the default one:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------
-start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory\{version}" PLUGINS="x-pack"
+start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory\{version}" 
 --------------------------------------------
 
 Consult the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options]
@@ -328,10 +335,10 @@ for additional rules related to values containing quotation marks.
 
 ifdef::include-xpack[]
 [[msi-installer-enable-indices]]
-==== Enable automatic creation of X-Pack indices
+==== Enable automatic creation of {xpack} indices
 
 
-X-Pack will try to automatically create a number of indices within Elasticsearch.
+The {stack} features try to automatically create a number of indices within {es}.
 include::xpack-indices.asciidoc[]
 
 endif::include-xpack[]

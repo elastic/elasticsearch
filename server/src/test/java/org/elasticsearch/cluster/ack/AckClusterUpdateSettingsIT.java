@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.ack;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
@@ -49,6 +50,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
+@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/33673")
 @ClusterScope(scope = TEST, minNumDataNodes = 2)
 public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 

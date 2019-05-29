@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.core.ssl;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.xpack.core.XPackSettings;
 
 import javax.net.ssl.KeyManagerFactory;
 
@@ -19,6 +21,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.propertiesFromKey;
+
 /**
  * An encapsulation of the configuration options for X.509 Key Pair support in X-Pack security.
  * The most common use is as the private key and associated certificate for SSL/TLS support, but it can also be used for providing
@@ -28,58 +32,59 @@ import java.util.function.Function;
 public class X509KeyPairSettings {
 
     static final Function<String, Setting<Optional<String>>> KEYSTORE_PATH_TEMPLATE = key -> new Setting<>(key, s -> null,
-            Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
+            Optional::ofNullable, propertiesFromKey(key));
 
     static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
             SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
     static final Function<String, Setting<SecureString>> KEYSTORE_PASSWORD_TEMPLATE = key -> SecureSetting.secureString(key,
-            LEGACY_KEYSTORE_PASSWORD_TEMPLATE.apply(key.replace("keystore.secure_password", "keystore.password")));
+        LEGACY_KEYSTORE_PASSWORD_TEMPLATE.apply(key.replace("keystore.secure_password", "keystore.password")),
+        key.startsWith(XPackSettings.GLOBAL_SSL_PREFIX) ? new Property[] { Property.Deprecated } : new Property[0]);
 
     static final Function<String, Setting<String>> KEY_STORE_ALGORITHM_TEMPLATE = key ->
             new Setting<>(key, s -> KeyManagerFactory.getDefaultAlgorithm(),
-                    Function.identity(), Setting.Property.NodeScope, Setting.Property.Filtered);
+                    Function.identity(), propertiesFromKey(key));
 
     static final Function<String, Setting<Optional<String>>> KEY_STORE_TYPE_TEMPLATE = key ->
-            new Setting<>(key, s -> null, Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
+            new Setting<>(key, s -> null, Optional::ofNullable, propertiesFromKey(key));
 
     static final Function<String, Setting<SecureString>> LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
             SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
     static final Function<String, Setting<SecureString>> KEYSTORE_KEY_PASSWORD_TEMPLATE = key ->
             SecureSetting.secureString(key, LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE.apply(key.replace("keystore.secure_key_password",
-                    "keystore.key_password")));
+                    "keystore.key_password")),
+                key.startsWith(XPackSettings.GLOBAL_SSL_PREFIX) ? new Property[] { Property.Deprecated } : new Property[0]);
 
     static final Function<String, Setting<Optional<String>>> KEY_PATH_TEMPLATE = key -> new Setting<>(key, s -> null,
-            Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
+            Optional::ofNullable, propertiesFromKey(key));
 
     static final Function<String, Setting<Optional<String>>> CERT_TEMPLATE = key -> new Setting<>(key, s -> null,
-            Optional::ofNullable, Setting.Property.NodeScope, Setting.Property.Filtered);
+            Optional::ofNullable, propertiesFromKey(key));
 
     static final Function<String, Setting<SecureString>> LEGACY_KEY_PASSWORD_TEMPLATE = key -> new Setting<>(key, "",
             SecureString::new, Setting.Property.Deprecated, Setting.Property.Filtered, Setting.Property.NodeScope);
     static final Function<String, Setting<SecureString>> KEY_PASSWORD_TEMPLATE = key ->
-            SecureSetting.secureString(key, LEGACY_KEY_PASSWORD_TEMPLATE.apply(key.replace("secure_key_passphrase",
-                    "key_passphrase")));
+            SecureSetting.secureString(key, LEGACY_KEY_PASSWORD_TEMPLATE.apply(key.replace("secure_key_passphrase", "key_passphrase")),
+                key.startsWith(XPackSettings.GLOBAL_SSL_PREFIX) ? new Property[] { Property.Deprecated } : new Property[0]);
 
 
     private final String prefix;
 
     // Specify private cert/key pair via keystore
-    final Setting<Optional<String>> keystorePath;
-    final Setting<SecureString> keystorePassword;
-    final Setting<String> keystoreAlgorithm;
-    final Setting<Optional<String>> keystoreType;
-    final Setting<SecureString> keystoreKeyPassword;
+    public final Setting<Optional<String>> keystorePath;
+    public final Setting<SecureString> keystorePassword;
+    public final Setting<String> keystoreAlgorithm;
+    public final Setting<Optional<String>> keystoreType;
+    public final Setting<SecureString> keystoreKeyPassword;
 
     // Specify private cert/key pair via key and certificate files
-    final Setting<Optional<String>> keyPath;
-    final Setting<SecureString> keyPassword;
-    final Setting<Optional<String>> certificatePath;
+    public final Setting<Optional<String>> keyPath;
+    public final Setting<SecureString> keyPassword;
+    public final Setting<Optional<String>> certificatePath;
 
     // Optional support for legacy (non secure) passwords
-    // pkg private for tests
-    final Setting<SecureString> legacyKeystorePassword;
-    final Setting<SecureString> legacyKeystoreKeyPassword;
-    final Setting<SecureString> legacyKeyPassword;
+    public final Setting<SecureString> legacyKeystorePassword;
+    public final Setting<SecureString> legacyKeystoreKeyPassword;
+    public final Setting<SecureString> legacyKeyPassword;
 
     private final List<Setting<?>> allSettings;
 

@@ -3,6 +3,7 @@
   - do:
       snapshot.create_repository:
         repository: my_repo
+        verify: false
         body:
           type: url
           settings:

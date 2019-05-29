@@ -133,6 +133,10 @@ public class MultiBucketConsumerService {
         public int getCount() {
             return count;
         }
+
+        public int getLimit() {
+            return limit;
+        }
     }
 
     public MultiBucketConsumer create() {

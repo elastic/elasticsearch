@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-delete-role]]
 === Delete roles API
+++++
+<titleabbrev>Delete roles</titleabbrev>
+++++
 
 Removes roles in the native realm.
 

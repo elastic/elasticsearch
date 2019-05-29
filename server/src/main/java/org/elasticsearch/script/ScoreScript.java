@@ -73,7 +73,7 @@ public abstract class ScoreScript {
             this.leafLookup = lookup.getLeafSearchLookup(leafContext);
             params = new HashMap<>(params);
             params.putAll(leafLookup.asMap());
-            this.params = new ParameterMap(params, DEPRECATIONS);
+            this.params = new DeprecationMap(params, DEPRECATIONS);
         }
     }
     

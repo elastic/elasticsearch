@@ -65,6 +65,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean explain;
     private boolean trackScores;
     private boolean version;
+    private boolean seqNoAndPrimaryTerm;
 
     public SubSearchContext(SearchContext context) {
         super(context);
@@ -292,6 +293,16 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public void version(boolean version) {
         this.version = version;
+    }
+
+    @Override
+    public boolean seqNoAndPrimaryTerm() {
+        return seqNoAndPrimaryTerm;
+    }
+
+    @Override
+    public void seqNoAndPrimaryTerm(boolean seqNoAndPrimaryTerm) {
+        this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
     }
 
     @Override

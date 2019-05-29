@@ -58,11 +58,9 @@ public interface NetworkPlugin {
      * Returns a map of {@link Transport} suppliers.
      * See {@link org.elasticsearch.common.network.NetworkModule#TRANSPORT_TYPE_KEY} to configure a specific implementation.
      */
-    default Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                           PageCacheRecycler pageCacheRecycler,
+    default Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                            CircuitBreakerService circuitBreakerService,
-                                                           NamedWriteableRegistry namedWriteableRegistry,
-                                                           NetworkService networkService) {
+                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
         return Collections.emptyMap();
     }
 

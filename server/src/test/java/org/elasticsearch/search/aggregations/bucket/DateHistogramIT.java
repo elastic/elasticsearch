@@ -25,7 +25,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -40,6 +42,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
+import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,6 +53,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.junit.After;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -87,7 +91,7 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private DateTime date(String date) {
-        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date);
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseJoda(date);
     }
 
     private static String format(DateTime date, String pattern) {
@@ -198,7 +202,8 @@ public class DateHistogramIT extends ESIntegTestCase {
     }
 
     private static String getBucketKeyAsString(DateTime key, DateTimeZone tz) {
-        return Joda.forPattern(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format()).printer().withZone(tz).print(key);
+        ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(tz);
+        return DateFormatter.forPattern(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern()).withZone(zoneId).formatJoda(key);
     }
 
     public void testSingleValuedField() throws Exception {
@@ -1495,6 +1500,23 @@ public class DateHistogramIT extends ESIntegTestCase {
     public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAsCompound() throws Exception {
         int[] expectedDays = new int[]  { 1, 2, 3, 4, 5, 6, 7 };
         assertMultiSortResponse(expectedDays, BucketOrder.aggregation("avg_l", true));
+    }
+
+    public void testDateKeyFormatting() {
+        SearchResponse response = client().prepareSearch("idx")
+                                          .addAggregation(dateHistogram("histo")
+                                              .field("date")
+                                              .dateHistogramInterval(DateHistogramInterval.MONTH)
+                                              .timeZone(DateTimeZone.forID("America/Edmonton")))
+                                          .get();
+
+        assertSearchResponse(response);
+
+        InternalDateHistogram histogram = response.getAggregations().get("histo");
+        List<InternalDateHistogram.Bucket> buckets = histogram.getBuckets();
+        assertThat(buckets.get(0).getKeyAsString(), equalTo("2012-01-01T00:00:00.000-07:00"));
+        assertThat(buckets.get(1).getKeyAsString(), equalTo("2012-02-01T00:00:00.000-07:00"));
+        assertThat(buckets.get(2).getKeyAsString(), equalTo("2012-03-01T00:00:00.000-07:00"));
     }
 
     private void assertMultiSortResponse(int[] expectedDays, BucketOrder... order) {

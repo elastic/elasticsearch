@@ -1,14 +1,20 @@
-[[java-rest-high-flush-synced]]
+--
+:api: flush-synced
+:request: SyncedFlushRequest
+:response: SyncedFlushResponse
+--
+
+[id="{upid}-{api}"]
 === Flush Synced API
 
-[[java-rest-high-flush-synced-request]]
+[id="{upid}-{api}-request"]
 ==== Flush Synced Request
 
-A `SyncedFlushRequest` can be applied to one or more indices, or even on `_all` the indices:
+A +{request}+ can be applied to one or more indices, or even on `_all` the indices:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Flush synced one index
 <2> Flush synced multiple indices
@@ -18,57 +24,22 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-reque
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
-[[java-rest-high-flush-synced-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-execute]
---------------------------------------------------
-
-[[java-rest-high-flush-synced-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a flush request requires both the `SyncedFlushRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-execute-async]
---------------------------------------------------
-<1> The `SyncedFlushRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `SyncedFlushResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-flush-synced-response]]
+[id="{upid}-{api}-response"]
 ==== Flush Synced Response
 
-The returned `SyncedFlushResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Total number of shards hit by the flush request
 <2> Number of shards where the flush has succeeded
@@ -86,6 +57,6 @@ By default, if the indices were not found, an `ElasticsearchException` will be t
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[flush-synced-notfound]
+include-tagged::{doc-tests-file}[{api}-notfound]
 --------------------------------------------------
 <1> Do something if the indices to be flushed were not found

@@ -7,15 +7,27 @@
 package org.elasticsearch.xpack.sql.expression.predicate.regex;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.predicate.BinaryPredicate;
-import org.elasticsearch.xpack.sql.expression.predicate.regex.RegexProcessor.RegexOperation;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.expression.Expressions;
+import org.elasticsearch.xpack.sql.expression.Nullability;
+import org.elasticsearch.xpack.sql.expression.function.scalar.UnaryScalarFunction;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-public abstract class RegexMatch extends BinaryPredicate<String, String, Boolean, RegexOperation> {
+import java.util.Objects;
 
-    protected RegexMatch(Location location, Expression value, Expression pattern) {
-        super(location, value, pattern, RegexOperation.INSTANCE);
+import static org.elasticsearch.xpack.sql.expression.TypeResolutions.isStringAndExact;
+
+public abstract class RegexMatch<T> extends UnaryScalarFunction {
+
+    private final T pattern;
+    
+    protected RegexMatch(Source source, Expression value, T pattern) {
+        super(source, value);
+        this.pattern = pattern;
+    }
+    
+    public T pattern() {
+        return pattern;
     }
 
     @Override
@@ -24,17 +36,31 @@ public abstract class RegexMatch extends BinaryPredicate<String, String, Boolean
     }
 
     @Override
-    public boolean foldable() {
-        // right() is not directly foldable in any context but Like can fold it.
-        return left().foldable();
+    public Nullability nullable() {
+        if (pattern() == null) {
+            return Nullability.TRUE;
+        }
+        return field().nullable();
     }
 
     @Override
-    public Boolean fold() {
-        Object val = left().fold();
-        val = val != null ? val.toString() : val;
-        return function().apply((String) val, asString(right()));
+    protected TypeResolution resolveType() {
+        return isStringAndExact(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
     }
 
-    protected abstract String asString(Expression pattern);
+    @Override
+    public boolean foldable() {
+        // right() is not directly foldable in any context but Like can fold it.
+        return field().foldable();
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && Objects.equals(((RegexMatch<?>) obj).pattern(), pattern());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), pattern());
+    }
 }

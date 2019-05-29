@@ -64,13 +64,12 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     @Inject
     public TransportCancelTasksAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver
-                                          indexNameExpressionResolver) {
+                                      TransportService transportService, ActionFilters actionFilters,
+                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, CancelTasksAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, CancelTasksRequest::new, CancelTasksResponse::new,
-            ThreadPool.Names.MANAGEMENT);
-        transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, BanParentTaskRequest::new, ThreadPool.Names.SAME, new
-            BanParentRequestHandler());
+            indexNameExpressionResolver, CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+        transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, ThreadPool.Names.SAME, BanParentTaskRequest::new,
+            new BanParentRequestHandler());
     }
 
     @Override
@@ -237,11 +236,9 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
 
     private static class BanParentTaskRequest extends TransportRequest {
 
-        private TaskId parentTaskId;
-
-        private boolean ban;
-
-        private String reason;
+        private final TaskId parentTaskId;
+        private final boolean ban;
+        private final String reason;
 
         static BanParentTaskRequest createSetBanParentTaskRequest(TaskId parentTaskId, String reason) {
             return new BanParentTaskRequest(parentTaskId, reason);
@@ -260,19 +257,14 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
         private BanParentTaskRequest(TaskId parentTaskId) {
             this.parentTaskId = parentTaskId;
             this.ban = false;
+            this.reason = null;
         }
 
-        BanParentTaskRequest() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
+        private BanParentTaskRequest(StreamInput in) throws IOException {
+            super(in);
             parentTaskId = TaskId.readFromStream(in);
             ban = in.readBoolean();
-            if (ban) {
-                reason = in.readString();
-            }
+            reason = ban ? in.readString() : null;
         }
 
         @Override

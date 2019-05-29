@@ -75,8 +75,12 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
         this.minQueueSizeSetting = new Setting<>(
             minSizeKey,
             Integer.toString(minQueueSize),
-            (s) -> Setting.parseInt(s, 0, minSizeKey),
+            s -> Setting.parseInt(s, 0, minSizeKey),
             new Setting.Validator<Integer>() {
+                @Override
+                public void validate(Integer value) {
+                }
+
                 @Override
                 public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
                     if (value > settings.get(tempMaxQueueSizeSetting)) {
@@ -94,8 +98,12 @@ public final class AutoQueueAdjustingExecutorBuilder extends ExecutorBuilder<Aut
         this.maxQueueSizeSetting = new Setting<>(
                 maxSizeKey,
                 Integer.toString(maxQueueSize),
-                (s) -> Setting.parseInt(s, 0, maxSizeKey),
+                s -> Setting.parseInt(s, 0, maxSizeKey),
                 new Setting.Validator<Integer>() {
+                    @Override
+                    public void validate(Integer value) {
+                    }
+
                     @Override
                     public void validate(Integer value, Map<Setting<Integer>, Integer> settings) {
                         if (value < settings.get(tempMinQueueSizeSetting)) {

@@ -68,13 +68,7 @@ public class TransportActionProxyTests extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
-        IOUtils.close(serviceA, serviceB, serviceC, () -> {
-            try {
-                terminate(threadPool);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        });
+        IOUtils.close(serviceA, serviceB, serviceC, () -> terminate(threadPool));
     }
 
     private MockTransportService buildService(final Version version) {

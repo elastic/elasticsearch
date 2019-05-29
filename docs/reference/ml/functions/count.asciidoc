@@ -14,7 +14,7 @@ in one field is unusual, as opposed to the total count.
 Use high-sided functions if you want to monitor unusually high event rates.
 Use low-sided functions if you want to look at drops in event rate.
 
-The {xpackml} features include the following count functions:
+The {ml-features} include the following count functions:
 
 * xref:ml-count[`count`, `high_count`, `low_count`]
 * xref:ml-nonzero-count[`non_zero_count`, `high_non_zero_count`, `low_non_zero_count`]

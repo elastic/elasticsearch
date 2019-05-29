@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -30,7 +31,7 @@ public class TriggerService extends AbstractComponent {
 
     private final GroupedConsumer consumer = new GroupedConsumer();
     private final Map<String, TriggerEngine> engines;
-    private final Map<String, TriggerWatchStats> perWatchStats = new HashMap<>();
+    private final Map<String, TriggerWatchStats> perWatchStats = new ConcurrentHashMap<>();
 
     public TriggerService(Set<TriggerEngine> engines) {
         Map<String, TriggerEngine> builder = new HashMap<>();

@@ -1,8 +1,8 @@
-[[java-api]]
 = Java API
 
 include::../Versions.asciidoc[]
 
+[[java-api]]
 [preface]
 == Preface
 This section describes the Java API that Elasticsearch provides. All
@@ -47,7 +47,7 @@ The javadoc for the transport client can be found at {transport-client-javadoc}/
 == Maven Repository
 
 Elasticsearch is hosted on
-http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22elasticsearch%22[Maven
+http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
 Central].
 
 For example, you can define the latest version in your `pom.xml` file:
@@ -77,7 +77,7 @@ For Maven:
 <repository>
     <id>elastic-lucene-snapshots</id>
     <name>Elastic Lucene Snapshots</name>
-    <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9</url>
+    <url>https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9</url>
     <releases><enabled>true</enabled></releases>
     <snapshots><enabled>false</enabled></snapshots>
 </repository>
@@ -88,7 +88,8 @@ For Gradle:
 ["source","groovy",subs="attributes"]
 --------------------------------------------------
 maven {
-    url 'http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9'
+    name "lucene-snapshots"
+    url 'https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/00142c9'
 }
 --------------------------------------------------
 

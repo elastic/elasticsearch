@@ -1,9 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-stop-ilm]]
-== Start And Stop {ilm}
-
-beta[]
+== Start and stop {ilm}
 
 All indices that are managed by ILM will continue to execute
 their policies. There may be times when this is not desired on certain
@@ -70,8 +68,9 @@ If the request does not encounter errors, you receive the following result:
 
 The operating modes of ILM:
 
-
+[[ilm-operating-modes]]
 .ILM Operating Modes
+[options="header"]
 |===
 |Name |Description
 |RUNNING |Normal operation where all policies are executed as normal

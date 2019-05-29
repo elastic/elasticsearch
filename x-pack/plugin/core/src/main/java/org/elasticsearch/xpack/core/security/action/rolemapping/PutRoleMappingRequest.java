@@ -125,7 +125,7 @@ public class PutRoleMappingRequest extends ActionRequest
         super.readFrom(in);
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        this.roles = in.readList(StreamInput::readString);
+        this.roles = in.readStringList();
         this.rules = ExpressionParser.readExpression(in);
         this.metadata = in.readMap();
         this.refreshPolicy = RefreshPolicy.readFrom(in);
@@ -136,7 +136,7 @@ public class PutRoleMappingRequest extends ActionRequest
         super.writeTo(out);
         out.writeString(name);
         out.writeBoolean(enabled);
-        out.writeStringList(roles);
+        out.writeStringCollection(roles);
         ExpressionParser.writeExpression(rules, out);
         out.writeMap(metadata);
         refreshPolicy.writeTo(out);

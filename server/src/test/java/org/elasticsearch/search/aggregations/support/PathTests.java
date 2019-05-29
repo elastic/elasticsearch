@@ -82,7 +82,7 @@ public class PathTests extends ESTestCase {
         }
 
         Tokens add(String name, String key) {
-            if (Math.random() > 0.5) {
+            if (randomBoolean()) {
                 tokens.add(new AggregationPath.PathElement(name + "." + key, name, key));
             } else {
                 tokens.add(new AggregationPath.PathElement(name + "[" + key + "]", name, key));

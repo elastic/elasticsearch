@@ -1,6 +1,7 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -33,6 +34,7 @@ import static java.util.Collections.singletonList;
  * specific language governing permissions and limitations
  * under the License.
  */
+@Ignore
 public class VersionCollectionTests extends GradleUnitTestCase {
 
     private static final Map<String, List<String>> sampleVersions = new HashMap<>();

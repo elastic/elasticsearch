@@ -24,6 +24,8 @@ public class RestPutJobAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.PUT,
+                MachineLearning.V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
     }
 
     @Override

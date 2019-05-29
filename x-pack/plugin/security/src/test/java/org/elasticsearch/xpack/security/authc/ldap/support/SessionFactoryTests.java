@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
+import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory.TlsDeprecationSocketVerifier;
 import org.junit.After;
 import org.junit.Before;
 
@@ -57,7 +58,9 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.allowConcurrentSocketFactoryUse(), is(equalTo(true)));
         assertThat(options.getConnectTimeoutMillis(), is(equalTo(5000)));
         assertThat(options.getResponseTimeoutMillis(), is(equalTo(5000L)));
-        assertThat(options.getSSLSocketVerifier(), is(instanceOf(HostNameSSLSocketVerifier.class)));
+        assertThat(options.getSSLSocketVerifier(), is(instanceOf(TlsDeprecationSocketVerifier.class)));
+        final TlsDeprecationSocketVerifier sslSocketVerifier = (TlsDeprecationSocketVerifier) options.getSSLSocketVerifier();
+        assertThat(sslSocketVerifier.getDelegate(), is(instanceOf(HostNameSSLSocketVerifier.class)));
     }
 
     public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() throws Exception {
@@ -66,6 +69,7 @@ public class SessionFactoryTests extends ESTestCase {
                 .put(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING, "false")
                 .put(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING, "20ms")
                 .put(SessionFactorySettings.FOLLOW_REFERRALS_SETTING, "false")
+                .putList("ssl.supported_protocols", "TLSv1.2", "TLSv1.1") // disable TLS v1.0 so the verifier doesn't get wrapped
                 .build();
 
         final String realmName = "conn_settings";
@@ -88,7 +92,10 @@ public class SessionFactoryTests extends ESTestCase {
         assertWarnings("the setting [xpack.security.authc.realms." + realmName + ".hostname_verification] has been deprecated" +
             " and will be removed in a future version. use [xpack.security.authc.realms." + realmName + ".ssl.verification_mode] instead");
 
-        settings = Settings.builder().put("ssl.verification_mode", VerificationMode.CERTIFICATE).build();
+        settings = Settings.builder()
+            .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
+            .putList("ssl.supported_protocols", "TLSv1.2", "TLSv1.1") // disable TLS v1.0 so the verifier doesn't get wrapped
+            .build();
         realmConfig = new RealmConfig(realmName, settings, globalSettings.apply(settings), environment, threadContext);
         options = SessionFactory.connectionOptions(realmConfig, sslService.apply(settings), logger);
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(TrustAllSSLSocketVerifier.class)));

@@ -9,6 +9,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
@@ -16,7 +18,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
@@ -34,8 +36,8 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
@@ -92,7 +94,7 @@ public class AutoDetectResultProcessor {
     private final boolean restoredSnapshot;
 
     final CountDownLatch completionLatch = new CountDownLatch(1);
-    final Semaphore updateModelSnapshotIdSemaphore = new Semaphore(1);
+    final Semaphore jobUpdateSemaphore = new Semaphore(1);
     private final FlushListener flushListener;
     private volatile boolean processKilled;
     private volatile boolean failed;
@@ -102,10 +104,11 @@ public class AutoDetectResultProcessor {
      * New model size stats are read as the process is running
      */
     private volatile ModelSizeStats latestModelSizeStats;
+    // TODO: remove in 7.0, along with all established model memory functionality in this class
     private volatile Date latestDateForEstablishedModelMemoryCalc;
     private volatile long latestEstablishedModelMemory;
     private volatile boolean haveNewLatestModelSizeStats;
-    private Future<?> scheduledEstablishedModelMemoryUpdate; // only accessed in synchronized methods
+    private Scheduler.Cancellable scheduledEstablishedModelMemoryUpdate; // only accessed in synchronized methods
 
     public AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
                                      JobResultsPersister persister, JobResultsProvider jobResultsProvider,
@@ -114,9 +117,9 @@ public class AutoDetectResultProcessor {
                 restoredSnapshot, new FlushListener());
     }
 
-    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer, JobResultsPersister persister,
-                              JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats, boolean restoredSnapshot,
-                              FlushListener flushListener) {
+    AutoDetectResultProcessor(Client client, Auditor auditor, String jobId, Renormalizer renormalizer,
+                              JobResultsPersister persister, JobResultsProvider jobResultsProvider, ModelSizeStats latestModelSizeStats,
+                              boolean restoredSnapshot, FlushListener flushListener) {
         this.client = Objects.requireNonNull(client);
         this.auditor = Objects.requireNonNull(auditor);
         this.jobId = Objects.requireNonNull(jobId);
@@ -162,9 +165,9 @@ public class AutoDetectResultProcessor {
             } catch (Exception e) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Error persisting autodetect results", jobId), e);
             }
-
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
             runEstablishedModelMemoryUpdate(true);
+
         } catch (Exception e) {
             failed = true;
 
@@ -269,8 +272,10 @@ public class AutoDetectResultProcessor {
         ModelSnapshot modelSnapshot = result.getModelSnapshot();
         if (modelSnapshot != null) {
             // We need to refresh in order for the snapshot to be available when we try to update the job with it
-            persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
-            updateModelSnapshotIdOnJob(modelSnapshot);
+            IndexResponse indexResponse = persister.persistModelSnapshot(modelSnapshot, WriteRequest.RefreshPolicy.IMMEDIATE);
+            if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
+                updateModelSnapshotIdOnJob(modelSnapshot);
+            }
         }
         Quantiles quantiles = result.getQuantiles();
         if (quantiles != null) {
@@ -341,7 +346,7 @@ public class AutoDetectResultProcessor {
             // This blocks the main processing thread in the unlikely event
             // there are 2 model snapshots queued up. But it also has the
             // advantage of ensuring order
-            updateModelSnapshotIdSemaphore.acquire();
+            jobUpdateSemaphore.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             LOGGER.info("[{}] Interrupted acquiring update model snapshot semaphore", jobId);
@@ -351,13 +356,13 @@ public class AutoDetectResultProcessor {
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest, new ActionListener<PutJobAction.Response>() {
             @Override
             public void onResponse(PutJobAction.Response response) {
-                updateModelSnapshotIdSemaphore.release();
+                jobUpdateSemaphore.release();
                 LOGGER.debug("[{}] Updated job with model snapshot id [{}]", jobId, modelSnapshot.getSnapshotId());
             }
 
             @Override
             public void onFailure(Exception e) {
-                updateModelSnapshotIdSemaphore.release();
+                jobUpdateSemaphore.release();
                 LOGGER.error("[" + jobId + "] Failed to update job with new model snapshot id [" +
                         modelSnapshot.getSnapshotId() + "]", e);
             }
@@ -382,8 +387,8 @@ public class AutoDetectResultProcessor {
 
         if (scheduledEstablishedModelMemoryUpdate == null) {
             try {
-                scheduledEstablishedModelMemoryUpdate = client.threadPool().schedule(delay, MachineLearning.UTILITY_THREAD_POOL_NAME,
-                    () -> runEstablishedModelMemoryUpdate(false));
+                scheduledEstablishedModelMemoryUpdate = client.threadPool().schedule(
+                    () -> runEstablishedModelMemoryUpdate(false), delay, MachineLearning.UTILITY_THREAD_POOL_NAME);
                 LOGGER.trace("[{}] Scheduled established model memory update to run in [{}]", jobId, delay);
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
@@ -408,11 +413,10 @@ public class AutoDetectResultProcessor {
      * to <code>null</code> by the first call.
      */
     private synchronized void runEstablishedModelMemoryUpdate(boolean cancelExisting) {
-
         if (scheduledEstablishedModelMemoryUpdate != null) {
             if (cancelExisting) {
                 LOGGER.debug("[{}] Bringing forward previously scheduled established model memory update", jobId);
-                FutureUtils.cancel(scheduledEstablishedModelMemoryUpdate);
+                scheduledEstablishedModelMemoryUpdate.cancel();
             }
             scheduledEstablishedModelMemoryUpdate = null;
             updateEstablishedModelMemoryOnJob();
@@ -428,28 +432,51 @@ public class AutoDetectResultProcessor {
         // We need to make all results written up to and including these stats available for the established memory calculation
         persister.commitResultWrites(jobId);
 
+        try {
+            jobUpdateSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.info("[{}] Interrupted acquiring update established model memory semaphore", jobId);
+            return;
+        }
+
         jobResultsProvider.getEstablishedMemoryUsage(jobId, latestBucketTimestamp, modelSizeStatsForCalc, establishedModelMemory -> {
             if (latestEstablishedModelMemory != establishedModelMemory) {
-                JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
-                UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
-                updateRequest.setWaitForAck(false);
 
-                executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
-                    new ActionListener<PutJobAction.Response>() {
-                    @Override
-                    public void onResponse(PutJobAction.Response response) {
-                        latestEstablishedModelMemory = establishedModelMemory;
-                        LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
-                    }
+                try {
+                    client.threadPool().executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                        JobUpdate update = new JobUpdate.Builder(jobId).setEstablishedModelMemory(establishedModelMemory).build();
+                        UpdateJobAction.Request updateRequest = UpdateJobAction.Request.internal(jobId, update);
+                        updateRequest.setWaitForAck(false);
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" +
-                            establishedModelMemory + "]", e);
-                    }
-                });
+                        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, updateRequest,
+                                new ActionListener<PutJobAction.Response>() {
+                                    @Override
+                                    public void onResponse(PutJobAction.Response response) {
+                                        jobUpdateSemaphore.release();
+                                        latestEstablishedModelMemory = establishedModelMemory;
+                                        LOGGER.debug("[{}] Updated job with established model memory [{}]", jobId, establishedModelMemory);
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        jobUpdateSemaphore.release();
+                                        LOGGER.error("[" + jobId + "] Failed to update job with new established model memory [" +
+                                                establishedModelMemory + "]", e);
+                                    }
+                                });
+                    });
+                } catch (Exception e) {
+                    jobUpdateSemaphore.release();
+                    LOGGER.error("[" + jobId + "] error submitting established model memory update action", e);
+                }
+            } else {
+                jobUpdateSemaphore.release();
             }
-        }, e -> LOGGER.error("[" + jobId + "] Failed to calculate established model memory", e));
+        }, e -> {
+            jobUpdateSemaphore.release();
+            LOGGER.error("[" + jobId + "] Failed to calculate established model memory", e);
+        });
     }
 
     public void awaitCompletion() throws TimeoutException {
@@ -460,10 +487,11 @@ public class AutoDetectResultProcessor {
                     TimeUnit.MINUTES) == false) {
                 throw new TimeoutException("Timed out waiting for results processor to complete for job " + jobId);
             }
+
             // Input stream has been completely processed at this point.
             // Wait for any updateModelSnapshotIdOnJob calls to complete.
-            updateModelSnapshotIdSemaphore.acquire();
-            updateModelSnapshotIdSemaphore.release();
+            jobUpdateSemaphore.acquire();
+            jobUpdateSemaphore.release();
 
             // These lines ensure that the "completion" we're awaiting includes making the results searchable
             waitUntilRenormalizerIsIdle();

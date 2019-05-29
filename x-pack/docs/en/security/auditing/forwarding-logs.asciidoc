@@ -2,6 +2,10 @@
 [[forwarding-audit-logfiles]]
 === Forwarding audit logs to a remote cluster
 
+WARNING: Forwarding audit logs is a feature of the index audit output type which
+is deprecated in 6.7.0 and will be removed in 7.0. All settings under the
+`xpack.security.audit.index` namespace are deprecated.
+
 When you are auditing security events, you can optionally store the logs in an 
 {es} index on a remote cluster.  The logs are sent to the remote cluster by 
 using the {javaclient}/transport-client.html[transport client]. 
@@ -20,7 +24,7 @@ xpack.security.audit.index.client.cluster.name: logging-prod <2>
 xpack.security.audit.index.client.xpack.security.user: myuser:mypassword <3>
 --------------------------------------------------
 <1> A list of hosts in the remote cluster. If you are not using the default 
-value for the `transport.tcp.port` setting on the remote cluster, you must 
+value for the `transport.port` setting on the remote cluster, you must
 specify the appropriate port number (prefixed by a colon) after each host. 
 <2> The remote cluster name.
 <3> A valid user and password, which must have authority to create the 
@@ -96,4 +100,4 @@ bin/elasticsearch-keystore add xpack.security.audit.index.client.xpack.ssl.secur
 . Restart {es}.
 
 When these steps are complete, your audit logs are stored in {es} rolling 
-indices on the remote cluster. 
+indices on the remote cluster.

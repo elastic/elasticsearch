@@ -20,12 +20,14 @@
 package org.elasticsearch.client;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.elasticsearch.client.DeadHostState.TimeSupplier;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertEquals;
@@ -36,10 +38,9 @@ public class DeadHostStateTests extends RestClientTestCase {
     private static long[] EXPECTED_TIMEOUTS_SECONDS = new long[]{60, 84, 120, 169, 240, 339, 480, 678, 960, 1357, 1800};
 
     public void testInitialDeadHostStateDefaultTimeSupplier() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/33747", System.getProperty("os.name").startsWith("Windows"));
         DeadHostState deadHostState = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
         long currentTime = System.nanoTime();
-        assertThat(deadHostState.getDeadUntilNanos(), greaterThan(currentTime));
+        assertThat(deadHostState.getDeadUntilNanos(), greaterThanOrEqualTo(currentTime));
         assertThat(deadHostState.getFailedAttempts(), equalTo(1));
     }
 
@@ -54,13 +55,13 @@ public class DeadHostStateTests extends RestClientTestCase {
         }
     }
 
-    public void testCompareToDefaultTimeSupplier() {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/33747", System.getProperty("os.name").startsWith("Windows"));
+    public void testCompareToTimeSupplier() {
         int numObjects = randomIntBetween(EXPECTED_TIMEOUTS_SECONDS.length, 30);
         DeadHostState[] deadHostStates = new DeadHostState[numObjects];
         for (int i = 0; i < numObjects; i++) {
             if (i == 0) {
-                deadHostStates[i] = new DeadHostState(DeadHostState.TimeSupplier.DEFAULT);
+                // this test requires a strictly increasing timer
+                deadHostStates[i] = new DeadHostState(new StrictMonotonicTimeSupplier());
             } else {
                 deadHostStates[i] = new DeadHostState(deadHostStates[i - 1]);
             }
@@ -134,6 +135,25 @@ public class DeadHostStateTests extends RestClientTestCase {
         @Override
         public String toString() {
             return "configured[" + nanoTime + "]";
+        }
+    }
+
+    /**
+     * Simulates a monotonically strict increasing time (i.e. the value increases on every call to <code>#nanoTime()</code>). This ensures
+     * that even if we call this time supplier in a very tight loop we always notice time moving forward. This does not happen for real
+     * timer implementations (e.g. on Linux <code>clock_gettime</code> provides microsecond resolution).
+     */
+    static class StrictMonotonicTimeSupplier implements DeadHostState.TimeSupplier {
+        private final AtomicLong time = new AtomicLong(0);
+
+        @Override
+        public long nanoTime() {
+            return time.incrementAndGet();
+        }
+
+        @Override
+        public String toString() {
+            return "strict monotonic[" + time.get() + "]";
         }
     }
 }

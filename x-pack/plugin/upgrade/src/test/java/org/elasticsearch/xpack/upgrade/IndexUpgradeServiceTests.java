@@ -149,7 +149,6 @@ public class IndexUpgradeServiceTests extends ESTestCase {
 
     }
 
-
     private ClusterState mockClusterState(IndexMetaData... indices) {
         MetaData.Builder metaDataBuilder = MetaData.builder();
         for (IndexMetaData indexMetaData : indices) {

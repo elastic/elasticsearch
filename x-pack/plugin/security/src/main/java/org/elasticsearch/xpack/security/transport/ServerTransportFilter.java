@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
@@ -27,6 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.BwcXPackUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -35,7 +37,6 @@ import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -77,10 +78,11 @@ public interface ServerTransportFilter {
         private final DestructiveOperations destructiveOperations;
         private final boolean reservedRealmEnabled;
         private final SecurityContext securityContext;
+        private final XPackLicenseState licenseState;
 
         NodeProfile(AuthenticationService authcService, AuthorizationService authzService,
                     ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                    boolean reservedRealmEnabled, SecurityContext securityContext) {
+                    boolean reservedRealmEnabled, SecurityContext securityContext, XPackLicenseState licenseState) {
             this.authcService = authcService;
             this.authzService = authzService;
             this.threadContext = threadContext;
@@ -88,6 +90,7 @@ public interface ServerTransportFilter {
             this.destructiveOperations = destructiveOperations;
             this.reservedRealmEnabled = reservedRealmEnabled;
             this.securityContext = securityContext;
+            this.licenseState = licenseState;
         }
 
         @Override
@@ -128,6 +131,7 @@ public interface ServerTransportFilter {
 
             final Version version = transportChannel.getVersion().equals(Version.V_5_4_0) ? Version.CURRENT : transportChannel.getVersion();
             authcService.authenticate(securityAction, request, (User)null, ActionListener.wrap((authentication) -> {
+                if (authentication != null) {
                     if (reservedRealmEnabled && authentication.getVersion().before(Version.V_5_2_0) &&
                         KibanaUser.NAME.equals(authentication.getUser().authenticatedUser().principal())) {
                         executeAsCurrentVersionKibanaUser(securityAction, request, transportChannel, listener, authentication);
@@ -135,12 +139,7 @@ public interface ServerTransportFilter {
                                SystemUser.is(authentication.getUser()) == false) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                             final Authentication replaced = Authentication.getAuthentication(threadContext);
-                            final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                                    new AuthorizationUtils.AsyncAuthorizer(replaced, listener, (userRoles, runAsRoles) -> {
-                                        authzService.authorize(replaced, securityAction, request, userRoles, runAsRoles);
-                                        listener.onResponse(null);
-                                    });
-                            asyncAuthorizer.authorize(authzService);
+                            authzService.authorize(replaced, securityAction, request, listener);
                         }, version);
                     } else if (authentication.getVersion().before(Version.V_5_6_1) &&
                             XPackUser.NAME.equals(authentication.getUser().authenticatedUser().principal())) {
@@ -148,14 +147,14 @@ public interface ServerTransportFilter {
                         // that doesn't know about the xpack security user
                         executeAsOldVersionXPackUser(securityAction, request, transportChannel, listener);
                     } else {
-                        final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                                new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
-                                    authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                                    listener.onResponse(null);
-                                });
-                        asyncAuthorizer.authorize(authzService);
+                        authzService.authorize(authentication, securityAction, request, listener);
                     }
-                }, listener::onFailure));
+                } else if (licenseState.isAuthAllowed() == false) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                }
+            }, listener::onFailure));
         }
 
         private void executeAsCurrentVersionKibanaUser(String securityAction, TransportRequest request, TransportChannel transportChannel,
@@ -171,20 +170,14 @@ public interface ServerTransportFilter {
 
         private void executeAsOldVersionXPackUser(String securityAction, TransportRequest request, TransportChannel transportChannel,
                                                   ActionListener<Void> listener) {
-            final User xpackUser = new User(XPackUser.NAME, "superuser");
-            executeAsUser(xpackUser, securityAction, request, transportChannel, listener);
+            executeAsUser(BwcXPackUser.INSTANCE, securityAction, request, transportChannel, listener);
         }
 
         private void executeAsUser(User user, String securityAction, TransportRequest request, TransportChannel transportChannel,
                                    ActionListener<Void> listener) {
             securityContext.executeAsUser(user, (original) -> {
                 final Authentication replacedUserAuth = securityContext.getAuthentication();
-                final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                        new AuthorizationUtils.AsyncAuthorizer(replacedUserAuth, listener, (userRoles, runAsRoles) -> {
-                            authzService.authorize(replacedUserAuth, securityAction, request, userRoles, runAsRoles);
-                            listener.onResponse(null);
-                        });
-                asyncAuthorizer.authorize(authzService);
+                authzService.authorize(replacedUserAuth, securityAction, request, listener);
             }, transportChannel.getVersion());
         }
     }
@@ -220,9 +213,9 @@ public interface ServerTransportFilter {
 
         ClientProfile(AuthenticationService authcService, AuthorizationService authzService,
                              ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                             boolean reservedRealmEnabled, SecurityContext securityContext) {
+                             boolean reservedRealmEnabled, SecurityContext securityContext, XPackLicenseState licenseState) {
             super(authcService, authzService, threadContext, extractClientCert, destructiveOperations, reservedRealmEnabled,
-                    securityContext);
+                securityContext, licenseState);
         }
 
         @Override

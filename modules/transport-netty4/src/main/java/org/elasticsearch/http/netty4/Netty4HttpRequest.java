@@ -145,7 +145,7 @@ public class Netty4HttpRequest extends RestRequest {
     }
 
     @Override
-    public BytesReference content() {
+    public BytesReference innerContent() {
         return content;
     }
 

@@ -235,6 +235,9 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         BooleanClause innerBooleanClause2 = innerBooleanQuery.clauses().get(1);
         assertThat(innerBooleanClause2.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
         assertThat(innerBooleanClause2.getQuery(), instanceOf(MatchAllDocsQuery.class));
+        assertWarnings("Should clauses in the filter context will no longer automatically set the minimum should" +
+            " match to 1 in the next major version. You should group them in a [filter] clause or explicitly set" +
+            " [minimum_should_match] to 1 to restore this behavior in the next major version.");
     }
 
     public void testMinShouldMatchBiggerThanNumberOfShouldClauses() throws Exception {
@@ -440,5 +443,35 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             .filter(new MatchNoneQueryBuilder()));
         rewritten = Rewriteable.rewrite(boolQueryBuilder, createShardContext());
         assertEquals(new MatchNoneQueryBuilder(), rewritten);
+    }
+
+    public void testShouldFilterContextDeprecation() throws Exception {
+        QueryShardContext context = createShardContext();
+        BoolQueryBuilder bq = new BoolQueryBuilder()
+            .should(new MatchAllQueryBuilder())
+            .filter(new TermQueryBuilder("foo", "bar"));
+        bq.doToQuery(context);
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.should(bq);
+        boolQueryBuilder.doToQuery(context);
+
+        boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(bq);
+        boolQueryBuilder.doToQuery(context);
+        assertWarnings("Should clauses in the filter context will no longer automatically set the minimum should" +
+            " match to 1 in the next major version. You should group them in a [filter] clause or explicitly set" +
+            " [minimum_should_match] to 1 to restore this behavior in the next major version.");
+
+        ConstantScoreQueryBuilder query = new ConstantScoreQueryBuilder(bq);
+        query.doToQuery(context);
+        assertWarnings("Should clauses in the filter context will no longer automatically set the minimum should" +
+            " match to 1 in the next major version. You should group them in a [filter] clause or explicitly set" +
+            " [minimum_should_match] to 1 to restore this behavior in the next major version.");
+
+        bq = new BoolQueryBuilder()
+            .should(new MatchAllQueryBuilder());
+        boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(bq);
+        boolQueryBuilder.doToQuery(context);
     }
 }

@@ -27,6 +27,8 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 
+import static org.hamcrest.Matchers.containsString;
+
 /**
  * This class tests {@link CommandLineHttpClient} For extensive tests related to
  * ssl settings can be found {@link SSLConfigurationSettingsTests}
@@ -62,6 +64,7 @@ public class CommandLineHttpClientTests extends ESTestCase {
             // with global settings
             secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
             settings = Settings.builder()
+                .put("xpack.watcher.enabled", false) // to avoid xpack.http.ssl deprecation warnings
                 .put("xpack.ssl.certificate_authorities", certPath.toString())
                 .put("xpack.ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .setSecureSettings(secureSettings)
@@ -76,12 +79,22 @@ public class CommandLineHttpClientTests extends ESTestCase {
         assertEquals("Http response body does not match", "complete", httpResponse.getResponseBody().get("test"));
     }
 
+    public void testGetDefaultURLFailsWithHelpfulMessage() {
+        Settings settings = Settings.builder()
+            .put("network.host", "_ec2:privateIpv4_")
+            .build();
+        CommandLineHttpClient client = new CommandLineHttpClient(settings, environment);
+        assertThat(expectThrows(IllegalStateException.class, () -> client.getDefaultURL()).getMessage(),
+            containsString("unable to determine default URL from settings, please use the -u option to explicitly provide the url"));
+    }
+
     private MockWebServer createMockWebServer() {
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
         Path keyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.ssl.secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
+            .put("xpack.watcher.enabled", false) // to avoid xpack.http.ssl deprecation warnings
             .put("xpack.ssl.key", keyPath.toString())
             .put("xpack.ssl.certificate", certPath.toString())
             .setSecureSettings(secureSettings)

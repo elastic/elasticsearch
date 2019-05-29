@@ -25,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -98,9 +99,11 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
             // always read before `localNodeInfo` and `includeRequestBody`.
             this.events = parse(LoggingAuditTrail.INCLUDE_EVENT_SETTINGS.get(newSettings),
                     LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS.get(newSettings));
-        }, Arrays.asList(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING, LoggingAuditTrail.EMIT_HOST_NAME_SETTING,
-                LoggingAuditTrail.EMIT_NODE_NAME_SETTING, LoggingAuditTrail.INCLUDE_EVENT_SETTINGS,
-                LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS, LoggingAuditTrail.INCLUDE_REQUEST_BODY));
+        }, Arrays.asList(LoggingAuditTrail.EMIT_HOST_ADDRESS_SETTING, LoggingAuditTrail.DEPRECATED_EMIT_HOST_ADDRESS_SETTING,
+                LoggingAuditTrail.EMIT_HOST_NAME_SETTING, LoggingAuditTrail.DEPRECATED_EMIT_NODE_NAME_SETTING,
+                LoggingAuditTrail.EMIT_NODE_NAME_SETTING, LoggingAuditTrail.DEPRECATED_EMIT_NODE_NAME_SETTING,
+                LoggingAuditTrail.INCLUDE_EVENT_SETTINGS, LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
+                LoggingAuditTrail.INCLUDE_REQUEST_BODY));
         clusterService.getClusterSettings().addAffixUpdateConsumer(LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
                 (policyName, filtersList) -> {
                     final Optional<EventFilterPolicy> policy = eventFilterPolicyRegistry.get(policyName);
@@ -132,22 +135,22 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void authenticationSuccess(String realm, User user, RestRequest request) {
+    public void authenticationSuccess(String requestId, String realm, User user, RestRequest request) {
         if (events.contains(AUTHENTICATION_SUCCESS) && (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(realm), Optional.empty(), Optional.empty())) == false)) {
             if (includeRequestBody) {
-                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}]{}, request_body=[{}]",
-                        localNodeInfo.prefix, principal(user), realm, request.uri(), request.params(), opaqueId(),
+                logger.info("{}[rest] [authentication_success]\t{}, {}, realm=[{}], uri=[{}], params=[{}]{}, request_body=[{}]",
+                        localNodeInfo.prefix, hostAttributes(request), principal(user), realm, request.uri(), request.params(), opaqueId(),
                         restRequestContent(request));
             } else {
-                logger.info("{}[rest] [authentication_success]\t{}, realm=[{}], uri=[{}], params=[{}]{}", localNodeInfo.prefix,
-                        principal(user), realm, request.uri(), request.params(), opaqueId());
+                logger.info("{}[rest] [authentication_success]\t{}, {}, realm=[{}], uri=[{}], params=[{}]{}", localNodeInfo.prefix,
+                        hostAttributes(request), principal(user), realm, request.uri(), request.params(), opaqueId());
             }
         }
     }
 
     @Override
-    public void authenticationSuccess(String realm, User user, String action, TransportMessage message) {
+    public void authenticationSuccess(String requestId, String realm, User user, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -167,7 +170,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void anonymousAccessDenied(String action, TransportMessage message) {
+    public void anonymousAccessDenied(String requestId, String action, TransportMessage message) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -187,7 +190,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void anonymousAccessDenied(RestRequest request) {
+    public void anonymousAccessDenied(String requestId, RestRequest request) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)
                 && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {
@@ -201,7 +204,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -221,7 +224,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void authenticationFailed(RestRequest request) {
+    public void authenticationFailed(String requestId, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED)
                 && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {
@@ -235,7 +238,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void authenticationFailed(String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, String action, TransportMessage message) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -255,7 +258,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void authenticationFailed(AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty())) == false)) {
             if (includeRequestBody) {
@@ -269,7 +272,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportMessage message) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -291,7 +294,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
+    public void authenticationFailed(String requestId, String realm, AuthenticationToken token, RestRequest request) {
         if (events.contains(REALM_AUTHENTICATION_FAILED) && (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), Optional.empty())) == false)) {
             if (includeRequestBody) {
@@ -306,14 +309,16 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void accessGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void accessGranted(String reqId, Authentication authentication, String action, TransportMessage message,
+                              AuthorizationInfo authorizationInfo) {
         final User user = authentication.getUser();
         final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(user),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [access_granted]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), subject(authentication),
@@ -329,12 +334,14 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void accessDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void accessDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+                             AuthorizationInfo authorizationInfo) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [access_denied]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), subject(authentication),
@@ -350,7 +357,52 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void tamperedRequest(RestRequest request) {
+    public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication, String action, String index,
+                                         String requestName, TransportAddress remoteAddress, AuthorizationInfo authorizationInfo) {
+        assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
+        final String[] indices = index == null ? null : new String[] { index };
+        final User user = authentication.getUser();
+        final boolean isSystem = SystemUser.is(user) || XPackUser.is(user);
+        if (isSystem && eventType == ACCESS_GRANTED) {
+            eventType = SYSTEM_ACCESS_GRANTED;
+        }
+        if (events.contains(eventType)) {
+            if (eventFilterPolicyRegistry.ignorePredicate()
+                    .test(new AuditEventMetaInfo(Optional.of(user), Optional.of(effectiveRealmName(authentication)),
+                            Optional.of(authorizationInfo), Optional.ofNullable(indices))) == false) {
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
+                final StringBuilder logEntryBuilder = new StringBuilder();
+                logEntryBuilder.append(localNodeInfo.prefix);
+                logEntryBuilder.append("[transport] ");
+                if (eventType == ACCESS_DENIED) {
+                    logEntryBuilder.append("[access_denied]\t");
+                } else {
+                    logEntryBuilder.append("[access_granted]\t");
+                }
+                final String originAttributes = restOriginTag(threadContext).orElseGet(() -> {
+                    if (remoteAddress == null) {
+                        return localNodeInfo.localOriginTag;
+                    }
+                    return new StringBuilder("origin_type=[transport], origin_address=[")
+                            .append(NetworkAddress.format(remoteAddress.address().getAddress())).append("]").toString();
+                });
+                logEntryBuilder.append(originAttributes).append(", ");
+                logEntryBuilder.append(subject(authentication)).append(", ");
+                logEntryBuilder.append("roles=[").append(arrayToCommaDelimitedString(roleNames)).append("], ");
+                logEntryBuilder.append("action=[").append(action).append("], ");
+                logEntryBuilder.append("indices=[").append(index).append("], ");
+                logEntryBuilder.append("request=[").append(requestName).append("]");
+                final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID);
+                if (opaqueId != null) {
+                    logEntryBuilder.append(", opaque_id=[").append(opaqueId).append("]");
+                }
+                logger.info(logEntryBuilder.toString());
+            }
+        }
+    }
+
+    @Override
+    public void tamperedRequest(String requestId, RestRequest request) {
         if (events.contains(TAMPERED_REQUEST) && (eventFilterPolicyRegistry.ignorePredicate().test(AuditEventMetaInfo.EMPTY) == false)) {
             if (includeRequestBody) {
                 logger.info("{}[rest] [tampered_request]\t{}, uri=[{}]{}, request_body=[{}]", localNodeInfo.prefix, hostAttributes(request),
@@ -363,7 +415,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void tamperedRequest(String action, TransportMessage message) {
+    public void tamperedRequest(String requestId, String action, TransportMessage message) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -383,7 +435,7 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void tamperedRequest(User user, String action, TransportMessage request) {
+    public void tamperedRequest(String requestId, User user, String action, TransportMessage request) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = indices(request);
             if (eventFilterPolicyRegistry.ignorePredicate()
@@ -419,12 +471,14 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void runAsGranted(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsGranted(String requestId, Authentication authentication, String action, TransportMessage message,
+                             AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [run_as_granted]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
@@ -440,12 +494,14 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void runAsDenied(Authentication authentication, String action, TransportMessage message, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, String action, TransportMessage message,
+                            AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = indices(message);
             if (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                    Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), indices)) == false) {
+                    Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), indices)) == false) {
                 final LocalNodeInfo localNodeInfo = this.localNodeInfo;
+                final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
                 if (indices.isPresent()) {
                     logger.info("{}[transport] [run_as_denied]\t{}, {}, roles=[{}], action=[{}], indices=[{}], request=[{}]{}",
                             localNodeInfo.prefix, originAttributes(threadContext, message, localNodeInfo), runAsSubject(authentication),
@@ -461,10 +517,11 @@ public class DeprecatedLoggingAuditTrail extends AbstractComponent implements Au
     }
 
     @Override
-    public void runAsDenied(Authentication authentication, RestRequest request, String[] roleNames) {
+    public void runAsDenied(String requestId, Authentication authentication, RestRequest request, AuthorizationInfo authorizationInfo) {
         if (events.contains(RUN_AS_DENIED)
                 && (eventFilterPolicyRegistry.ignorePredicate().test(new AuditEventMetaInfo(Optional.of(authentication.getUser()),
-                        Optional.of(effectiveRealmName(authentication)), Optional.of(roleNames), Optional.empty())) == false)) {
+                        Optional.of(effectiveRealmName(authentication)), Optional.of(authorizationInfo), Optional.empty())) == false)) {
+            final String[] roleNames = (String[]) authorizationInfo.asMap().get(LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME);
             if (includeRequestBody) {
                 logger.info("{}[rest] [run_as_denied]\t{}, {}, roles=[{}], uri=[{}], request_body=[{}]{}", localNodeInfo.prefix,
                         hostAttributes(request), runAsSubject(authentication), arrayToCommaDelimitedString(roleNames), request.uri(),

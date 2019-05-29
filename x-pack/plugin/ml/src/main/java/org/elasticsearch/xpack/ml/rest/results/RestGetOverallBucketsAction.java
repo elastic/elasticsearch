@@ -25,8 +25,12 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets", this);
+        controller.registerHandler(RestRequest.Method.GET,
+                MachineLearning.V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets", this);
         controller.registerHandler(RestRequest.Method.POST,
                 MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets", this);
+        controller.registerHandler(RestRequest.Method.POST,
+                MachineLearning.V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets", this);
     }
 
     @Override

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
@@ -155,7 +155,12 @@ public class XPackPlugin extends XPackClientPlugin implements ScriptPlugin, Exte
     protected SSLService getSslService() { return getSharedSslService(); }
     protected LicenseService getLicenseService() { return getSharedLicenseService(); }
     protected XPackLicenseState getLicenseState() { return getSharedLicenseState(); }
-    protected void setSslService(SSLService sslService) { XPackPlugin.sslService.set(sslService); }
+
+    protected void setSslService(SSLService sslService) {
+        logger.trace("Setting SSLService to [{}] for plugin [{}]", sslService, this);
+        XPackPlugin.sslService.set(sslService);
+    }
+
     protected void setLicenseService(LicenseService licenseService) { XPackPlugin.licenseService.set(licenseService); }
     protected void setLicenseState(XPackLicenseState licenseState) { XPackPlugin.licenseState.set(licenseState); }
     public static SSLService getSharedSslService() { return sslService.get(); }

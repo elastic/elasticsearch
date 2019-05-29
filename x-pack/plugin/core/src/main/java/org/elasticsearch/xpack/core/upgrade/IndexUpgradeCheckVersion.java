@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.core.upgrade;
 
 public final class IndexUpgradeCheckVersion {
-    public static final int UPRADE_VERSION = 6;
+    public static final int UPGRADE_VERSION = 6;
 
     private IndexUpgradeCheckVersion() {}
 

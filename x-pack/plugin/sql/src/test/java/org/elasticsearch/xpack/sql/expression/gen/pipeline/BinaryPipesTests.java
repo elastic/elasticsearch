@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe.AttributeResolver;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
 
 import java.util.List;
@@ -86,16 +86,16 @@ public class BinaryPipesTests extends ESTestCase {
     }
 
     public static Pipe randomUnaryPipe() {
-        return new ConstantInput(Location.EMPTY, Literal.of(Location.EMPTY, randomAlphaOfLength(16)), randomAlphaOfLength(16));
+        return new ConstantInput(Source.EMPTY, Literal.of(Source.EMPTY, randomAlphaOfLength(16)), randomAlphaOfLength(16));
     }
 
     public static final class DummyBinaryPipe extends BinaryPipe {
         public DummyBinaryPipe(Pipe left, Pipe right) {
-            this(Location.EMPTY, left, right);
+            this(Source.EMPTY, left, right);
         }
 
-        public DummyBinaryPipe(Location location, Pipe left, Pipe right) {
-            super(location, null, left, right);
+        public DummyBinaryPipe(Source source, Pipe left, Pipe right) {
+            super(source, null, left, right);
         }
 
         @Override
@@ -110,7 +110,7 @@ public class BinaryPipesTests extends ESTestCase {
 
         @Override
         protected BinaryPipe replaceChildren(Pipe left, Pipe right) {
-            return new DummyBinaryPipe(location(), left, right);
+            return new DummyBinaryPipe(source(), left, right);
         }
     }
 
@@ -118,11 +118,11 @@ public class BinaryPipesTests extends ESTestCase {
         private final boolean supportedByAggsOnlyQuery;
 
         public DummyPipe(boolean supportedByAggsOnlyQuery) {
-            this(Location.EMPTY, supportedByAggsOnlyQuery);
+            this(Source.EMPTY, supportedByAggsOnlyQuery);
         }
 
-        public DummyPipe(Location location, boolean supportedByAggsOnlyQuery) {
-            super(location, null, emptyList());
+        public DummyPipe(Source source, boolean supportedByAggsOnlyQuery) {
+            super(source, null, emptyList());
             this.supportedByAggsOnlyQuery = supportedByAggsOnlyQuery;
         }
 

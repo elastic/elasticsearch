@@ -261,6 +261,39 @@ public class GrokTests extends ESTestCase {
             "via patterns [NAME2=>NAME3=>NAME4]", e.getMessage());
     }
 
+    public void testBooleanCaptures() {
+        Map<String, String> bank = new HashMap<>();
+
+        String pattern = "%{WORD:name}=%{WORD:status:boolean}";
+        Grok g = new Grok(basePatterns, pattern);
+
+        String text = "active=true";
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("name", "active");
+        expected.put("status", true);
+        Map<String, Object> actual = g.captures(text);
+
+        assertEquals(expected, actual);
+    }
+
+    public void testNumericCaptures() {
+        Map<String, String> bank = new HashMap<>();
+        bank.put("BASE10NUM", "(?<![0-9.+-])(?>[+-]?(?:(?:[0-9]+(?:\\.[0-9]+)?)|(?:\\.[0-9]+)))");
+        bank.put("NUMBER", "(?:%{BASE10NUM})");
+
+        String pattern = "%{NUMBER:bytes:float} %{NUMBER:id:long} %{NUMBER:rating:double}";
+        Grok g = new Grok(bank, pattern);
+
+        String text = "12009.34 20000000000 4820.092";
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("bytes", 12009.34f);
+        expected.put("id", 20000000000L);
+        expected.put("rating", 4820.092);
+        Map<String, Object> actual = g.captures(text);
+
+        assertEquals(expected, actual);
+    }
+
     public void testNumericCapturesCoercion() {
         Map<String, String> bank = new HashMap<>();
         bank.put("BASE10NUM", "(?<![0-9.+-])(?>[+-]?(?:(?:[0-9]+(?:\\.[0-9]+)?)|(?:\\.[0-9]+)))");
@@ -444,6 +477,16 @@ public class GrokTests extends ESTestCase {
         Grok grok = new Grok(basePatterns, "%{WORD:unsuppo(r)ted}");
         Map<String, Object> matches = grok.captures("line");
         assertNull(matches);
+    }
+
+    public void testJavaClassPatternWithUnderscore() {
+        Grok grok = new Grok(basePatterns, "%{JAVACLASS}");
+        assertThat(grok.match("Test_Class.class"), is(true));
+    }
+
+    public void testJavaFilePatternWithSpaces() {
+        Grok grok = new Grok(basePatterns, "%{JAVAFILE}");
+        assertThat(grok.match("Test Class.java"), is(true));
     }
 
     private void assertGrokedField(String fieldName) {

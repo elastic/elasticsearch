@@ -46,6 +46,7 @@ In Elasticsearch 6.0.0, Analyze API can analyze a text as a keyword field with c
 or if `char_filter`/`filter` is set and `tokenizer`/`analyzer` is not set.
 
 [float]
+[[_literal_timestamp_literal_and_literal_ttl_literal_in_index_requests]]
 ==== `timestamp` and `ttl` in index requests
 
 `timestamp` and `ttl` are not accepted anymore as parameters of index/update
@@ -93,7 +94,7 @@ response instead of a 404. An `Allow` header is added to the 405 responses
 containing the allowed verbs. For example:
 
 [source,text]
--------------------------------------------
+--------------------------------------------
 $ curl -v -XPOST 'localhost:9200/my_index/_settings'
 *   Trying 127.0.0.1...
 * TCP_NODELAY set
@@ -117,6 +118,7 @@ $ curl -v -XPOST 'localhost:9200/my_index/_settings'
 --------------------------------------------
 
 [float]
+[[_disallow_using_literal__cache_literal_and_literal__cache_key_literal]]
 ==== Disallow using `_cache` and `_cache_key`
 
 The `_cache` and `_cache_key` options in queries have been deprecated since version 2.0.0 and

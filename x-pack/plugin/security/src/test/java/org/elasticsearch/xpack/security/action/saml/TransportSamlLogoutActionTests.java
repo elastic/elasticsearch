@@ -6,7 +6,11 @@
 package org.elasticsearch.xpack.security.action.saml;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
@@ -24,17 +28,18 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -70,6 +75,9 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.security.authc.TokenServiceTests.mockGetTokenFromId;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
@@ -86,14 +94,17 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     private SamlRealm samlRealm;
     private TokenService tokenService;
     private List<IndexRequest> indexRequests;
-    private List<UpdateRequest> updateRequests;
+    private List<BulkRequest> bulkRequests;
     private TransportSamlLogoutAction action;
     private Client client;
+    private boolean tokenBwc;
 
     @Before
     public void setup() throws Exception {
+        tokenBwc = randomBoolean();
         final Settings settings = Settings.builder()
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
+                .put(TokenService.BWC_ENABLED.getKey(), tokenBwc)
                 .put("path.home", createTempDir())
                 .build();
 
@@ -103,7 +114,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         new Authentication(new User("kibana"), new Authentication.RealmRef("realm", "type", "node"), null).writeToContext(threadContext);
 
         indexRequests = new ArrayList<>();
-        updateRequests = new ArrayList<>();
+        bulkRequests = new ArrayList<>();
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
@@ -128,6 +139,10 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
                     .setId((String) invocationOnMock.getArguments()[2]);
             return builder;
         }).when(client).prepareUpdate(anyString(), anyString(), anyString());
+        doAnswer(invocationOnMock -> {
+            BulkRequestBuilder builder = new BulkRequestBuilder(client, BulkAction.INSTANCE);
+            return builder;
+        }).when(client).prepareBulk();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
         doAnswer(invocationOnMock -> {
             ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocationOnMock.getArguments()[1];
@@ -146,15 +161,6 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             return Void.TYPE;
         }).when(client).multiGet(any(MultiGetRequest.class), any(ActionListener.class));
         doAnswer(invocationOnMock -> {
-            UpdateRequest updateRequest = (UpdateRequest) invocationOnMock.getArguments()[0];
-            ActionListener<UpdateResponse> listener = (ActionListener<UpdateResponse>) invocationOnMock.getArguments()[1];
-            updateRequests.add(updateRequest);
-            final UpdateResponse response = new UpdateResponse(
-                    updateRequest.getShardId(), updateRequest.type(), updateRequest.id(), 1, DocWriteResponse.Result.UPDATED);
-            listener.onResponse(response);
-            return Void.TYPE;
-        }).when(client).update(any(UpdateRequest.class), any(ActionListener.class));
-        doAnswer(invocationOnMock -> {
             IndexRequest indexRequest = (IndexRequest) invocationOnMock.getArguments()[0];
             ActionListener<IndexResponse> listener = (ActionListener<IndexResponse>) invocationOnMock.getArguments()[1];
             indexRequests.add(indexRequest);
@@ -172,6 +178,14 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             listener.onResponse(response);
             return Void.TYPE;
         }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        doAnswer(invocationOnMock -> {
+            BulkRequest bulkRequest = (BulkRequest) invocationOnMock.getArguments()[0];
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[1];
+            bulkRequests.add(bulkRequest);
+            final BulkResponse response = new BulkResponse(new BulkItemResponse[0], 1);
+            listener.onResponse(response);
+            return Void.TYPE;
+        }).when(client).bulk(any(BulkRequest.class), any(ActionListener.class));
 
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         doAnswer(inv -> {
@@ -184,8 +198,10 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
 
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex, clusterService);
+        tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService);
 
         final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
@@ -245,9 +261,25 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         assertThat(indexRequest1, notNullValue());
         assertThat(indexRequest1.id(), startsWith("token"));
 
-        final IndexRequest indexRequest2 = indexRequests.get(1);
-        assertThat(indexRequest2, notNullValue());
-        assertThat(indexRequest2.id(), startsWith("invalidated-token"));
+        assertThat(bulkRequests.size(), equalTo(tokenBwc ? 2 : 1));
+        final BulkRequest tokenRequest;
+        if (tokenBwc) {
+            assertThat(bulkRequests.size(), equalTo(2));
+            final BulkRequest bwcRequest = bulkRequests.get(0);
+            assertThat(bwcRequest.requests().size(), equalTo(1));
+            assertThat(bwcRequest.requests().get(0), instanceOf(IndexRequest.class));
+            assertThat(bwcRequest.requests().get(0).id(), startsWith("invalidated-token_"));
+            tokenRequest = bulkRequests.get(1);
+        } else {
+            assertThat(bulkRequests.size(), equalTo(1));
+            tokenRequest = bulkRequests.get(0);
+        }
+        assertThat(tokenRequest.requests().size(), equalTo(1));
+        assertThat(tokenRequest.requests().get(0), instanceOf(UpdateRequest.class));
+        assertThat(tokenRequest.requests().get(0).id(), startsWith("token_"));
+        assertThat(tokenRequest.requests().get(0).toString(), containsString("\"access_token\":{\"invalidated\":true"));
+
+        assertSettingDeprecationsAndWarnings(new Setting[] { TokenService.BWC_ENABLED });
     }
 
 }

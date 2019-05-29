@@ -17,6 +17,7 @@ it is advisable to avoid going beyond a couple tens of megabytes per request
 even if larger requests seem to perform better.
 
 [float]
+[[multiple-workers-threads]]
 === Use multiple workers/threads to send data to Elasticsearch
 
 A single thread sending bulk requests is unlikely to be able to max out the
@@ -115,6 +116,7 @@ The default is `10%` which is often plenty: for example, if you give the JVM
 two shards that are heavily indexing.
 
 [float]
+[[_disable_literal__field_names_literal]]
 === Disable `_field_names`
 
 The <<mapping-field-names-field,`_field_names` field>> introduces some

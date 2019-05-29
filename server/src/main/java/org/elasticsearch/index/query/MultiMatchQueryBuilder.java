@@ -67,7 +67,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
     private static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
     private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
-    private static final ParseField USE_DIS_MAX_FIELD = new ParseField("use_dis_max");
+    private static final ParseField USE_DIS_MAX_FIELD = new ParseField("use_dis_max").withAllDeprecated("use tie_breaker instead");
     private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField OPERATOR_FIELD = new ParseField("operator");
@@ -213,7 +213,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         int size = in.readVInt();
         fieldsBoosts = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            fieldsBoosts.put(in.readString(), in.readFloat());
+            String field = in.readString();
+            float boost = in.readFloat();
+            checkNegativeBoost(boost);
+            fieldsBoosts.put(field, boost);
         }
         type = Type.readFromStream(in);
         operator = Operator.readFromStream(in);
@@ -293,6 +296,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (Strings.isEmpty(field)) {
             throw new IllegalArgumentException("supplied field is null or empty.");
         }
+        checkNegativeBoost(boost);
         this.fieldsBoosts.put(field, boost);
         return this;
     }
@@ -301,6 +305,9 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * Add several fields to run the query against with a specific boost.
      */
     public MultiMatchQueryBuilder fields(Map<String, Float> fields) {
+        for (float fieldBoost : fields.values()) {
+            checkNegativeBoost(fieldBoost);
+        }
         this.fieldsBoosts.putAll(fields);
         return this;
     }

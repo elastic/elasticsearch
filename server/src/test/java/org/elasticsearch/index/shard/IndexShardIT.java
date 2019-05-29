@@ -21,6 +21,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -57,11 +59,16 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -110,6 +117,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -352,7 +360,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         assertFalse(shard.shouldPeriodicallyFlush());
         shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
             SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
-            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         assertTrue(shard.shouldPeriodicallyFlush());
         final Translog translog = getTranslog(shard);
         assertEquals(2, translog.stats().getUncommittedOperations());
@@ -374,8 +382,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]",
             translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
         assertBusy(() -> { // this is async
-            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]",
-                translog.stats().getUncommittedSizeInBytes(), translog.stats().getUncommittedOperations(), translog.getGeneration());
+            final TranslogStats translogStats = translog.stats();
+            final CommitStats commitStats = shard.commitStats();
+            final FlushStats flushStats = shard.flushStats();
+            logger.info("--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
+                Strings.toString(translogStats), translog.getGeneration().translogFileGeneration,
+                commitStats.getUserData(), flushStats.getPeriodic(), flushStats.getTotal());
             assertFalse(shard.shouldPeriodicallyFlush());
         });
         assertEquals(0, translog.stats().getUncommittedOperations());
@@ -402,7 +414,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
             final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
                 SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                SequenceNumbers.UNASSIGNED_SEQ_NO, 0, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
             if (location.translogLocation + location.size > generationThreshold) {
@@ -460,18 +472,22 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             final FlushStats initialStats = shard.flushStats();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
             check = () -> {
+                assertFalse(shard.shouldPeriodicallyFlush());
                 final FlushStats currentStats = shard.flushStats();
                 String msg = String.format(Locale.ROOT, "flush stats: total=[%d vs %d], periodic=[%d vs %d]",
                     initialStats.getTotal(), currentStats.getTotal(), initialStats.getPeriodic(), currentStats.getPeriodic());
-                assertThat(msg, currentStats.getPeriodic(), equalTo(initialStats.getPeriodic() + 1));
-                assertThat(msg, currentStats.getTotal(), equalTo(initialStats.getTotal() + 1));
+                assertThat(msg, currentStats.getPeriodic(),
+                    either(equalTo(initialStats.getPeriodic() + 1)).or(equalTo(initialStats.getPeriodic() + 2)));
+                assertThat(msg, currentStats.getTotal(),
+                    either(equalTo(initialStats.getTotal() + 1)).or(equalTo(initialStats.getTotal() + 2)));
             };
         } else {
             final long generation = getTranslog(shard).currentFileGeneration();
             client().prepareIndex("test", "test", "1").setSource("{}", XContentType.JSON).get();
-            check = () -> assertEquals(
-                    generation + 1,
-                    getTranslog(shard).currentFileGeneration());
+            check = () -> {
+                assertFalse(shard.shouldRollTranslogGeneration());
+                assertEquals(generation + 1, getTranslog(shard).currentFileGeneration());
+            };
         }
         assertBusy(check);
         running.set(false);
@@ -632,15 +648,32 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         return newShard;
     }
 
-    public static final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper,
-                                                 CircuitBreakerService cbs, IndexingOperationListener... listeners) throws IOException {
+    public static final IndexShard newIndexShard(
+            final IndexService indexService,
+            final IndexShard shard,IndexSearcherWrapper wrapper,
+            final CircuitBreakerService cbs,
+            final IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
-        IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
-            shard.store(), indexService.getIndexSortSupplier(), indexService.cache(), indexService.mapperService(),
-            indexService.similarityService(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper,
-            indexService.getThreadPool(), indexService.getBigArrays(), null, Collections.emptyList(), Arrays.asList(listeners),
-            () -> {}, cbs);
-        return newShard;
+        return new IndexShard(
+                initializingShardRouting,
+                indexService.getIndexSettings(),
+                shard.shardPath(),
+                shard.store(),
+                indexService.getIndexSortSupplier(),
+                indexService.cache(),
+                indexService.mapperService(),
+                indexService.similarityService(),
+                shard.getEngineFactory(),
+                indexService.getIndexEventListener(),
+                wrapper,
+                indexService.getThreadPool(),
+                indexService.getBigArrays(),
+                null,
+                Collections.emptyList(),
+                Arrays.asList(listeners),
+                () -> {},
+                RetentionLeaseSyncer.EMPTY,
+                cbs);
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {
@@ -765,4 +798,45 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             client().search(countRequest).actionGet().getHits().totalHits, equalTo(numDocs + moreDocs));
     }
 
+    public void testShardChangesWithDefaultDocType() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put("index.translog.flush_threshold_size", "512mb") // do not flush
+            .put("index.soft_deletes.enabled", true).build();
+        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        int numOps = between(1, 10);
+        for (int i = 0; i < numOps; i++) {
+            if (randomBoolean()) {
+                client().prepareIndex("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2"))
+                    .setSource("{}", XContentType.JSON).setVersionType(VersionType.EXTERNAL).setVersion(i).get();
+            } else {
+                client().prepareDelete("index", randomFrom("_doc", "user_doc"), randomFrom("1", "2"))
+                    .setVersionType(VersionType.EXTERNAL).setVersion(i).get();
+            }
+        }
+        IndexShard shard = indexService.getShard(0);
+        try (Translog.Snapshot luceneSnapshot = shard.newChangesSnapshot("test", 0, numOps - 1, true);
+             Translog.Snapshot translogSnapshot = getTranslog(shard).newSnapshot()) {
+            List<Translog.Operation> opsFromLucene = TestTranslog.drainSnapshot(luceneSnapshot, true);
+            List<Translog.Operation> opsFromTranslog = TestTranslog.drainSnapshot(translogSnapshot, true);
+            assertThat(opsFromLucene, equalTo(opsFromTranslog));
+        }
+    }
+
+    public void testRoutingRequiresTypeless() throws IOException {
+        Settings settings = Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0).build();
+        createIndex("index", settings, "some_type", "_routing", "required=true");
+
+        expectThrows(RoutingMissingException.class,
+                client().prepareIndex("index", "_doc", "1").setSource()::get);
+
+        expectThrows(RoutingMissingException.class,
+                client().prepareDelete("index", "_doc", "1")::get);
+
+        expectThrows(RoutingMissingException.class,
+                client().prepareUpdate("index", "_doc", "1").setDoc()::get);
+    }
 }

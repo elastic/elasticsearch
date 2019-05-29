@@ -171,6 +171,46 @@ shard.
 == Completed
 
 [float]
+=== Divergence between primary and replica shard copies when documents deleted (STATUS: DONE, V6.3.0)
+
+Certain combinations of delays in performing activities related to the deletion
+of a document could result in the operations on that document being interpreted
+differently on different shard copies. This could lead to a divergence in the
+number of documents held in each copy.
+
+Deleting an unacknowledged document that was concurrently being inserted using
+an auto-generated ID was erroneously sensitive to the order in which those
+operations were processed on each shard copy. Thanks to the introduction of
+sequence numbers ({GIT}10708[#10708]) it is now possible to detect these
+out-of-order operations, and this issue was fixed in {GIT}28787[#28787].
+
+Re-creating a document a specific interval after it was deleted could result in
+that document's tombstone having being cleaned up on some, but not all, copies
+when processing the indexing operation that re-creates it. This resulted in
+varying behaviour across the shard copies. The problematic interval was set by
+the `index.gc_deletes` setting, which is 60 seconds by default. Again, sequence
+numbers ({GIT}10708[#10708]) gives us the machinery to detect these conflicting
+activities, and this issue was fixed in {GIT}28790[#28790].
+
+Under certain rare circumstances a replica might erroneously interpret a stale
+tombstone for a document as fresh, resulting in a concurrent indexing operation
+for that same document behaving differently on this replica than on the
+primary. This is fixed in {GIT}29619[#29619]. Triggering this issue required
+the following activities all to occur in a short time window, in a specific
+order on the primary and a different specific order on the replica:
+
+* a document is deleted twice
+* another document is indexed with the same ID as this first document
+* another document is indexed with a completely different, auto-generated, ID
+* two refreshes
+
+We found the first two of these issues by empirical testing, and then we built
+https://github.com/elastic/elasticsearch-formal-models/blob/master/ReplicaEngine/tla/ReplicaEngine.tla[a
+formal model of the replica's behaviour] using TLA+. Running the TLC model
+checker on this model found all three issues. We then applied the proposed
+fixes to the model and validated that the fixed design behaved as expected.
+
+[float]
 === Port Jepsen tests dealing with loss of acknowledged writes to our testing framework (STATUS: DONE, V5.0.0)
 
 We have increased our test coverage to include scenarios tested by Jepsen that demonstrate loss of acknowledged writes, as described in
@@ -556,7 +596,7 @@ Currently, the circuit breaker protects against loading too much field data by e
 
 Elasticsearch has moved from an object-based cache to a page-based cache recycler as described in issue {GIT}4557[#4557]. This change makes garbage collection easier by limiting fragmentation, since all pages have the same size and are recycled. It also allows managing the size of the cache not based on the number of objects it contains, but on the memory that it uses.
 
-These pages are used for two main purposes: implementing higher level data structures such as hash tables that are used internally by aggregations to eg. map terms to counts, as well as reusing memory in the translog/transport layer as detailed in issue {GIT}5691[#5691].
+These pages are used for two main purposes: implementing higher level data structures such as hash tables that are used internally by aggregations to e.g. map terms to counts, as well as reusing memory in the translog/transport layer as detailed in issue {GIT}5691[#5691].
 
 [float]
 === Dedicated Master Nodes Resiliency (STATUS: DONE, v1.0.0)

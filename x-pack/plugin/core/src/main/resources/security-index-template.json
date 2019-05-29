@@ -59,7 +59,7 @@
         },
         "metadata" : {
           "type" : "object",
-          "dynamic" : true
+          "dynamic" : false
         },
         "enabled": {
           "type": "boolean"
@@ -88,6 +88,9 @@
             },
             "query" : {
               "type" : "keyword"
+            },
+            "allow_restricted_indices" : {
+              "type" : "boolean"
             }
           }
         },
@@ -149,9 +152,43 @@
           "type" : "date",
           "format" : "epoch_millis"
         },
+        "api_key_hash" : {
+          "type" : "keyword",
+          "index": false,
+          "doc_values": false
+        },
+        "api_key_invalidated" : {
+          "type" : "boolean"
+        },
+        "role_descriptors" : {
+          "type" : "object",
+          "enabled": false
+        },
+        "limited_by_role_descriptors" : {
+          "type" : "object",
+          "enabled": false
+        },
+        "version" : {
+          "type" : "integer"
+        },
+        "creator" : {
+          "type" : "object",
+          "properties" : {
+            "principal" : {
+              "type": "keyword"
+            },
+            "metadata" : {
+              "type" : "object",
+              "dynamic" : false
+            },
+            "realm" : {
+              "type" : "keyword"
+            }
+          }
+        },
         "rules" : {
           "type" : "object",
-          "dynamic" : true
+          "dynamic" : false
         },
         "refresh_token" : {
           "type" : "object",
@@ -199,7 +236,7 @@
                 },
                 "metadata" : {
                   "type" : "object",
-                  "dynamic" : true
+                  "dynamic" : false
                 },
                 "authentication" : {
                   "type" : "binary"

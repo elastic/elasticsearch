@@ -29,7 +29,6 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -49,13 +48,12 @@ public class S3RepositoryTests extends ESTestCase {
 
     private static class DummyS3Service extends S3Service {
         @Override
-        public AmazonS3Reference client(String clientName) {
+        public AmazonS3Reference client(RepositoryMetaData repositoryMetaData) {
             return new AmazonS3Reference(new DummyS3Client());
         }
 
         @Override
-        public Map<String, S3ClientSettings> refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
-            return Collections.emptyMap();
+        public void refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
         }
 
         @Override

@@ -43,6 +43,10 @@ public final class RemoteInfoResponse extends ActionResponse implements ToXConte
         this.infos = Collections.unmodifiableList(new ArrayList<>(infos));
     }
 
+    public List<RemoteConnectionInfo> getInfos() {
+        return infos;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

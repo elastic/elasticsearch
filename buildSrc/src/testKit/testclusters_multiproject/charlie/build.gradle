@@ -1,5 +1,0 @@
-task hello() {
-    doLast {
-        println "This task does not use the testclusters plugin. So it will have no extension."
-    }
-}

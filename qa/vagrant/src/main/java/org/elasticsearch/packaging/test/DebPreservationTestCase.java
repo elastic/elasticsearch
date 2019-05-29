@@ -55,7 +55,7 @@ public abstract class DebPreservationTestCase extends PackagingTestCase {
     protected abstract Distribution distribution();
 
     @BeforeClass
-    public static void cleanup() {
+    public static void cleanup() throws Exception {
         installation = null;
         cleanEverything();
     }
@@ -66,14 +66,14 @@ public abstract class DebPreservationTestCase extends PackagingTestCase {
         assumeTrue("only compatible distributions", distribution().packaging.compatible);
     }
 
-    public void test10Install() {
+    public void test10Install() throws Exception {
         assertRemoved(distribution());
         installation = install(distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution());
     }
 
-    public void test20Remove() {
+    public void test20Remove() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         remove(distribution());
@@ -86,6 +86,16 @@ public abstract class DebPreservationTestCase extends PackagingTestCase {
             installation.config("jvm.options"),
             installation.config("log4j2.properties")
         );
+
+        if (distribution().isDefault()) {
+            assertPathsExist(
+                installation.config,
+                installation.config("role_mapping.yml"),
+                installation.config("roles.yml"),
+                installation.config("users"),
+                installation.config("users_roles")
+            );
+        }
 
         // keystore was removed
 
@@ -108,7 +118,7 @@ public abstract class DebPreservationTestCase extends PackagingTestCase {
         assertTrue(Files.exists(installation.envFile));
     }
 
-    public void test30Purge() {
+    public void test30Purge() throws Exception {
         assumeThat(installation, is(notNullValue()));
 
         final Shell sh = new Shell();

@@ -41,7 +41,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     private static final String SHARD_ID = "shard";
     private static final String REASON = "reason";
 
-    private static final ConstructingObjectParser<DefaultShardOperationFailedException, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DefaultShardOperationFailedException, Void> PARSER = new ConstructingObjectParser<>(
         "failures", true, arg -> new DefaultShardOperationFailedException((String) arg[0], (int) arg[1] ,(Throwable) arg[2]));
 
     static {

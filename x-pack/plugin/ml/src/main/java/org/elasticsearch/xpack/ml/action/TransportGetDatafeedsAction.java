@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -15,27 +16,30 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigReader;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
 public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<GetDatafeedsAction.Request,
         GetDatafeedsAction.Response> {
+
+    private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
     public TransportGetDatafeedsAction(Settings settings, TransportService transportService,
                                        ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
+                                       IndexNameExpressionResolver indexNameExpressionResolver,
+                                       Client client, NamedXContentRegistry xContentRegistry) {
         super(settings, GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
                 indexNameExpressionResolver, GetDatafeedsAction.Request::new);
+
+        datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
     }
 
     @Override
@@ -50,18 +54,18 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
 
     @Override
     protected void masterOperation(GetDatafeedsAction.Request request, ClusterState state,
-                                   ActionListener<GetDatafeedsAction.Response> listener) throws Exception {
+                                   ActionListener<GetDatafeedsAction.Response> listener) {
         logger.debug("Get datafeed '{}'", request.getDatafeedId());
 
-        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
-        Set<String> expandedDatafeedIds = mlMetadata.expandDatafeedIds(request.getDatafeedId(), request.allowNoDatafeeds());
-        List<DatafeedConfig> datafeedConfigs = new ArrayList<>();
-        for (String expandedDatafeedId : expandedDatafeedIds) {
-            datafeedConfigs.add(mlMetadata.getDatafeed(expandedDatafeedId));
-        }
+        DatafeedConfigReader datafeedConfigReader = new DatafeedConfigReader(datafeedConfigProvider);
 
-        listener.onResponse(new GetDatafeedsAction.Response(new QueryPage<>(datafeedConfigs, datafeedConfigs.size(),
-                DatafeedConfig.RESULTS_FIELD)));
+        datafeedConfigReader.expandDatafeedConfigs(request.getDatafeedId(), request.allowNoDatafeeds(), state, ActionListener.wrap(
+                datafeeds -> {
+                    listener.onResponse(new GetDatafeedsAction.Response(new QueryPage<>(datafeeds, datafeeds.size(),
+                            DatafeedConfig.RESULTS_FIELD)));
+                },
+                listener::onFailure
+        ));
     }
 
     @Override

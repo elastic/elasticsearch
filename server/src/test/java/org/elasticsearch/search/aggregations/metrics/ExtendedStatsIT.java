@@ -74,7 +74,8 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
             sum += val;
             sumOfSqrs += val * val;
         }
-        return (sumOfSqrs - ((sum * sum) / vals.length)) / vals.length;
+        double variance  = (sumOfSqrs - ((sum * sum) / vals.length)) / vals.length;
+        return variance < 0  ? 0 : variance;
     }
 
     @Override
@@ -503,7 +504,7 @@ public class ExtendedStatsIT extends AbstractNumericTestCase {
                 .addAggregation(
                         extendedStats("stats")
                                 .script(new Script(ScriptType.INLINE,
-                                    AggregationTestScriptsPlugin.NAME, "doc['values'].values", Collections.emptyMap()))
+                                    AggregationTestScriptsPlugin.NAME, "doc['values']", Collections.emptyMap()))
                                 .sigma(sigma))
                 .execute().actionGet();
 

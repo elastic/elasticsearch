@@ -17,7 +17,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
 
-    public void testSqlTranslateAction() throws Exception {
+    public void testSqlTranslateAction() {
         assertAcked(client().admin().indices().prepareCreate("test").get());
         client().prepareBulk()
                 .add(new IndexRequest("test", "doc", "1").source("data", "bar", "count", 42))
@@ -32,11 +32,11 @@ public class SqlTranslateActionIT extends AbstractSqlIntegTestCase {
                 .query("SELECT " + columns + " FROM test ORDER BY count").get();
         SearchSourceBuilder source = response.source();
         FetchSourceContext fetch = source.fetchSource();
-        assertEquals(true, fetch.fetchSource());
+        assertTrue(fetch.fetchSource());
         assertArrayEquals(new String[] { "data" }, fetch.includes());
         assertEquals(
                 singletonList(new DocValueFieldsContext.FieldAndFormat("count", DocValueFieldsContext.USE_DEFAULT_FORMAT)),
                 source.docValueFields());
-        assertEquals(singletonList(SortBuilders.fieldSort("count")), source.sorts());
+        assertEquals(singletonList(SortBuilders.fieldSort("count").missing("_last").unmappedType("long")), source.sorts());
     }
 }

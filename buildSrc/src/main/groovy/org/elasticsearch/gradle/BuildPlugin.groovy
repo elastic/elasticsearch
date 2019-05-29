@@ -39,7 +39,11 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.repositories.ArtifactRepository
+import org.gradle.api.artifacts.repositories.IvyArtifactRepository
+import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.execution.TaskExecutionGraph
+import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
@@ -51,11 +55,13 @@ import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.internal.jvm.Jvm
 import org.gradle.process.ExecResult
+import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
 
 import java.nio.charset.StandardCharsets
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.util.regex.Matcher
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -69,7 +75,7 @@ class BuildPlugin implements Plugin<Project> {
                 + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
                 + 'are mutually exclusive')
         }
-        final String minimumGradleVersion
+        String minimumGradleVersion = null
         InputStream is = getClass().getResourceAsStream("/minimumGradleVersion")
         try { minimumGradleVersion = IOUtils.toString(is, StandardCharsets.UTF_8.toString()) } finally { is.close() }
         if (GradleVersion.current() < GradleVersion.version(minimumGradleVersion.trim())) {
@@ -147,7 +153,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             String inFipsJvmScript = 'print(java.security.Security.getProviders()[0].name.toLowerCase().contains("fips"));'
-            boolean inFipsJvm = Boolean.parseBoolean(runJavascript(project, runtimeJavaHome, inFipsJvmScript))
+            boolean inFipsJvm = Boolean.parseBoolean(runJavaAsScript(project, runtimeJavaHome, inFipsJvmScript))
 
             // Build debugging info
             println '======================================='
@@ -155,14 +161,14 @@ class BuildPlugin implements Plugin<Project> {
             println "  Gradle Version        : ${project.gradle.gradleVersion}"
             println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
             if (gradleJavaVersionDetails != compilerJavaVersionDetails || gradleJavaVersionDetails != runtimeJavaVersionDetails) {
-                println "  Compiler JDK Version  : ${getPaddedMajorVersion(compilerJavaVersionEnum)} (${compilerJavaVersionDetails})"
+                println "  Compiler JDK Version  : ${compilerJavaVersionEnum} (${compilerJavaVersionDetails})"
                 println "  Compiler java.home    : ${compilerJavaHome}"
-                println "  Runtime JDK Version   : ${getPaddedMajorVersion(runtimeJavaVersionEnum)} (${runtimeJavaVersionDetails})"
+                println "  Runtime JDK Version   : ${runtimeJavaVersionEnum} (${runtimeJavaVersionDetails})"
                 println "  Runtime java.home     : ${runtimeJavaHome}"
-                println "  Gradle JDK Version    : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
+                println "  Gradle JDK Version    : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
                 println "  Gradle java.home      : ${gradleJavaHome}"
             } else {
-                println "  JDK Version           : ${getPaddedMajorVersion(JavaVersion.toVersion(gradleJavaVersion))} (${gradleJavaVersionDetails})"
+                println "  JDK Version           : ${JavaVersion.toVersion(gradleJavaVersion)} (${gradleJavaVersionDetails})"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
             println "  Random Testing Seed   : ${project.testSeed}"
@@ -215,6 +221,7 @@ class BuildPlugin implements Plugin<Project> {
             project.rootProject.ext.inFipsJvm = inFipsJvm
             project.rootProject.ext.gradleJavaVersion = JavaVersion.toVersion(gradleJavaVersion)
             project.rootProject.ext.java9Home = "${-> findJavaHome("9")}"
+            project.rootProject.ext.defaultParallel = findDefaultParallel(project.rootProject)
         }
 
         project.targetCompatibility = project.rootProject.ext.minimumRuntimeVersion
@@ -231,12 +238,123 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.java9Home = project.rootProject.ext.java9Home
     }
 
-    private static String getPaddedMajorVersion(JavaVersion compilerJavaVersionEnum) {
-        compilerJavaVersionEnum.getMajorVersion().toString().padLeft(2)
+    static void requireDocker(final Task task) {
+        final Project rootProject = task.project.rootProject
+        if (rootProject.hasProperty('requiresDocker') == false) {
+            /*
+             * This is our first time encountering a task that requires Docker. We will add an extension that will let us track the tasks
+             * that register as requiring Docker. We will add a delayed execution that when the task graph is ready if any such tasks are
+             * in the task graph, then we check two things:
+             *  - the Docker binary is available
+             *  - we can execute a Docker command that requires privileges
+             *
+             *  If either of these fail, we fail the build.
+             */
+
+            // check if the Docker binary exists and record its path
+            final List<String> maybeDockerBinaries = ['/usr/bin/docker', '/usr/local/bin/docker']
+            final String dockerBinary = maybeDockerBinaries.find { it -> new File(it).exists() }
+
+            final boolean buildDocker
+            final String buildDockerProperty = System.getProperty("build.docker")
+            if (buildDockerProperty == null) {
+                buildDocker = dockerBinary != null
+            } else if (buildDockerProperty == "true") {
+                buildDocker = true
+            } else if (buildDockerProperty == "false") {
+                buildDocker = false
+            } else {
+                throw new IllegalArgumentException(
+                        "expected build.docker to be unset or one of \"true\" or \"false\" but was [" + buildDockerProperty + "]")
+            }
+            rootProject.rootProject.ext.buildDocker = buildDocker
+            rootProject.rootProject.ext.requiresDocker = []
+            rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
+                final List<String> tasks =
+                        ((List<Task>)rootProject.requiresDocker).findAll { taskGraph.hasTask(it) }.collect { "  ${it.path}".toString()}
+                if (tasks.isEmpty() == false) {
+                    /*
+                     * There are tasks in the task graph that require Docker. Now we are failing because either the Docker binary does not
+                     * exist or because execution of a privileged Docker command failed.
+                     */
+                    if (dockerBinary == null) {
+                        final String message = String.format(
+                                Locale.ROOT,
+                                "Docker (checked [%s]) is required to run the following task%s: \n%s",
+                                maybeDockerBinaries.join(","),
+                                tasks.size() > 1 ? "s" : "",
+                                tasks.join('\n'))
+                        throwDockerRequiredException(message)
+                    }
+
+                    // we use a multi-stage Docker build, check the Docker version since 17.05
+                    final ByteArrayOutputStream dockerVersionOutput = new ByteArrayOutputStream()
+                    LoggedExec.exec(
+                            rootProject,
+                            { ExecSpec it ->
+                                it.commandLine = [dockerBinary, '--version']
+                                it.standardOutput = dockerVersionOutput
+                            })
+                    final String dockerVersion = dockerVersionOutput.toString().trim()
+                    checkDockerVersionRecent(dockerVersion)
+
+                    final ByteArrayOutputStream dockerImagesErrorOutput = new ByteArrayOutputStream()
+                    // the Docker binary executes, check that we can execute a privileged command
+                    final ExecResult dockerImagesResult = LoggedExec.exec(
+                            rootProject,
+                            { ExecSpec it ->
+                                it.commandLine = [dockerBinary, "images"]
+                                it.errorOutput = dockerImagesErrorOutput
+                                it.ignoreExitValue = true
+                            })
+
+                    if (dockerImagesResult.exitValue != 0) {
+                        final String message = String.format(
+                                Locale.ROOT,
+                                "a problem occurred running Docker from [%s] yet it is required to run the following task%s: \n%s\n" +
+                                        "the problem is that Docker exited with exit code [%d] with standard error output [%s]",
+                                dockerBinary,
+                                tasks.size() > 1 ? "s" : "",
+                                tasks.join('\n'),
+                                dockerImagesResult.exitValue,
+                                dockerImagesErrorOutput.toString().trim())
+                        throwDockerRequiredException(message)
+                    }
+
+                }
+            }
+        }
+        if (rootProject.buildDocker) {
+            rootProject.requiresDocker.add(task)
+        } else {
+            task.enabled = false
+        }
+    }
+
+    protected static void checkDockerVersionRecent(String dockerVersion) {
+        final Matcher matcher = dockerVersion =~ /Docker version (\d+\.\d+)\.\d+(?:-ce)?, build [0-9a-f]{7,40}/
+        assert matcher.matches(): dockerVersion
+        final dockerMajorMinorVersion = matcher.group(1)
+        final String[] majorMinor = dockerMajorMinorVersion.split("\\.")
+        if (Integer.parseInt(majorMinor[0]) < 17
+                || (Integer.parseInt(majorMinor[0]) == 17 && Integer.parseInt(majorMinor[1]) < 5)) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "building Docker images requires Docker version 17.05+ due to use of multi-stage builds yet was [%s]",
+                    dockerVersion)
+            throwDockerRequiredException(message)
+        }
+    }
+
+    private static void throwDockerRequiredException(final String message) {
+        throw new GradleException(
+                message + "\nyou can address this by attending to the reported issue, "
+                        + "removing the offending tasks from being executed, "
+                        + "or by passing -Dbuild.docker=false")
     }
 
     private static String findCompilerJavaHome() {
-        final String compilerJavaHome = System.getenv('JAVA_HOME')
+        String compilerJavaHome = System.getenv('JAVA_HOME')
         final String compilerJavaProperty = System.getProperty('compiler.java')
         if (compilerJavaProperty != null) {
             compilerJavaHome = findJavaHome(compilerJavaProperty)
@@ -278,7 +396,7 @@ class BuildPlugin implements Plugin<Project> {
     static void requireJavaHome(Task task, int version) {
         Project rootProject = task.project.rootProject // use root project for global accounting
         if (rootProject.hasProperty('requiredJavaVersions') == false) {
-            rootProject.rootProject.ext.requiredJavaVersions = [:].withDefault{key -> return []}
+            rootProject.rootProject.ext.requiredJavaVersions = [:]
             rootProject.gradle.taskGraph.whenReady { TaskExecutionGraph taskGraph ->
                 List<String> messages = []
                 for (entry in rootProject.requiredJavaVersions) {
@@ -293,9 +411,16 @@ class BuildPlugin implements Plugin<Project> {
                 if (messages.isEmpty() == false) {
                     throw new GradleException(messages.join('\n'))
                 }
+                rootProject.rootProject.ext.requiredJavaVersions = null // reset to null to indicate the pre-execution checks have executed
             }
+        } else if (rootProject.rootProject.requiredJavaVersions == null) {
+            // check directly if the version is present since we are already executing
+            if (rootProject.javaVersions.get(version) == null) {
+                throw new GradleException("JAVA${version}_HOME required to run task:\n${task}")
+            }
+        } else {
+            rootProject.requiredJavaVersions.getOrDefault(version, []).add(task)
         }
-        rootProject.requiredJavaVersions.get(version).add(task)
     }
 
     /** A convenience method for getting java home for a version of java and requiring that version for the given task to execute */
@@ -317,28 +442,28 @@ class BuildPlugin implements Plugin<Project> {
         String versionInfoScript = 'print(' +
             'java.lang.System.getProperty("java.vendor") + " " + java.lang.System.getProperty("java.version") + ' +
             '" [" + java.lang.System.getProperty("java.vm.name") + " " + java.lang.System.getProperty("java.vm.version") + "]");'
-        return runJavascript(project, javaHome, versionInfoScript).trim()
+        return runJavaAsScript(project, javaHome, versionInfoScript).trim()
     }
 
     /** Finds the parsable java specification version */
     private static String findJavaSpecificationVersion(Project project, String javaHome) {
         String versionScript = 'print(java.lang.System.getProperty("java.specification.version"));'
-        return runJavascript(project, javaHome, versionScript)
+        return runJavaAsScript(project, javaHome, versionScript)
     }
 
     private static String findJavaVendor(Project project, String javaHome) {
         String vendorScript = 'print(java.lang.System.getProperty("java.vendor"));'
-        return runJavascript(project, javaHome, vendorScript)
+        return runJavaAsScript(project, javaHome, vendorScript)
     }
 
     /** Finds the parsable java specification version */
     private static String findJavaVersion(Project project, String javaHome) {
         String versionScript = 'print(java.lang.System.getProperty("java.version"));'
-        return runJavascript(project, javaHome, versionScript)
+        return runJavaAsScript(project, javaHome, versionScript)
     }
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
-    private static String runJavascript(Project project, String javaHome, String script) {
+    private static String runJavaAsScript(Project project, String javaHome, String script) {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream()
         ByteArrayOutputStream stderr = new ByteArrayOutputStream()
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -436,6 +561,16 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds repositories used by ES dependencies */
     static void configureRepositories(Project project) {
+        project.getRepositories().all { repository ->
+            if (repository instanceof MavenArtifactRepository) {
+                final MavenArtifactRepository maven = (MavenArtifactRepository) repository
+                assertRepositoryURIUsesHttps(maven, project, maven.getUrl())
+                repository.getArtifactUrls().each { uri -> assertRepositoryURIUsesHttps(project, uri) }
+            } else if (repository instanceof IvyArtifactRepository) {
+                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository
+                assertRepositoryURIUsesHttps(ivy, project, ivy.getUrl())
+            }
+        }
         RepositoryHandler repos = project.repositories
         if (System.getProperty("repos.mavenLocal") != null) {
             // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
@@ -454,8 +589,14 @@ class BuildPlugin implements Plugin<Project> {
             String revision = (luceneVersion =~ /\w+-snapshot-([a-z0-9]+)/)[0][1]
             repos.maven {
                 name 'lucene-snapshots'
-                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+                url "https://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
+        }
+    }
+
+    private static void assertRepositoryURIUsesHttps(final ArtifactRepository repository, final Project project, final URI uri) {
+        if (uri != null && uri.toURL().getProtocol().equals("http")) {
+            throw new GradleException("repository [${repository.name}] on project with path [${project.path}] is using http for artifacts on [${uri.toURL()}]")
         }
     }
 
@@ -774,35 +915,28 @@ class BuildPlugin implements Plugin<Project> {
     }
 
     static void applyCommonTestConfig(Project project) {
-        String defaultParallel = 'auto'
-        // Count physical cores on any Linux distro ( don't count hyper-threading )
-        if (project.file("/proc/cpuinfo").exists()) {
-            Map<String, Integer> socketToCore = [:]
-            String currentID = ""
-            project.file("/proc/cpuinfo").readLines().forEach({ line ->
-                if (line.contains(":")) {
-                    List<String> parts = line.split(":", 2).collect({it.trim()})
-                    String name = parts[0], value = parts[1]
-                    // the ID of the CPU socket
-                    if (name == "physical id") {
-                        currentID = value
-                    }
-                    // Number  of cores not including hyper-threading
-                    if (name == "cpu cores") {
-                        assert currentID.isEmpty() == false
-                        socketToCore[currentID] = Integer.valueOf(value)
-                        currentID = ""
-                    }
-                }
-            })
-            defaultParallel = socketToCore.values().sum().toString();
-        }
-        project.tasks.withType(RandomizedTestingTask) {
+        project.tasks.withType(RandomizedTestingTask) {task ->
             jvm "${project.runtimeJavaHome}/bin/java"
-            parallelism System.getProperty('tests.jvms', defaultParallel)
-            ifNoTests System.getProperty('tests.ifNoTests', 'fail')
+            parallelism System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel)
+            ifNoTests 'fail'
             onNonEmptyWorkDirectory 'wipe'
             leaveTemporary true
+            project.sourceSets.matching { it.name == "test" }.all { test ->
+                task.testClassesDirs = test.output.classesDirs
+                task.classpath = test.runtimeClasspath
+            }
+            group =  JavaBasePlugin.VERIFICATION_GROUP
+            dependsOn 'testClasses'
+
+            // Make sure all test tasks are configured properly
+            if (name != "test") {
+                project.tasks.matching { it.name == "test"}.all { testTask ->
+                    task.shouldRunAfter testTask
+                }
+            }
+            if (name == "unitTest") {
+                include("**/*Tests.class")
+            }
 
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')
@@ -897,8 +1031,6 @@ class BuildPlugin implements Plugin<Project> {
 
             exclude '**/*$*.class'
 
-            dependsOn(project.tasks.testClasses)
-
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
                 // Test against a shadow jar if we made one
                 classpath -= project.tasks.compileJava.outputs.files
@@ -906,6 +1038,41 @@ class BuildPlugin implements Plugin<Project> {
                 dependsOn project.tasks.shadowJar
             }
         }
+    }
+
+    private static String findDefaultParallel(Project project) {
+        if (project.file("/proc/cpuinfo").exists()) {
+            // Count physical cores on any Linux distro ( don't count hyper-threading )
+            Map<String, Integer> socketToCore = [:]
+            String currentID = ""
+            project.file("/proc/cpuinfo").readLines().forEach({ line ->
+                if (line.contains(":")) {
+                    List<String> parts = line.split(":", 2).collect({it.trim()})
+                    String name = parts[0], value = parts[1]
+                    // the ID of the CPU socket
+                    if (name == "physical id") {
+                        currentID = value
+                    }
+                    // Number  of cores not including hyper-threading
+                    if (name == "cpu cores") {
+                        assert currentID.isEmpty() == false
+                        socketToCore[currentID] = Integer.valueOf(value)
+                        currentID = ""
+                    }
+                }
+            })
+            return socketToCore.values().sum().toString();
+        } else if ('Mac OS X'.equals(System.getProperty('os.name'))) {
+            // Ask macOS to count physical CPUs for us
+            ByteArrayOutputStream stdout = new ByteArrayOutputStream()
+            project.exec {
+                executable 'sysctl'
+                args '-n', 'hw.physicalcpu'
+                standardOutput = stdout
+            }
+            return stdout.toString('UTF-8').trim();
+        }
+        return 'auto';
     }
 
     /** Configures the test task */

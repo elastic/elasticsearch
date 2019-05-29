@@ -22,7 +22,9 @@ import java.util.Locale;
 
 /**
  * Indicates the type of the upgrade required for the index
+ * @deprecated The Migration Assistance API is deprecated, use the Deprecation Info API instead.
  */
+@Deprecated
 public enum UpgradeActionRequired {
     NOT_APPLICABLE,   // Indicates that the check is not applicable to this index type, the next check will be performed
     UP_TO_DATE,       // Indicates that the check finds this index to be up to date - no additional checks are required

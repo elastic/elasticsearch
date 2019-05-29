@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -256,8 +257,13 @@ public class MetaDataMappingService {
                 updateList.add(indexMetaData);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
                 DocumentMapper newMapper;
-                DocumentMapper existingMapper = mapperService.documentMapper(request.type());
-                if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
+                DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
+                if (existingMapper == null && isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
+                    existingMapper = mapperService.documentMapper(mapperService.resolveDocumentType(mappingType));
+                }
+                String typeForUpdate = existingMapper == null ? mappingType : existingMapper.type();
+
+                if (MapperService.DEFAULT_MAPPING.equals(typeForUpdate)) {
                     // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
                     newMapper = mapperService.parse(request.type(), mappingUpdateSource, false);
                 } else {
@@ -287,7 +293,8 @@ public class MetaDataMappingService {
                 }
                 if (mappingType == null) {
                     mappingType = newMapper.type();
-                } else if (mappingType.equals(newMapper.type()) == false) {
+                } else if (mappingType.equals(newMapper.type()) == false
+                        && mapperService.resolveDocumentType(mappingType).equals(newMapper.type()) == false) {
                     throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
                 }
             }
@@ -306,12 +313,21 @@ public class MetaDataMappingService {
                 // we use the exact same indexService and metadata we used to validate above here to actually apply the update
                 final Index index = indexMetaData.getIndex();
                 final MapperService mapperService = indexMapperServices.get(index);
+
+                // If the _type name is _doc and there is no _doc top-level key then this means that we
+                // are handling a typeless call. In such a case, we override _doc with the actual type
+                // name in the mappings. This allows to use typeless APIs on typed indices.
+                String typeForUpdate = mappingType;
                 CompressedXContent existingSource = null;
                 DocumentMapper existingMapper = mapperService.documentMapper(mappingType);
+                if (existingMapper == null && isMappingSourceTyped(request.type(), mappingUpdateSource) == false) {
+                    existingMapper = mapperService.documentMapper(mapperService.resolveDocumentType(mappingType));
+                }
                 if (existingMapper != null) {
+                    typeForUpdate = existingMapper.type();
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource,
+                DocumentMapper mergedMapper = mapperService.merge(typeForUpdate, mappingUpdateSource,
                     MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 

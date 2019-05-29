@@ -58,8 +58,9 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
         SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
 
         Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings())
-            .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+            .put(super.nodeSettings());
+        SecuritySettingsSource.addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
+        builder.put(NetworkModule.HTTP_ENABLED.getKey(), true)
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
             .put("xpack.security.authc.realms.file.type", FileRealmSettings.TYPE)
@@ -94,8 +95,7 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem",
             "testnode",
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-            Arrays.asList
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
+            Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         try (TransportClient client = createTransportClient(builder.build())) {
             client.addTransportAddress(randomFrom(node().injector().getInstance(Transport.class).boundAddress().boundAddresses()));
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
@@ -159,13 +159,14 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     private TransportClient createTransportClient(Settings additionalSettings) {
         Settings clientSettings = transportClientSettings();
-        if (additionalSettings.getByPrefix("xpack.ssl.").isEmpty() == false) {
-            clientSettings = clientSettings.filter(k -> k.startsWith("xpack.ssl.") == false);
+        if (additionalSettings.getByPrefix("xpack.security.transport.ssl.").isEmpty() == false) {
+            clientSettings = clientSettings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false);
         }
 
         Settings.Builder builder = Settings.builder().put(clientSettings, false)
-                .put(additionalSettings)
-                .put("cluster.name", node().settings().get("cluster.name"));
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put(additionalSettings)
+            .put("cluster.name", node().settings().get("cluster.name"));
         builder.remove(SecurityField.USER_SETTING.getKey());
         builder.remove("request.headers.Authorization");
         return new TestXPackTransportClient(builder.build(), LocalStateSecurity.class);

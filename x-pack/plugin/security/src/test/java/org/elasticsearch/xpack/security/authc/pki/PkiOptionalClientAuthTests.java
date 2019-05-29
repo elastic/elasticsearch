@@ -30,6 +30,7 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.SecureRandom;
 
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
 import static org.hamcrest.Matchers.is;
 
 public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
@@ -46,20 +47,21 @@ public class PkiOptionalClientAuthTests extends SecuritySingleNodeTestCase {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
 
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings())
-                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.enabled", true)
-                .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
-                .put("xpack.security.authc.realms.file.type", "file")
-                .put("xpack.security.authc.realms.file.order", "0")
-                .put("xpack.security.authc.realms.pki1.type", "pki")
-                .put("xpack.security.authc.realms.pki1.order", "1")
-                .put("xpack.security.authc.realms.pki1.truststore.path",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
-                .put("transport.profiles.want_client_auth.port", randomClientPortRange)
-                .put("transport.profiles.want_client_auth.bind_host", "localhost")
-                .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.OPTIONAL);
+                .put(super.nodeSettings());
+        addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
+        builder.put(NetworkModule.HTTP_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
+            .put("xpack.security.authc.realms.file.type", "file")
+            .put("xpack.security.authc.realms.file.order", "0")
+            .put("xpack.security.authc.realms.pki1.type", "pki")
+            .put("xpack.security.authc.realms.pki1.order", "1")
+            .put("xpack.security.authc.realms.pki1.truststore.path",
+                    getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+            .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
+            .put("transport.profiles.want_client_auth.port", randomClientPortRange)
+            .put("transport.profiles.want_client_auth.bind_host", "localhost")
+            .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.OPTIONAL);
 
         SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
                 secureSettings.setString("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only"));

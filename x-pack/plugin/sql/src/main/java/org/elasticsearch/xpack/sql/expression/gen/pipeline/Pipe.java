@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.execution.search.SqlSourceBuilder;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.Node;
 
 import java.util.ArrayList;
@@ -32,8 +32,8 @@ public abstract class Pipe extends Node<Pipe> implements FieldExtraction, Resolv
 
     private final Expression expression;
 
-    public Pipe(Location location, Expression expression, List<Pipe> children) {
-        super(location, children);
+    public Pipe(Source source, Expression expression, List<Pipe> children) {
+        super(source, children);
         this.expression = expression;
     }
 

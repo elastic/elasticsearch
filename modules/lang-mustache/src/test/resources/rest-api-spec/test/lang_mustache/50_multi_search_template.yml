@@ -156,3 +156,47 @@ setup:
   - match:  { responses.0.hits.total:     2  }
   - match:  { responses.1.hits.total:     1  }
   - match:  { responses.2.hits.total:     1  }
+
+
+  - do:
+      put_script:
+        id: stored_template_1
+        body: { "script": { "lang" : "mustache", "source": { "query": {"match": {"{{field}}": "{{value}}" }}}}}
+  - match: { acknowledged: true }
+
+---
+"Test with rest_total_hits_as_int":
+  - skip:
+      version: " - 6.5.99"
+      reason: rest_total_hits_as_int was introduced in 6.6.0
+
+  - do:
+      put_script:
+        id: stored_template_1
+        body: { "script": { "lang": "mustache", "source": { "query": {"match": {"{{field}}": "{{value}}" }}}}}
+  - match: { acknowledged: true }
+
+  - do:
+      msearch_template:
+        rest_total_hits_as_int: true
+        body:
+        - index: index_*
+        - id: stored_template_1
+          params:
+            field: "foo"
+            value: "foo"
+        - index: _all
+        - id: stored_template_1
+          params:
+            field: "foo"
+            value: "bar"
+        - index: index_2
+        - id: stored_template_1
+          params:
+            field: "foo"
+            value: "foo"
+
+  - match:  { responses.0.hits.total:     2  }
+  - match:  { responses.1.hits.total:     1  }
+  - match:  { responses.2.hits.total:     1  }
+

@@ -25,6 +25,9 @@ public class RestPutCalendarJobAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.PUT,
                 MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" +
                         Job.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.PUT,
+                MachineLearning.V7_BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}/jobs/{" +
+                        Job.ID.getPreferredName() + "}", this);
     }
 
     @Override

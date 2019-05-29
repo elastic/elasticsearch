@@ -26,6 +26,7 @@ import org.elasticsearch.client.ElasticsearchClient;
  * Action for retrieving a list of currently running tasks
  */
 public class GetTaskAction extends Action<GetTaskRequest, GetTaskResponse, GetTaskRequestBuilder> {
+    public static final String TASKS_ORIGIN = "tasks";
 
     public static final GetTaskAction INSTANCE = new GetTaskAction();
     public static final String NAME = "cluster:monitor/task/get";

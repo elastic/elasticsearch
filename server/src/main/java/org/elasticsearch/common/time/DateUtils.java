@@ -61,6 +61,9 @@ public class DateUtils {
         if (timeZone == null) {
             return null;
         }
+        if (DateTimeZone.UTC.equals(timeZone)) {
+            return ZoneOffset.UTC;
+        }
 
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(timeZone.getID());
         if (deprecatedId != null) {

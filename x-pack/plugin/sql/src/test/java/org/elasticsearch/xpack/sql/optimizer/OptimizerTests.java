@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
@@ -13,17 +14,22 @@ import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.Foldables;
 import org.elasticsearch.xpack.sql.expression.Literal;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.Order;
 import org.elasticsearch.xpack.sql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayName;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.IsoWeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
@@ -33,11 +39,14 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Ascii;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Greatest;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfNull;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Least;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
@@ -56,6 +65,7 @@ import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.sql.expression.predicate.regex.RLike;
@@ -68,9 +78,10 @@ import org.elasticsearch.xpack.sql.optimizer.Optimizer.ConstantFolding;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PropagateEquals;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneDuplicateFunctions;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.PruneSubqueryAliases;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceFoldableAttributes;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyCoalesce;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceMinMaxWithTopHits;
+import org.elasticsearch.xpack.sql.optimizer.Optimizer.SimplifyConditional;
+import org.elasticsearch.xpack.sql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.sql.plan.logical.Filter;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
@@ -79,23 +90,24 @@ import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
-import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.TimeZone;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Literal.NULL;
-import static org.elasticsearch.xpack.sql.tree.Location.EMPTY;
+import static org.elasticsearch.xpack.sql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
 
 public class OptimizerTests extends ESTestCase {
@@ -113,8 +125,8 @@ public class OptimizerTests extends ESTestCase {
 
         private final int id;
 
-        public DummyBooleanExpression(Location location, int id) {
-            super(location, Collections.emptyList());
+        public DummyBooleanExpression(Source source, int id) {
+            super(source, Collections.emptyList());
             this.id = id;
         }
 
@@ -129,8 +141,8 @@ public class OptimizerTests extends ESTestCase {
         }
 
         @Override
-        public boolean nullable() {
-            return false;
+        public Nullability nullable() {
+            return Nullability.FALSE;
         }
 
         @Override
@@ -163,9 +175,12 @@ public class OptimizerTests extends ESTestCase {
     }
 
     private static FieldAttribute getFieldAttribute() {
-        return new FieldAttribute(EMPTY, "a", new EsField("af", DataType.INTEGER, emptyMap(), true));
+        return getFieldAttribute("a");
     }
 
+    private static FieldAttribute getFieldAttribute(String name) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", DataType.INTEGER, emptyMap(), true));
+    }
 
     public void testPruneSubqueryAliases() {
         ShowTables s = new ShowTables(EMPTY, null, null);
@@ -272,6 +287,8 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThan(EMPTY, TWO, THREE)).canonical());
         assertEquals(Literal.FALSE, new ConstantFolding().rule(new GreaterThanOrEqual(EMPTY, TWO, THREE)).canonical());
         assertEquals(Literal.FALSE, new ConstantFolding().rule(new Equals(EMPTY, TWO, THREE)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new NullEquals(EMPTY, TWO, THREE)).canonical());
+        assertEquals(Literal.FALSE, new ConstantFolding().rule(new NullEquals(EMPTY, TWO, NULL)).canonical());
         assertEquals(Literal.TRUE, new ConstantFolding().rule(new NotEquals(EMPTY, TWO, THREE)).canonical());
         assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThanOrEqual(EMPTY, TWO, THREE)).canonical());
         assertEquals(Literal.TRUE, new ConstantFolding().rule(new LessThan(EMPTY, TWO, THREE)).canonical());
@@ -315,22 +332,21 @@ public class OptimizerTests extends ESTestCase {
 
     public void testConstantFoldingLikes() {
         assertEquals(Literal.TRUE,
-                new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern(EMPTY, "test%", (char) 0)))
+                new ConstantFolding().rule(new Like(EMPTY, Literal.of(EMPTY, "test_emp"), new LikePattern("test%", (char) 0)))
                         .canonical());
         assertEquals(Literal.TRUE,
-                new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), Literal.of(EMPTY, "test.emp"))).canonical());
+                new ConstantFolding().rule(new RLike(EMPTY, Literal.of(EMPTY, "test_emp"), "test.emp")).canonical());
     }
 
     public void testConstantFoldingDatetime() {
-        final TimeZone UTC = TimeZone.getTimeZone("UTC");
-        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATE);
+        Expression cast = new Cast(EMPTY, Literal.of(EMPTY, "2018-01-19T10:23:27Z"), DataType.DATETIME);
         assertEquals(2018, foldFunction(new Year(EMPTY, cast, UTC)));
         assertEquals(1, foldFunction(new MonthOfYear(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfMonth(EMPTY, cast, UTC)));
         assertEquals(19, foldFunction(new DayOfYear(EMPTY, cast, UTC)));
-        assertEquals(3, foldFunction(new WeekOfYear(EMPTY, cast, UTC)));
+        assertEquals(3, foldFunction(new IsoWeekOfYear(EMPTY, cast, UTC)));
         assertNull(foldFunction(
-                new WeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), UTC)));
+                new IsoWeekOfYear(EMPTY, new Literal(EMPTY, null, DataType.NULL), UTC)));
     }
 
     public void testConstantFoldingIn() {
@@ -387,6 +403,8 @@ public class OptimizerTests extends ESTestCase {
         return ((Literal) new ConstantFolding().rule(b)).value();
     }
 
+    // Null folding
+
     public void testNullFoldingIsNull() {
         FoldNull foldNull = new FoldNull();
         assertEquals(true, foldNull.rule(new IsNull(EMPTY, Literal.NULL)).fold());
@@ -402,7 +420,7 @@ public class OptimizerTests extends ESTestCase {
     public void testGenericNullableExpression() {
         FoldNull rule = new FoldNull();
         // date-time
-        assertNullLiteral(rule.rule(new DayName(EMPTY, Literal.NULL, randomTimeZone())));
+        assertNullLiteral(rule.rule(new DayName(EMPTY, Literal.NULL, randomZone())));
         // math function
         assertNullLiteral(rule.rule(new Cos(EMPTY, Literal.NULL)));
         // string function
@@ -413,63 +431,148 @@ public class OptimizerTests extends ESTestCase {
         // comparison
         assertNullLiteral(rule.rule(new GreaterThan(EMPTY, getFieldAttribute(), Literal.NULL)));
         // regex
-        assertNullLiteral(rule.rule(new RLike(EMPTY, getFieldAttribute(), Literal.NULL)));
+        assertNullLiteral(rule.rule(new RLike(EMPTY, Literal.NULL, "123")));
+    }
+
+    public void testNullFoldingDoesNotApplyOnLogicalExpressions() {
+        FoldNull rule = new FoldNull();
+
+        Or or = new Or(EMPTY, Literal.NULL, Literal.TRUE);
+        assertEquals(or, rule.rule(or));
+        or = new Or(EMPTY, Literal.NULL, Literal.NULL);
+        assertEquals(or, rule.rule(or));
+
+        And and = new And(EMPTY, Literal.NULL, Literal.TRUE);
+        assertEquals(and, rule.rule(and));
+        and = new And(EMPTY, Literal.NULL, Literal.NULL);
+        assertEquals(and, rule.rule(and));
+    }
+
+    public void testNullFoldingDoesNotApplyOnConditionals() {
+        FoldNull rule = new FoldNull();
+
+        Coalesce coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(coalesce, rule.rule(coalesce));
+        coalesce = new Coalesce(EMPTY, Arrays.asList(Literal.NULL, NULL, NULL));
+        assertEquals(coalesce, rule.rule(coalesce));
+
+        Greatest greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(greatest, rule.rule(greatest));
+        greatest = new Greatest(EMPTY, Arrays.asList(Literal.NULL, ONE, TWO));
+        assertEquals(greatest, rule.rule(greatest));
     }
 
     public void testSimplifyCoalesceNulls() {
-        Expression e = new SimplifyCoalesce().rule(new Coalesce(EMPTY, asList(Literal.NULL, Literal.NULL)));
+        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, asList(Literal.NULL, Literal.NULL)));
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(0, e.children().size());
     }
 
     public void testSimplifyCoalesceRandomNulls() {
-        Expression e = new SimplifyCoalesce().rule(new Coalesce(EMPTY, randomListOfNulls()));
+        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY, randomListOfNulls()));
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(0, e.children().size());
     }
 
     public void testSimplifyCoalesceRandomNullsWithValue() {
-        Expression e = new SimplifyCoalesce().rule(new Coalesce(EMPTY,
+        Expression e = new SimplifyConditional().rule(new Coalesce(EMPTY,
                 CollectionUtils.combine(
                         CollectionUtils.combine(randomListOfNulls(), Literal.TRUE, Literal.FALSE, Literal.TRUE),
                         randomListOfNulls())));
         assertEquals(1, e.children().size());
         assertEquals(Literal.TRUE, e.children().get(0));
+        assertEquals(DataType.BOOLEAN, e.dataType());
     }
 
     private List<Expression> randomListOfNulls() {
-        return asList(randomArray(1, 10, i -> new Literal[i], () -> Literal.NULL));
+        return asList(randomArray(1, 10, Literal[]::new, () -> Literal.NULL));
     }
 
     public void testSimplifyCoalesceFirstLiteral() {
-        Expression e = new SimplifyCoalesce()
+        Expression e = new SimplifyConditional()
                 .rule(new Coalesce(EMPTY,
                         Arrays.asList(Literal.NULL, Literal.TRUE, Literal.FALSE, new Abs(EMPTY, getFieldAttribute()))));
         assertEquals(Coalesce.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(Literal.TRUE, e.children().get(0));
+        assertEquals(DataType.BOOLEAN, e.dataType());
     }
 
     public void testSimplifyIfNullNulls() {
-        Expression e = new SimplifyCoalesce().rule(new IfNull(EMPTY, Literal.NULL, Literal.NULL));
-        assertEquals(Coalesce.class, e.getClass());
+        Expression e = new SimplifyConditional().rule(new IfNull(EMPTY, Literal.NULL, Literal.NULL));
+        assertEquals(IfNull.class, e.getClass());
         assertEquals(0, e.children().size());
     }
 
     public void testSimplifyIfNullWithNullAndValue() {
-        Expression e = new SimplifyCoalesce().rule(new IfNull(EMPTY, Literal.NULL, ONE));
+        Expression e = new SimplifyConditional().rule(new IfNull(EMPTY, Literal.NULL, ONE));
+        assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
+        assertEquals(DataType.INTEGER, e.dataType());
 
-        e = new SimplifyCoalesce().rule(new IfNull(EMPTY, ONE, Literal.NULL));
+        e = new SimplifyConditional().rule(new IfNull(EMPTY, ONE, Literal.NULL));
+        assertEquals(IfNull.class, e.getClass());
         assertEquals(1, e.children().size());
         assertEquals(ONE, e.children().get(0));
+        assertEquals(DataType.INTEGER, e.dataType());
     }
 
     public void testFoldNullNotAppliedOnNullIf() {
         Expression orig = new NullIf(EMPTY, ONE, Literal.NULL);
         Expression f = new FoldNull().rule(orig);
         assertEquals(orig, f);
+    }
+
+    public void testSimplifyGreatestNulls() {
+        Expression e = new SimplifyConditional().rule(new Greatest(EMPTY, asList(Literal.NULL, Literal.NULL)));
+        assertEquals(Greatest.class, e.getClass());
+        assertEquals(0, e.children().size());
+    }
+
+    public void testSimplifyGreatestRandomNulls() {
+        Expression e = new SimplifyConditional().rule(new Greatest(EMPTY, randomListOfNulls()));
+        assertEquals(Greatest.class, e.getClass());
+        assertEquals(0, e.children().size());
+    }
+
+    public void testSimplifyGreatestRandomNullsWithValue() {
+        Expression e = new SimplifyConditional().rule(new Greatest(EMPTY,
+            CollectionUtils.combine(CollectionUtils.combine(randomListOfNulls(), ONE, TWO, ONE), randomListOfNulls())));
+        assertEquals(Greatest.class, e.getClass());
+        assertEquals(2, e.children().size());
+        assertEquals(ONE, e.children().get(0));
+        assertEquals(TWO, e.children().get(1));
+        assertEquals(DataType.INTEGER, e.dataType());
+    }
+
+    public void testSimplifyLeastNulls() {
+        Expression e = new SimplifyConditional().rule(new Least(EMPTY, asList(Literal.NULL, Literal.NULL)));
+        assertEquals(Least.class, e.getClass());
+        assertEquals(0, e.children().size());
+    }
+
+    public void testSimplifyLeastRandomNulls() {
+        Expression e = new SimplifyConditional().rule(new Least(EMPTY, randomListOfNulls()));
+        assertEquals(Least.class, e.getClass());
+        assertEquals(0, e.children().size());
+    }
+
+    public void testSimplifyLeastRandomNullsWithValue() {
+        Expression e = new SimplifyConditional().rule(new Least(EMPTY,
+            CollectionUtils.combine(CollectionUtils.combine(randomListOfNulls(), ONE, TWO, ONE), randomListOfNulls())));
+        assertEquals(Least.class, e.getClass());
+        assertEquals(2, e.children().size());
+        assertEquals(ONE, e.children().get(0));
+        assertEquals(TWO, e.children().get(1));
+        assertEquals(DataType.INTEGER, e.dataType());
+    }
+    
+    public void testConcatFoldingIsNotNull() {
+        FoldNull foldNull = new FoldNull();
+        assertEquals(1, foldNull.rule(new Concat(EMPTY, Literal.NULL, ONE)).fold());
+        assertEquals(1, foldNull.rule(new Concat(EMPTY, ONE, Literal.NULL)).fold());
+        assertEquals(StringUtils.EMPTY, foldNull.rule(new Concat(EMPTY, Literal.NULL, Literal.NULL)).fold());
     }
 
     //
@@ -483,12 +586,33 @@ public class OptimizerTests extends ESTestCase {
 
     public void testBinaryComparisonSimplification() {
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new Equals(EMPTY, FIVE, FIVE)));
+        assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new NullEquals(EMPTY, FIVE, FIVE)));
+        assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new NullEquals(EMPTY, NULL, NULL)));
         assertEquals(Literal.FALSE, new BinaryComparisonSimplification().rule(new NotEquals(EMPTY, FIVE, FIVE)));
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new GreaterThanOrEqual(EMPTY, FIVE, FIVE)));
         assertEquals(Literal.TRUE, new BinaryComparisonSimplification().rule(new LessThanOrEqual(EMPTY, FIVE, FIVE)));
 
         assertEquals(Literal.FALSE, new BinaryComparisonSimplification().rule(new GreaterThan(EMPTY, FIVE, FIVE)));
         assertEquals(Literal.FALSE, new BinaryComparisonSimplification().rule(new LessThan(EMPTY, FIVE, FIVE)));
+    }
+
+    public void testNullEqualsWithNullLiteralBecomesIsNull() {
+        BooleanLiteralsOnTheRight swapLiteralsToRight = new BooleanLiteralsOnTheRight();
+        BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
+        FieldAttribute fa = getFieldAttribute();
+        Source source = new Source(1, 10, "IS_NULL(a)");
+
+        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL)));
+        assertEquals(IsNull.class, e.getClass());
+        IsNull isNull = (IsNull) e;
+        assertEquals(source, isNull.source());
+        assertEquals("IS_NULL(a)", isNull.name());
+
+        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, NULL, fa)));
+        assertEquals(IsNull.class, e.getClass());
+        isNull = (IsNull) e;
+        assertEquals(source, isNull.source());
+        assertEquals("IS_NULL(a)", isNull.name());
     }
 
     public void testLiteralsOnTheRight() {
@@ -498,6 +622,13 @@ public class OptimizerTests extends ESTestCase {
         Equals eq = (Equals) result;
         assertEquals(a, eq.left());
         assertEquals(FIVE, eq.right());
+
+        a = new Alias(EMPTY, "a", L(10));
+        result = new BooleanLiteralsOnTheRight().rule(new NullEquals(EMPTY, FIVE, a));
+        assertTrue(result instanceof NullEquals);
+        NullEquals nullEquals= (NullEquals) result;
+        assertEquals(a, nullEquals.left());
+        assertEquals(FIVE, nullEquals.right());
     }
 
     public void testBoolSimplifyNotIsNullAndNotIsNotNull() {
@@ -1003,6 +1134,23 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(or, exp);
     }
 
+    // (a = 1 AND b = 3 AND c = 4) OR (a = 2 AND b = 3 AND c = 4) -> (b = 3 AND c = 4) AND (a = 1 OR a = 2)
+    public void testBooleanSimplificationCommonExpressionSubstraction() {
+        FieldAttribute fa = getFieldAttribute("a");
+        FieldAttribute fb = getFieldAttribute("b");
+        FieldAttribute fc = getFieldAttribute("c");
+
+        Expression a1 = new Equals(EMPTY, fa, ONE);
+        Expression a2 = new Equals(EMPTY, fa, TWO);
+        And common = new And(EMPTY, new Equals(EMPTY, fb, THREE), new Equals(EMPTY, fc, FOUR));
+        And left = new And(EMPTY, a1, common);
+        And right = new And(EMPTY, a2, common);
+        Or or = new Or(EMPTY, left, right);
+
+        Expression exp = new BooleanSimplification().rule(or);
+        assertEquals(new And(EMPTY, common, new Or(EMPTY, a1, a2)), exp);
+    }
+
     // (0 < a <= 1) OR (0 < a < 2) -> 0 < a < 2
     public void testRangesOverlappingNoLowerBoundary() {
         FieldAttribute fa = getFieldAttribute();
@@ -1017,18 +1165,8 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(r2, exp);
     }
 
-    // Equals
 
-    // a == 1 AND a == 2 -> FALSE
-    public void testDualEqualsConjunction() {
-        FieldAttribute fa = getFieldAttribute();
-        Equals eq1 = new Equals(EMPTY, fa, ONE);
-        Equals eq2 = new Equals(EMPTY, fa, TWO);
-
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq1, eq2));
-        assertEquals(Literal.FALSE, rule.rule(exp));
-    }
+    // Equals & NullEquals
 
     // 1 <= a < 10 AND a == 1 -> a == 1
     public void testEliminateRangeByEqualsInInterval() {
@@ -1041,6 +1179,44 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(eq1, rule.rule(exp));
     }
 
+    // 1 <= a < 10 AND a <=> 1 -> a <=> 1
+    public void testEliminateRangeByNullEqualsInInterval() {
+        FieldAttribute fa = getFieldAttribute();
+        NullEquals eq1 = new NullEquals(EMPTY, fa, ONE);
+        Range r = new Range(EMPTY, fa, ONE, true, L(10), false);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq1, r));
+        assertEquals(eq1, rule.rule(exp));
+    }
+
+
+    // The following tests should work only to simplify filters and
+    // not if the expressions are part of a projection
+    // See: https://github.com/elastic/elasticsearch/issues/35859
+
+    // a == 1 AND a == 2 -> FALSE
+    public void testDualEqualsConjunction() {
+        FieldAttribute fa = getFieldAttribute();
+        Equals eq1 = new Equals(EMPTY, fa, ONE);
+        Equals eq2 = new Equals(EMPTY, fa, TWO);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq1, eq2));
+        assertEquals(Literal.FALSE, rule.rule(exp));
+    }
+
+    // a <=> 1 AND a <=> 2 -> FALSE
+    public void testDualNullEqualsConjunction() {
+        FieldAttribute fa = getFieldAttribute();
+        NullEquals eq1 = new NullEquals(EMPTY, fa, ONE);
+        NullEquals eq2 = new NullEquals(EMPTY, fa, TWO);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq1, eq2));
+        assertEquals(Literal.FALSE, rule.rule(exp));
+    }
+
     // 1 < a < 10 AND a == 10 -> FALSE
     public void testEliminateRangeByEqualsOutsideInterval() {
         FieldAttribute fa = getFieldAttribute();
@@ -1050,5 +1226,127 @@ public class OptimizerTests extends ESTestCase {
         PropagateEquals rule = new PropagateEquals();
         Expression exp = rule.rule(new And(EMPTY, eq1, r));
         assertEquals(Literal.FALSE, rule.rule(exp));
+    }
+
+    // 1 < a < 10 AND a <=> 10 -> FALSE
+    public void testEliminateRangeByNullEqualsOutsideInterval() {
+        FieldAttribute fa = getFieldAttribute();
+        NullEquals eq1 = new NullEquals(EMPTY, fa, L(10));
+        Range r = new Range(EMPTY, fa, ONE, false, L(10), false);
+
+        PropagateEquals rule = new PropagateEquals();
+        Expression exp = rule.rule(new And(EMPTY, eq1, r));
+        assertEquals(Literal.FALSE, rule.rule(exp));
+    }
+
+    public void testTranslateMinToFirst() {
+        Min min1 =  new Min(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Min min2 =  new Min(EMPTY, getFieldAttribute());
+
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(min1, min2)),
+            Arrays.asList(
+                new Order(EMPTY, min1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(EMPTY, min2, OrderDirection.ASC, Order.NullsPosition.LAST)));
+        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(2, order.size());
+        assertEquals(First.class, order.get(0).child().getClass());
+        assertEquals(min2, order.get(1).child());
+        First first = (First) order.get(0).child();
+
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
+        assertEquals(2, aggregates.size());
+        assertEquals(First.class, aggregates.get(0).getClass());
+        assertSame(first, aggregates.get(0));
+        assertEquals(min2, aggregates.get(1));
+    }
+
+    public void testTranslateMaxToLast() {
+        Max max1 =  new Max(EMPTY, new FieldAttribute(EMPTY, "str", new EsField("str", DataType.KEYWORD, emptyMap(), true)));
+        Max max2 =  new Max(EMPTY, getFieldAttribute());
+
+        OrderBy plan = new OrderBy(EMPTY, new Aggregate(EMPTY, FROM(), emptyList(), Arrays.asList(max1, max2)),
+            Arrays.asList(
+                new Order(EMPTY, max1, OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(EMPTY, max2, OrderDirection.ASC, Order.NullsPosition.LAST)));
+        LogicalPlan result = new ReplaceMinMaxWithTopHits().apply(plan);
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(Last.class, order.get(0).child().getClass());
+        assertEquals(max2, order.get(1).child());
+        Last last = (Last) order.get(0).child();
+
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        List<? extends NamedExpression> aggregates = ((Aggregate) ((OrderBy) result).child()).aggregates();
+        assertEquals(2, aggregates.size());
+        assertEquals(Last.class, aggregates.get(0).getClass());
+        assertSame(last, aggregates.get(0));
+        assertEquals(max2, aggregates.get(1));
+    }
+    
+    public void testSortAggregateOnOrderByWithTwoFields() {
+        FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", DataType.BYTE, emptyMap(), true));
+        FieldAttribute secondField = new FieldAttribute(EMPTY, "second_field",
+                new EsField("second_field", DataType.BYTE, emptyMap(), true));
+        Alias firstAlias = new Alias(EMPTY, "first_alias", firstField);
+        Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
+        Order firstOrderBy = new Order(EMPTY, firstField, OrderDirection.ASC, Order.NullsPosition.LAST);
+        Order secondOrderBy = new Order(EMPTY, secondField, OrderDirection.ASC, Order.NullsPosition.LAST);
+        
+        OrderBy orderByPlan = new OrderBy(EMPTY,
+                new Aggregate(EMPTY, FROM(), Arrays.asList(secondField, firstField), Arrays.asList(secondAlias, firstAlias)),
+                Arrays.asList(firstOrderBy, secondOrderBy));
+        LogicalPlan result = new Optimizer.SortAggregateOnOrderBy().apply(orderByPlan);
+        
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(2, order.size());
+        assertTrue(order.get(0).child() instanceof FieldAttribute);
+        assertTrue(order.get(1).child() instanceof FieldAttribute);
+        assertEquals("first_field", ((FieldAttribute) order.get(0).child()).name());
+        assertEquals("second_field", ((FieldAttribute) order.get(1).child()).name());
+        
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        Aggregate agg = (Aggregate) ((OrderBy) result).child();
+        List<?> groupings = agg.groupings();
+        assertEquals(2, groupings.size());
+        assertTrue(groupings.get(0) instanceof FieldAttribute);
+        assertTrue(groupings.get(1) instanceof FieldAttribute);
+        assertEquals(firstField, groupings.get(0));
+        assertEquals(secondField, groupings.get(1));
+    }
+    
+    public void testSortAggregateOnOrderByOnlyAliases() {
+        FieldAttribute firstField = new FieldAttribute(EMPTY, "first_field", new EsField("first_field", DataType.BYTE, emptyMap(), true));
+        FieldAttribute secondField = new FieldAttribute(EMPTY, "second_field",
+                new EsField("second_field", DataType.BYTE, emptyMap(), true));
+        Alias firstAlias = new Alias(EMPTY, "first_alias", firstField);
+        Alias secondAlias = new Alias(EMPTY, "second_alias", secondField);
+        Order firstOrderBy = new Order(EMPTY, firstAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
+        Order secondOrderBy = new Order(EMPTY, secondAlias, OrderDirection.ASC, Order.NullsPosition.LAST);
+        
+        OrderBy orderByPlan = new OrderBy(EMPTY,
+                new Aggregate(EMPTY, FROM(), Arrays.asList(secondAlias, firstAlias), Arrays.asList(secondAlias, firstAlias)),
+                Arrays.asList(firstOrderBy, secondOrderBy));
+        LogicalPlan result = new Optimizer.SortAggregateOnOrderBy().apply(orderByPlan);
+        
+        assertTrue(result instanceof OrderBy);
+        List<Order> order = ((OrderBy) result).order();
+        assertEquals(2, order.size());
+        assertTrue(order.get(0).child() instanceof Alias);
+        assertTrue(order.get(1).child() instanceof Alias);
+        assertEquals("first_alias", ((Alias) order.get(0).child()).name());
+        assertEquals("second_alias", ((Alias) order.get(1).child()).name());
+        
+        assertTrue(((OrderBy) result).child() instanceof Aggregate);
+        Aggregate agg = (Aggregate) ((OrderBy) result).child();
+        List<?> groupings = agg.groupings();
+        assertEquals(2, groupings.size());
+        assertTrue(groupings.get(0) instanceof Alias);
+        assertTrue(groupings.get(1) instanceof Alias);
+        assertEquals(firstAlias, groupings.get(0));
+        assertEquals(secondAlias, groupings.get(1));
     }
 }

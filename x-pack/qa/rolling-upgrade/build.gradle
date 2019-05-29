@@ -7,7 +7,7 @@ import java.util.regex.Matcher
 
 // Apply the java plugin to this project so the sources can be edited in an IDE
 apply plugin: 'elasticsearch.build'
-test.enabled = false
+unitTest.enabled = false
 
 dependencies {
   // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
@@ -68,6 +68,13 @@ Project mainProject = project
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 
+forbiddenPatterns {
+  exclude '**/system_key'
+}
+
+// Tests are pushed down to subprojects 
+testingConventions.enabled = false 
+
 /**
  * Subdirectories of this project are test rolling upgrades with various
  * configuration options based on their name.
@@ -81,16 +88,21 @@ subprojects {
 
   apply plugin: 'elasticsearch.standalone-test'
 
-  // Use resources from the rolling-upgrade project in subdirectories
   sourceSets {
     test {
-      java {
-        srcDirs = ["${mainProject.projectDir}/src/test/java"]
+      mainProject.sourceSets.test.output.classesDirs.each { dir ->
+        output.addClassesDir { dir }
+        output.builtBy(mainProject.tasks.testClasses)
       }
-      resources {
-        srcDirs = ["${mainProject.projectDir}/src/test/resources"]
-      }
+      runtimeClasspath += mainProject.sourceSets.test.output
     }
+  }
+
+  // subprojects don't contain source so ignore
+  licenseHeaders.enabled = false
+
+  forbiddenPatterns {
+    exclude '**/system_key'
   }
 
   String outputDir = "${buildDir}/generated-resources/${project.name}"
@@ -103,9 +115,10 @@ subprojects {
   }
 
   String output = "${buildDir}/generated-resources/${project.name}"
-  task copyTestNodeKeystore(type: Copy) {
-    from project(':x-pack:plugin:core')
-            .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+  task copyTestNodeKeyMaterial(type: Copy) {
+    from project(':x-pack:plugin:core').files('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
     into outputDir
   }
 
@@ -117,7 +130,7 @@ subprojects {
     }
 
     configure(extensions.findByName("${baseName}#oldClusterTestCluster")) {
-      dependsOn copyTestNodeKeystore
+      dependsOn copyTestNodeKeyMaterial
       if (version.before('6.3.0')) {
           String depVersion = version;
           if (project.bwcVersions.unreleased.contains(version)) {
@@ -144,14 +157,23 @@ subprojects {
       setting 'xpack.security.authc.token.enabled', 'true'
       setting 'xpack.security.audit.enabled', 'true'
       setting 'xpack.security.audit.outputs', 'index'
-      setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      if (project.inFipsJvm && version.onOrAfter('6.4.0')) {
+        setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+        setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+        keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+      } else {
+        setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+        setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+      }
+      setting 'logger.org.elasticsearch.xpack.security.audit.index', 'DEBUG'
       if (version.onOrAfter('6.0.0') == false) {
         // this is needed since in 5.6 we don't bootstrap the token service if there is no explicit initial password
         keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
       }
-      dependsOn copyTestNodeKeystore
+      dependsOn copyTestNodeKeyMaterial
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+      extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
+      extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
       if (withSystemKey) {
         if (version.onOrAfter('5.1.0') && version.before('6.0.0')) {
           // The setting didn't exist until 5.1.0
@@ -163,6 +185,11 @@ subprojects {
             extraConfigFile 'x-pack/system_key', "${mainProject.projectDir}/src/test/resources/system_key"
         }
         setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+        setting 'logger.org.elasticsearch.xpack.ml.action', 'DEBUG'
+      }
+
+      if (version.onOrAfter('6.6.0')) {
+        setting 'ccr.auto_follow.wait_for_metadata_timeout', '1s'
       }
 
       // Old versions of the code contain an invalid assertion that trips
@@ -200,23 +227,34 @@ subprojects {
         setting 'xpack.license.self_generated.type', 'trial'
         setting 'xpack.security.enabled', 'true'
         setting 'xpack.security.transport.ssl.enabled', 'true'
-        setting 'xpack.ssl.keystore.path', 'testnode.jks'
-        keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
+        if (project.inFipsJvm) {
+          setting 'xpack.security.transport.ssl.key', 'testnode.pem'
+          setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
+          keystoreSetting 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
+        } else {
+          setting 'xpack.security.transport.ssl.keystore.path', 'testnode.jks'
+          setting 'xpack.security.transport.ssl.keystore.password', 'testnode'
+        }
+        setting 'logger.org.elasticsearch.xpack.security.audit.index', 'DEBUG'
         if (version.onOrAfter('6.0.0') == false) {
           // this is needed since in 5.6 we don't bootstrap the token service if there is no explicit initial password
           keystoreSetting 'xpack.security.authc.token.passphrase', 'xpack_token_passphrase'
         }
         setting 'node.attr.upgraded', 'true'
         setting 'xpack.security.authc.token.enabled', 'true'
+        setting 'xpack.security.authc.token.compat.enabled', 'true'
         setting 'xpack.security.audit.enabled', 'true'
         setting 'xpack.security.audit.outputs', 'index'
         setting 'node.name', "upgraded-node-${stopNode}"
-        dependsOn copyTestNodeKeystore
+        dependsOn copyTestNodeKeyMaterial
         extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
+        extraConfigFile 'testnode.pem', new File(outputDir + '/testnode.pem')
+        extraConfigFile 'testnode.crt', new File(outputDir + '/testnode.crt')
         if (withSystemKey) {
           setting 'xpack.watcher.encrypt_sensitive_data', 'true'
           keystoreFile 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
         }
+        setting 'logger.org.elasticsearch.xpack.ml.action', 'DEBUG'
       }
     }
 
@@ -235,7 +273,8 @@ subprojects {
       systemProperty 'tests.rest.blacklist', [
           'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
           'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
-          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
+          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
+          'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster'
         ].join(',')
       finalizedBy "${baseName}#oldClusterTestCluster#node1.stop"
     }
@@ -282,8 +321,17 @@ subprojects {
               systemProperty 'tests.rest.blacklist', '/20_security/Verify default password migration results in upgraded cluster'
           }
       }
+      def toBlackList = []
+      // If we are upgrading on a minor version, these tests fail
+      // They only work if we are upgrading between major versions
+      if (versionParts[0].equals("6")) {
+        toBlackList << 'upgraded_cluster/80_ml_results_upgrade/Migrate results data to latest index binary version'
+      }
       if (version.before('6.1.0') || version.onOrAfter('6.3.0')) {
-        systemProperty 'tests.rest.blacklist', '/30_ml_jobs_crud/Test model memory limit is updated'
+        toBlackList << '/30_ml_jobs_crud/Test model memory limit is updated'
+      }
+      if (!toBlackList.empty) {
+        systemProperty 'tests.rest.blacklist', toBlackList.join(',')
       }
     }
 
@@ -296,17 +344,17 @@ subprojects {
     }
   }
 
-  test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
+    unitTest.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
   // basic integ tests includes testing bwc against the most recent version
-  task integTest {
+  task bwcTestSnapshots {
     if (project.bwc_tests_enabled) {
       for (final def version : bwcVersions.unreleasedWireCompatible) {
         dependsOn "v${version}#bwcTest"
       }
     }
   }
-  check.dependsOn(integTest)
+  check.dependsOn(bwcTestSnapshots)
 
   dependencies {
     // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here

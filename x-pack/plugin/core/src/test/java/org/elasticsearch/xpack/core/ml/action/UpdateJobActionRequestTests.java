@@ -18,8 +18,14 @@ public class UpdateJobActionRequestTests
         // no need to randomize JobUpdate this is already tested in: JobUpdateTests
         JobUpdate.Builder jobUpdate = new JobUpdate.Builder(jobId);
         jobUpdate.setAnalysisLimits(new AnalysisLimits(100L, 100L));
-        UpdateJobAction.Request request = new UpdateJobAction.Request(jobId, jobUpdate.build());
-        request.setWaitForAck(randomBoolean());
+        UpdateJobAction.Request request;
+        if (randomBoolean()) {
+            request = new UpdateJobAction.Request(jobId, jobUpdate.build());
+        } else {
+            // this call sets isInternal = true
+            request = UpdateJobAction.Request.internal(jobId, jobUpdate.build());
+        }
+
         return request;
     }
 

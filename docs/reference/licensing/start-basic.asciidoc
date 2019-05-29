@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-basic]]
-=== Start Basic API
+=== Start basic API
+++++
+<titleabbrev>Start basic</titleabbrev>
+++++
 
 This API starts an indefinite basic license.
 

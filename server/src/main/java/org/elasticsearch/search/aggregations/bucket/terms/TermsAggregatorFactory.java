@@ -121,8 +121,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize(),
-                    context.numberOfShards() == 1));
+            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
         bucketCountThresholds.ensureValidity();
         if (valuesSource instanceof ValuesSource.Bytes) {
@@ -134,7 +133,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
                 execution = ExecutionMode.MAP;
             }
-            final long maxOrd = getMaxOrd(valuesSource, context.searcher());
+            final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
             if (execution == null) {
                 execution = ExecutionMode.GLOBAL_ORDINALS;
             }

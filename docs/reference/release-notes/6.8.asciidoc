@@ -1,0 +1,40 @@
+[[release-notes-6.8.0]]
+== {es} version 6.8.0
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
+[[enhancement-6.8.0]]
+[float]
+=== Enhancements
+
+Security::
+* Moved some security features to basic. See <<release-highlights-6.8.0, 6.8.0 Release highlights>>
+
+Authentication::
+* Log warning when unlicensed realms are skipped {pull}41778[#41778]
+
+Infra/Settings::
+* Drop distinction in entries for keystore {pull}41701[#41701]
+
+[[bug-6.8.0]]
+[float]
+=== Bug fixes
+
+Features/Watcher::
+* Fix Watcher deadlock that can cause in-abilty to index documents. {pull}41418[#41418] (issue: {issue}41390[#41390])
+
+Network::
+* Enforce transport TLS on Basic with Security {pull}42150[#42150]
+
+Reindex::
+* Allow reindexing into write alias {pull}41677[#41677] (issue: {issue}41667[#41667])
+
+SQL::
+* SQL: Fix issue regarding INTERVAL * number {pull}42014[#42014] (issue: {issue}41239[#41239])
+* SQL: Remove CircuitBreaker from parser {pull}41835[#41835] (issue: {issue}41471[#41471])
+
+Security::
+* Remove dynamic objects from security index {pull}40499[#40499] (issue: {issue}35460[#35460])
+* Add granular API key privileges {pull}41488[#41488] (issue: {issue}40031[#40031])
+
+

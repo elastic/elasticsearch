@@ -406,3 +406,12 @@ DATA_SETTINGS
     echo "$testSearch" | grep '"_index":"books"'
     echo "$testSearch" | grep '"_id":"0"'
 }
+
+@test "[$GROUP] exit code on failure" {
+    run sudo -E -u $MASTER_USER "$MASTER_HOME/bin/elasticsearch-certgen" --not-a-valid-option
+    [ "$status" -ne 0 ] || {
+        echo "Expected elasticsearch-certgen tool exit code to be non-zero"
+        echo "$output"
+        false
+    }
+}

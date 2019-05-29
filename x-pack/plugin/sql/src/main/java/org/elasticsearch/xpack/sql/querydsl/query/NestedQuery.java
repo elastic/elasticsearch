@@ -5,13 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.query;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
@@ -20,12 +13,18 @@ import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.tree.Source;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableMap;
-
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 
 /**
@@ -40,12 +39,12 @@ public class NestedQuery extends Query {
     private final Map<String, Boolean> fields;
     private final Query child;
 
-    public NestedQuery(Location location, String path, Query child) {
-        this(location, path, emptyMap(), child);
+    public NestedQuery(Source source, String path, Query child) {
+        this(source, path, emptyMap(), child);
     }
 
-    public NestedQuery(Location location, String path, Map<String, Boolean> fields, Query child) {
-        super(location);
+    public NestedQuery(Source source, String path, Map<String, Boolean> fields, Query child) {
+        super(source);
         if (path == null) {
             throw new IllegalArgumentException("path is required");
         }
@@ -75,7 +74,7 @@ public class NestedQuery extends Query {
             if (rewrittenChild == child) {
                 return this;
             }
-            return new NestedQuery(location(), path, fields, rewrittenChild);
+            return new NestedQuery(source(), path, fields, rewrittenChild);
         }
         if (fields.containsKey(field)) {
             // I already have the field, no rewriting needed
@@ -84,7 +83,7 @@ public class NestedQuery extends Query {
         Map<String, Boolean> newFields = new HashMap<>(fields.size() + 1);
         newFields.putAll(fields);
         newFields.put(field, hasDocValues);
-        return new NestedQuery(location(), path, unmodifiableMap(newFields), child);
+        return new NestedQuery(source(), path, unmodifiableMap(newFields), child);
     }
 
     @Override

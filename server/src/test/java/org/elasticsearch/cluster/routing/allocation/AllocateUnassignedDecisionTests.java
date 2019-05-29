@@ -136,9 +136,9 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     }
 
     public void testCachedDecisions() {
-        List<AllocationStatus> cachableStatuses = Arrays.asList(AllocationStatus.DECIDERS_NO, AllocationStatus.DECIDERS_THROTTLED,
+        List<AllocationStatus> cacheableStatuses = Arrays.asList(AllocationStatus.DECIDERS_NO, AllocationStatus.DECIDERS_THROTTLED,
             AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA, AllocationStatus.DELAYED_ALLOCATION);
-        for (AllocationStatus allocationStatus : cachableStatuses) {
+        for (AllocationStatus allocationStatus : cacheableStatuses) {
             if (allocationStatus == AllocationStatus.DECIDERS_THROTTLED) {
                 AllocateUnassignedDecision cached = AllocateUnassignedDecision.throttle(null);
                 AllocateUnassignedDecision another = AllocateUnassignedDecision.throttle(null);

@@ -144,4 +144,19 @@ public final class Sets {
         union.addAll(right);
         return union;
     }
+
+    public static <T> Set<T> intersection(Set<T> set1, Set<T> set2) {
+        Objects.requireNonNull(set1);
+        Objects.requireNonNull(set2);
+        final Set<T> left;
+        final Set<T> right;
+        if (set1.size() < set2.size()) {
+            left = set1;
+            right = set2;
+        } else {
+            left = set2;
+            right = set1;
+        }
+        return left.stream().filter(o -> right.contains(o)).collect(Collectors.toSet());
+    }
 }

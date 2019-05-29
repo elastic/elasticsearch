@@ -106,6 +106,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         // means the bool query has been parsed as a filter, if it was a query minShouldMatch would
         // be 0
         assertEquals(1, ((BooleanQuery) parsedQuery).getMinimumNumberShouldMatch());
+        assertWarnings("Should clauses in the filter context will no longer automatically set the minimum should" +
+            " match to 1 in the next major version. You should group them in a [filter] clause or explicitly set" +
+            " [minimum_should_match] to 1 to restore this behavior in the next major version.");
     }
 
     /**

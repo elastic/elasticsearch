@@ -57,7 +57,7 @@ public class SingleNodeDiscovery extends AbstractLifecycleComponent implements D
 
     public SingleNodeDiscovery(final Settings settings, final TransportService transportService,
                                final MasterService masterService, final ClusterApplier clusterApplier) {
-        super(Objects.requireNonNull(settings));
+        Objects.requireNonNull(settings);
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.transportService = Objects.requireNonNull(transportService);
         masterService.setClusterStateSupplier(() -> clusterState);

@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptMetaData;
@@ -64,9 +65,10 @@ public class ScriptConditionTests extends ESTestCase {
         scripts.put("return true", s -> true);
         scripts.put("return new Object()", s -> new Object());
 
-        scripts.put("ctx.trigger.scheduled_time.getMillis() < new Date().time", vars -> {
-            DateTime scheduledTime = (DateTime) XContentMapValues.extractValue("ctx.trigger.scheduled_time", vars);
-            return scheduledTime.getMillis() < new Date().getTime();
+        scripts.put("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time", vars -> {
+            JodaCompatibleZonedDateTime scheduledTime =
+                (JodaCompatibleZonedDateTime) XContentMapValues.extractValue("ctx.trigger.scheduled_time", vars);
+            return scheduledTime.toInstant().toEpochMilli() < new Date().getTime();
         });
 
         scripts.put("null.foo", s -> {
@@ -192,8 +194,8 @@ public class ScriptConditionTests extends ESTestCase {
     }
 
     public void testScriptConditionAccessCtx() throws Exception {
-        ScriptCondition condition = new ScriptCondition(mockScript("ctx.trigger.scheduled_time.getMillis() < new Date().time"),
-                scriptService);
+        ScriptCondition condition = new ScriptCondition(
+            mockScript("ctx.trigger.scheduled_time.toInstant().toEpochMill() < new Date().time"), scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 0, 500L, ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY);
         WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC), new Payload.XContent(response));
@@ -206,6 +208,8 @@ public class ScriptConditionTests extends ESTestCase {
         when(watcherContext.id()).thenReturn(mock(Wid.class));
         when(watcherContext.watch()).thenReturn(mock(Watch.class));
         when(watcherContext.triggerEvent()).thenReturn(mock(TriggerEvent.class));
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+        when(watcherContext.executionTime()).thenReturn(now);
         WatcherConditionScript watcherScript = new WatcherConditionScript(Collections.emptyMap(), watcherContext) {
             @Override
             public boolean execute() {

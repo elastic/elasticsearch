@@ -106,7 +106,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -124,6 +124,34 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testPerformActionWithIndexingComplete() {
+        String alias = randomAlphaOfLength(5);
+        IndexMetaData indexMetaData = IndexMetaData.builder(randomAlphaOfLength(10))
+            .putAlias(AliasMetaData.builder(alias))
+            .settings(settings(Version.CURRENT)
+                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        RolloverStep step = createRandomInstance();
+
+        SetOnce<Boolean> actionCompleted = new SetOnce<>();
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete) {
+                actionCompleted.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        });
+
+        assertEquals(true, actionCompleted.get());
     }
 
     public void testPerformActionFailure() {
@@ -155,7 +183,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -184,7 +212,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         RolloverStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");
@@ -209,7 +237,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         RolloverStep step = createRandomInstance();
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetaData, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 throw new AssertionError("Unexpected method call");

@@ -69,12 +69,12 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
         // uncomment this to printout the result set and create new CSV tests
         //
         //JdbcTestUtils.logLikeCLI(elastic, log);
-        JdbcAssert.assertResultSets(expected, elastic, log, true);
+        JdbcAssert.assertResultSets(expected, elastic, log, true, false);
     }
 
     @Override
     protected boolean logEsResultSet() {
-        return true;
+        return false;
     }
 
     @Override

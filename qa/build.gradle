@@ -12,9 +12,11 @@ subprojects { Project subproj ->
          */
         repositories {
           maven {
+            name "elastic"
             url "https://artifacts.elastic.co/maven"
           }
           maven {
+            name "elastic-snapshots"
             url "https://snapshots.elastic.co/maven"
           }
         }

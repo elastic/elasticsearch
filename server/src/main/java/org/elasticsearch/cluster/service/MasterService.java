@@ -45,10 +45,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -85,7 +84,6 @@ public class MasterService extends AbstractLifecycleComponent {
     private volatile Batcher taskBatcher;
 
     public MasterService(String nodeName, Settings settings, ThreadPool threadPool) {
-        super(settings);
         this.nodeName = nodeName;
         // TODO: introduce a dedicated setting for master service
         this.slowTaskLoggingThreshold = CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.get(settings);
@@ -564,7 +562,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private final DiscoveryNode masterNode;
         private final ThreadPool threadPool;
         private final long clusterStateVersion;
-        private volatile Future<?> ackTimeoutCallback;
+        private volatile Scheduler.Cancellable ackTimeoutCallback;
         private Exception lastFailure;
 
         AckCountDownListener(AckedClusterStateTaskListener ackedTaskListener, long clusterStateVersion, DiscoveryNodes nodes,
@@ -596,10 +594,10 @@ public class MasterService extends AbstractLifecycleComponent {
             } else if (countDown.countDown()) {
                 finish();
             } else {
-                this.ackTimeoutCallback = threadPool.schedule(timeLeft, ThreadPool.Names.GENERIC, this::onTimeout);
+                this.ackTimeoutCallback = threadPool.schedule(this::onTimeout, timeLeft, ThreadPool.Names.GENERIC);
                 // re-check if onNodeAck has not completed while we were scheduling the timeout
                 if (countDown.isCountedDown()) {
-                    FutureUtils.cancel(ackTimeoutCallback);
+                    ackTimeoutCallback.cancel();
                 }
             }
         }
@@ -624,7 +622,9 @@ public class MasterService extends AbstractLifecycleComponent {
 
         private void finish() {
             logger.trace("all expected nodes acknowledged cluster_state update (version: {})", clusterStateVersion);
-            FutureUtils.cancel(ackTimeoutCallback);
+            if (ackTimeoutCallback != null) {
+                ackTimeoutCallback.cancel();
+            }
             ackedTaskListener.onAllNodesAcked(lastFailure);
         }
 

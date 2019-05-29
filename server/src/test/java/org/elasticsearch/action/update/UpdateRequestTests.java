@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.MockScriptEngine;
@@ -54,11 +54,14 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -74,6 +77,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class UpdateRequestTests extends ESTestCase {
 
     private UpdateHelper updateHelper;
+    private final AtomicBoolean canUseIfSeqNo = new AtomicBoolean(true);
 
     @Override
     @Before
@@ -139,7 +143,7 @@ public class UpdateRequestTests extends ESTestCase {
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
-        updateHelper = new UpdateHelper(scriptService);
+        updateHelper = new UpdateHelper(scriptService, canUseIfSeqNo::get);
     }
 
     public void testFromXContent() throws Exception {
@@ -395,7 +399,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .scriptedUpsert(true);
             long nowInMillis = randomNonNegativeLong();
             // We simulate that the document is not existing yet
-            GetResult getResult = new GetResult("test", "type1", "2", 0, false, null, null);
+            GetResult getResult = new GetResult("test", "type1", "2", UNASSIGNED_SEQ_NO, 0, 0, false, null, null);
             UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
@@ -408,7 +412,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .script(mockInlineScript("ctx._timestamp = ctx._now"))
                 .scriptedUpsert(true);
             // We simulate that the document is not existing yet
-            GetResult getResult = new GetResult("test", "type1", "2", 0, true, new BytesArray("{}"), null);
+            GetResult getResult = new GetResult("test", "type1", "2", 0, 1, 0, true, new BytesArray("{}"), null);
             UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> 42L);
             Streamable action = result.action();
             assertThat(action, instanceOf(IndexRequest.class));
@@ -417,7 +421,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     public void testIndexTimeout() {
         final GetResult getResult =
-                new GetResult("test", "type", "1", 0, true, new BytesArray("{\"f\":\"v\"}"), null);
+                new GetResult("test", "type", "1", 0, 1, 0, true, new BytesArray("{\"f\":\"v\"}"), null);
         final UpdateRequest updateRequest =
                 new UpdateRequest("test", "type", "1")
                         .script(mockInlineScript("return"))
@@ -427,7 +431,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     public void testDeleteTimeout() {
         final GetResult getResult =
-                new GetResult("test", "type", "1", 0, true, new BytesArray("{\"f\":\"v\"}"), null);
+                new GetResult("test", "type", "1", 0, 1, 0, true, new BytesArray("{\"f\":\"v\"}"), null);
         final UpdateRequest updateRequest =
                 new UpdateRequest("test", "type", "1")
                         .script(mockInlineScript("ctx.op = delete"))
@@ -438,7 +442,7 @@ public class UpdateRequestTests extends ESTestCase {
     public void testUpsertTimeout() throws IOException {
         final boolean exists = randomBoolean();
         final BytesReference source = exists ? new BytesArray("{\"f\":\"v\"}") : null;
-        final GetResult getResult = new GetResult("test", "type", "1", 0, exists, source, null);
+        final GetResult getResult = new GetResult("test", "type", "1", UNASSIGNED_SEQ_NO, 0, 0, exists, source, null);
         final XContentBuilder sourceBuilder = jsonBuilder();
         sourceBuilder.startObject();
         {
@@ -557,6 +561,8 @@ public class UpdateRequestTests extends ESTestCase {
         updateRequest.doc("{}", XContentType.JSON);
         updateRequest.upsert(new IndexRequest("index","type", "id"));
         assertThat(updateRequest.validate().validationErrors(), contains("can't provide both upsert request and a version"));
+        assertWarnings("Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. " +
+            "Please use the `if_seq_no` and `if_primary_term` parameters instead. (request for index [index], type [type], id [id])");
     }
 
     public void testToValidateUpsertRequestWithVersion() {
@@ -586,7 +592,7 @@ public class UpdateRequestTests extends ESTestCase {
     }
 
     public void testParentAndRoutingExtraction() throws Exception {
-        GetResult getResult = new GetResult("test", "type", "1", 0, false, null, null);
+        GetResult getResult = new GetResult("test", "type", "1", UNASSIGNED_SEQ_NO, 0, 0, false, null, null);
         IndexRequest indexRequest = new IndexRequest("test", "type", "1");
 
         // There is no routing and parent because the document doesn't exist
@@ -598,7 +604,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertNull(UpdateHelper.calculateParent(getResult, indexRequest));
 
         // Doc exists but has no source or fields
-        getResult = new GetResult("test", "type", "1", 0, true, null, null);
+        getResult = new GetResult("test", "type", "1", 0, 1, 0, true, null, null);
 
         // There is no routing and parent on either request
         assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
@@ -609,7 +615,7 @@ public class UpdateRequestTests extends ESTestCase {
         fields.put("_routing", new DocumentField("_routing", Collections.singletonList("routing1")));
 
         // Doc exists and has the parent and routing fields
-        getResult = new GetResult("test", "type", "1", 0, true, null, fields);
+        getResult = new GetResult("test", "type", "1", 0, 1, 0, true, null, fields);
 
         // Use the get result parent and routing
         assertThat(UpdateHelper.calculateRouting(getResult, indexRequest), equalTo("routing1"));
@@ -623,27 +629,9 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(UpdateHelper.calculateParent(getResult, indexRequest), equalTo("parent2"));
     }
 
-    @SuppressWarnings("deprecated") // VersionType.FORCE is deprecated
-    public void testCalculateUpdateVersion() throws Exception {
-        long randomVersion = randomIntBetween(0, 100);
-        GetResult getResult = new GetResult("test", "type", "1", randomVersion, true, new BytesArray("{}"), null);
-
-        UpdateRequest request = new UpdateRequest("test", "type1", "1");
-        long version = UpdateHelper.calculateUpdateVersion(request, getResult);
-
-        // Use the get result's version
-        assertThat(version, equalTo(randomVersion));
-
-        request = new UpdateRequest("test", "type1", "1").versionType(VersionType.FORCE).version(1337);
-        version = UpdateHelper.calculateUpdateVersion(request, getResult);
-
-        // Use the forced update request version
-        assertThat(version, equalTo(1337L));
-    }
-
     public void testNoopDetection() throws Exception {
         ShardId shardId = new ShardId("test", "", 0);
-        GetResult getResult = new GetResult("test", "type", "1", 0, true,
+        GetResult getResult = new GetResult("test", "type", "1", 0, 1, 0, true,
                 new BytesArray("{\"body\": \"foo\"}"),
                 null);
 
@@ -674,7 +662,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     public void testUpdateScript() throws Exception {
         ShardId shardId = new ShardId("test", "", 0);
-        GetResult getResult = new GetResult("test", "type", "1", 0, true,
+        GetResult getResult = new GetResult("test", "type", "1", 0, 1, 0, true,
                 new BytesArray("{\"body\": \"bar\"}"),
                 null);
 
@@ -710,6 +698,39 @@ public class UpdateRequestTests extends ESTestCase {
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
+    }
+
+    public void testOldClusterFallbackToUseVersion() throws Exception {
+        ShardId shardId = new ShardId("test", "", 0);
+        long version = randomNonNegativeLong();
+        long seqNo = randomNonNegativeLong();
+        long primaryTerm = randomNonNegativeLong();
+        GetResult getResult = new GetResult("test", "type", "1", seqNo, primaryTerm, version, true,
+            new BytesArray("{\"body\": \"bar\"}"), null);
+        UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
+            createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}")));
+
+        canUseIfSeqNo.set(false);
+        IndexRequest updateUsingVersion = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
+        assertThat(updateUsingVersion.ifSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(updateUsingVersion.ifPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+        assertThat(updateUsingVersion.version(), equalTo(version));
+
+        canUseIfSeqNo.set(true);
+        IndexRequest updateUsingSeqNo = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
+        assertThat(updateUsingSeqNo.ifSeqNo(), equalTo(seqNo));
+        assertThat(updateUsingSeqNo.ifPrimaryTerm(), equalTo(primaryTerm));
+        assertThat(updateUsingSeqNo.version(), equalTo(Versions.MATCH_ANY));
+    }
+
+    public void testOldClusterRejectIfSeqNo() {
+        canUseIfSeqNo.set(false);
+        long ifSeqNo = randomNonNegativeLong();
+        long ifPrimaryTerm = randomNonNegativeLong();
+        UpdateRequest request = new UpdateRequest("test", "type1", "1").setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm);
+        AssertionError error = expectThrows(AssertionError.class,
+            () -> updateHelper.prepare(request, null, ESTestCase::randomNonNegativeLong));
+        assertThat(error.getMessage(), equalTo("setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]"));
     }
 
     public void testToString() throws IOException {

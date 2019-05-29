@@ -3,8 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.rollup.rest;
 
+package org.elasticsearch.xpack.rollup.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
@@ -15,16 +15,17 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.rollup.action.DeleteRollupJobAction;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.io.IOException;
 
 public class RestDeleteRollupJobAction extends BaseRestHandler {
+
     public static final ParseField ID = new ParseField("id");
 
     public RestDeleteRollupJobAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.DELETE, Rollup.BASE_PATH +  "job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "/_xpack/rollup/job/{id}/", this);
+        controller.registerHandler(RestRequest.Method.DELETE, "/_rollup/job/{id}/", this);
     }
 
     @Override
@@ -48,4 +49,5 @@ public class RestDeleteRollupJobAction extends BaseRestHandler {
     public String getName() {
         return "rollup_delete_job_action";
     }
+
 }

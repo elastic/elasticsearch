@@ -1,15 +1,21 @@
-[[java-rest-high-clear-cache]]
+--
+:api: clear-cache
+:request: ClearIndicesCacheRequest
+:response: ClearIndicesCacheResponse
+--
+
+[id="{upid}-{api}"]
 === Clear Cache API
 
-[[java-rest-high-clear-cache-request]]
+[id="{upid}-{api}-request"]
 ==== Clear Cache Request
 
-A `ClearIndicesCacheRquest` can be applied to one or more indices, or even on
+A +{request}+ can be applied to one or more indices, or even on
 `_all` the indices:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-request]
+include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> Clears the cache of one index
 <2> Clears the cache of multiple indices
@@ -19,81 +25,46 @@ include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-reques
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-request-indicesOptions]
+include-tagged::{doc-tests-file}[{api}-request-indicesOptions]
 --------------------------------------------------
 <1> Setting `IndicesOptions` controls how unavailable indices are resolved and
 how wildcard expressions are expanded
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-request-query]
+include-tagged::{doc-tests-file}[{api}-request-query]
 --------------------------------------------------
 <1> Set the `query` flag to `true`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-request-fielddata]
+include-tagged::{doc-tests-file}[{api}-request-fielddata]
 --------------------------------------------------
 <1> Set the `fielddata` flag to `true`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-request-request]
+include-tagged::{doc-tests-file}[{api}-request-request]
 --------------------------------------------------
 <1> Set the `request` flag to `true`
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-request-fields]
+include-tagged::{doc-tests-file}[{api}-request-fields]
 --------------------------------------------------
 <1> Set the `fields` parameter
 
-[[java-rest-high-clear-cache-sync]]
-==== Synchronous Execution
+include::../execution.asciidoc[]
 
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-execute]
---------------------------------------------------
-
-[[java-rest-high-clear-cache-async]]
-==== Asynchronous Execution
-
-The asynchronous execution of a clear cache request requires both the `ClearIndicesCacheRequest`
-instance and an `ActionListener` instance to be passed to the asynchronous
-method:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-execute-async]
---------------------------------------------------
-<1> The `ClearIndicesCacheRequest` to execute and the `ActionListener` to use when
-the execution completes
-
-The asynchronous method does not block and returns immediately. Once it is
-completed the `ActionListener` is called back using the `onResponse` method
-if the execution successfully completed or using the `onFailure` method if
-it failed.
-
-A typical listener for `ClearIndicesCacheResponse` looks like:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-execute-listener]
---------------------------------------------------
-<1> Called when the execution is successfully completed. The response is
-provided as an argument
-<2> Called in case of failure. The raised exception is provided as an argument
-
-[[java-rest-high-clear-cache-response]]
+[id="{upid}-{api}-response"]
 ==== Clear Cache Response
 
-The returned `ClearIndicesCacheResponse` allows to retrieve information about the
+The returned +{response}+ allows to retrieve information about the
 executed operation as follows:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-response]
+include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
 <1> Total number of shards hit by the clear cache request
 <2> Number of shards where the clear cache has succeeded
@@ -104,6 +75,6 @@ By default, if the indices were not found, an `ElasticsearchException` will be t
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/IndicesClientDocumentationIT.java[clear-cache-notfound]
+include-tagged::{doc-tests-file}[{api}-notfound]
 --------------------------------------------------
 <1> Do something if the indices to be cleared were not found

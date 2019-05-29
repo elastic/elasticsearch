@@ -43,7 +43,8 @@ import java.util.function.Function;
  * <dl>
  * <dt>{@code location}</dt><dd>Path to the root of repository. This is mandatory parameter.</dd>
  * <dt>{@code concurrent_streams}</dt><dd>Number of concurrent read/write stream (per repository on each node). Defaults to 5.</dd>
- * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size. Defaults to not chucked.</dd>
+ * <dt>{@code chunk_size}</dt><dd>Large file can be divided into chunks. This parameter specifies the chunk size.
+ *      Defaults to not chucked.</dd>
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
@@ -113,7 +114,7 @@ public class FsRepository extends BlobStoreRepository {
     protected BlobStore createBlobStore() throws Exception {
         final String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         final Path locationFile = environment.resolveRepoFile(location);
-        return new FsBlobStore(environment.settings(), locationFile);
+        return new FsBlobStore(environment.settings(), locationFile, isReadOnly());
     }
 
     @Override

@@ -48,6 +48,9 @@ import org.elasticsearch.xpack.core.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.AuditorField;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.ArrayList;
 import java.util.Collections;

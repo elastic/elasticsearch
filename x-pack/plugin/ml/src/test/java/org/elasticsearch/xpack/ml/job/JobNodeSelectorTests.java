@@ -445,7 +445,7 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         Job job = BaseMlIntegTestCase.createFareQuoteJob("job_with_incompatible_model_snapshot")
             .setModelSnapshotId("incompatible_snapshot")
-            .setModelSnapshotMinVersion(Version.V_6_3_0)
+            .setModelSnapshotMinVersion(Version.fromString("6.3.0"))
             .build(new Date());
         cs.nodes(nodes);
         metaData.putCustom(PersistentTasksCustomMetaData.TYPE, tasks);

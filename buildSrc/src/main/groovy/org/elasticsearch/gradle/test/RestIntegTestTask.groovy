@@ -33,7 +33,6 @@ import org.gradle.api.tasks.TaskState
 import org.gradle.api.tasks.options.Option
 import org.gradle.api.tasks.testing.Test
 import org.gradle.plugins.ide.idea.IdeaPlugin
-import org.gradle.process.CommandLineArgumentProvider
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files

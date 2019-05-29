@@ -34,7 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NodeNotConnectedException;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -235,7 +235,7 @@ public class LeaderChecker {
 
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.debug(new ParameterizedMessage(
-                                "leader [{}] disconnected during check, restarting discovery", leader), exp);
+                                "leader [{}] disconnected during check", leader), exp);
                             leaderFailed(new ConnectTransportException(leader, "disconnected during check", exp));
                             return;
                         }
@@ -243,7 +243,7 @@ public class LeaderChecker {
                         long failureCount = failureCountSinceLastSuccess.incrementAndGet();
                         if (failureCount >= leaderCheckRetryCount) {
                             logger.debug(new ParameterizedMessage(
-                                "leader [{}] has failed {} consecutive checks (limit [{}] is {}), restarting discovery; last failure was:",
+                                "leader [{}] has failed {} consecutive checks (limit [{}] is {}); last failure was:",
                                 leader, failureCount, LEADER_CHECK_RETRY_COUNT_SETTING.getKey(), leaderCheckRetryCount), exp);
                             leaderFailed(new ElasticsearchException(
                                 "node [" + leader + "] failed [" + failureCount + "] consecutive checks", exp));
@@ -282,8 +282,8 @@ public class LeaderChecker {
 
         void handleDisconnectedNode(DiscoveryNode discoveryNode) {
             if (discoveryNode.equals(leader)) {
-                logger.debug("leader [{}] disconnected, restarting discovery", leader);
-                leaderFailed(new NodeNotConnectedException(discoveryNode, "disconnected"));
+                logger.debug("leader [{}] disconnected", leader);
+                leaderFailed(new NodeDisconnectedException(discoveryNode, "disconnected"));
             }
         }
 

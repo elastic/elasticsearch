@@ -112,8 +112,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
             return; // everything allowed if this analyzer is in ALL mode
         }
         if (this.getAnalysisMode() != mode) {
-            if (analyzer instanceof CustomAnalyzer) {
-                TokenFilterFactory[] tokenFilters = ((CustomAnalyzer) analyzer).tokenFilters();
+            if (analyzer instanceof TokenFilterComposite) {
+                TokenFilterFactory[] tokenFilters = ((TokenFilterComposite) analyzer).tokenFilters();
                 List<String> offendingFilters = new ArrayList<>();
                 for (TokenFilterFactory tokenFilter : tokenFilters) {
                     if (tokenFilter.getAnalysisMode() != mode) {

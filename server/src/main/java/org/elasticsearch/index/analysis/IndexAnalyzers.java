@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -53,9 +54,9 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
             throw new IllegalStateException(
                     "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]");
         }
-        this.analyzers = unmodifiableMap(analyzers);
-        this.normalizers = unmodifiableMap(normalizers);
-        this.whitespaceNormalizers = unmodifiableMap(whitespaceNormalizers);
+        this.analyzers =  unmodifiableMap(new HashMap<>(analyzers));
+        this.normalizers = unmodifiableMap(new HashMap<>(normalizers));
+        this.whitespaceNormalizers = unmodifiableMap(new HashMap<>(whitespaceNormalizers));
     }
 
     /**
@@ -63,6 +64,13 @@ public final class IndexAnalyzers extends AbstractIndexComponent implements Clos
      */
     public NamedAnalyzer get(String name) {
         return analyzers.get(name);
+    }
+
+    /**
+     * Returns an (unmodifiable) map of containing the index analyzers
+     */
+    public Map<String, NamedAnalyzer> getAnalyzers() {
+        return analyzers;
     }
 
     /**

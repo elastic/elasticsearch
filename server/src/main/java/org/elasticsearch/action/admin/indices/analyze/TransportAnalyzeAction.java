@@ -49,10 +49,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.CustomAnalyzerProvider.AnalyzerComponents;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
 import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
+import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -297,18 +299,36 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             }
         }
 
-        CustomAnalyzer customAnalyzer = null;
-        if (analyzer instanceof CustomAnalyzer) {
-            customAnalyzer = (CustomAnalyzer) analyzer;
-        } else if (analyzer instanceof NamedAnalyzer && ((NamedAnalyzer) analyzer).analyzer() instanceof CustomAnalyzer) {
-            customAnalyzer = (CustomAnalyzer) ((NamedAnalyzer) analyzer).analyzer();
+        Analyzer customAnalyzer = null;
+        // maybe unwrap analyzer from NamedAnalyzer
+        Analyzer potentialCustomAnalyzer = analyzer;
+        if (analyzer instanceof NamedAnalyzer) {
+            potentialCustomAnalyzer = ((NamedAnalyzer) analyzer).analyzer();
+        }
+        if (potentialCustomAnalyzer instanceof CustomAnalyzer || potentialCustomAnalyzer instanceof ReloadableCustomAnalyzer) {
+            customAnalyzer = potentialCustomAnalyzer;
         }
 
         if (customAnalyzer != null) {
-            // customAnalyzer = divide charfilter, tokenizer tokenfilters
-            CharFilterFactory[] charFilterFactories = customAnalyzer.charFilters();
-            TokenizerFactory tokenizerFactory = customAnalyzer.tokenizerFactory();
-            TokenFilterFactory[] tokenFilterFactories = customAnalyzer.tokenFilters();
+            // divide charfilter, tokenizer tokenfilters
+            CharFilterFactory[] charFilterFactories;
+            TokenizerFactory tokenizerFactory;
+            TokenFilterFactory[] tokenFilterFactories;
+            String tokenizerName;
+            if (customAnalyzer instanceof CustomAnalyzer) {
+                CustomAnalyzer casted = (CustomAnalyzer) analyzer;
+                charFilterFactories = casted.charFilters();
+                tokenizerFactory = casted.tokenizerFactory();
+                tokenFilterFactories = casted.tokenFilters();
+                tokenizerName = casted.getTokenizerName();
+            } else {
+                // for ReloadableCustomAnalyzer we want to make sure we get the factories from the same components object
+                AnalyzerComponents components = ((ReloadableCustomAnalyzer) customAnalyzer).getComponents();
+                charFilterFactories = components.getCharFilters();
+                tokenizerFactory = components.getTokenizerFactory();
+                tokenFilterFactories = components.getTokenFilters();
+                tokenizerName = components.getTokenizerName();
+            }
 
             String[][] charFiltersTexts = new String[charFilterFactories != null ? charFilterFactories.length : 0][request.text().length];
             TokenListCreator[] tokenFiltersTokenListCreator = new TokenListCreator[tokenFilterFactories != null ?
@@ -368,7 +388,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 }
             }
             detailResponse = new AnalyzeAction.DetailAnalyzeResponse(charFilteredLists, new AnalyzeAction.AnalyzeTokenList(
-                    customAnalyzer.getTokenizerName(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
+                    tokenizerName, tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
         } else {
             String name;
             if (analyzer instanceof NamedAnalyzer) {

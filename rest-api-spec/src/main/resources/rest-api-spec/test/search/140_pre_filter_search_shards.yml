@@ -36,6 +36,9 @@ setup:
 
 ---
 "pre_filter_shard_size with invalid parameter":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/42679"
   - do:
       catch: /preFilterShardSize must be >= 1/
       search:
@@ -45,6 +48,9 @@ setup:
 
 ---
 "pre_filter_shard_size with shards that have no hit":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/42679"
   - do:
       index:
         index: index_1

@@ -55,7 +55,6 @@ import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeNa
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -353,11 +352,12 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         int noOfApplicationPrivileges = randomIntBetween(2, 4);
         final List<ApplicationPrivilege> privileges = new ArrayList<>();
         for (int count = 0; count < noOfApplicationPrivileges; count++) {
+            final String[] actions = generateRandomStringArray(3, 5, false, false);
             privileges.add(ApplicationPrivilege.builder()
                     .application(randomAlphaOfLength(4))
                     .privilege(randomAlphaOfLengthBetween(3, 5))
-                    .actions(Sets.newHashSet(generateRandomStringArray(3, 5, false, false)))
                     .metadata(Collections.singletonMap("k1", "v1"))
+                    .actions(actions == null ? Collections.emptyList() : List.of(actions))
                     .build());
         }
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());

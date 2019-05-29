@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -61,6 +62,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
     private final Set<PluginInfo> plugins;
     private final NetworkTypes networkTypes;
     private final DiscoveryTypes discoveryTypes;
+    private final PackagingTypes packagingTypes;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -93,6 +95,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.jvm = new JvmStats(nodeInfos, nodeStats);
         this.networkTypes = new NetworkTypes(nodeInfos);
         this.discoveryTypes = new DiscoveryTypes(nodeInfos);
+        this.packagingTypes = new PackagingTypes(nodeInfos);
     }
 
     public Counts getCounts() {
@@ -172,6 +175,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
         builder.endObject();
 
         discoveryTypes.toXContent(builder, params);
+
+        packagingTypes.toXContent(builder, params);
         return builder;
     }
 
@@ -648,6 +653,40 @@ public class ClusterStatsNodes implements ToXContentFragment {
             builder.endObject();
             return builder;
         }
+    }
+
+    static class PackagingTypes implements ToXContentFragment {
+
+        private final Map<Tuple<String, String>, AtomicInteger> packagingTypes;
+
+        PackagingTypes(final List<NodeInfo> nodeInfos) {
+            final var packagingTypes = new HashMap<Tuple<String, String>, AtomicInteger>();
+            for (final var nodeInfo : nodeInfos) {
+                final var flavor = nodeInfo.getBuild().flavor().displayName();
+                final var type = nodeInfo.getBuild().type().displayName();
+                packagingTypes.computeIfAbsent(Tuple.tuple(flavor, type), k -> new AtomicInteger()).incrementAndGet();
+            }
+            this.packagingTypes = Collections.unmodifiableMap(packagingTypes);
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.startArray("packaging_types");
+            {
+                for (final var entry : packagingTypes.entrySet()) {
+                    builder.startObject();
+                    {
+                        builder.field("flavor", entry.getKey().v1());
+                        builder.field("type", entry.getKey().v2());
+                        builder.field("count", entry.getValue().get());
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.endArray();
+            return builder;
+        }
+
     }
 
 }

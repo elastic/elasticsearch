@@ -91,9 +91,7 @@ public class RestActions {
         if (shardFailures != null && shardFailures.length > 0) {
             builder.startArray(FAILURES_FIELD.getPreferredName());
             for (ShardOperationFailedException shardFailure : ExceptionsHelper.groupBy(shardFailures)) {
-                builder.startObject();
                 shardFailure.toXContent(builder, params);
-                builder.endObject();
             }
             builder.endArray();
         }

@@ -408,5 +408,4 @@ public final class Intervals {
     public static TemporalAmount parseInterval(Source source, String value, DataType intervalType) {
         return PARSERS.get(intervalType).parse(source, value);
     }
-
 }

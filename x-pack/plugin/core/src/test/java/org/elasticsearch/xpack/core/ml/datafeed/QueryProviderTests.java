@@ -5,13 +5,8 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -32,9 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 
 public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvider> {
@@ -94,74 +87,6 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
             () -> QueryProvider.fromXContent(parser, false));
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("Datafeed query is not parsable"));
-    }
-
-    public void testSerializationBetweenBugVersion() throws IOException {
-        QueryProvider tempQueryProvider = createRandomValidQueryProvider();
-        QueryProvider queryProviderWithEx = new QueryProvider(tempQueryProvider.getQuery(),
-            tempQueryProvider.getParsedQuery(),
-            new IOException("ex"));
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_6_2);
-            queryProviderWithEx.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writableRegistry())) {
-                in.setVersion(Version.V_6_6_2);
-                QueryProvider streamedQueryProvider = QueryProvider.fromStream(in);
-                assertThat(streamedQueryProvider.getQuery(), equalTo(queryProviderWithEx.getQuery()));
-                assertThat(streamedQueryProvider.getParsingException(), is(nullValue()));
-
-                QueryBuilder streamedParsedQuery = XContentObjectTransformer.queryBuilderTransformer(xContentRegistry())
-                    .fromMap(streamedQueryProvider.getQuery());
-                assertThat(streamedParsedQuery, equalTo(queryProviderWithEx.getParsedQuery()));
-                assertThat(streamedQueryProvider.getParsedQuery(), is(nullValue()));
-            }
-        }
-    }
-
-    public void testSerializationBetweenEagerVersion() throws IOException {
-        QueryProvider validQueryProvider = createRandomValidQueryProvider();
-
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_0_0);
-            validQueryProvider.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), writableRegistry())) {
-                in.setVersion(Version.V_6_0_0);
-
-                QueryProvider streamedQueryProvider = QueryProvider.fromStream(in);
-                XContentObjectTransformer<QueryBuilder> transformer = XContentObjectTransformer.queryBuilderTransformer(xContentRegistry());
-                Map<String, Object> sourceQueryMapWithDefaults = transformer.toMap(transformer.fromMap(validQueryProvider.getQuery()));
-
-                assertThat(streamedQueryProvider.getQuery(), equalTo(sourceQueryMapWithDefaults));
-                assertThat(streamedQueryProvider.getParsingException(), is(nullValue()));
-                assertThat(streamedQueryProvider.getParsedQuery(), equalTo(validQueryProvider.getParsedQuery()));
-            }
-        }
-
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            QueryProvider queryProviderWithEx = new QueryProvider(validQueryProvider.getQuery(),
-                validQueryProvider.getParsedQuery(),
-                new IOException("bad parsing"));
-            output.setVersion(Version.V_6_0_0);
-            IOException ex = expectThrows(IOException.class, () -> queryProviderWithEx.writeTo(output));
-            assertThat(ex.getMessage(), equalTo("bad parsing"));
-        }
-
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            QueryProvider queryProviderWithEx = new QueryProvider(validQueryProvider.getQuery(),
-                validQueryProvider.getParsedQuery(),
-                new ElasticsearchException("bad parsing"));
-            output.setVersion(Version.V_6_0_0);
-            ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> queryProviderWithEx.writeTo(output));
-            assertNotNull(ex.getCause());
-            assertThat(ex.getCause().getMessage(), equalTo("bad parsing"));
-        }
-
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            QueryProvider queryProviderWithOutParsed = new QueryProvider(validQueryProvider.getQuery(), null, null);
-            output.setVersion(Version.V_6_0_0);
-            ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> queryProviderWithOutParsed.writeTo(output));
-            assertThat(ex.getMessage(), equalTo("Unsupported operation: parsed query is null"));
-        }
     }
 
     @Override

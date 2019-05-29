@@ -21,7 +21,6 @@ package org.elasticsearch.transport.client;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
-
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
@@ -35,7 +34,7 @@ import org.elasticsearch.transport.Netty4Plugin;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -87,13 +86,7 @@ public class PreBuiltTransportClient extends TransportClient {
     }
 
     private static final Collection<Class<? extends Plugin>> PRE_INSTALLED_PLUGINS =
-        Collections.unmodifiableList(
-            Arrays.asList(
-                Netty4Plugin.class,
-                ReindexPlugin.class,
-                PercolatorPlugin.class,
-                MustachePlugin.class,
-                ParentJoinPlugin.class));
+            List.of(Netty4Plugin.class, ReindexPlugin.class, PercolatorPlugin.class, MustachePlugin.class, ParentJoinPlugin.class);
 
     /**
      * Creates a new transport client with pre-installed plugins.

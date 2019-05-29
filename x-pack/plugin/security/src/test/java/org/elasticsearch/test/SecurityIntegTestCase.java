@@ -7,7 +7,6 @@ package org.elasticsearch.test;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -26,7 +25,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +38,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
@@ -67,7 +64,7 @@ import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_S
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsCollectionContaining.hasItem;
 
@@ -86,7 +83,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * Settings used when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      * so that some of the configuration parameters can be overridden through test instance methods, similarly
-     * to how {@link #nodeSettings(int)} and {@link #transportClientSettings()} work.
+     * to how {@link #nodeSettings(int)} works.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
 
@@ -243,8 +240,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
-        builder.put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO);
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
             SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
@@ -263,14 +258,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder().put(super.transportClientSettings())
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NIO)
-                .put(customSecuritySettingsSource.transportClientSettings())
-                .build();
-    }
-
-    @Override
     protected boolean addMockTransportService() {
         return false; // security has its own transport service
     }
@@ -278,19 +265,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return customSecuritySettingsSource.nodePlugins();
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return customSecuritySettingsSource.transportClientPlugins();
-    }
-
-    @Override
-    protected Settings externalClusterClientSettings() {
-        return Settings.builder()
-                .put(SecurityField.USER_SETTING.getKey(), SecuritySettingsSource.TEST_USER_NAME + ":"
-                        + SecuritySettingsSourceField.TEST_PASSWORD)
-                .build();
     }
 
     /**
@@ -336,24 +310,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows to override the transport client username (used while sending requests to the test cluster) when the
-     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
-     */
-    protected String transportClientUsername() {
-        return SECURITY_DEFAULT_SETTINGS.transportClientUsername();
-    }
-
-    /**
-     * Allows to override the transport client password (used while sending requests to the test cluster) when the
-     * {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
-     * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
-     */
-    protected SecureString transportClientPassword() {
-        return SECURITY_DEFAULT_SETTINGS.transportClientPassword();
-    }
-
-    /**
      * Allows to control whether ssl key information is auto generated or not on the transport layer
      */
     protected boolean transportSSLEnabled() {
@@ -393,16 +349,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         @Override
         protected SecureString nodeClientPassword() {
             return SecurityIntegTestCase.this.nodeClientPassword();
-        }
-
-        @Override
-        protected String transportClientUsername() {
-            return SecurityIntegTestCase.this.transportClientUsername();
-        }
-
-        @Override
-        protected SecureString transportClientPassword() {
-            return SecurityIntegTestCase.this.transportClientPassword();
         }
     }
 
@@ -491,7 +437,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint().startObject();
                 assertTrue("security index mapping not sufficient to read:\n" +
                                 Strings.toString(clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject()),
-                    SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_INDEX_NAME, clusterState, logger,
+                    SecurityIndexManager.checkIndexMappingVersionMatches(SECURITY_MAIN_ALIAS, clusterState, logger,
                         Version.CURRENT.minimumIndexCompatibilityVersion()::onOrBefore));
                 Index securityIndex = resolveSecurityIndex(clusterState.metaData());
                 if (securityIndex != null) {
@@ -509,7 +455,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_SUPERUSER,
                         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
         GetIndexRequest getIndexRequest = new GetIndexRequest();
-        getIndexRequest.indices(SECURITY_INDEX_NAME);
+        getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();
         if (getIndexResponse.getIndices().length > 0) {
@@ -520,7 +466,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     private static Index resolveSecurityIndex(MetaData metaData) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SECURITY_INDEX_NAME);
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SECURITY_MAIN_ALIAS);
         if (aliasOrIndex != null) {
             return aliasOrIndex.getIndices().get(0).getIndex();
         }

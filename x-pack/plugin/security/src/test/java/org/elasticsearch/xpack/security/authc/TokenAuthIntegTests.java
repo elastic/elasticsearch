@@ -36,7 +36,7 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.TokenMetaData;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.junit.After;
 import org.junit.Before;
 
@@ -55,7 +55,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging("org.elasticsearch.xpack.security.authz.store.FileRolesStore:DEBUG")
@@ -161,7 +160,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getResult().getErrors().size(), equalTo(0));
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
-            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
                     .setSource(SearchSourceBuilder.searchSource()
                         .query(QueryBuilders.termQuery("doc_type", "token")))
                     .setSize(1)
@@ -174,7 +173,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the creation time to the day before
         Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
         assertTrue(Instant.now().isAfter(yesterday));
-        client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, docId.get())
+        client.prepareUpdate(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, SINGLE_MAPPING_NAME, docId.get())
             .setDoc("creation_time", yesterday.toEpochMilli())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -192,8 +191,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     assertEquals("token malformed", e.getMessage());
                 }
             }
-            client.admin().indices().prepareRefresh(SecurityIndexManager.SECURITY_INDEX_NAME).get();
-            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            client.admin().indices().prepareRefresh(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).get();
+            SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
                     .setSource(SearchSourceBuilder.searchSource()
                         .query(QueryBuilders.termQuery("doc_type", "token")))
                     .setTerminateAfter(1)
@@ -358,10 +357,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // We now have two documents, the original(now refreshed) token doc and the new one with the new access doc
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
-            SearchResponse searchResponse = client.prepareSearch(SecurityIndexManager.SECURITY_INDEX_NAME)
+            SearchResponse searchResponse = client.prepareSearch(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
                 .setSource(SearchSourceBuilder.searchSource()
                     .query(QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("doc_type", "token"))
+                        .must(QueryBuilders.termQuery("doc_type", TokenService.TOKEN_DOC_TYPE))
                         .must(QueryBuilders.termQuery("refresh_token.refreshed", "true"))))
                 .setSize(1)
                 .setTerminateAfter(1)
@@ -374,7 +373,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         Instant refreshed = Instant.now();
         Instant aWhileAgo = refreshed.minus(50L, ChronoUnit.SECONDS);
         assertTrue(Instant.now().isAfter(aWhileAgo));
-        UpdateResponse updateResponse = client.prepareUpdate(SECURITY_INDEX_NAME, SINGLE_MAPPING_NAME, docId.get())
+        UpdateResponse updateResponse = client.prepareUpdate(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, SINGLE_MAPPING_NAME, docId.get())
             .setDoc("refresh_token", Collections.singletonMap("refresh_time", aWhileAgo.toEpochMilli()))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setFetchSource("refresh_token", Strings.EMPTY_STRING)

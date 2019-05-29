@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 import static org.elasticsearch.xpack.monitoring.collector.ccr.FollowStatsMonitoringDoc.TYPE;
 
 public final class StatsCollector extends Collector {
@@ -75,7 +74,7 @@ public final class StatsCollector extends Collector {
             final MonitoringDoc.Node node,
             final long interval,
             final ClusterState clusterState) throws Exception {
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(threadContext, MONITORING_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(MONITORING_ORIGIN)) {
             final long timestamp = timestamp();
             final String clusterUuid = clusterUuid(clusterState);
 

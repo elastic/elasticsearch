@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.monitoring.exporter;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -163,17 +162,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
             transportAddress = in.readOptionalString();
             ip = in.readOptionalString();
             name = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-                timestamp = in.readVLong();
-            } else {
-                // Read the node attributes (removed in 6.0 rc1)
-                int size = in.readVInt();
-                for (int i = 0; i < size; i++) {
-                    in.readString();
-                    in.readString();
-                }
-                timestamp = 0L;
-            }
+            timestamp = in.readVLong();
         }
 
         @Override
@@ -183,12 +172,7 @@ public abstract class MonitoringDoc implements ToXContentObject {
             out.writeOptionalString(transportAddress);
             out.writeOptionalString(ip);
             out.writeOptionalString(name);
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-                out.writeVLong(timestamp);
-            } else {
-                // Write an empty map of node attributes (removed in 6.0 rc1)
-                out.writeVInt(0);
-            }
+            out.writeVLong(timestamp);
         }
 
         public String getUUID() {

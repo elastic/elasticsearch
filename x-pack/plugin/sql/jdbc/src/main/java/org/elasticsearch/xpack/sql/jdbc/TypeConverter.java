@@ -5,13 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.geo.utils.WellKnownText;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
+import java.io.IOException;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.Time;
 import java.sql.Timestamp;
+import java.text.ParseException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,6 +42,7 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.DATE;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DATETIME;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.TIME;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.asDateTimeField;
+import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
 
 /**
  * Conversion utilities for conversion of JDBC types to Java type and back
@@ -97,6 +101,7 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
+
 
 
     static long convertFromCalendarToUTC(long value, Calendar cal) {
@@ -220,7 +225,7 @@ final class TypeConverter {
             case DATE:
                 return asDateTimeField(v, JdbcDateUtils::asDate, Date::new);
             case TIME:
-                return asDateTimeField(v, JdbcDateUtils::asTime, Time::new);
+                return timeAsTime(v.toString());
             case DATETIME:
                 return asDateTimeField(v, JdbcDateUtils::asTimestamp, Timestamp::new);
             case INTERVAL_YEAR:
@@ -238,6 +243,13 @@ final class TypeConverter {
             case INTERVAL_HOUR_TO_SECOND:
             case INTERVAL_MINUTE_TO_SECOND:
                 return Duration.parse(v.toString());
+            case GEO_POINT:
+            case GEO_SHAPE:
+                try {
+                    return WellKnownText.fromWKT(v.toString());
+                } catch (IOException | ParseException ex) {
+                    throw new SQLException("Cannot parse geo_shape", ex);
+                }
             case IP:
                 return v.toString();
             default:

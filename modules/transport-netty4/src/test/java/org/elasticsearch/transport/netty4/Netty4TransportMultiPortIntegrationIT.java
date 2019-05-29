@@ -65,7 +65,7 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
             .put("transport.profiles.client1.port", randomPortRange)
             .put("transport.profiles.client1.publish_host", "127.0.0.7")
             .put("transport.profiles.client1.publish_port", "4321")
-            .put("transport.profiles.client1.reuse_address", true);
+            .put("transport.profiles.client1.tcp.reuse_address", true);
         return builder.build();
     }
 

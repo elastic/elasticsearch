@@ -27,12 +27,12 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -407,20 +407,19 @@ public class SearchAsyncActionTests extends ESTestCase {
     }
 
     public static class TestSearchResponse extends SearchResponse {
-        public final Set<ShardId> queried = new HashSet<>();
+        final Set<ShardId> queried = new HashSet<>();
+
+        TestSearchResponse() {
+            super(InternalSearchResponse.empty(), null, 0, 0, 0, 0L, ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY);
+        }
     }
 
     public static class TestSearchPhaseResult extends SearchPhaseResult {
         final DiscoveryNode node;
 
-        public TestSearchPhaseResult(long id, DiscoveryNode node) {
+        TestSearchPhaseResult(long id, DiscoveryNode node) {
             this.requestId = id;
             this.node = node;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-
         }
 
         @Override
@@ -433,7 +432,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         private final DiscoveryNode node;
 
-        public MockConnection(DiscoveryNode node) {
+        MockConnection(DiscoveryNode node) {
             this.node = node;
         }
 
@@ -444,7 +443,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
-            throws IOException, TransportException {
+            throws TransportException {
             throw new UnsupportedOperationException();
         }
 

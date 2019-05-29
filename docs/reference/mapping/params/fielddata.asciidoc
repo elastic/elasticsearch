@@ -19,6 +19,7 @@ reading the entire inverted index for each segment from disk, inverting the
 term ↔︎ document relationship, and storing the result in memory, in the JVM
 heap.
 
+[[fielddata-disabled-text-fields]]
 ==== Fielddata is disabled on `text` fields by default
 
 Fielddata can consume a *lot* of heap space, especially when loading high
@@ -75,6 +76,7 @@ PUT my_index
 <1> Use the `my_field` field for searches.
 <2> Use the `my_field.keyword` field for aggregations, sorting, or in scripts.
 
+[[enable-fielddata-text-fields]]
 ==== Enabling fielddata on `text` fields
 
 You can enable fielddata on an existing `text` field using the

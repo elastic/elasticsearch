@@ -252,6 +252,7 @@ public class JdbcConfigurationTests extends ESTestCase {
         assertSslConfig(props, JdbcConfiguration.create("jdbc:es://test?" + sslUrlProps.toString(), props, 0).sslConfig());
     }
     
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41557")
     public void testDriverConfigurationWithSSLInURL() {
         Map<String, String> urlPropMap = sslProperties();
         

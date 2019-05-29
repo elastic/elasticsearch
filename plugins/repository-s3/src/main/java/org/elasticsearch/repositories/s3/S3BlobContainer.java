@@ -23,7 +23,9 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
+import com.amazonaws.services.s3.model.MultiObjectDeleteException;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PartETag;
@@ -33,6 +35,7 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
@@ -40,8 +43,8 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.Maps;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,12 +52,21 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
 import static org.elasticsearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 
 class S3BlobContainer extends AbstractBlobContainer {
+
+    /**
+     * Maximum number of deletes in a {@link DeleteObjectsRequest}.
+     * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
+     */
+    private static final int MAX_BULK_DELETES = 1000;
 
     private final S3BlobStore blobStore;
     private final String keyPath;
@@ -112,10 +124,62 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
-        if (blobExists(blobName) == false) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
         deleteBlobIgnoringIfNotExists(blobName);
+    }
+
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        if (blobNames.isEmpty()) {
+            return;
+        }
+        final Set<String> outstanding = blobNames.stream().map(this::buildKey).collect(Collectors.toSet());
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            // S3 API only allows 1k blobs per delete so we split up the given blobs into requests of max. 1k deletes
+            final List<DeleteObjectsRequest> deleteRequests = new ArrayList<>();
+            final List<String> partition = new ArrayList<>();
+            for (String key : outstanding) {
+                partition.add(key);
+                if (partition.size() == MAX_BULK_DELETES ) {
+                    deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
+                    partition.clear();
+                }
+            }
+            if (partition.isEmpty() == false) {
+                deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
+            }
+            SocketAccess.doPrivilegedVoid(() -> {
+                AmazonClientException aex = null;
+                for (DeleteObjectsRequest deleteRequest : deleteRequests) {
+                    List<String> keysInRequest =
+                        deleteRequest.getKeys().stream().map(DeleteObjectsRequest.KeyVersion::getKey).collect(Collectors.toList());
+                    try {
+                        clientReference.client().deleteObjects(deleteRequest);
+                        outstanding.removeAll(keysInRequest);
+                    } catch (MultiObjectDeleteException e) {
+                        // We are sending quiet mode requests so we can't use the deleted keys entry on the exception and instead
+                        // first remove all keys that were sent in the request and then add back those that ran into an exception.
+                        outstanding.removeAll(keysInRequest);
+                        outstanding.addAll(
+                            e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getKey).collect(Collectors.toSet()));
+                        aex = ExceptionsHelper.useOrSuppress(aex, e);
+                    } catch (AmazonClientException e) {
+                        // The AWS client threw any unexpected exception and did not execute the request at all so we do not
+                        // remove any keys from the outstanding deletes set.
+                        aex = ExceptionsHelper.useOrSuppress(aex, e);
+                    }
+                }
+                if (aex != null) {
+                    throw aex;
+                }
+            });
+        } catch (Exception e) {
+            throw new IOException("Failed to delete blobs [" + outstanding + "]", e);
+        }
+        assert outstanding.isEmpty();
+    }
+
+    private static DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
+        return new DeleteObjectsRequest(bucket).withKeys(blobs.toArray(Strings.EMPTY_ARRAY)).withQuiet(true);
     }
 
     @Override
@@ -130,7 +194,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
-        final MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
+        final var entries = new ArrayList<Map.Entry<String, BlobMetaData>>();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             ObjectListing prevListing = null;
             while (true) {
@@ -148,7 +212,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 }
                 for (final S3ObjectSummary summary : list.getObjectSummaries()) {
                     final String name = summary.getKey().substring(keyPath.length());
-                    blobsBuilder.put(name, new PlainBlobMetaData(name, summary.getSize()));
+                    entries.add(entry(name, new PlainBlobMetaData(name, summary.getSize())));
                 }
                 if (list.isTruncated()) {
                     prevListing = list;
@@ -156,7 +220,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     break;
                 }
             }
-            return blobsBuilder.immutableMap();
+            return Maps.ofEntries(entries);
         } catch (final AmazonClientException e) {
             throw new IOException("Exception when listing blobs by prefix [" + blobNamePrefix + "]", e);
         }

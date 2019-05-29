@@ -114,6 +114,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class IndexFollowingIT extends CcrIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41037")
     public void testFollowIndex() throws Exception {
         final int numberOfPrimaryShards = randomIntBetween(1, 3);
         int numberOfReplicas = between(0, 1);
@@ -619,7 +620,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().readExceptions().size(), equalTo(1));
             ElasticsearchException exception = response.getStatsResponses().get(0).status()
                 .readExceptions().entrySet().iterator().next().getValue().v2();
-            assertThat(exception.getRootCause().getMessage(), equalTo("blocked by: [FORBIDDEN/4/index closed];"));
+            assertThat(exception.getRootCause().getMessage(), equalTo("index [index1] blocked by: [FORBIDDEN/4/index closed];"));
         });
 
         leaderClient().admin().indices().open(new OpenIndexRequest("index1")).actionGet();

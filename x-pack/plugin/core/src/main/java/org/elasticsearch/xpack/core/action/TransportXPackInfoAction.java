@@ -20,7 +20,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackBuild;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -51,7 +50,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
         if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
             License license = licenseService.getLicense();
             if (license != null) {
-                licenseInfo = new LicenseInfo(license.uid(), license.type(), license.operationMode().name().toLowerCase(Locale.ROOT),
+                licenseInfo = new LicenseInfo(license.uid(), license.type(), license.operationMode().description(),
                         license.status(), license.expiryDate());
             }
         }

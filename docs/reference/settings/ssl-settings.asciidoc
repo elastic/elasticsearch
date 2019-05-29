@@ -39,7 +39,6 @@ endif::verifies[]
 Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8/docs/technotes/guides/security/SunProviders.html[
 Java Cryptography Architecture documentation]. Defaults to ``.
 
-
 ===== {component} TLS/SSL Key and Trusted Certificate Settings
 
 The following settings are used to specify a private key, certificate, and the

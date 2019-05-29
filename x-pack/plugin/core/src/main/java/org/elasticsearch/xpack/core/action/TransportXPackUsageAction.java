@@ -38,7 +38,7 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
                                      IndexNameExpressionResolver indexNameExpressionResolver, Set<XPackFeatureSet> featureSets) {
         super(XPackUsageAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 XPackUsageRequest::new);
-        this.featureSets = Collections.unmodifiableList(new ArrayList<>(featureSets));
+        this.featureSets = List.copyOf(featureSets);
     }
 
     @Override

@@ -117,7 +117,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                TransportShardBulkAction shardBulkAction, NodeClient client,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex, LongSupplier relativeTimeProvider) {
-        super(BulkAction.NAME, transportService, actionFilters, (Supplier<BulkRequest>) BulkRequest::new);
+        super(BulkAction.NAME, transportService, actionFilters, (Supplier<BulkRequest>) BulkRequest::new, ThreadPool.Names.WRITE);
         Objects.requireNonNull(relativeTimeProvider);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -258,7 +258,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {
-                                executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated);
+                                threadPool.executor(ThreadPool.Names.WRITE).execute(
+                                    () -> executeBulk(task, bulkRequest, startTime, listener, responses, indicesThatCannotBeCreated));
                             }
                         }
 
@@ -658,7 +659,15 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 return ActionListener.map(actionListener,
                     response -> new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis));
             } else {
-                return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
+                return ActionListener.delegateFailure(actionListener, (delegatedListener, response) -> {
+                    BulkItemResponse[] items = response.getItems();
+                    for (int i = 0; i < items.length; i++) {
+                        itemResponses.add(originalSlots[i], response.getItems()[i]);
+                    }
+                    delegatedListener.onResponse(
+                        new BulkResponse(
+                            itemResponses.toArray(new BulkItemResponse[0]), response.getTook().getMillis(), ingestTookInMillis));
+                });
             }
         }
 
@@ -687,37 +696,5 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType(), failure));
         }
 
-    }
-
-    static final class IngestBulkResponseListener implements ActionListener<BulkResponse> {
-
-        private final long ingestTookInMillis;
-        private final int[] originalSlots;
-        private final List<BulkItemResponse> itemResponses;
-        private final ActionListener<BulkResponse> actionListener;
-
-        IngestBulkResponseListener(long ingestTookInMillis, int[] originalSlots, List<BulkItemResponse> itemResponses,
-                                   ActionListener<BulkResponse> actionListener) {
-            this.ingestTookInMillis = ingestTookInMillis;
-            this.itemResponses = itemResponses;
-            this.actionListener = actionListener;
-            this.originalSlots = originalSlots;
-        }
-
-        @Override
-        public void onResponse(BulkResponse response) {
-            BulkItemResponse[] items = response.getItems();
-            for (int i = 0; i < items.length; i++) {
-                itemResponses.add(originalSlots[i], response.getItems()[i]);
-            }
-            actionListener.onResponse(new BulkResponse(
-                    itemResponses.toArray(new BulkItemResponse[itemResponses.size()]),
-                    response.getTook().getMillis(), ingestTookInMillis));
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            actionListener.onFailure(e);
-        }
     }
 }

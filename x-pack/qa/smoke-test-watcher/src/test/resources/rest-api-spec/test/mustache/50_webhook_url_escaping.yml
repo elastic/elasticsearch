@@ -1,5 +1,6 @@
 ---
 "Test url escaping with url mustache function":
+
   - do:
       cluster.health:
           wait_for_status: yellow

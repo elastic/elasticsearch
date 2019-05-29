@@ -89,7 +89,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -237,7 +239,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             @Override
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp, long msu,
-                                                RetentionLeases retentionLeases, ActionListener<Long> listener) {
+                                                RetentionLeases retentionLeases, long mappingVersion, ActionListener<Long> listener) {
                 shippedOps.addAll(operations);
                 checkpointOnTarget.set(randomLongBetween(checkpointOnTarget.get(), Long.MAX_VALUE));
                 listener.onResponse(checkpointOnTarget.get());            }
@@ -246,7 +248,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             shard, new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()), request, fileChunkSizeInBytes, between(1, 10));
         PlainActionFuture<RecoverySourceHandler.SendSnapshotResult> future = new PlainActionFuture<>();
         handler.phase2(startingSeqNo, endingSeqNo, newTranslogSnapshot(operations, Collections.emptyList()),
-            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, future);
+            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, randomNonNegativeLong(), future);
         final int expectedOps = (int) (endingSeqNo - startingSeqNo + 1);
         RecoverySourceHandler.SendSnapshotResult result = future.actionGet();
         assertThat(result.totalOperations, equalTo(expectedOps));
@@ -272,7 +274,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         RecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             @Override
             public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps, long timestamp,
-                                                long msu, RetentionLeases retentionLeases, ActionListener<Long> listener) {
+                                                long msu, RetentionLeases retentionLeases, long mappingVersion,
+                                                ActionListener<Long> listener) {
                 if (randomBoolean()) {
                     listener.onResponse(SequenceNumbers.NO_OPS_PERFORMED);
                 } else {
@@ -287,7 +290,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final long startingSeqNo = randomLongBetween(0, ops.size() - 1L);
         final long endingSeqNo = randomLongBetween(startingSeqNo, ops.size() - 1L);
         handler.phase2(startingSeqNo, endingSeqNo, newTranslogSnapshot(ops, Collections.emptyList()),
-            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, future);
+            randomNonNegativeLong(), randomNonNegativeLong(), RetentionLeases.EMPTY, randomNonNegativeLong(), future);
         if (wasFailed.get()) {
             assertThat(expectThrows(RuntimeException.class, () -> future.actionGet()).getMessage(), equalTo("test - failed to index"));
         }
@@ -437,10 +440,12 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             handler.sendFiles(store, metas.toArray(new StoreFileMetaData[0]), () -> 0);
             fail("exception index");
         } catch (RuntimeException ex) {
-            assertNull(ExceptionsHelper.unwrapCorruption(ex));
+            final IOException unwrappedCorruption = ExceptionsHelper.unwrapCorruption(ex);
             if (throwCorruptedIndexException) {
+                assertNotNull(unwrappedCorruption);
                 assertEquals(ex.getMessage(), "[File corruption occurred on recovery but checksums are ok]");
             } else {
+                assertNull(unwrappedCorruption);
                 assertEquals(ex.getMessage(), "boom");
             }
         } catch (CorruptIndexException ex) {
@@ -473,9 +478,9 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 between(1, 8)) {
 
             @Override
-            public SendFileResult phase1(final IndexCommit snapshot, final Supplier<Integer> translogOps) {
+            public SendFileResult phase1(final IndexCommit snapshot, final long globalCheckpoint, final Supplier<Integer> translogOps) {
                 phase1Called.set(true);
-                return super.phase1(snapshot, translogOps);
+                return super.phase1(snapshot, globalCheckpoint, translogOps);
             }
 
             @Override
@@ -487,10 +492,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             @Override
             void phase2(long startingSeqNo, long endingSeqNo, Translog.Snapshot snapshot,
                         long maxSeenAutoIdTimestamp, long maxSeqNoOfUpdatesOrDeletes, RetentionLeases retentionLeases,
-                        ActionListener<SendSnapshotResult> listener) throws IOException {
+                        long mappingVersion, ActionListener<SendSnapshotResult> listener) throws IOException {
                 phase2Called.set(true);
                 super.phase2(startingSeqNo, endingSeqNo, snapshot,
-                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, retentionLeases, listener);
+                    maxSeenAutoIdTimestamp, maxSeqNoOfUpdatesOrDeletes, retentionLeases, mappingVersion, listener);
             }
 
         };
@@ -646,6 +651,43 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         store.close();
     }
 
+    public void testVerifySeqNoStatsWhenRecoverWithSyncId() throws Exception {
+        IndexShard shard = mock(IndexShard.class);
+        when(shard.state()).thenReturn(IndexShardState.STARTED);
+        RecoverySourceHandler handler = new RecoverySourceHandler(
+            shard, new TestRecoveryTargetHandler(), getStartRecoveryRequest(), between(1, 16), between(1, 4));
+
+        String syncId = UUIDs.randomBase64UUID();
+        int numDocs = between(0, 1000);
+        long localCheckpoint = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        long maxSeqNo = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+        assertTrue(handler.canSkipPhase1(
+            newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
+            newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs)));
+
+        AssertionError error = expectThrows(AssertionError.class, () -> {
+            long localCheckpointOnTarget = randomValueOtherThan(localCheckpoint,
+                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE));
+            long maxSeqNoOnTarget = randomValueOtherThan(maxSeqNo,
+                () -> randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE));
+            handler.canSkipPhase1(newMetadataSnapshot(syncId, Long.toString(localCheckpoint), Long.toString(maxSeqNo), numDocs),
+                newMetadataSnapshot(syncId, Long.toString(localCheckpointOnTarget), Long.toString(maxSeqNoOnTarget), numDocs));
+        });
+        assertThat(error.getMessage(), containsString("try to recover [index][1] with sync id but seq_no stats are mismatched:"));
+    }
+
+    private Store.MetadataSnapshot newMetadataSnapshot(String syncId, String localCheckpoint, String maxSeqNo, int numDocs) {
+        Map<String, String> userData = new HashMap<>();
+        userData.put(Engine.SYNC_COMMIT_ID, syncId);
+        if (localCheckpoint != null) {
+            userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, localCheckpoint);
+        }
+        if (maxSeqNo != null) {
+            userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, maxSeqNo);
+        }
+        return new Store.MetadataSnapshot(Collections.emptyMap(), userData, numDocs);
+    }
+
     private Store newStore(Path path) throws IOException {
         return newStore(path, true);
     }
@@ -706,6 +748,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 final long timestamp,
                 final long msu,
                 final RetentionLeases retentionLeases,
+                final long mappingVersion,
                 final ActionListener<Long> listener) {
         }
 
@@ -715,7 +758,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void cleanFiles(int totalTranslogOps, Store.MetadataSnapshot sourceMetaData) {
+        public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetaData) {
         }
 
         @Override

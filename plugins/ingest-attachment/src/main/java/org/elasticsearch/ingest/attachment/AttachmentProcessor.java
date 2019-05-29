@@ -112,6 +112,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
+            // TODO: stop using LanguageIdentifier...
             LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
             String language = identifier.getLanguage();
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);

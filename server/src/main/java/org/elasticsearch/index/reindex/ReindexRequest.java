@@ -69,8 +69,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     public ReindexRequest(StreamInput in) throws IOException {
         super.readFrom(in);
-        destination = new IndexRequest();
-        destination.readFrom(in);
+        destination = new IndexRequest(in);
         remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
     }
 
@@ -135,16 +134,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public ReindexRequest setSourceIndices(String... sourceIndices) {
         if (sourceIndices != null) {
             this.getSearchRequest().indices(sourceIndices);
-        }
-        return this;
-    }
-
-    /**
-     * Set the document types which need to be copied from the source indices
-     */
-    public ReindexRequest setSourceDocTypes(String... docTypes) {
-        if (docTypes != null) {
-            this.getSearchRequest().types(docTypes);
         }
         return this;
     }
@@ -296,10 +285,6 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 builder.rawField("query", remoteInfo.getQuery().streamInput(), builder.contentType());
             }
             builder.array("index", getSearchRequest().indices());
-            String[] types = getSearchRequest().types();
-            if (types.length > 0) {
-                builder.array("type", types);
-            }
             getSearchRequest().source().innerToXContent(builder, params);
             builder.endObject();
         }

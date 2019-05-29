@@ -91,6 +91,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         client().execute(DeleteExpiredDataAction.INSTANCE, new DeleteExpiredDataAction.Request()).get();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pulls/468")
     public void testDeleteExpiredData() throws Exception {
         // Index some unused state documents (more than 10K to test scrolling works)
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -137,7 +138,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         for (Job.Builder job : getJobs()) {
             assertThat(getBuckets(job.getId()).size(), is(greaterThanOrEqualTo(47)));
-            assertThat(getRecords(job.getId()).size(), equalTo(1));
+            assertThat(getRecords(job.getId()).size(), equalTo(2));
             List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
             assertThat(modelSnapshots.size(), equalTo(1));
             String snapshotDocId = ModelSnapshot.documentId(modelSnapshots.get(0));
@@ -173,7 +174,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
             startDatafeed(job.getId() + "-feed", 0, now);
             waitUntilJobIsClosed(job.getId());
             assertThat(getBuckets(job.getId()).size(), is(greaterThanOrEqualTo(70)));
-            assertThat(getRecords(job.getId()).size(), equalTo(1));
+            assertThat(getRecords(job.getId()).size(), equalTo(2));
             List<ModelSnapshot> modelSnapshots = getModelSnapshots(job.getId());
             assertThat(modelSnapshots.size(), equalTo(2));
         }
@@ -205,7 +206,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
 
         // no-retention job should have kept all data
         assertThat(getBuckets("no-retention").size(), is(greaterThanOrEqualTo(70)));
-        assertThat(getRecords("no-retention").size(), equalTo(1));
+        assertThat(getRecords("no-retention").size(), equalTo(2));
         assertThat(getModelSnapshots("no-retention").size(), equalTo(2));
 
         List<Bucket> buckets = getBuckets("results-retention");
@@ -216,11 +217,11 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getModelSnapshots("results-retention").size(), equalTo(2));
 
         assertThat(getBuckets("snapshots-retention").size(), is(greaterThanOrEqualTo(70)));
-        assertThat(getRecords("snapshots-retention").size(), equalTo(1));
+        assertThat(getRecords("snapshots-retention").size(), equalTo(2));
         assertThat(getModelSnapshots("snapshots-retention").size(), equalTo(1));
 
         assertThat(getBuckets("snapshots-retention-with-retain").size(), is(greaterThanOrEqualTo(70)));
-        assertThat(getRecords("snapshots-retention-with-retain").size(), equalTo(1));
+        assertThat(getRecords("snapshots-retention-with-retain").size(), equalTo(2));
         assertThat(getModelSnapshots("snapshots-retention-with-retain").size(), equalTo(2));
 
         buckets = getBuckets("results-and-snapshots-retention");

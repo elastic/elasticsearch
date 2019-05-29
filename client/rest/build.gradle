@@ -47,7 +47,7 @@ dependencies {
   testCompile "org.elasticsearch.client:test:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
   testCompile "org.elasticsearch:securemock:${versions.securemock}"
   testCompile "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }

@@ -212,7 +212,8 @@ final class JdbcTestUtils {
     @SuppressForbidden(reason = "need to open jar")
     private static JarInputStream getJarStream(URL resource) throws IOException {
         URLConnection con = resource.openConnection();
-        con.setDefaultUseCaches(false);
+        // do not to cache files (to avoid keeping file handles around)
+        con.setUseCaches(false);
         return new JarInputStream(con.getInputStream());
     }
 

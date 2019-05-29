@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 
@@ -40,12 +41,10 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
 
     @Override
     protected final void doTest() throws Throwable {
+        // Run the time tests always in UTC
+        // TODO: https://github.com/elastic/elasticsearch/issues/40779
         try (Connection csv = csvConnection(testCase); Connection es = esJdbc()) {
-
-            // pass the testName as table for debugging purposes (in case the underlying reader is missing)
-            ResultSet expected = executeCsvQuery(csv, testName);
-            ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
-            assertResults(expected, elasticResults);
+            executeAndAssert(csv, es);
         }
     }
 
@@ -53,5 +52,12 @@ public abstract class CsvSpecTestCase extends SpecBaseIntegrationTestCase {
     protected void assertResults(ResultSet expected, ResultSet elastic) throws SQLException {
         Logger log = logEsResultSet() ? logger : null;
         JdbcAssert.assertResultSets(expected, elastic, log, false, true);
+    }
+
+    private void executeAndAssert(Connection csv, Connection es) throws SQLException {
+        // pass the testName as table for debugging purposes (in case the underlying reader is missing)
+        ResultSet expected = executeCsvQuery(csv, testName);
+        ResultSet elasticResults = executeJdbcQuery(es, testCase.query);
+        assertResults(expected, elasticResults);
     }
 }

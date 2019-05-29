@@ -31,8 +31,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -120,7 +120,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             this.ordered = in.readBoolean();
             this.analyzer = in.readOptionalString();
             this.filter = in.readOptionalWriteable(IntervalFilter::new);
-            if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
                 this.useField = in.readOptionalString();
             }
             else {
@@ -186,7 +186,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             out.writeBoolean(ordered);
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(filter);
-            if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
                 out.writeOptionalString(useField);
             }
         }
@@ -457,7 +457,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         }
     }
 
-    public static class IntervalFilter implements ToXContent, Writeable {
+    public static class IntervalFilter implements ToXContentObject, Writeable {
 
         public static final String NAME = "filter";
 

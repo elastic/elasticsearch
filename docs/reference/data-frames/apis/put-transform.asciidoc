@@ -2,6 +2,8 @@
 [testenv="basic"]
 [[put-data-frame-transform]]
 === Create {dataframe-transforms} API
+
+[subs="attributes"]
 ++++
 <titleabbrev>Create {dataframe-transforms}</titleabbrev>
 ++++
@@ -13,7 +15,13 @@ Instantiates a {dataframe-transform}.
 
 `PUT _data_frame/transforms/<data_frame_transform_id>`
 
-//===== Description
+===== Description
+
+IMPORTANT:  You must use {kib} or this API to create a {dataframe-transform}.
+            Do not put a {dataframe-transform} directly into any
+            `.data-frame-internal*` indices using the Elasticsearch index API.
+            If {es} {security-features} are enabled, do not give users any
+            privileges on `.data-frame-internal*` indices.
 
 ==== Path Parameters
 
@@ -25,12 +33,15 @@ Instantiates a {dataframe-transform}.
 
 ==== Request Body
 
-`source`:: The source index or index pattern.
+`source` (required):: (object) The source configuration, consisting of `index` and optionally
+a `query`.
 
-`dest`:: The destination index.
+`dest` (required):: (object) The destination configuration, consisting of `index`.
 
-`pivot`:: Defines the pivot function `group by` fields and the aggregation to
+`pivot`:: (object) Defines the pivot function `group by` fields and the aggregation to
 reduce the data.
+
+`description`:: Optional free text description of the data frame transform
 
 
 //==== Authorization
@@ -44,8 +55,19 @@ sample data:
 --------------------------------------------------
 PUT _data_frame/transforms/ecommerce_transform
 {
-  "source": "kibana_sample_data_ecommerce",
-  "dest": "kibana_sample_data_ecommerce_transform",
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "term": {
+        "geoip.continent_name": {
+          "value": "Asia"
+        }
+      }
+    }
+  },
+  "dest": {
+    "index": "kibana_sample_data_ecommerce_transform"
+  },
   "pivot": {
     "group_by": {
       "customer_id": {
@@ -61,7 +83,8 @@ PUT _data_frame/transforms/ecommerce_transform
         }
       }
     }
-  }
+  },
+  "description": "Maximum priced ecommerce data by customer_id in Asia"
 }
 --------------------------------------------------
 // CONSOLE

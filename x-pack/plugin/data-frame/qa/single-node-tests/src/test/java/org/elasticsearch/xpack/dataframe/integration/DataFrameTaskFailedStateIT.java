@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.dataframe.integration;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
@@ -19,6 +20,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
 
     public void testDummy() {
@@ -60,7 +62,7 @@ public class DataFrameTaskFailedStateIT extends DataFrameRestTestCase {
         // Force start the data frame to indicate failure correction
         startDataframeTransform(transformId, true);
         // Wait for data to be indexed appropriately and refresh for search
-        waitForDataFrameGeneration(transformId);
+        waitForDataFrameCheckpoint(transformId);
         refreshIndex(dataFrameIndex);
 
         // Verify that we have started and that our reason is cleared

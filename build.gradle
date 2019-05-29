@@ -29,8 +29,9 @@ import org.gradle.util.DistributionLocator
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 plugins {
-    id 'com.gradle.build-scan' version '2.0.2'
+    id 'com.gradle.build-scan' version '2.2.1'
     id 'base'
+    id 'elasticsearch.global-build-info'
 }
 if (Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {
     buildScan {
@@ -88,7 +89,7 @@ subprojects {
       }
       repositories {
         maven {
-          name = 'localTest'
+          name = 'test'
           url = "${rootProject.buildDir}/local-test-repo"
         }
       }
@@ -241,8 +242,7 @@ allprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
     // for security example plugins
-    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
-    "org.elasticsearch.client:x-pack-transport:${version}": ':x-pack:transport-client'
+    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core'
   ]
 
   /*
@@ -263,7 +263,7 @@ allprojects {
   }
 
   project.afterEvaluate {
-    configurations.all {
+    configurations.matching { it.canBeResolved }.all {
       resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
         projectSubstitutions.each { k,v ->
           subs.substitute(subs.module(k)).with(subs.project(v))
@@ -337,15 +337,7 @@ gradle.projectsEvaluated {
     if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
       integTest.mustRunAfter test
     }
-    configurations.all { Configuration configuration ->
-      /*
-       * The featureAwarePlugin configuration has a dependency on x-pack:plugin:core and x-pack:plugin:core has a dependency on the
-       * featureAwarePlugin configuration. The below task ordering logic would force :x-pack:plugin:core:test
-       * :x-pack:test:feature-aware:test to depend on each other circularly. We break that cycle here.
-       */
-      if (configuration.name == "featureAwarePlugin") {
-        return
-      }
+    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.all { Dependency dep ->
         Project upstreamProject = dependencyToProject(dep)
         if (upstreamProject != null) {
@@ -357,7 +349,7 @@ gradle.projectsEvaluated {
             Task task = project.tasks.findByName(taskName)
             Task upstreamTask = upstreamProject.tasks.findByName(taskName)
             if (task != null && upstreamTask != null) {
-              task.mustRunAfter(upstreamTask)
+              task.shouldRunAfter(upstreamTask)
             }
           }
         }
@@ -382,21 +374,6 @@ allprojects {
       // also ignore other possible build dirs
       excludeDirs += file('build')
       excludeDirs += file('build-eclipse')
-
-      iml {
-        // fix so that Gradle idea plugin properly generates support for resource folders
-        // see also https://issues.gradle.org/browse/GRADLE-2975
-        withXml {
-          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/main/resources' }.each {
-            it.attributes().remove('isTestSource')
-            it.attributes().put('type', 'java-resource')
-          }
-          it.asNode().component.content.sourceFolder.findAll { it.@url == 'file://$MODULE_DIR$/src/test/resources' }.each {
-            it.attributes().remove('isTestSource')
-            it.attributes().put('type', 'java-test-resource')
-          }
-        }
-      }
     }
   }
 
@@ -413,14 +390,6 @@ idea {
   project {
     vcs = 'Git'
   }
-}
-// Make sure gradle idea was run before running anything in intellij (including import).
-File ideaMarker = new File(projectDir, '.local-idea-is-configured')
-tasks.idea.doLast {
-  ideaMarker.setText('', 'UTF-8')
-}
-if (System.getProperty('idea.active') != null && ideaMarker.exists() == false) {
-  throw new GradleException('You must run `./gradlew idea` from the root of elasticsearch before importing into IntelliJ')
 }
 
 // eclipse configuration
@@ -615,9 +584,30 @@ allprojects {
         configurations.findAll { it.isCanBeResolved() }.each { it.resolve() }
       }
   }
-}
 
-allprojects {
+  // helper task to print direct dependencies of a single task
+  project.tasks.addRule("Pattern: <taskName>Dependencies") { String taskName ->
+    if (taskName.endsWith("Dependencies") == false) {
+      return
+    }
+    if (project.tasks.findByName(taskName) != null) {
+      return
+    }
+    String realTaskName = taskName.substring(0, taskName.length() - "Dependencies".length())
+    Task realTask = project.tasks.findByName(realTaskName)
+    if (realTask == null) {
+      return
+    }
+    project.tasks.create(taskName) {
+      doLast {
+        println("${realTask.path} dependencies:")
+        for (Task dep : realTask.getTaskDependencies().getDependencies(realTask)) {
+          println("  - ${dep.path}")
+        }
+      }
+    }
+  }
+
   task checkPart1
   task checkPart2 
   tasks.matching { it.name == "check" }.all { check ->
@@ -628,7 +618,3 @@ allprojects {
     }
   } 
 }
-
-
-
-

@@ -21,6 +21,7 @@ package org.elasticsearch.client.dataframe;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
+import org.elasticsearch.client.core.PageParams;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,10 +29,6 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class GetDataFrameTransformRequest implements Validatable {
-
-    private final List<String> ids;
-    private Integer from;
-    private Integer size;
 
     /**
      * Helper method to create a request that will get ALL Data Frame Transforms
@@ -41,6 +38,9 @@ public class GetDataFrameTransformRequest implements Validatable {
         return new GetDataFrameTransformRequest("_all");
     }
 
+    private final List<String> ids;
+    private PageParams pageParams;
+
     public GetDataFrameTransformRequest(String... ids) {
         this.ids = Arrays.asList(ids);
     }
@@ -49,20 +49,12 @@ public class GetDataFrameTransformRequest implements Validatable {
         return ids;
     }
 
-    public Integer getFrom() {
-        return from;
+    public PageParams getPageParams() {
+        return pageParams;
     }
 
-    public void setFrom(Integer from) {
-        this.from = from;
-    }
-
-    public Integer getSize() {
-        return size;
-    }
-
-    public void setSize(Integer size) {
-        this.size = size;
+    public void setPageParams(PageParams pageParams) {
+        this.pageParams = pageParams;
     }
 
     @Override
@@ -78,7 +70,7 @@ public class GetDataFrameTransformRequest implements Validatable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids);
+        return Objects.hash(ids, pageParams);
     }
 
     @Override
@@ -91,6 +83,6 @@ public class GetDataFrameTransformRequest implements Validatable {
             return false;
         }
         GetDataFrameTransformRequest other = (GetDataFrameTransformRequest) obj;
-        return Objects.equals(ids, other.ids);
+        return Objects.equals(ids, other.ids) && Objects.equals(pageParams, other.pageParams);
     }
 }

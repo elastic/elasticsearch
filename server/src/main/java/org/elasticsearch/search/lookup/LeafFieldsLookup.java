@@ -20,7 +20,6 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -42,18 +40,14 @@ public class LeafFieldsLookup implements Map {
 
     private final MapperService mapperService;
 
-    @Nullable
-    private final String[] types;
-
     private final LeafReader reader;
 
     private int docId = -1;
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
-    LeafFieldsLookup(MapperService mapperService, @Nullable String[] types, LeafReader reader) {
+    LeafFieldsLookup(MapperService mapperService, LeafReader reader) {
         this.mapperService = mapperService;
-        this.types = types;
         this.reader = reader;
     }
 
@@ -136,7 +130,7 @@ public class LeafFieldsLookup implements Map {
         if (data == null) {
             MappedFieldType fieldType = mapperService.fullName(name);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + name + "] in mapping with types " + Arrays.toString(types));
+                throw new IllegalArgumentException("No field found for [" + name + "] in mapping");
             }
             data = new FieldLookup(fieldType);
             cachedFieldData.put(name, data);

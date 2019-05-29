@@ -66,7 +66,7 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
         super(name, factories, context, parentAggregator, pipelineAggregators, metaData);
 
         Query parentFilter = parentObjectMapper != null ? parentObjectMapper.nestedTypeFilter()
-            : Queries.newNonNestedFilter(context.mapperService().getIndexSettings().getIndexVersionCreated());
+            : Queries.newNonNestedFilter();
         this.parentFilter = context.bitsetFilterCache().getBitSetProducer(parentFilter);
         this.childFilter = childObjectMapper.nestedTypeFilter();
         this.collectsFromSingleBucket = collectsFromSingleBucket;

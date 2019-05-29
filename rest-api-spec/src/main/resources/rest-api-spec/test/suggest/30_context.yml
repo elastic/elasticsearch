@@ -277,9 +277,6 @@ setup:
 
 ---
 "Skip duplicates with contexts should work":
-  - skip:
-      version: " - 6.0.99"
-      reason: skip_duplicates was added in 6.1
 
   - do:
       index:
@@ -333,9 +330,6 @@ setup:
 
 ---
 "Indexing and Querying without contexts is forbidden":
-  - skip:
-      version: " - 6.99.99"
-      reason: this feature was removed in 7.0
 
   - do:
       index:

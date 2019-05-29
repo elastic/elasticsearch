@@ -134,49 +134,7 @@
           }
 
 ---
-"Test job with pre 6.4 rules":
-
-  - skip:
-      version:  "6.4.0 - "
-      reason:   "Rules were replaced by custom_rules on 6.4.0"
-
-  - do:
-      ml.put_job:
-        job_id: job-with-old-rules
-        body:  >
-          {
-            "analysis_config": {
-              "detectors": [
-                {
-                  "function": "count",
-                  "by_field_name": "country",
-                  "detector_rules": [
-                    {
-                      "rule_action": "filter_results",
-                      "rule_conditions": [
-                        {
-                          "condition_type":"numerical_actual",
-                          "field_name":"country",
-                          "field_value": "uk",
-                          "condition": {"operator":"lt","value":"33.3"}
-                        },
-                        {"condition_type":"categorical", "field_name":"country", "value_filter": "foo"}
-                      ]
-                    }
-                  ]
-                }
-              ]
-            },
-            "data_description" : {}
-          }
-
----
 "Test job with pre 6.4 rules - dummy job 6.4 onwards":
-
-  - skip:
-      version:  " - 6.3.99"
-      reason:   "Rules replaced by custom_rules on 6.4.0"
-
   - do:
       ml.put_job:
         job_id: job-with-old-rules

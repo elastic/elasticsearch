@@ -28,7 +28,3 @@ dependencies {
     compile project(':libs:grok')
     compile project(':libs:dissect')
 }
-
-integTestCluster {
-    module project(':modules:lang-painless')
-}

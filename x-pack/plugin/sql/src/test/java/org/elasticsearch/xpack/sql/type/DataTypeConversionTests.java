@@ -69,10 +69,10 @@ public class DataTypeConversionTests extends ESTestCase {
         {
             Conversion conversion = conversionFor(TIME, to);
             assertNull(conversion.convert(null));
-            assertEquals("00:02:03.456", conversion.convert(asTimeOnly(123456L)));
-            assertEquals("21:33:09.101", conversion.convert(asTimeOnly(123456789101L)));
-            assertEquals("23:57:56.544", conversion.convert(asTimeOnly(-123456L)));
-            assertEquals("02:26:50.899", conversion.convert(asTimeOnly(-123456789101L)));
+            assertEquals("00:02:03.456Z", conversion.convert(asTimeOnly(123456L)));
+            assertEquals("21:33:09.101Z", conversion.convert(asTimeOnly(123456789101L)));
+            assertEquals("23:57:56.544Z", conversion.convert(asTimeOnly(-123456L)));
+            assertEquals("02:26:50.899Z", conversion.convert(asTimeOnly(-123456789101L)));
         }
         {
             Conversion conversion = conversionFor(DATETIME, to);
@@ -627,6 +627,10 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(FLOAT, commonType(BYTE, FLOAT));
         assertEquals(FLOAT, commonType(FLOAT, INTEGER));
         assertEquals(DOUBLE, commonType(DOUBLE, FLOAT));
+
+        // numeric and intervals
+        assertEquals(INTERVAL_YEAR_TO_MONTH, commonType(INTERVAL_YEAR_TO_MONTH, LONG));
+        assertEquals(INTERVAL_HOUR_TO_MINUTE, commonType(INTEGER, INTERVAL_HOUR_TO_MINUTE));
 
         // dates/datetimes and intervals
         assertEquals(DATETIME, commonType(DATE, DATETIME));

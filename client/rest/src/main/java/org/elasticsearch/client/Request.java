@@ -74,7 +74,6 @@ public final class Request {
      */
     public void addParameter(String name, String value) {
         Objects.requireNonNull(name, "url parameter name cannot be null");
-        // .putIfAbsent(name, value) except we are in Java 7 which doesn't have that.
         if (parameters.containsKey(name)) {
             throw new IllegalArgumentException("url parameter [" + name + "] has already been set to [" + parameters.get(name) + "]");
         } else {

@@ -1,8 +1,6 @@
 [[search-as-you-type]]
 === Search as you type datatype
 
-experimental[]
-
 The `search_as_you_type` field type is a text-like field that is optimized to
 provide out-of-the-box support for queries that serve an as-you-type completion
 use case. It creates a series of subfields that are analyzed to index terms

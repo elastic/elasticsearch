@@ -198,9 +198,7 @@
 
 ---
 "Scroll cannot used the request cache":
-  - skip:
-      version: " - 6.99.99"
-      reason:  the error message has been added in v7.0.0
+
   - do:
       indices.create:
         index: test_scroll
@@ -217,9 +215,7 @@
 
 ---
 "Scroll with size 0":
-  - skip:
-      version: " - 6.1.99"
-      reason:  the error message has been added in v6.2.0
+
   - do:
       indices.create:
         index: test_scroll
@@ -237,9 +233,6 @@
 
 ---
 "Scroll max_score is null":
-  - skip:
-      version: " - 6.99.99"
-      reason:  max_score was set to 0 rather than null before 7.0
 
   - do:
       indices.create:
@@ -285,9 +278,7 @@
 
 ---
 "Scroll with new response format":
-  - skip:
-      version: " - 6.9.99"
-      reason: hits.total is returned as an object in 7.0.0
+
   - do:
       indices.create:
         index: test_scroll

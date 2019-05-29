@@ -431,7 +431,7 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
         assertThat(count.get(), equalTo(numberOfListeners));
     }
 
-    public void testConcurrency() throws BrokenBarrierException, InterruptedException {
+    public void testConcurrency() throws Exception {
         final ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, 8));
         final GlobalCheckpointListeners globalCheckpointListeners = new GlobalCheckpointListeners(shardId, executor, scheduler, logger);
         final AtomicLong globalCheckpoint = new AtomicLong(NO_OPS_PERFORMED);
@@ -470,11 +470,12 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
                 // sometimes this will notify the listener immediately
                 globalCheckpointListeners.add(
                         globalCheckpoint.get(),
-                        maybeMultipleInvocationProtectingListener((g, e) -> {
-                            if (invocation.compareAndSet(false, true) == false) {
-                                throw new IllegalStateException("listener invoked twice");
-                            }
-                        }),
+                        maybeMultipleInvocationProtectingListener(
+                                (g, e) -> {
+                                    if (invocation.compareAndSet(false, true) == false) {
+                                        throw new IllegalStateException("listener invoked twice");
+                                    }
+                                }),
                         randomBoolean() ? null : TimeValue.timeValueNanos(randomLongBetween(1, TimeUnit.MICROSECONDS.toNanos(1))));
             }
             // synchronize ending with the updating thread and the main test thread
@@ -491,11 +492,13 @@ public class GlobalCheckpointListenersTests extends ESTestCase {
             globalCheckpointListeners.globalCheckpointUpdated(globalCheckpoint.incrementAndGet());
         }
         assertThat(globalCheckpointListeners.pendingListeners(), equalTo(0));
-        executor.shutdown();
-        executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+        // wait for all the listeners to be notified
         for (final AtomicBoolean invocation : invocations) {
-            assertTrue(invocation.get());
+            assertBusy(() -> assertTrue(invocation.get()));
         }
+        // now shutdown
+        executor.shutdown();
+        assertTrue(executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS));
         updatingThread.join();
         listenersThread.join();
     }

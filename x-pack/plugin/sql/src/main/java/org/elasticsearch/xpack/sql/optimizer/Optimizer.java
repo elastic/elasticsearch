@@ -48,7 +48,9 @@ import org.elasticsearch.xpack.sql.expression.predicate.Negatable;
 import org.elasticsearch.xpack.sql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.ArbitraryConditionalFunction;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.Case;
 import org.elasticsearch.xpack.sql.expression.predicate.conditional.Coalesce;
+import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditional;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.sql.expression.predicate.logical.Or;
@@ -127,6 +129,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new FoldNull(),
                 new ConstantFolding(),
                 new SimplifyConditional(),
+                new SimplifyCase(),
                 // boolean
                 new BooleanSimplification(),
                 new BooleanLiteralsOnTheRight(),
@@ -149,6 +152,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         Batch aggregate = new Batch("Aggregation Rewrite",
                 //new ReplaceDuplicateAggsWithReferences(),
+                new ReplaceMinMaxWithTopHits(),
                 new ReplaceAggsWithMatrixStats(),
                 new ReplaceAggsWithExtendedStats(),
                 new ReplaceAggsWithStats(),
@@ -1226,6 +1230,40 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    static class SimplifyCase extends OptimizerExpressionRule {
+
+        SimplifyCase() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Case) {
+                Case c = (Case) e;
+
+                // Remove or foldable conditions that fold to FALSE
+                // Stop at the 1st foldable condition that folds to TRUE
+                List<IfConditional> newConditions = new ArrayList<>();
+                for (IfConditional conditional : c.conditions()) {
+                    if (conditional.condition().foldable()) {
+                        Boolean res = (Boolean) conditional.condition().fold();
+                        if (res == Boolean.TRUE) {
+                            newConditions.add(conditional);
+                            break;
+                        }
+                    } else {
+                        newConditions.add(conditional);
+                    }
+                }
+
+                if (newConditions.size() < c.children().size()) {
+                    return c.replaceChildren(combine(newConditions, c.elseResult()));
+                }
+            }
+
+            return e;
+        }
+    }
 
     static class BooleanSimplification extends OptimizerExpressionRule {
 
@@ -1235,7 +1273,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof BinaryPredicate) {
+            if (e instanceof And || e instanceof Or) {
                 return simplifyAndOr((BinaryPredicate<?, ?, ?, ?>) e);
             }
             if (e instanceof Not) {

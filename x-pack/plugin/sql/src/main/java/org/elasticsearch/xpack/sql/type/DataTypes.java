@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 
 import java.time.OffsetTime;
@@ -80,6 +81,9 @@ public final class DataTypes {
         }
         if (value instanceof Interval) {
             return ((Interval<?>) value).dataType();
+        }
+        if (value instanceof GeoShape) {
+            return DataType.GEO_SHAPE;
         }
         throw new SqlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
     }
@@ -229,5 +233,16 @@ public final class DataTypes {
             return t.defaultPrecision;
         }
         return t.displaySize;
+    }
+
+    public static boolean areTypesCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return
+                (left == DataType.NULL || right == DataType.NULL) ||
+                    (left.isString() && right.isString()) ||
+                    (left.isNumeric() && right.isNumeric());
+        }
     }
 }

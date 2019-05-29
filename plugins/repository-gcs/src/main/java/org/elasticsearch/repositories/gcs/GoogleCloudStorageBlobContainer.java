@@ -26,7 +26,9 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
@@ -78,7 +80,12 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         blobStore.deleteBlob(buildKey(blobName));
     }
 
-    protected String buildKey(String blobName) {
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        blobStore.deleteBlobsIgnoringIfNotExists(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
+    }
+
+    private String buildKey(String blobName) {
         assert blobName != null;
         return path + blobName;
     }

@@ -30,7 +30,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -102,22 +101,8 @@ public class ReadOnlyEngine extends Engine {
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 this.translogStats = translogStats == null ? new TranslogStats(0, 0, 0, 0, 0) : translogStats;
                 if (seqNoStats == null) {
-                    seqNoStats = buildSeqNoStats(lastCommittedSegmentInfos);
-                    // During a peer-recovery the global checkpoint is not known and up to date when the engine
-                    // is created, so we only check the max seq no / global checkpoint coherency when the global
-                    // checkpoint is different from the unassigned sequence number value.
-                    // In addition to that we only execute the check if the index the engine belongs to has been
-                    // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
-                    // that guarantee that all operations have been flushed to Lucene.
-                    final long globalCheckpoint = engineConfig.getGlobalCheckpointSupplier().getAsLong();
-                    if (globalCheckpoint != SequenceNumbers.UNASSIGNED_SEQ_NO
-                        && engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_7_0)) {
-                        if (seqNoStats.getMaxSeqNo() != globalCheckpoint) {
-                            assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), globalCheckpoint);
-                            throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
-                                + "] from last commit does not match global checkpoint [" + globalCheckpoint + "]");
-                        }
-                    }
+                    seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
+                    ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                 }
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
@@ -137,10 +122,27 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    protected void assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
-        if (Assertions.ENABLED) {
-            assert false : "max seq. no. [" + maxSeqNo + "] does not match [" + globalCheckpoint + "]";
+    protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(final SeqNoStats seqNoStats) {
+        // Before 8.0 the global checkpoint is not known and up to date when the engine is created after
+        // peer recovery, so we only check the max seq no / global checkpoint coherency when the global
+        // checkpoint is different from the unassigned sequence number value.
+        // In addition to that we only execute the check if the index the engine belongs to has been
+        // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
+        // that guarantee that all operations have been flushed to Lucene.
+        final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
+        if (indexVersionCreated.onOrAfter(Version.V_7_2_0) ||
+            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
+            if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
+                throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
+                    + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
+            }
         }
+        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
+    }
+
+    protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
+        assert maxSeqNo == globalCheckpoint : "max seq. no. [" + maxSeqNo + "] does not match [" + globalCheckpoint + "]";
+        return true;
     }
 
     @Override
@@ -155,11 +157,11 @@ public class ReadOnlyEngine extends Engine {
 
     protected final DirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
-        reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         }
-        return readerWrapperFunction.apply(reader);
+        reader = readerWrapperFunction.apply(reader);
+        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
@@ -197,12 +199,12 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    public static SeqNoStats buildSeqNoStats(SegmentInfos infos) {
+    private static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
         final SequenceNumbers.CommitInfo seqNoStats =
             SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
         long maxSeqNo = seqNoStats.maxSeqNo;
         long localCheckpoint = seqNoStats.localCheckpoint;
-        return new SeqNoStats(maxSeqNo, localCheckpoint, localCheckpoint);
+        return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
     }
 
     @Override
@@ -298,7 +300,8 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return false;
+        // we can do operation-based recovery if we don't have to replay any operation.
+        return startingSeqNo > seqNoStats.getMaxSeqNo();
     }
 
     @Override
@@ -454,13 +457,8 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    @Override
-    public void reinitializeMaxSeqNoOfUpdatesOrDeletes() {
-        advanceMaxSeqNoOfUpdatesOrDeletes(seqNoStats.getMaxSeqNo());
-    }
-
-    protected void processReaders(IndexReader reader, IndexReader previousReader) {
-        searcherFactory.processReaders(reader, previousReader);
+    protected void processReader(IndexReader reader) {
+        searcherFactory.processReaders(reader, null);
     }
 
     @Override
@@ -484,5 +482,16 @@ public class ReadOnlyEngine extends Engine {
                 return null;
             }
         };
+    }
+
+    @Override
+    public long getMaxSeqNoOfUpdatesOrDeletes() {
+        return seqNoStats.getMaxSeqNo();
+    }
+
+    @Override
+    public void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary) {
+        assert maxSeqNoOfUpdatesOnPrimary <= getMaxSeqNoOfUpdatesOrDeletes() :
+            maxSeqNoOfUpdatesOnPrimary + ">" + getMaxSeqNoOfUpdatesOrDeletes();
     }
 }

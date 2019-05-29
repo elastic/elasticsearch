@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -88,8 +89,13 @@ public class TransportStopDataFrameAnalyticsAction
                     return;
                 }
 
-                request.setExpandedIds(expandedIds);
-                request.setNodes(findAllocatedNodes(expandedIds, state));
+                Set<String> startedAnalytics = new HashSet<>();
+                Set<String> stoppingAnalytics = new HashSet<>();
+                PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+                sortAnalyticsByTaskState(expandedIds, tasks, startedAnalytics, stoppingAnalytics);
+
+                request.setExpandedIds(startedAnalytics);
+                request.setNodes(findAllocatedNodes(startedAnalytics, tasks));
 
                 ActionListener<StopDataFrameAnalyticsAction.Response> finalListener = ActionListener.wrap(
                     r -> waitForTaskRemoved(expandedIds, request, r, listener),
@@ -102,6 +108,26 @@ public class TransportStopDataFrameAnalyticsAction
         );
 
         expandIds(state, request, expandedIdsListener);
+    }
+
+    private static void sortAnalyticsByTaskState(Set<String> analyticsIds, PersistentTasksCustomMetaData tasks,
+                                                 Set<String> startedAnalytics, Set<String> stoppingAnalytics) {
+        for (String analyticsId : analyticsIds) {
+            switch (MlTasks.getDataFrameAnalyticsState(analyticsId, tasks)) {
+                case STARTED:
+                case REINDEXING:
+                case ANALYZING:
+                    startedAnalytics.add(analyticsId);
+                    break;
+                case STOPPING:
+                    stoppingAnalytics.add(analyticsId);
+                    break;
+                case STOPPED:
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 
     private void expandIds(ClusterState clusterState, StopDataFrameAnalyticsAction.Request request,
@@ -123,11 +149,22 @@ public class TransportStopDataFrameAnalyticsAction
         configProvider.getMultiple(request.getId(), request.allowNoMatch(), configsListener);
     }
 
-    static String[] findAllocatedNodes(Set<String> analyticsIds, ClusterState clusterState) {
+    private String[] findAllocatedNodes(Set<String> analyticsIds, PersistentTasksCustomMetaData tasks) {
         List<String> nodes = new ArrayList<>();
-        PersistentTasksCustomMetaData tasksMetaData = PersistentTasksCustomMetaData.getPersistentTasksCustomMetaData(clusterState);
-        if (tasksMetaData != null) {
-            filterPersistentTasks(tasksMetaData, analyticsIds).forEach(t -> nodes.add(t.getExecutorNode()));
+        for (String analyticsId : analyticsIds) {
+            PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
+            if (task == null) {
+                // This should not be possible; we filtered started analytics thus the task should exist
+                String msg = "Requested data frame analytics [" + analyticsId + "] be stopped but the task could not be found";
+                assert task != null : msg;
+            } else if (task.isAssigned()) {
+                nodes.add(task.getExecutorNode());
+            } else {
+                // This means the task is has not been assigned to a node yet so
+                // we can stop it by removing its persistent task.
+                // The listener is a no-op as we're already going to wait for the task to be removed.
+                persistentTasksService.sendRemoveRequest(task.getId(), ActionListener.wrap(r -> {}, e -> {}));
+            }
         }
         return nodes.toArray(new String[nodes.size()]);
     }

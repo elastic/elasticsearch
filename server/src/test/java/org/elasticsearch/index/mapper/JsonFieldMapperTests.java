@@ -28,7 +28,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.JsonFieldMapper.KeyedJsonFieldType;
 import org.elasticsearch.index.mapper.JsonFieldMapper.RootJsonFieldType;
@@ -186,54 +185,16 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
             .startObject("type")
                 .startObject("properties")
-                    .startObject("store")
+                    .startObject("field")
                         .field("type", "embedded_json")
                         .field("store", true)
-                    .endObject()
-                    .startObject("store_only")
-                        .field("type", "embedded_json")
-                        .field("index", false)
-                        .field("store", true)
-                        .field("doc_values", false)
                     .endObject()
                 .endObject()
             .endObject()
         .endObject());
 
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-        assertEquals(mapping, mapper.mappingSource().toString());
-
-        BytesReference doc = BytesReference.bytes(XContentFactory.jsonBuilder().startObject()
-                .startObject("store")
-                    .field("key", "value")
-                .endObject()
-                .startObject("store_only")
-                    .field("key", "value")
-                .endObject()
-            .endObject());
-        ParsedDocument parsedDoc = mapper.parse(new SourceToParse("test", "type", "1", doc, XContentType.JSON));
-
-        // We make sure to pretty-print here, since the field is always stored in pretty-printed format.
-        BytesReference storedValue = BytesReference.bytes(JsonXContent.contentBuilder()
-            .prettyPrint()
-            .startObject()
-                .field("key", "value")
-            .endObject());
-
-        IndexableField[] store = parsedDoc.rootDoc().getFields("store");
-        assertEquals(3, store.length);
-
-        assertTrue(store[0].fieldType().stored());
-        assertEquals(storedValue.toBytesRef(), store[0].binaryValue());
-        assertFalse(store[1].fieldType().stored());
-        assertFalse(store[2].fieldType().stored());
-        assertEquals(DocValuesType.SORTED_SET, store[2].fieldType().docValuesType());
-
-        IndexableField[] storeOnly = parsedDoc.rootDoc().getFields("store_only");
-        assertEquals(1, storeOnly.length);
-
-        assertTrue(storeOnly[0].fieldType().stored());
-        assertEquals(storedValue.toBytesRef(), storeOnly[0].binaryValue());
+        expectThrows(UnsupportedOperationException.class, () ->
+            parser.parse("type", new CompressedXContent(mapping)));
     }
 
     public void testIndexOptions() throws IOException {

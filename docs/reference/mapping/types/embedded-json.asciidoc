@@ -113,25 +113,8 @@ keyword-style aggregations such as `terms`. As with queries, there is no
 special support for numerics -- all values in the JSON object are treated as
 keywords. When sorting, this implies that values are compared lexicographically.
 
-[[stored-fields]]
-==== Stored fields
-
-If the <<mapping-store,`store`>> option is enabled, the entire JSON object will
-be stored in pretty-printed format. It can be retrieved through the top-level
-`embedded_json` field:
-
-[source,js]
---------------------------------
-POST bug_reports/_search
-{
-  "query": { "match": { "title": "results not sorted" }},
-  "stored_fields": ["labels"]
-}
---------------------------------
-// CONSOLE
-
-Field keys cannot be used to load stored content. For example, specifying
-`"stored_fields": ["labels.timestamp"]` will return an empty list.
+Embedded JSON fields currently cannot be stored. It is not possible to specify
+the <<mapping-store, `store`>> parameter in the mapping.
 
 [[json-params]]
 ==== Parameters for JSON fields

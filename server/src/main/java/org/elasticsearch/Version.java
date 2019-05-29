@@ -63,27 +63,28 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
         for (final Field declaredField : Version.class.getFields()) {
             if (declaredField.getType().equals(Version.class)) {
-                if (declaredField.getName().equals("CURRENT") || declaredField.getName().equals("V_EMPTY")) {
+                final String fieldName = declaredField.getName();
+                if (fieldName.equals("CURRENT") || fieldName.equals("V_EMPTY")) {
                     continue;
                 }
-                assert declaredField.getName().matches("V_\\d+_\\d+_\\d+")
-                        : "expected Version field [" + declaredField.getName() + "] to match V_\\d+_\\d+_\\d+";
+                assert fieldName.matches("V_\\d+_\\d+_\\d+")
+                        : "expected Version field [" + fieldName + "] to match V_\\d+_\\d+_\\d+";
                 try {
                     final Version version = (Version) declaredField.get(null);
                     if (Assertions.ENABLED) {
-                        final String[] fields = declaredField.getName().split("_");
+                        final String[] fields = fieldName.split("_");
                         final int major = Integer.valueOf(fields[1]) * 1000000;
                         final int minor = Integer.valueOf(fields[2]) * 10000;
                         final int revision = Integer.valueOf(fields[3]) * 100;
                         final int expectedId = major + minor + revision + 99;
                         assert version.id == expectedId :
-                                "expected version [" + declaredField.getName() + "] to have id [" + expectedId + "] but was [" + version.id + "]";
+                                "expected version [" + fieldName + "] to have id [" + expectedId + "] but was [" + version.id + "]";
                     }
                     final Version maybePrevious = builder.put(version.id, version);
                     assert maybePrevious == null :
                             "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
                 } catch (final IllegalAccessException e) {
-                    assert false : "Version field [" + declaredField.getName() + "] should be public";
+                    assert false : "Version field [" + fieldName + "] should be public";
                 }
             }
         }

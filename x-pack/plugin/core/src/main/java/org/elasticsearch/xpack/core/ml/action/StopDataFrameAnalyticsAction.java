@@ -126,7 +126,7 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            out.writeStringArray(expandedIds.toArray(new String[expandedIds.size()]));
+            out.writeStringArray(expandedIds.toArray(new String[0]));
             out.writeBoolean(allowNoMatch);
         }
 

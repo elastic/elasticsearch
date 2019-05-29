@@ -35,14 +35,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportDeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.action.TransportGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.action.TransportPutEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestDeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.rest.RestGetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestListEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.rest.RestPutEnrichPolicyAction;
 
@@ -87,6 +90,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin, 
         }
 
         return Arrays.asList(
+            new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
             new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
             new ActionHandler<>(ListEnrichPolicyAction.INSTANCE, TransportListEnrichPolicyAction.class),
             new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
@@ -103,6 +107,7 @@ public class EnrichPlugin extends Plugin implements ActionPlugin, IngestPlugin, 
         }
 
         return Arrays.asList(
+            new RestGetEnrichPolicyAction(settings, restController),
             new RestDeleteEnrichPolicyAction(settings, restController),
             new RestListEnrichPolicyAction(settings, restController),
             new RestPutEnrichPolicyAction(settings, restController),

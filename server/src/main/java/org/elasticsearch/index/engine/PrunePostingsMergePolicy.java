@@ -44,6 +44,7 @@ import org.apache.lucene.util.BytesRef;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Iterator;
+import java.util.function.Predicate;
 
 /**
  * This merge policy drops postings for all deleted documents which is useful to guarantee
@@ -57,12 +58,12 @@ import java.util.Iterator;
  */
 final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
 
-    PrunePostingsMergePolicy(MergePolicy in) {
+    PrunePostingsMergePolicy(MergePolicy in, Predicate<String> pruneFieldPredicate) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(wrapped);
+                return wrapReader(wrapped, pruneFieldPredicate);
             }
         });
     }
@@ -75,7 +76,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         return docId;
     }
 
-    private static CodecReader wrapReader(CodecReader reader) {
+    private static CodecReader wrapReader(CodecReader reader, Predicate<String> pruneFieldPredicate) {
         Bits liveDocs = reader.getLiveDocs();
         if (liveDocs == null) {
             return reader; // no deleted docs - we are good!
@@ -91,7 +92,11 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                 return new NormsProducer() {
                     @Override
                     public NumericDocValues getNorms(FieldInfo field) throws IOException {
-                        return new FilterNumericDocValues(normsReader.getNorms(field)) {
+                        NumericDocValues in = normsReader.getNorms(field);
+                        if (pruneFieldPredicate.test(field.name) == false) {
+                            return in;
+                        }
+                        return new FilterNumericDocValues(in) {
                             @Override
                             public int nextDoc() throws IOException {
                                 return skipDeletedDocs(in, liveDocs);
@@ -150,11 +155,14 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
 
                     @Override
                     public Terms terms(String field) throws IOException {
-                        Terms terms = postingsReader.terms(field);
-                        if (terms == null) {
+                        Terms in = postingsReader.terms(field);
+                        if (in == null) {
                             return null;
                         }
-                        return new FilterLeafReader.FilterTerms(terms) {
+                        if (pruneFieldPredicate.test(field) == false) {
+                            return in;
+                        }
+                        return new FilterLeafReader.FilterTerms(in) {
                             @Override
                             public TermsEnum iterator() throws IOException {
                                 TermsEnum iterator = super.iterator();

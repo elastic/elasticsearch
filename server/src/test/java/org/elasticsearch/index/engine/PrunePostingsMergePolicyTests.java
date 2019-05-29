@@ -41,6 +41,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class PrunePostingsMergePolicyTests extends ESTestCase {
 
@@ -49,7 +50,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
             IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setSoftDeletesField("_soft_deletes");
             MergePolicy mp = new SoftDeletesRetentionMergePolicy("_soft_deletes", MatchAllDocsQuery::new,
-                new PrunePostingsMergePolicy(newLogMergePolicy()));
+                new PrunePostingsMergePolicy(newLogMergePolicy(), t -> true));
             iwc.setMergePolicy(mp);
             boolean sorted = randomBoolean();
             if (sorted) {

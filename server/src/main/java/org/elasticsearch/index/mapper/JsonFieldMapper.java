@@ -89,9 +89,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
  *
  * the mapper will produce untokenized string fields called "json_field" with values "some value" and "true",
  * as well as string fields called "json_field._keyed" with values "key\0some value" and "key2.key3\0true".
- *
- * Note that \0 is a reserved separator character, and cannot be used in the keys of the JSON object
- * (see {@link JsonFieldParser#SEPARATOR}).
+ * Note that \0 is used as a reserved separator character (see {@link JsonFieldParser#SEPARATOR}).
  *
  * When 'store' is enabled, a single stored field is added containing the entire JSON object in
  * pretty-printed format.
@@ -99,8 +97,6 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 public final class JsonFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "embedded_json";
-    public static final NamedAnalyzer WHITESPACE_ANALYZER = new NamedAnalyzer(
-        "whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
     private static final String KEYED_FIELD_SUFFIX = "._keyed";
 
     private static class Defaults {
@@ -183,7 +179,8 @@ public final class JsonFieldMapper extends FieldMapper {
         public JsonFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             if (fieldType().splitQueriesOnWhitespace()) {
-                fieldType().setSearchAnalyzer(WHITESPACE_ANALYZER);
+                NamedAnalyzer whitespaceAnalyzer = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
+                fieldType().setSearchAnalyzer(whitespaceAnalyzer);
             }
             return new JsonFieldMapper(name, fieldType, defaultFieldType,
                 ignoreAbove, depthLimit, context.indexSettings());

@@ -488,12 +488,12 @@ public class JsonFieldMapperTests extends ESSingleNodeTestCase {
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
         RootJsonFieldType rootFieldType = (RootJsonFieldType) mapperService.fullName("field");
-        assertThat(rootFieldType.searchAnalyzer(), equalTo(JsonFieldMapper.WHITESPACE_ANALYZER));
+        assertThat(rootFieldType.searchAnalyzer().name(), equalTo("whitespace"));
         assertTokenStreamContents(rootFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
 
         KeyedJsonFieldType keyedFieldType = (KeyedJsonFieldType) mapperService.fullName("field.key");
-        assertThat(keyedFieldType.searchAnalyzer(), equalTo(JsonFieldMapper.WHITESPACE_ANALYZER));
+        assertThat(keyedFieldType.searchAnalyzer().name(), equalTo("whitespace"));
         assertTokenStreamContents(keyedFieldType.searchAnalyzer().analyzer().tokenStream("", "Hello World"),
             new String[] {"Hello", "World"});
     }

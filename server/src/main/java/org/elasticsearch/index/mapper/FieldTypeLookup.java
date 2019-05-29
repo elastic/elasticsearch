@@ -131,14 +131,16 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      */
     private static int fieldDepth(String field) {
         int numDots = 0;
-        for (int i = 0; i < field.length(); ++i) {
-            if (field.charAt(i) == '.') {
-                numDots++;
+        int dotIndex = -1;
+        while (true) {
+            dotIndex = field.indexOf('.', dotIndex + 1);
+            if (dotIndex < 0) {
+                break;
             }
+            numDots++;
         }
         return numDots + 1;
     }
-
 
     /**
      * Returns the mapped field type for the given field name.

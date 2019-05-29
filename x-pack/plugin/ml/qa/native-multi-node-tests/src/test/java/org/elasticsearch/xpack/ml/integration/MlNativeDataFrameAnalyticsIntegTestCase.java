@@ -75,6 +75,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         StopDataFrameAnalyticsAction.Request request = new StopDataFrameAnalyticsAction.Request(id);
         return client().execute(StopDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
+
     protected void waitUntilAnalyticsIsStopped(String id) throws Exception {
         waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(30));
     }

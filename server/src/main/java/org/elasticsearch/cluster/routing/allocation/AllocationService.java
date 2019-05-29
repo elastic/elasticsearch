@@ -296,7 +296,7 @@ public class AllocationService {
     /**
      * Reset failed allocation counter for unassigned shards
      */
-    private RoutingAllocation resetFailedAllocationCounter(ClusterState oldState, RoutingAllocation allocation) {
+    private void resetFailedAllocationCounter(RoutingAllocation allocation) {
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             ShardRouting shardRouting = unassignedIterator.next();
@@ -307,9 +307,6 @@ public class AllocationService {
                 unassignedInfo.getUnassignedTimeInMillis(), unassignedInfo.isDelayed(),
                 unassignedInfo.getLastAllocationStatus()), shardRouting.recoverySource(), allocation.changes());
         }
-        ClusterState newState = buildResult(oldState, allocation);
-        return new RoutingAllocation(allocationDeciders, getMutableRoutingNodes(newState), newState,
-            clusterInfoService.getClusterInfo(), allocation.getCurrentNanoTime());
     }
 
     /**
@@ -342,7 +339,7 @@ public class AllocationService {
         allocation.ignoreDisable(true);
 
         if (retryFailed) {
-            allocation = resetFailedAllocationCounter(clusterState, allocation);
+            resetFailedAllocationCounter(allocation);
         }
 
         RoutingExplanations explanations = commands.execute(allocation, explain);

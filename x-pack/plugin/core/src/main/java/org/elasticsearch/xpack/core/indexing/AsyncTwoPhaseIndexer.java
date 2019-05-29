@@ -23,11 +23,11 @@ import java.util.concurrent.atomic.AtomicReference;
  * An abstract class that builds an index incrementally. A background job can be launched using {@link #maybeTriggerAsyncJob(long)},
  * it will create the index from the source index up to the last complete bucket that is allowed to be built (based on job position).
  * Only one background job can run simultaneously and {@link #onFinish} is called when the job
- * finishes before state is persisted. The indexer can be stopped early by a call to {@link #stop()} which will
- * trigger the {@link #onStopping()} and {@link #onStopped()} methods.
- * {@link #onFailure(Exception)} is called if the job fails with an exception and {@link #onAbort()}
+ * finishes. {@link #onStop()} is called after the current search returns when the job is stopped early via a call
+ * to {@link #stop()}. {@link #onFailure(Exception)} is called if the job fails with an exception and {@link #onAbort()}
  * is called if the indexer is aborted while a job is running. The indexer must be started ({@link #start()}
  * to allow a background job to run when {@link #maybeTriggerAsyncJob(long)} is called.
+ * {@link #stop()} can be used to stop the background job without aborting the indexer.
  *
  * In a nutshell this is a 2 cycle engine: 1st it sends a query, 2nd it indexes documents based on the response, sends the next query,
  * indexes, queries, indexes, ... until a condition lets the engine pause until the source provides new input.
@@ -87,10 +87,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     /**
      * Sets the internal state to {@link IndexerState#STOPPING} if an async job is
-     * running in the background, {@link #onStopped()} will be called when the background job
+     * running in the background, {@link #onStop()} will be called when the background job
      * detects that the indexer is stopped.
      * If there is no job running when this function is called the returned
-     * state is {@link IndexerState#STOPPED} and {@link #onStopped()} will not be called.
+     * state is {@link IndexerState#STOPPED} and {@link #onStop()} will not be called.
      *
      * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the job was already aborted).
      */
@@ -249,29 +249,19 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     /**
      * Called when a background job finishes before the internal state changes from {@link IndexerState#INDEXING} back to
-     * {@link IndexerState#STARTED} and before {@link #doSaveState(IndexerState, Object, Runnable)} is called
+     * {@link IndexerState#STARTED}.
      *
      * @param listener listener to call after done
      */
     protected abstract void onFinish(ActionListener<Void> listener);
 
-
     /**
-     * Called when a background job stops after internal state has changed from {@link IndexerState#STOPPING}
-     * to {@link IndexerState#STOPPED} and before state is persisted via {@link #doSaveState(IndexerState, Object, Runnable)}.
-     * This is only called when the indexer is stopped due to a call to {@link #stop()}
+     * Called when the indexer is stopped. This is only called when the indexer is stopped
+     * via {@link #stop()} as opposed to {@link #onFinish(ActionListener)} which is called
+     * when the indexer's work is done.
      */
-    protected void onStopping() {
+    protected void onStop() {
     }
-
-    /**
-     * Called when the indexer is stopped after {@link #onStopping()} and {@link #doSaveState(IndexerState, Object, Runnable)}
-     * have been called.
-     */
-    protected void onStopped() {
-    }
-
-
 
     /**
      * Called when a background job detects that the indexer is aborted causing the
@@ -290,18 +280,16 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     }
 
     private IndexerState finishAndSetState() {
-        AtomicBoolean callOnStopping = new AtomicBoolean();
-        AtomicBoolean callOnAbort = new AtomicBoolean();
+        AtomicBoolean callOnStop = new AtomicBoolean(false);
+        AtomicBoolean callOnAbort = new AtomicBoolean(false);
         IndexerState updatedState = state.updateAndGet(prev -> {
-            callOnAbort.set(false);
-            callOnStopping.set(false);
             switch (prev) {
             case INDEXING:
                 // ready for another job
                 return IndexerState.STARTED;
 
             case STOPPING:
-                callOnStopping.set(true);
+                callOnStop.set(true);
                 // must be started again
                 return IndexerState.STOPPED;
 
@@ -323,8 +311,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             }
         });
 
-        if (callOnStopping.get()) {
-            onStopping();
+        if (callOnStop.get()) {
+            onStop();
         } else if (callOnAbort.get()) {
             onAbort();
         }
@@ -424,7 +412,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
         case STOPPING:
             logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), this::onStopped);
+            doSaveState(finishAndSetState(), getPosition(), () -> {});
             return false;
 
         case STOPPED:

@@ -582,7 +582,7 @@ public abstract class Node implements Closeable {
                     b.bind(Transport.class).toInstance(transport);
                     b.bind(TransportService.class).toInstance(transportService);
                     b.bind(NetworkService.class).toInstance(networkService);
-                    b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptModule.getScriptService()));
+                    b.bind(UpdateHelper.class).toInstance(new UpdateHelper(scriptModule.getScriptService(), clusterService));
                     b.bind(MetaDataIndexUpgradeService.class).toInstance(metaDataIndexUpgradeService);
                     b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                     b.bind(GatewayMetaState.class).toInstance(gatewayMetaState);

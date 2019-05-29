@@ -309,7 +309,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         /**
          * Serializes the template to xContent, using the legacy format where the mappings are
          * nested under the type name.
-         * <p>
+         *
          * This method is used for serializing templates before storing them in the cluster metadata,
          * and also in the REST layer when returning a deprecated typed response.
          */
@@ -323,7 +323,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
 
         /**
          * Removes the nested type in the xContent representation of {@link IndexTemplateMetaData}.
-         * <p>
+         *
          * This method is useful to help bridge the gap between an the internal representation which still uses (the legacy format) a
          * nested type in the mapping, and the external representation which does not use a nested type in the mapping.
          */
@@ -337,7 +337,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         /**
          * Serializes the template to xContent, making sure not to nest mappings under the
          * type name.
-         * <p>
+         *
          * Note that this method should currently only be used for creating REST responses,
          * and not when directly updating stored templates. Index templates are still stored
          * in the old, typed format, and have yet to be migrated to be typeless.

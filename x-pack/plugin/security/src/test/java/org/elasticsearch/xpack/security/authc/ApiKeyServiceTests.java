@@ -8,11 +8,19 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,11 +28,14 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -32,6 +43,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyCredentials;
 import org.elasticsearch.xpack.security.authc.ApiKeyService.ApiKeyRoleDescriptors;
@@ -39,8 +51,10 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService.CachedApiKeyHashResu
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -53,10 +67,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -75,11 +91,6 @@ public class ApiKeyServiceTests extends ESTestCase {
     private Client client;
     private SecurityIndexManager securityIndex;
 
-    @Before
-    public void createThreadPool() {
-        threadPool = new TestThreadPool("api key service tests");
-    }
-
     @After
     public void stopThreadPool() throws InterruptedException {
         terminate(threadPool);
@@ -90,8 +101,28 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.licenseState = mock(XPackLicenseState.class);
         when(licenseState.isApiKeyServiceAllowed()).thenReturn(true);
 
-        this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
+
+        this.threadPool = new TestThreadPool("api key service tests");
+
+        this.client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(any(String[].class))).then(invocationOnMock -> {
+            final Object[] arguments = invocationOnMock.getArguments();
+            final String[] indices;
+            if (arguments[0] instanceof String[]) {
+                indices = (String[]) arguments[0];
+            } else {
+                indices = new String[arguments.length];
+                System.arraycopy(arguments, 0, indices, 0, indices.length);
+            }
+            return new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indices);
+        });
+        when(client.prepareIndex(any(String.class), any(String.class))).then(invocationOnMock -> {
+            final String index = (String) invocationOnMock.getArguments()[0];
+            final String type = (String) invocationOnMock.getArguments()[1];
+            return new IndexRequestBuilder(client, IndexAction.INSTANCE, index).setType(type);
+        });
     }
 
     public void testGetCredentialsFromThreadContext() {
@@ -127,6 +158,53 @@ public class ApiKeyServiceTests extends ESTestCase {
                 expectThrows(IllegalArgumentException.class, () -> ApiKeyService.getCredentialsFromHeader(threadContext));
             assertEquals("invalid ApiKey value", e.getMessage());
         }
+    }
+
+    public void testStoreApiKey() throws ExecutionException, InterruptedException {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        final ApiKeyService service = createApiKeyService(settings);
+
+        final User user = new User(randomAlphaOfLengthBetween(6, 12), "superuser");
+        final Authentication auth = new Authentication(user, new RealmRef("realm1", "native", "node01"), null, Version.CURRENT);
+        final CreateApiKeyRequest request = new CreateApiKeyRequest(
+            randomAlphaOfLengthBetween(4, 12),
+            Collections.singletonList(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR),
+            TimeValue.timeValueMillis(randomLongBetween(5_000, 100_000_000))
+        );
+
+        SecurityMocks.mockSearchHits(client, new SearchHit[0]);
+
+
+        Mockito.doAnswer(invocationOnMock -> {
+            assertThat(invocationOnMock.getArguments(), Matchers.arrayWithSize(3));
+            assertThat(invocationOnMock.getArguments()[1], Matchers.instanceOf(IndexRequest.class));
+            assertThat(invocationOnMock.getArguments()[2], Matchers.instanceOf(ActionListener.class));
+
+            IndexRequest req = (IndexRequest) invocationOnMock.getArguments()[1];
+            assertThat(req.index(), equalTo(".security"));
+            assertThat(req.type(), equalTo("doc"));
+            assertThat(req.id(), nullValue());
+            final Map<String, Object> source = XContentHelper.convertToMap(req.source(), false, XContentType.JSON).v2();
+            assertThat(source.get("doc_type"), equalTo("api_key"));
+            assertThat(source, hasKey("creation_time"));
+            assertThat(source, hasKey("expiration_time"));
+            assertThat(source.get("api_key_invalidated"), equalTo(false));
+            assertThat(source.get("name"), equalTo(request.getName()));
+            assertThat(source.get("version"), equalTo(Version.CURRENT.id));
+            assertThat(source.get("creator"), Matchers.instanceOf(Map.class));
+            assertThat(((Map) source.get("creator")).get("principal"), Matchers.equalTo(user.principal()));
+
+            ActionListener<IndexResponse> listener = (ActionListener) invocationOnMock.getArguments()[2];
+            listener.onResponse(new IndexResponse(null, "doc", UUIDs.randomBase64UUID(random()), randomLong(), randomLong(), 1, true));
+            return null;
+        }).when(client).execute(Mockito.same(IndexAction.INSTANCE), any(IndexRequest.class), any(ActionListener.class));
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture();
+        service.createApiKey(auth, request, Collections.emptySet(), future);
+
+        final CreateApiKeyResponse response = future.get();
+        assertThat(response.getName(), equalTo(request.getName()));
+        assertThat(response.getId(), notNullValue());
+        assertThat(response.getKey(), notNullValue());
     }
 
     public void testAuthenticateWithApiKey() throws Exception {
@@ -278,9 +356,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         Map<String, Object> authMetadata = new HashMap<>();
         authMetadata.put(ApiKeyService.API_KEY_ID_KEY, randomAlphaOfLength(12));
         boolean emptyApiKeyRoleDescriptor = randomBoolean();
-        final RoleDescriptor roleARoleDescriptor = new RoleDescriptor("a role", new String[] { "monitor" },
-            new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build() },
+        final RoleDescriptor roleARoleDescriptor = new RoleDescriptor("a role", new String[]{"monitor"},
+            new RoleDescriptor.IndicesPrivileges[]{
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("monitor").build()},
             null);
         Map<String, Object> roleARDMap;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -291,9 +369,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             (emptyApiKeyRoleDescriptor) ? randomFrom(Arrays.asList(null, Collections.emptyMap()))
                 : Collections.singletonMap("a role", roleARDMap));
 
-        final RoleDescriptor limitedRoleDescriptor = new RoleDescriptor("limited role", new String[] { "all" },
-            new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build() },
+        final RoleDescriptor limitedRoleDescriptor = new RoleDescriptor("limited role", new String[]{"all"},
+            new RoleDescriptor.IndicesPrivileges[]{
+                RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").build()},
             null);
         Map<String, Object> limitedRdMap;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {

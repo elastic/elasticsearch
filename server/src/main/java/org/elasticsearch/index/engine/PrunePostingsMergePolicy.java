@@ -287,7 +287,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         }
 
         @Override
-        public TermVectorsReader getMergeInstance() throws IOException {
+        public TermVectorsReader getMergeInstance() {
             return new FilteredTermVectorsReader(liveDocs, termVectorsReader.getMergeInstance());
         }
     }

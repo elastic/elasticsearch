@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -94,16 +95,21 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * @return The new state for the indexer (STOPPED, STOPPING or ABORTING if the job was already aborted).
      */
     public synchronized IndexerState stop() {
+        AtomicBoolean wasStartedAndSetStopped = new AtomicBoolean(false);
         IndexerState currentState = state.updateAndGet(previousState -> {
             if (previousState == IndexerState.INDEXING) {
                 return IndexerState.STOPPING;
             } else if (previousState == IndexerState.STARTED) {
-                onStop();
+                wasStartedAndSetStopped.set(true);
                 return IndexerState.STOPPED;
             } else {
                 return previousState;
             }
         });
+
+        if (wasStartedAndSetStopped.get()) {
+            onStop();
+        }
         return currentState;
     }
 

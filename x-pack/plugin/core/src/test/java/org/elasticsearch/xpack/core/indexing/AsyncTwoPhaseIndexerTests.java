@@ -64,7 +64,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
 
         @Override
         protected IterationResult<Integer> doProcess(SearchResponse searchResponse) {
-            awaitForLatch();
+            assertFalse("should not be called as stoppedBeforeFinished is false", stoppedBeforeFinished);
             assertThat(step, equalTo(3));
             ++step;
             return new IterationResult<>(Collections.emptyList(), 3, true);
@@ -99,6 +99,9 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             final SearchResponseSections sections = new SearchResponseSections(
                 new SearchHits(new SearchHit[0], new TotalHits(0, TotalHits.Relation.EQUAL_TO), 0), null,
                 null, false, null, null, 1);
+
+            // block till latch has been counted down, simulating network latency
+            awaitForLatch();
             nextPhase.onResponse(new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null));
         }
 
@@ -232,10 +235,11 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
+            assertTrue(awaitBusy(() -> indexer.getPosition() == 2));
             countDownLatch.countDown();
-
-            assertThat(indexer.getPosition(), equalTo(2));
             assertTrue(awaitBusy(() -> isFinished.get()));
+            assertThat(indexer.getPosition(), equalTo(3));
+
             assertFalse(isStopped.get());
             assertThat(indexer.getStep(), equalTo(6));
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));

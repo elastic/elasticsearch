@@ -44,7 +44,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -235,12 +234,7 @@ public class TermVectorsService  {
             analyzer = mapperService.getIndexAnalyzers().get(perFieldAnalyzer.get(field).toString());
         } else {
             MappedFieldType fieldType = mapperService.fullName(field);
-            if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-                KeywordFieldMapper.KeywordFieldType keywordFieldType = (KeywordFieldMapper.KeywordFieldType) fieldType;
-                analyzer = keywordFieldType.normalizer() == null ? keywordFieldType.indexAnalyzer() : keywordFieldType.normalizer();
-            } else {
-                analyzer = fieldType.indexAnalyzer();
-            }
+            analyzer = fieldType.indexAnalyzer();
         }
         if (analyzer == null) {
             analyzer = mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer();

@@ -207,13 +207,13 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         // common terms queries
         assertExplanation(QueryBuilders.commonTermsQuery("field", "huge brown pidgin").cutoffFrequency(1),
-                containsString("+field:pidgin (field:huge field:brown)"), true);
+                containsString("+field:pidgin field:huge field:brown"), true);
         assertExplanation(QueryBuilders.commonTermsQuery("field", "the brown").analyzer("stop"),
                 containsString("field:brown"), true);
 
         // match queries with cutoff frequency
         assertExplanation(QueryBuilders.matchQuery("field", "huge brown pidgin").cutoffFrequency(1),
-                containsString("+field:pidgin (field:huge field:brown)"), true);
+                containsString("+field:pidgin field:huge field:brown"), true);
         assertExplanation(QueryBuilders.matchQuery("field", "the brown").analyzer("stop"),
                 containsString("field:brown"), true);
 

@@ -50,6 +50,10 @@ public class HasherTests extends ESTestCase {
         testHasherSelfGenerated(Hasher.SSHA256);
     }
 
+    public void testSHA256SelfGenerated() throws Exception {
+        testHasherSelfGenerated(Hasher.SHA256);
+    }
+
     public void testNoopSelfGenerated() throws Exception {
         testHasherSelfGenerated(Hasher.NOOP);
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -292,7 +293,6 @@ public class DoSection implements ExecutableSection {
             final boolean matches = matcher.matches();
             if (matches) {
                 final String message = matcher.group(1);
-                // noinspection StatementWithEmptyBody
                 if (message.equals("the default number of shards will change from [5] to [1] in 7.0.0; "
                         + "if you wish to continue using the default of [5] shards, "
                         + "you must manage this on the create index request or with an index template")) {
@@ -300,11 +300,14 @@ public class DoSection implements ExecutableSection {
                      * This warning header will come back in the vast majority of our tests that create an index. Rather than rewrite our
                      * tests to assert this warning header, we assume that it is expected.
                      */
-                } else // noinspection StatementWithEmptyBody
-                    if (message.startsWith("[types removal]")) {
+                } else if (message.startsWith("[types removal]")) {
                     /*
                      * We skip warnings related to types deprecation so that we can continue to run the many
                      * mixed-version tests that used typed APIs.
+                     */
+                } else  if (message.endsWith(JodaDeprecationPatterns.USE_PREFIX_8_WARNING)) {
+                    /*
+                     * Skipping warning checks related to joda-java migration.
                      */
                 } else if (expected.remove(message) == false) {
                     unexpected.add(header);

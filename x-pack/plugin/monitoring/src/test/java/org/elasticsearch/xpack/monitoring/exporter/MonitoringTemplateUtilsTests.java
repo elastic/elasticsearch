@@ -32,6 +32,11 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class MonitoringTemplateUtilsTests extends ESTestCase {
 
+    @Override
+    protected boolean enableJodaDeprecationWarningsCheck() {
+        return true;
+    }
+
     public void testTemplateName() {
         assertThat(templateName("abc"), equalTo(".monitoring-abc"));
         assertThat(templateName("XYZ"), equalTo(".monitoring-XYZ"));
@@ -103,7 +108,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
                 equalTo(".monitoring-logstash-" + TEMPLATE_VERSION + "-2017.08.03"));
         assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017.08.03"));
-        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. " +
+        assertWarnings("'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year. " +
             "Prefix your date format with '8' to use the new specifier.");
 
         formatter = DateFormatter.forPattern("YYYY-dd-MM-HH.mm.ss");
@@ -116,7 +121,7 @@ public class MonitoringTemplateUtilsTests extends ESTestCase {
         assertThat(indexName(formatter, MonitoredSystem.BEATS, timestamp),
                 equalTo(".monitoring-beats-" + TEMPLATE_VERSION + "-2017-03-08-13.47.58"));
 
-        assertWarnings("Use of 'Y' (year-of-era) will change to 'y' in the next major version of Elasticsearch. " +
+        assertWarnings("'Y' year-of-era should be replaced with 'y'. Use 'Y' for week-based-year. " +
             "Prefix your date format with '8' to use the new specifier.");
     }
 }

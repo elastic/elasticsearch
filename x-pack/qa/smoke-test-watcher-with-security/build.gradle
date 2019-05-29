@@ -24,6 +24,8 @@ integTestCluster {
   setting 'xpack.notification.email.account._email.smtp.user', '_user'
   keystoreSetting 'xpack.notification.email.account._email.smtp.secure_password', '_passwd'
   setting 'xpack.license.self_generated.type', 'trial'
+  setting 'logger.org.elasticsearch.xpack.watcher', 'debug'
+  setting 'logger.org.elasticsearch.xpack.core.watcher', 'debug'
   extraConfigFile 'roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
                'bin/elasticsearch-users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'

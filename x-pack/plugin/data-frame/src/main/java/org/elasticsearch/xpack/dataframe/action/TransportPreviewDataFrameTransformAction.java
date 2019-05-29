@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.dataframe.action.PreviewDataFrameTransformAc
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransformStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.SourceConfig;
+import org.elasticsearch.xpack.dataframe.transforms.pivot.AggregationResultUtils;
 import org.elasticsearch.xpack.dataframe.transforms.pivot.Pivot;
 
 import java.util.List;
@@ -102,14 +103,21 @@ public class TransportPreviewDataFrameTransformAction extends
                     pivot.buildSearchRequest(source, null, NUMBER_OF_PREVIEW_BUCKETS),
                     ActionListener.wrap(
                         r -> {
-                            final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
-                            DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
-                            // remove all internal fields
-                            List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
-                                    .peek(record -> {
-                                        record.keySet().removeIf(k -> k.startsWith("_"));
-                                    }).collect(Collectors.toList());
-                            listener.onResponse(results);
+
+                            try {
+                                final CompositeAggregation agg = r.getAggregations().get(COMPOSITE_AGGREGATION_NAME);
+                                DataFrameIndexerTransformStats stats = DataFrameIndexerTransformStats.withDefaultTransformId();
+                                // remove all internal fields
+                                List<Map<String, Object>> results = pivot.extractResults(agg, deducedMappings, stats)
+                                        .peek(record -> {
+                                            record.keySet().removeIf(k -> k.startsWith("_"));
+                                        }).collect(Collectors.toList());
+
+                                listener.onResponse(results);
+                            } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
+                                listener.onFailure(
+                                        new ElasticsearchStatusException(extractionException.getMessage(), RestStatus.BAD_REQUEST));
+                            }
                         },
                         listener::onFailure
                     ));

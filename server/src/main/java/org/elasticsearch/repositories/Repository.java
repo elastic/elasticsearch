@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -197,27 +196,6 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param indexShard          the shard to be snapshotted
-     * @param snapshotId          snapshot id
-     * @param indexId             id for the index being snapshotted
-     * @param snapshotIndexCommit commit point
-     * @param snapshotStatus      snapshot status
-     * @deprecated use {@link #snapshotShard(Store, MapperService, SnapshotId, IndexId, IndexCommit, IndexShardSnapshotStatus)} instead
-     */
-    @Deprecated
-    default void snapshotShard(IndexShard indexShard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       IndexShardSnapshotStatus snapshotStatus) {
-        snapshotShard(indexShard.store(), indexShard.mapperService(), snapshotId, indexId, snapshotIndexCommit, snapshotStatus);
-    }
-
-    /**
-     * Creates a snapshot of the shard based on the index commit point.
-     * <p>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireLastIndexCommit} method.
-     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
-     * <p>
-     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
-     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
      * @param store               store to be snapshotted
      * @param mapperService       the shards mapper service
      * @param snapshotId          snapshot id
@@ -227,25 +205,6 @@ public interface Repository extends LifecycleComponent {
      */
     void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
                        IndexShardSnapshotStatus snapshotStatus);
-
-    /**
-     * Restores snapshot of the shard.
-     * <p>
-     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
-     * @param shard           the shard to restore the index into
-     * @param store           the store to restore the index into
-     * @param snapshotId      snapshot id
-     * @param version         version of elasticsearch that created this snapshot
-     * @param indexId         id of the index in the repository from which the restore is occurring
-     * @param snapshotShardId shard id (in the snapshot)
-     * @param recoveryState   recovery state
-     * @deprecated use {@link #restoreShard(Store, SnapshotId, Version, IndexId, ShardId, RecoveryState)} instead
-     */
-    @Deprecated
-    default void restoreShard(IndexShard shard, Store store, SnapshotId snapshotId, Version version, IndexId indexId,
-                              ShardId snapshotShardId, RecoveryState recoveryState) {
-        restoreShard(store, snapshotId, version, indexId, snapshotShardId, recoveryState);
-    }
 
     /**
      * Restores snapshot of the shard.

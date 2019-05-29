@@ -10,7 +10,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -98,15 +97,5 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
     @After
     public void cleanupSecurityIndex() throws Exception {
         super.deleteSecurityIndex();
-    }
-
-    @Override
-    public String transportClientUsername() {
-        return this.nodeClientUsername();
-    }
-
-    @Override
-    public SecureString transportClientPassword() {
-        return this.nodeClientPassword();
     }
 }

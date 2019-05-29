@@ -46,7 +46,6 @@ import static org.hamcrest.Matchers.is;
 
 @LuceneTestCase.AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
 public class DataFrameTransformProgressIT extends ESRestTestCase {
-
     protected void createReviewsIndex() throws Exception {
         final int numDocs = 1000;
         final RestHighLevelClient restClient = new TestRestHighLevelClient();

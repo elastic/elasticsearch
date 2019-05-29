@@ -62,7 +62,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -245,8 +244,6 @@ import static org.hamcrest.Matchers.startsWith;
  * <p>
  * This class supports the following system properties (passed with -Dkey=value to the application)
  * <ul>
- * <li>-D{@value #TESTS_CLIENT_RATIO} - a double value in the interval [0..1] which defines the ration between node
- * and transport clients used</li>
  * <li>-D{@value #TESTS_ENABLE_MOCK_MODULES} - a boolean value to enable or disable mock modules. This is
  * useful to test the system without asserting modules that to make sure they don't hide any bugs in production.</li>
  * <li> - a random seed used to initialize the index random context.
@@ -278,11 +275,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /** node names of the corresponding clusters will start with these prefixes */
     public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";
     public static final String TEST_CLUSTER_NODE_PREFIX = "node_t";
-
-    /**
-     * Key used to set the transport client ratio via the commandline -D{@value #TESTS_CLIENT_RATIO}
-     */
-    public static final String TESTS_CLIENT_RATIO = "tests.client.ratio";
 
     /**
      * Key used to eventually switch to using an external cluster and provide its transport addresses
@@ -349,8 +341,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private static TestCluster currentCluster;
     private static RestClient restClient = null;
 
-    private static final double TRANSPORT_CLIENT_RATIO = transportClientRatio();
-
     private static final Map<Class<?>, TestCluster> clusters = new IdentityHashMap<>();
 
     private static ESIntegTestCase INSTANCE = null; // see @SuiteScope
@@ -372,7 +362,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected final void beforeInternal() throws Exception {
         final Scope currentClusterScope = getCurrentClusterScope();
         Callable<Void> setup = () -> {
-            cluster().beforeTest(random(), getPerTestTransportClientRatio());
+            cluster().beforeTest(random());
             cluster().wipe(excludeTemplates());
             randomIndexTemplate();
             return null;
@@ -1128,28 +1118,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
                         assertEquals("cluster state UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
-                        /*
-                         * The cluster state received by the transport client can miss customs that the client does not understand. This
-                         * means that we only expect equality in the cluster state including customs if the master client and the local
-                         * client are of the same type (both or neither are transport clients). Otherwise, we can only assert equality
-                         * modulo non-core customs.
-                         */
-                        if (isTransportClient(masterClient) == isTransportClient(client)) {
-                            // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                            // but we can compare serialization sizes - they should be the same
-                            assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
-                            // Compare JSON serialization
-                            assertNull(
-                                    "cluster state JSON serialization does not match",
-                                    differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
-                        } else {
-                            // remove non-core customs and compare the cluster states
-                            assertNull(
-                                    "cluster state JSON serialization does not match (after removing some customs)",
-                                    differenceBetweenMapsIgnoringArrayOrder(
-                                            convertToMap(removePluginCustoms(masterClusterState)),
-                                            convertToMap(removePluginCustoms(localClusterState))));
-                        }
+                        // We cannot compare serialization bytes since serialization order of maps is not guaranteed
+                        // but we can compare serialization sizes - they should be the same
+                        assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
+                        // Compare JSON serialization
+                        assertNull(
+                                "cluster state JSON serialization does not match",
+                                differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
                     } catch (final AssertionError error) {
                         logger.error(
                                 "Cluster state from master:\n{}\nLocal cluster state:\n{}",
@@ -1161,21 +1136,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
 
-    }
-
-    /**
-     * Tests if the client is a transport client or wraps a transport client.
-     *
-     * @param client the client to test
-     * @return true if the client is a transport client or a wrapped transport client
-     */
-    private boolean isTransportClient(final Client client) {
-        if (TransportClient.class.isAssignableFrom(client.getClass())) {
-            return true;
-        } else if (client instanceof RandomizingClient) {
-            return isTransportClient(((RandomizingClient) client).in());
-        }
-        return false;
     }
 
     private static final Set<String> SAFE_METADATA_CUSTOMS =
@@ -1382,8 +1342,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Returns a random admin client. This client can either be a node or a transport client pointing to any of
-     * the nodes in the cluster.
+     * Returns a random admin client. This client can be pointing to any of the nodes in the cluster.
      */
     protected AdminClient admin() {
         return client().admin();
@@ -1658,12 +1617,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
          * negative value means that the number of client nodes will be randomized.
          */
         int numClientNodes() default InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
-
-        /**
-         * Returns the transport client ratio. By default this returns <code>-1</code> which means a random
-         * ratio in the interval <code>[0..1]</code> is used.
-         */
-        double transportClientRatio() default -1;
     }
 
     private class LatchedActionListener<Response> implements ActionListener<Response> {
@@ -1817,23 +1770,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
-    /**
-     * Returns a collection of plugins that should be loaded when creating a transport client.
-     */
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * This method is used to obtain additional settings for clients created by the internal cluster.
-     * These settings will be applied on the client in addition to some randomized settings defined in
-     * the cluster. These settings will also override any other settings the internal cluster might
-     * add by default.
-     */
-    protected Settings transportClientSettings() {
-        return Settings.EMPTY;
-    }
-
     private ExternalTestCluster buildExternalCluster(String clusterAddresses, String clusterName) throws IOException {
         String[] stringAddresses = clusterAddresses.split(",");
         TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
@@ -1932,22 +1868,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             public Collection<Class<? extends Plugin>> nodePlugins() {
                 return ESIntegTestCase.this.nodePlugins();
             }
-
-            @Override
-            public Settings transportClientSettings() {
-                return Settings.builder().put(initialTransportClientSettings.build())
-                    .put(ESIntegTestCase.this.transportClientSettings()).build();
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> transportClientPlugins() {
-                Collection<Class<? extends Plugin>> plugins = ESIntegTestCase.this.transportClientPlugins();
-                if (plugins.contains(getTestTransportPlugin()) == false) {
-                    plugins = new ArrayList<>(plugins);
-                    plugins.add(getTestTransportPlugin());
-                }
-                return Collections.unmodifiableCollection(plugins);
-            }
         };
     }
 
@@ -2033,35 +1953,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 }
             });
         }
-    }
-
-    /**
-     * Returns the client ratio configured via
-     */
-    private static double transportClientRatio() {
-        String property = System.getProperty(TESTS_CLIENT_RATIO);
-        if (property == null || property.isEmpty()) {
-            return Double.NaN;
-        }
-        return Double.parseDouble(property);
-    }
-
-    /**
-     * Returns the transport client ratio from the class level annotation or via
-     * {@link System#getProperty(String)} if available. If both are not available this will
-     * return a random ratio in the interval {@code [0..1]}.
-     */
-    protected double getPerTestTransportClientRatio() {
-        final ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
-        double perTestRatio = -1;
-        if (annotation != null) {
-            perTestRatio = annotation.transportClientRatio();
-        }
-        if (perTestRatio == -1) {
-            return Double.isNaN(TRANSPORT_CLIENT_RATIO) ? randomDouble() : TRANSPORT_CLIENT_RATIO;
-        }
-        assert perTestRatio >= 0.0 && perTestRatio <= 1.0;
-        return perTestRatio;
     }
 
     /**

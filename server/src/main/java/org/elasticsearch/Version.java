@@ -22,6 +22,7 @@ package org.elasticsearch;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -34,10 +35,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
@@ -57,22 +56,40 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_0_0 = new Version(8000099, org.apache.lucene.util.Version.LUCENE_8_1_0);
     public static final Version CURRENT = V_8_0_0;
 
-    private static final Map<Integer, Version> idToVersion;
+    private static final ImmutableOpenIntMap<Version> idToVersion;
 
     static {
-        idToVersion = new HashMap<>();
-        for (Field declaredField : Version.class.getFields()) {
+        final ImmutableOpenIntMap.Builder<Version> builder = ImmutableOpenIntMap.builder();
+
+        for (final Field declaredField : Version.class.getFields()) {
             if (declaredField.getType().equals(Version.class)) {
+                if (declaredField.getName().equals("CURRENT") || declaredField.getName().equals("V_EMPTY")) {
+                    continue;
+                }
+                assert declaredField.getName().matches("V_\\d+_\\d+_\\d+") : declaredField.getName();
                 try {
-                    Version version = (Version) declaredField.get(null);
-                    idToVersion.put(version.id, version);
-                } catch (IllegalAccessException e) {
+                    final Version version = (Version) declaredField.get(null);
+                    if (Assertions.ENABLED) {
+                        final String[] fields = declaredField.getName().split("_");
+                        final int major = Integer.valueOf(fields[1]) * 1000000;
+                        final int minor = Integer.valueOf(fields[2]) * 10000;
+                        final int revision = Integer.valueOf(fields[3]) * 100;
+                        final int expectedId = major + minor + revision + 99;
+                        assert version.id == expectedId :
+                                "expected version [" + version + "] to have id [" + expectedId + "] but was [" + version.id + "]";
+                    }
+                    final Version maybePrevious = builder.put(version.id, version);
+                    assert maybePrevious == null :
+                            "expected [" + version.id + "] to be uniquely mapped but saw [" + maybePrevious + "] and [" + version + "]";
+                } catch (final IllegalAccessException e) {
                     assert false : "version fields should be public";
                 }
             }
         }
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
                 + org.apache.lucene.util.Version.LATEST + "] is still set to [" + CURRENT.luceneVersion + "]";
+
+        idToVersion = builder.build();
     }
 
     public static Version readVersion(StreamInput in) throws IOException {

@@ -187,6 +187,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     @Override
+    public void jvmArgs(String... values) {
+        nodes.all(each -> each.jvmArgs(values));
+    }
+
+    @Override
+    public void jvmArgs(Supplier<String[]> valueSupplier) {
+        nodes.all(each -> each.jvmArgs(valueSupplier));
+    }
+
+    @Override
     public void freeze() {
         nodes.forEach(ElasticsearchNode::freeze);
         configurationFrozen.set(true);
@@ -214,6 +224,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
             }
             node.start();
         }
+    }
+
+    @Override
+    public void restart() {
+        nodes.forEach(ElasticsearchNode::restart);
     }
 
     @Override

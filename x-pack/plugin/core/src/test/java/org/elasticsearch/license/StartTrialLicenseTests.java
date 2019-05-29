@@ -15,7 +15,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -24,7 +23,7 @@ import java.util.Collection;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
-@ESIntegTestCase.ClusterScope(scope = SUITE, transportClientRatio = 0.0)
+@ESIntegTestCase.ClusterScope(scope = SUITE)
 public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
@@ -43,11 +42,6 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(XPackClientPlugin.class, Netty4Plugin.class);
     }
 
     public void testStartTrial() throws Exception {

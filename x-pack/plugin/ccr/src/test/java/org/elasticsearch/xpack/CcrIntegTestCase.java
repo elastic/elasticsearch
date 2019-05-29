@@ -154,7 +154,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         InternalTestCluster leaderCluster = new InternalTestCluster(randomLong(), createTempDir(), true, true, numberOfNodesPerCluster(),
             numberOfNodesPerCluster(), "leader_cluster", createNodeConfigurationSource(null, true), 0, "leader", mockPlugins,
             Function.identity());
-        leaderCluster.beforeTest(random(), 0.0D);
+        leaderCluster.beforeTest(random());
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = leaderCluster.getInstance(ClusterService.class);
@@ -167,7 +167,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             mockPlugins, Function.identity());
         clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
 
-        followerCluster.beforeTest(random(), 0.0D);
+        followerCluster.beforeTest(random());
         followerCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
         assertBusy(() -> {
             ClusterService clusterService = followerCluster.getInstance(ClusterService.class);

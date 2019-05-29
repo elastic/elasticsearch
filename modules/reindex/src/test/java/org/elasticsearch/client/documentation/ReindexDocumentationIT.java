@@ -78,11 +78,6 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(ReindexPlugin.class);
-    }
-
     @Before
     public void setup() {
         client().admin().indices().prepareCreate(INDEX_NAME).get();

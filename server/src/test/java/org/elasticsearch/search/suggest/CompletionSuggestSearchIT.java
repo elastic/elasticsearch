@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -813,7 +814,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         refresh();
 
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(INDEX).setTypes(TYPE).addSort(new FieldSortBuilder(FIELD)).get());
+                () -> client().prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD)).get());
         assertThat(e.status().getStatus(), is(400));
         assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
     }

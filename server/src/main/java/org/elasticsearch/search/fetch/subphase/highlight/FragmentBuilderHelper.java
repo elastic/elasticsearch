@@ -26,8 +26,8 @@ import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterComposite;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -81,9 +81,8 @@ public final class FragmentBuilderHelper {
         if (analyzer instanceof NamedAnalyzer) {
             analyzer = ((NamedAnalyzer) analyzer).analyzer();
         }
-        if (analyzer instanceof CustomAnalyzer) {
-            final CustomAnalyzer a = (CustomAnalyzer) analyzer;
-            TokenFilterFactory[] tokenFilters = a.tokenFilters();
+        if (analyzer instanceof TokenFilterComposite) {
+            final TokenFilterFactory[] tokenFilters = ((TokenFilterComposite) analyzer).tokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory.breaksFastVectorHighlighter()) {
                     return true;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -31,11 +32,11 @@ import java.util.Map;
  * A custom analyzer that is built out of a single {@link org.apache.lucene.analysis.Tokenizer} and a list
  * of {@link org.apache.lucene.analysis.TokenFilter}s.
  */
-public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<CustomAnalyzer> {
+public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
     private final Settings analyzerSettings;
 
-    private CustomAnalyzer customAnalyzer;
+    private Analyzer customAnalyzer;
 
     public CustomAnalyzerProvider(IndexSettings indexSettings,
                                   String name, Settings settings) {
@@ -43,16 +44,43 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         this.analyzerSettings = settings;
     }
 
-    void build(final Map<String, TokenizerFactory> tokenizers, final Map<String, CharFilterFactory> charFilters,
-                      final Map<String, TokenFilterFactory> tokenFilters) {
+    void build(final Map<String, TokenizerFactory> tokenizers,
+               final Map<String, CharFilterFactory> charFilters,
+               final Map<String, TokenFilterFactory> tokenFilters) {
+        customAnalyzer = create(name(), analyzerSettings, tokenizers, charFilters, tokenFilters);
+    }
+
+    /**
+     * Factory method that either returns a plain {@link ReloadableCustomAnalyzer} if the components used for creation are supporting index
+     * and search time use, or a {@link ReloadableCustomAnalyzer} if the components are intended for search time use only.
+     */
+    private static Analyzer create(String name, Settings analyzerSettings, Map<String, TokenizerFactory> tokenizers,
+            Map<String, CharFilterFactory> charFilters,
+            Map<String, TokenFilterFactory> tokenFilters) {
+        int positionIncrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+        positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
+        int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);
+        AnalyzerComponents components = createComponents(name, analyzerSettings, tokenizers, charFilters, tokenFilters);
+        if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME)) {
+            return new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap);
+        } else {
+            return new CustomAnalyzer(components.getTokenizerName(), components.getTokenizerFactory(), components.getCharFilters(),
+                    components.getTokenFilters(), positionIncrementGap, offsetGap);
+        }
+    }
+
+    static AnalyzerComponents createComponents(String name, Settings analyzerSettings,
+                                                      final Map<String, TokenizerFactory> tokenizers,
+                                                      final Map<String, CharFilterFactory> charFilters,
+                                                      final Map<String, TokenFilterFactory> tokenFilters) {
         String tokenizerName = analyzerSettings.get("tokenizer");
         if (tokenizerName == null) {
-            throw new IllegalArgumentException("Custom Analyzer [" + name() + "] must be configured with a tokenizer");
+            throw new IllegalArgumentException("Custom Analyzer [" + name + "] must be configured with a tokenizer");
         }
 
         TokenizerFactory tokenizer = tokenizers.get(tokenizerName);
         if (tokenizer == null) {
-            throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find tokenizer under name " +
+            throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find tokenizer under name " +
                 "[" + tokenizerName + "]");
         }
 
@@ -61,7 +89,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         for (String charFilterName : charFilterNames) {
             CharFilterFactory charFilter = charFilters.get(charFilterName);
             if (charFilter == null) {
-                throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find char_filter under name " +
+                throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find char_filter under name " +
                     "[" + charFilterName + "]");
             }
             charFiltersList.add(charFilter);
@@ -78,23 +106,62 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         for (String tokenFilterName : tokenFilterNames) {
             TokenFilterFactory tokenFilter = tokenFilters.get(tokenFilterName);
             if (tokenFilter == null) {
-                throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name " +
+                throw new IllegalArgumentException("Custom Analyzer [" + name + "] failed to find filter under name " +
                     "[" + tokenFilterName + "]");
             }
             tokenFilter = tokenFilter.getChainAwareTokenFilterFactory(tokenizer, charFiltersList, tokenFilterList, tokenFilters::get);
             tokenFilterList.add(tokenFilter);
         }
 
-        this.customAnalyzer = new CustomAnalyzer(tokenizerName, tokenizer,
-                charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-                tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()]),
-                positionIncrementGap,
-                offsetGap
+        return new AnalyzerComponents(tokenizerName, tokenizer,
+            charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
+            tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
         );
     }
 
     @Override
-    public CustomAnalyzer get() {
+    public Analyzer get() {
         return this.customAnalyzer;
+    }
+
+    public static class AnalyzerComponents {
+        private final String tokenizerName;
+        private final TokenizerFactory tokenizerFactory;
+        private final CharFilterFactory[] charFilters;
+        private final TokenFilterFactory[] tokenFilters;
+        private final AnalysisMode analysisMode;
+
+        AnalyzerComponents(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
+                           TokenFilterFactory[] tokenFilters) {
+            this.tokenizerName = tokenizerName;
+            this.tokenizerFactory = tokenizerFactory;
+            this.charFilters = charFilters;
+            this.tokenFilters = tokenFilters;
+            AnalysisMode mode = AnalysisMode.ALL;
+            for (TokenFilterFactory f : tokenFilters) {
+                mode = mode.merge(f.getAnalysisMode());
+            }
+            this.analysisMode = mode;
+        }
+
+        public String getTokenizerName() {
+            return tokenizerName;
+        }
+
+        public TokenizerFactory getTokenizerFactory() {
+            return tokenizerFactory;
+        }
+
+        public TokenFilterFactory[] getTokenFilters() {
+            return tokenFilters;
+        }
+
+        public CharFilterFactory[] getCharFilters() {
+            return charFilters;
+        }
+
+        public AnalysisMode analysisMode() {
+            return this.analysisMode;
+        }
     }
 }

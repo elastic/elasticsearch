@@ -37,6 +37,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,8 +47,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.analysis.ReloadableCustomAnalyzer;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -841,6 +847,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
             }
             return defaultAnalyzer;
+        }
+    }
+
+    public synchronized void reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
+        logger.info("reloading search analyzers");
+        // refresh indexAnalyzers and search analyzers
+        final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
+        final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
+        final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
+        final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
+        for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
+            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
+                ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
+                Settings analyzerSettings = settings.get(namedAnalyzer.name());
+                analyzer.reload(namedAnalyzer.name(), analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);
+            }
         }
     }
 }

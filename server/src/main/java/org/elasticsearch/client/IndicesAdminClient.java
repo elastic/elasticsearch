@@ -77,6 +77,9 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequestBuilder;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzerRequestBuilder;
+import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzersRequest;
+import org.elasticsearch.action.admin.indices.reloadanalyzer.ReloadAnalyzersResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
@@ -819,4 +822,19 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
+
+    /**
+     * Reloads analyzers of one or more indices.
+     */
+    ActionFuture<ReloadAnalyzersResponse> reloadAnalyzers(ReloadAnalyzersRequest request);
+
+    /**
+     * Reloads analyzers of one or more indices.
+     */
+    void reloadAnalyzers(ReloadAnalyzersRequest request, ActionListener<ReloadAnalyzersResponse> listener);
+
+    /**
+     * Reloads analyzers of one or more indices.
+     */
+    ReloadAnalyzerRequestBuilder prepareReloadAnalyzers(String... indices);
 }

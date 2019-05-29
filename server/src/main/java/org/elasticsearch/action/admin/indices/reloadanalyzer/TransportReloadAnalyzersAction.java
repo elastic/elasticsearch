@@ -154,7 +154,6 @@ public class TransportReloadAnalyzersAction
                 }
             }
         }
-        logger.info("Determined shards for reloading: " + shards);
         return new PlainShardsIterator(shards);
     }
 

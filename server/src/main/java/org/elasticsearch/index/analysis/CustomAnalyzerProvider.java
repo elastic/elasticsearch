@@ -115,9 +115,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
 
         return new AnalyzerComponents(tokenizerName, tokenizer,
             charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
-            tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()]),
-            positionIncrementGap,
-            offsetGap
+            tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
         );
     }
 
@@ -134,8 +132,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyz
         private final AnalysisMode analysisMode;
 
         AnalyzerComponents(String tokenizerName, TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-                           TokenFilterFactory[] tokenFilters,
-                           int positionIncrementGap, int offsetGap) {
+                           TokenFilterFactory[] tokenFilters) {
             this.tokenizerName = tokenizerName;
             this.tokenizerFactory = tokenizerFactory;
             this.charFilters = charFilters;

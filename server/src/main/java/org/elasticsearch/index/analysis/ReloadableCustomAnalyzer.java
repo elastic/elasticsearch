@@ -29,7 +29,7 @@ import org.elasticsearch.index.analysis.CustomAnalyzerProvider.AnalyzerComponent
 import java.io.Reader;
 import java.util.Map;
 
-public class ReloadableCustomAnalyzer extends Analyzer implements TokenFilterComposite {
+public final class ReloadableCustomAnalyzer extends Analyzer implements TokenFilterComposite {
 
     private volatile AnalyzerComponents components;
 
@@ -39,6 +39,10 @@ public class ReloadableCustomAnalyzer extends Analyzer implements TokenFilterCom
 
     private final int offsetGap;
 
+    /**
+     * An alternative {@link ReuseStrategy} that allows swapping the stored the analyzer components when they change.
+     * This is used to change e.g. token filters in search time analyzers.
+     */
     private static final ReuseStrategy UPDATE_STRATEGY = new ReuseStrategy() {
         @Override
         public TokenStreamComponents getReusableComponents(Analyzer analyzer, String fieldName) {

@@ -1511,10 +1511,10 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         ConfusionMatrixMetric.Result confusionMatrixResult = evaluateDataFrameResponse.getMetricByName(ConfusionMatrixMetric.NAME);
         assertThat(confusionMatrixResult.getMetricName(), equalTo(ConfusionMatrixMetric.NAME));
         ConfusionMatrixMetric.ConfusionMatrix confusionMatrix = confusionMatrixResult.getScoreByThreshold("0.5");
-        assertThat(confusionMatrix.getTruePositives(), equalTo(2));  // docs #8 and #9
-        assertThat(confusionMatrix.getFalsePositives(), equalTo(1));  // doc #4
-        assertThat(confusionMatrix.getTrueNegatives(), equalTo(4));  // docs #0, #1, #2 and #3
-        assertThat(confusionMatrix.getFalseNegatives(), equalTo(3));  // docs #5, #6 and #7
+        assertThat(confusionMatrix.getTruePositives(), equalTo(2L));  // docs #8 and #9
+        assertThat(confusionMatrix.getFalsePositives(), equalTo(1L));  // doc #4
+        assertThat(confusionMatrix.getTrueNegatives(), equalTo(4L));  // docs #0, #1, #2 and #3
+        assertThat(confusionMatrix.getFalseNegatives(), equalTo(3L));  // docs #5, #6 and #7
         assertNull(confusionMatrixResult.getScoreByThreshold("0.1"));
 
         AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);

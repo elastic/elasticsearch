@@ -21,13 +21,24 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.List;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -122,5 +133,79 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
             NodeMetaData.FORMAT.writeAndCleanup(new NodeMetaData(randomAlphaOfLength(10), NodeMetaDataTests.tooOldVersion()), dataPaths));
         assertThat(illegalStateException.getMessage(),
             allOf(startsWith("cannot upgrade a node from version ["), endsWith("] directly to version [" + Version.CURRENT + "]")));
+    }
+
+    public void testUpgradeDataFolder() throws IOException, InterruptedException {
+        String node = internalCluster().startNode();
+        prepareCreate("test").get();
+        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("{}", XContentType.JSON));
+        String nodeId = client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId();
+
+        final Settings dataPathSettings = internalCluster().dataPathSettings(node);
+        internalCluster().stopRandomDataNode();
+
+        // simulate older data path layout by moving data under "nodes/0" folder
+        final List<Path> dataPaths = Environment.PATH_DATA_SETTING.get(dataPathSettings)
+            .stream().map(PathUtils::get).collect(Collectors.toList());
+        dataPaths.forEach(path -> {
+                final Path targetPath = path.resolve("nodes").resolve("0");
+                try {
+                    Files.createDirectories(targetPath);
+
+                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                        for (Path subPath : stream) {
+                            String fileName = subPath.getFileName().toString();
+                            Path targetSubPath = targetPath.resolve(fileName);
+                            if (fileName.equals("nodes") == false) {
+                                Files.move(subPath, targetSubPath, StandardCopyOption.ATOMIC_MOVE);
+                            }
+                        }
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+
+        dataPaths.forEach(path -> assertTrue(Files.exists(path.resolve("nodes"))));
+
+        // create extra file/folder, and check that upgrade fails
+        if (dataPaths.isEmpty() == false) {
+            final Path badFileInNodesDir = Files.createTempFile(randomFrom(dataPaths).resolve("nodes"), "bad", "file");
+            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
+            assertThat(ise.getMessage(), containsString("unexpected file/folder encountered during data folder upgrade"));
+            Files.delete(badFileInNodesDir);
+
+            final Path badFolderInNodesDir = Files.createDirectories(randomFrom(dataPaths).resolve("nodes").resolve("bad-folder"));
+            ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
+            assertThat(ise.getMessage(), containsString("unexpected file/folder encountered during data folder upgrade"));
+            Files.delete(badFolderInNodesDir);
+
+            final Path badFile = Files.createTempFile(randomFrom(dataPaths).resolve("nodes").resolve("0"), "bad", "file");
+            ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
+            assertThat(ise.getMessage(), containsString("unexpected file/folder encountered during data folder upgrade"));
+            Files.delete(badFile);
+
+            final Path badFolder = Files.createDirectories(randomFrom(dataPaths).resolve("nodes").resolve("0").resolve("bad-folder"));
+            ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
+            assertThat(ise.getMessage(), containsString("unexpected folder encountered during data folder upgrade"));
+            Files.delete(badFolder);
+
+            final Path conflictingFolder = randomFrom(dataPaths).resolve("indices");
+            if (Files.exists(conflictingFolder) == false) {
+                Files.createDirectories(conflictingFolder);
+                ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(dataPathSettings));
+                assertThat(ise.getMessage(), containsString("target folder already exists during data folder upgrade"));
+                Files.delete(conflictingFolder);
+            }
+        }
+
+        // check that upgrade works
+        dataPaths.forEach(path -> assertTrue(Files.exists(path.resolve("nodes"))));
+        internalCluster().startNode(dataPathSettings);
+        dataPaths.forEach(path -> assertFalse(Files.exists(path.resolve("nodes"))));
+        assertEquals(nodeId, client().admin().cluster().prepareState().get().getState().nodes().getMasterNodeId());
+        assertTrue(client().admin().indices().prepareExists("test").get().isExists());
+        ensureYellow("test");
+        assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -43,10 +44,12 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -124,6 +127,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.info("--> add voting config exclusion for non-master node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{otherNode})).get();
         logger.info("--> stop master node, no master block should appear");
+        Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
 
         awaitBusy(() -> {
@@ -137,7 +141,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertThat(state.nodes().getMasterNode(), equalTo(null));
 
         logger.info("--> starting the previous master node again...");
-        node2Name = internalCluster().startNode(settings);
+        node2Name = internalCluster().startNode(Settings.builder().put(settings).put(masterDataPathSettings).build());
 
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
             .setWaitForYellowStatus().setWaitForNodes("2").execute().actionGet();
@@ -169,6 +173,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         logger.info("--> add voting config exclusion for master node, to be sure it's not elected");
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(new String[]{masterNode})).get();
         logger.info("--> stop non-master node, no master block should appear");
+        Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNode));
 
         assertBusy(() -> {
@@ -177,7 +182,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         });
 
         logger.info("--> starting the previous master node again...");
-        internalCluster().startNode(settings);
+        internalCluster().startNode(Settings.builder().put(settings).put(otherNodeDataPathSettings).build());
 
         ensureGreen();
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
@@ -251,6 +256,10 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
 
+        List<String> nonMasterNodes = new ArrayList<>(Sets.difference(Sets.newHashSet(internalCluster().getNodeNames()),
+            Collections.singleton(internalCluster().getMasterName())));
+        Settings nonMasterDataPathSettings1 = internalCluster().dataPathSettings(nonMasterNodes.get(0));
+        Settings nonMasterDataPathSettings2 = internalCluster().dataPathSettings(nonMasterNodes.get(1));
         internalCluster().stopRandomNonMasterNode();
         internalCluster().stopRandomNonMasterNode();
 
@@ -262,7 +271,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         });
 
         logger.info("--> start back the 2 nodes ");
-        internalCluster().startNodes(2, settings);
+        internalCluster().startNodes(nonMasterDataPathSettings1, nonMasterDataPathSettings2);
 
         internalCluster().validateClusterFormed();
         ensureGreen();

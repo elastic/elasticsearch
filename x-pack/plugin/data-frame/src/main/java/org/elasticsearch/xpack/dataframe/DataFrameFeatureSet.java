@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameIndexerTransfo
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransform;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformConfig;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformState;
+import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformStateAndStats;
 import org.elasticsearch.xpack.core.dataframe.transforms.DataFrameTransformTaskState;
 import org.elasticsearch.xpack.dataframe.persistence.DataFrameInternalIndex;
 
@@ -176,6 +177,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
 
         for(String statName : PROVIDED_STATS) {
             Aggregation agg = searchResponse.getAggregations().get(statName);
+
             if (agg instanceof NumericMetricsAggregation.SingleValue) {
                 statisticsList.add((long)((NumericMetricsAggregation.SingleValue)agg).value());
             } else {
@@ -197,14 +199,15 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
     static void getStatisticSummations(Client client, ActionListener<DataFrameIndexerTransformStats> statsListener) {
         QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(DataFrameField.INDEX_DOC_TYPE.getPreferredName(),
-                DataFrameIndexerTransformStats.NAME)));
+                    DataFrameTransformStateAndStats.NAME)));
 
         SearchRequestBuilder requestBuilder = client.prepareSearch(DataFrameInternalIndex.INDEX_NAME)
             .setSize(0)
             .setQuery(queryBuilder);
 
+        final String path = DataFrameField.STATS_FIELD.getPreferredName() + ".";
         for(String statName : PROVIDED_STATS) {
-            requestBuilder.addAggregation(AggregationBuilders.sum(statName).field(statName));
+            requestBuilder.addAggregation(AggregationBuilders.sum(statName).field(path + statName));
         }
 
         ActionListener<SearchResponse> getStatisticSummationsListener = ActionListener.wrap(
@@ -213,6 +216,7 @@ public class DataFrameFeatureSet implements XPackFeatureSet {
                     logger.error("statistics summations search returned shard failures: {}",
                         Arrays.toString(searchResponse.getShardFailures()));
                 }
+
                 statsListener.onResponse(parseSearchAggs(searchResponse));
             },
             failure -> {

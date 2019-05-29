@@ -28,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -783,18 +782,20 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         multiMatchQuery.setTranspositions(fuzzyTranspositions);
 
         Map<String, Float> newFieldsBoosts;
+        boolean isAllField;
         if (fieldsBoosts.isEmpty()) {
             // no fields provided, defaults to index.query.default_field
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField && lenient == null) {
-                // Sets leniency to true if not explicitly
-                // set in the request
-                multiMatchQuery.setLenient(true);
-            }
             newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, QueryParserHelper.parseFieldsAndWeights(defaultFields));
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
         } else {
             newFieldsBoosts = QueryParserHelper.resolveMappingFields(context, fieldsBoosts);
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsBoosts.keySet());
+        }
+        if (isAllField && lenient == null) {
+            // Sets leniency to true if not explicitly
+            // set in the request
+            multiMatchQuery.setLenient(true);
         }
         return multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
     }

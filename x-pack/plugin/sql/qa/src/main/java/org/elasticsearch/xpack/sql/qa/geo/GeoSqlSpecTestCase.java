@@ -50,6 +50,8 @@ public abstract class GeoSqlSpecTestCase extends SpecBaseIntegrationTestCase {
     public void setupTestGeoDataIfNeeded() throws Exception {
         assumeTrue("Cannot support locales that don't use Hindu-Arabic numerals and non-ascii - sign due to H2",
                 "-42".equals(NumberFormat.getInstance(Locale.getDefault()).format(-42)));
+        assumeTrue("JTS inside H2 is using default local for toUpperCase() in string comparison making it fail to parse WKT on certain" +
+            " locales", "point".toUpperCase(Locale.getDefault()).equals("POINT"));
         if (client().performRequest(new Request("HEAD", "/ogc")).getStatusLine().getStatusCode() == 404) {
             GeoDataLoader.loadOGCDatasetIntoEs(client(), "ogc");
         }

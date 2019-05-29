@@ -62,11 +62,6 @@
           "description" : "Specific routing value. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
           "required" : false
         },
-        "parent" : {
-          "type" : "string",
-          "description" : "Parent id of documents. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
-          "required" : false
-        },
         "realtime": {
           "type": "boolean",
           "description": "Specifies if requests are real-time as opposed to near-real-time (default: true).",

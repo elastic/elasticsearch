@@ -42,6 +42,7 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -70,7 +71,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
         this.nodes = project.container(ElasticsearchNode.class);
         this.nodes.add(
             new ElasticsearchNode(
-                path, clusterName + "-1",
+                path, clusterName + "-0",
                 services, artifactsExtractDir, workingDirBase
             )
         );
@@ -91,7 +92,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
             );
         }
 
-        for (int i = nodes.size() + 1 ; i <= numberOfNodes; i++) {
+        for (int i = nodes.size() ; i < numberOfNodes; i++) {
             this.nodes.add(new ElasticsearchNode(
                 path, clusterName + "-" + i, services, artifactsExtractDir, workingDirBase
             ));
@@ -99,7 +100,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     }
 
     private ElasticsearchNode getFirstNode() {
-        return nodes.getAt(clusterName + "-1");
+        return nodes.getAt(clusterName + "-0");
     }
 
     public int getNumberOfNodes() {
@@ -274,6 +275,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration {
     @Override
     public void stop(boolean tailLogs) {
         nodes.forEach(each -> each.stop(tailLogs));
+    }
+
+    @Override
+    public void setNameCustomization(Function<String, String> nameCustomization) {
+        nodes.all(each -> each.setNameCustomization(nameCustomization));
     }
 
     @Override

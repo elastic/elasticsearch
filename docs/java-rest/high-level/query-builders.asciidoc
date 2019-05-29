@@ -40,7 +40,6 @@ This page lists all the available search queries with their corresponding `Query
 | {ref}/query-dsl-wildcard-query.html[Wildcard]                       | {query-ref}/WildcardQueryBuilder.html[WildcardQueryBuilder]                         | {query-ref}/QueryBuilders.html#wildcardQuery-java.lang.String-java.lang.String-[QueryBuilders.wildcardQuery()]
 | {ref}/query-dsl-regexp-query.html[Regexp]                           | {query-ref}/RegexpQueryBuilder.html[RegexpQueryBuilder]                             | {query-ref}/QueryBuilders.html#regexpQuery-java.lang.String-java.lang.String-[QueryBuilders.regexpQuery()]
 | {ref}/query-dsl-fuzzy-query.html[Fuzzy]                             | {query-ref}/FuzzyQueryBuilder.html[FuzzyQueryBuilder]                               | {query-ref}/QueryBuilders.html#fuzzyQuery-java.lang.String-java.lang.String-[QueryBuilders.fuzzyQuery()]
-| {ref}/query-dsl-type-query.html[Type]                               | {query-ref}/TypeQueryBuilder.html[TypeQueryBuilder]                                 | {query-ref}/QueryBuilders.html#typeQuery-java.lang.String-[QueryBuilders.typeQuery()]
 | {ref}/query-dsl-ids-query.html[Ids]                                 | {query-ref}/IdsQueryBuilder.html[IdsQueryBuilder]                                   | {query-ref}/QueryBuilders.html#idsQuery--[QueryBuilders.idsQuery()]
 |======
 

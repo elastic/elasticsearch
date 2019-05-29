@@ -64,6 +64,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -339,7 +340,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-        internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        List<String> nodes = internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        Settings node1DataPathSettings = internalCluster().dataPathSettings(nodes.get(0));
+        Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
         assertAcked(client().admin().indices().prepareCreate("test"));
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).execute()
@@ -393,7 +396,9 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         logger.info("--> starting the two nodes back");
 
-        internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        internalCluster().startNodes(
+            Settings.builder().put(node1DataPathSettings).put("gateway.recover_after_nodes", 2).build(),
+            Settings.builder().put(node2DataPathSettings).put("gateway.recover_after_nodes", 2).build());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();

@@ -244,9 +244,9 @@ setup:
   - skip:
       version: "all"
       reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/42679"
-  - skip:
-      version: " - 6.2.99"
-      reason:  this uses a new option (format) added in 6.3.0
+#  - skip:
+#      version: " - 6.2.99"
+#      reason:  this uses a new option (format) added in 6.3.0
 
   - do:
       search:

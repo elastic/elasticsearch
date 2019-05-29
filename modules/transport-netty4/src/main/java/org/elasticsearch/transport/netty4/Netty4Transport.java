@@ -21,6 +21,8 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.PooledByteBufAllocator;
+import io.netty.buffer.PooledByteBufAllocatorMetric;
 import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -55,11 +57,13 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.MemoryStats;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -246,6 +250,17 @@ public class Netty4Transport extends TcpTransport {
         Netty4TcpServerChannel esChannel = new Netty4TcpServerChannel(channel);
         channel.attr(SERVER_CHANNEL_KEY).set(esChannel);
         return esChannel;
+    }
+
+    private MemoryStats moreStats() {
+        PooledByteBufAllocator pooledAllocator = PooledByteBufAllocator.DEFAULT;
+        PooledByteBufAllocatorMetric metric = pooledAllocator.metric();
+        long heapBytes = metric.usedHeapMemory();
+        long directBytes = metric.usedDirectMemory();
+
+        MemoryStats.PoolStats heap = new MemoryStats.PoolStats("netty_pooled_heap", heapBytes, 0L);
+        MemoryStats.PoolStats direct = new MemoryStats.PoolStats("netty_pooled_direct", directBytes, 0L);
+        return new MemoryStats(Arrays.asList(heap, direct));
     }
 
     @Override

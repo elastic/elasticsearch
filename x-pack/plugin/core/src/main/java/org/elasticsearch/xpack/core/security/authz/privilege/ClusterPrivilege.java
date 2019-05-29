@@ -60,8 +60,7 @@ public final class ClusterPrivilege extends Privilege {
     private static final Automaton READ_CCR_AUTOMATON = patterns(ClusterStateAction.NAME, HasPrivilegesAction.NAME);
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("cluster:admin/ilm/*");
     private static final Automaton READ_ILM_AUTOMATON = patterns(GetLifecycleAction.NAME, GetStatusAction.NAME);
-    private static final Automaton MANAGE_ENRICH_AUTOMATON =
-        patterns("cluster:admin/xpack/enrich/*", ClusterStateAction.NAME, HasPrivilegesAction.NAME);
+    private static final Automaton MANAGE_ENRICH_AUTOMATON = patterns("cluster:admin/xpack/enrich/*");
 
     public static final ClusterPrivilege NONE =                  new ClusterPrivilege("none",                Automatons.EMPTY);
     public static final ClusterPrivilege ALL =                   new ClusterPrivilege("all",                 ALL_CLUSTER_AUTOMATON);

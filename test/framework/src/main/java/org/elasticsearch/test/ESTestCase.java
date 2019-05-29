@@ -464,7 +464,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      *
      * @param setNewThreadContext whether or not to attach a new thread context to the deprecation logger
      */
-    protected void resetDeprecationLogger(final boolean setNewThreadContext) {
+    private void resetDeprecationLogger(final boolean setNewThreadContext) {
         // "clear" current warning headers by setting a new ThreadContext
         DeprecationLogger.removeThreadContext(this.threadContext);
         try {

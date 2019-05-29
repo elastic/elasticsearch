@@ -102,7 +102,7 @@ public class ClusterDeprecationChecks {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Pipelines contain date fields with deprecated format",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
-                "Ingest pipelines contain deprecated joda patterns: " + pipelinesMessages);
+                "Ingest pipelines which contain deprecated date formats: " + pipelinesMessages);
         }
         return null;
 

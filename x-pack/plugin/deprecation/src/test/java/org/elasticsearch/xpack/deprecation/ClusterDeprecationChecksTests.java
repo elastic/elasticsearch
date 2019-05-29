@@ -118,7 +118,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Pipelines contain date fields with deprecated format",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
-            "Ingest pipelines contain deprecated joda patterns: pipelineId: testingestpipeline, fields: " +
+            "Ingest pipelines which contain deprecated date formats: pipelineId: testingestpipeline, fields: " +
                 "[" +
                 "[field: date, format: yyyy-w, suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.], " +
                 "[field: index_name_format, format: yyyy-w, suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.]" +
@@ -151,7 +151,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Pipelines contain date fields with deprecated format",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
-            "Ingest pipelines contain deprecated joda patterns: pipelineId: test1, fields: " +
+            "Ingest pipelines which contain deprecated date formats: pipelineId: test1, fields: " +
                 "[" +
                 "[field: date, format: yyyy-w, suggestion: 'y' year should be replaced with 'u'. Use 'y' for year-of-era.]" +
                 "].\n" +

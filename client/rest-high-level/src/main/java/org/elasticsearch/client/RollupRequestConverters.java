@@ -68,11 +68,12 @@ final class RollupRequestConverters {
             .build();
 
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(stopRollupJobRequest.timeout());
         if (stopRollupJobRequest.waitForCompletion() != null) {
             parameters.withWaitForCompletion(stopRollupJobRequest.waitForCompletion());
         }
+        request.addParameters(parameters.asMap());
         return request;
     }
 

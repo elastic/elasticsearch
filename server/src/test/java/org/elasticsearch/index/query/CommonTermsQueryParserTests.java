@@ -42,7 +42,7 @@ public class CommonTermsQueryParserTests extends ESSingleNodeTestCase {
 
         // the named query parses to null; we are testing this does not cause a NullPointerException
         SearchResponse response =
-                client().prepareSearch(index).setTypes(type).setQuery(commonTermsQueryBuilder).execute().actionGet();
+                client().prepareSearch(index).setQuery(commonTermsQueryBuilder).execute().actionGet();
 
         assertNotNull(response);
         assertEquals(response.getHits().getHits().length, 0);

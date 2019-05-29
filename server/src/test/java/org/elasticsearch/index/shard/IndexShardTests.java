@@ -125,7 +125,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
@@ -3819,7 +3819,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 readyToCloseLatch.await();
                 shard.close("testing", false);
                 // in integration tests, this is done as a listener on IndexService.
-                MockFSDirectoryService.checkIndex(logger, shard.store(), shard.shardId);
+                MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
             } catch (InterruptedException | IOException e) {
                 throw new AssertionError(e);
             } finally {

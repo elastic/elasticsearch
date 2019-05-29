@@ -12,7 +12,35 @@ include::install_remove.asciidoc[]
 
 [[analysis-stempel-tokenizer]]
 [float]
-==== `stempel` tokenizer and token filter
+==== `stempel` tokenizer and token filters
 
-The plugin provides the `polish` analyzer and `polish_stem` token filter,
+The plugin provides the `polish` analyzer and the `polish_stem` and `polish_stop` token filters,
 which are not configurable.
+
+==== Reimplementing and extending the analyzers
+
+The `polish` analyzer could be reimplemented as a `custom` analyzer that can
+then be extended and configured differently as follows:
+
+[source,js]
+----------------------------------------------------
+PUT /stempel_example
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "rebuilt_stempel": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "polish_stop",
+            "polish_stem"
+          ]
+        }
+      }
+    }
+  }
+}
+----------------------------------------------------
+// CONSOLE
+// TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: stempel_example, first: polish, second: rebuilt_stempel}\nendyaml\n/]

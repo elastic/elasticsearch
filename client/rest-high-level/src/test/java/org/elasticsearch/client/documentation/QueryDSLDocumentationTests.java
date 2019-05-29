@@ -25,7 +25,6 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.MultiPointBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
@@ -112,7 +111,6 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         commonTermsQuery("name",                                     // <1>
                          "kimchy");                                  // <2>
         // end::common_terms
-        assertWarnings(CommonTermsQueryBuilder.COMMON_TERMS_QUERY_DEPRECATION_MSG);
     }
 
     public void testConstantScore() {

@@ -1,7 +1,7 @@
 [[query-dsl-common-terms-query]]
 === Common Terms Query
 
-deprecated[7.3.0,"Use <<query-dsl-match-query>>, which can efficiently skip blocks of documents if the total number of hits is not tracked."]
+deprecated[7.3.0,"Use <<query-dsl-match-query>> instead, which skips blocks of documents efficiently, without any configuration, provided that the total number of hits is not tracked."]
 
 The `common` terms query is a modern alternative to stopwords which
 improves the precision and recall of search results (by taking stopwords

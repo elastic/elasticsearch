@@ -64,6 +64,7 @@ Specifies the maximum size a HTTP response is allowed to have, defaults to
 :component:              {watcher}
 :verifies:
 :server!:
+:ssl-context:            watcher
 
 include::ssl-settings.asciidoc[]
 

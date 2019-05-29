@@ -144,7 +144,8 @@ public class IndexDeprecationChecks {
                 return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                     "Date field format uses patterns which has changed meaning in 7.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
-                    "This index has date fields with deprecated formats: " + fields + ". " + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+                    "This index has date fields with deprecated formats: " + fields + ". "
+                        + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
             }
         }
         return null;

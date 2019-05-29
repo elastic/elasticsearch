@@ -782,7 +782,7 @@ public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQ
                 noMatchNoDocsQueries++;
             }
         }
-        assertEquals(11, noMatchNoDocsQueries);
+        assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }

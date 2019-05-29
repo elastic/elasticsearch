@@ -518,7 +518,7 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createShardContext());
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
-        assertThat(dQuery.getDisjuncts().size(), equalTo(3));
+        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
@@ -1565,7 +1565,7 @@ public class QueryStringQueryBuilderTests extends FullTextQueryTestCase<QueryStr
                 noMatchNoDocsQueries++;
             }
         }
-        assertEquals(11, noMatchNoDocsQueries);
+        assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }

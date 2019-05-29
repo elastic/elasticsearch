@@ -436,9 +436,9 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
             query = qb.toQuery(context);
             expected = new DisjunctionMaxQuery(
                 Arrays.asList(
+                    new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]"),
                     new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f),
-                    new MatchNoDocsQuery("failed [mapped_int] query, caused by number_format_exception:[For input string: \"hello\"]")
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
                 ), 0.0f
             );
             assertEquals(expected, query);
@@ -556,7 +556,7 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
                 noMatchNoDocsQueries++;
             }
         }
-        assertEquals(11, noMatchNoDocsQueries);
+        assertEquals(9, noMatchNoDocsQueries);
         assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
             new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }

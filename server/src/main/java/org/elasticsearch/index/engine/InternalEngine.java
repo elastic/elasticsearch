@@ -2161,7 +2161,7 @@ public class InternalEngine extends Engine {
         if (softDeleteEnabled) {
             mergePolicy = new RecoverySourcePruneMergePolicy(SourceFieldMapper.RECOVERY_SOURCE_NAME, softDeletesPolicy::getRetentionQuery,
                 new SoftDeletesRetentionMergePolicy(Lucene.SOFT_DELETES_FIELD, softDeletesPolicy::getRetentionQuery,
-                    new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME::equals)));
+                    new PrunePostingsMergePolicy(mergePolicy, IdFieldMapper.NAME, softDeletesPolicy::getRetentionQuery)));
         }
         iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
         iwc.setSimilarity(engineConfig.getSimilarity());

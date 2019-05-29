@@ -72,12 +72,13 @@ final class PerThreadIDVersionAndSeqNoLookup {
         final Terms terms = reader.terms(uidField);
         if (terms == null) {
             // If a segment contains only no-ops, it does not have _uid but has both _soft_deletes and _tombstone fields.
-            final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
-            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
-            if (softDeletesDV == null || tombstoneDV == null) {
-                throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
-                    "_soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
-            }
+            // NOCOMMIT
+//            final NumericDocValues softDeletesDV = reader.getNumericDocValues(Lucene.SOFT_DELETES_FIELD);
+//            final NumericDocValues tombstoneDV = reader.getNumericDocValues(SeqNoFieldMapper.TOMBSTONE_NAME);
+//            if (softDeletesDV == null || tombstoneDV == null) {
+//                throw new IllegalArgumentException("reader does not have _uid terms but not a no-op segment; " +
+//                    "_soft_deletes [" + softDeletesDV + "], _tombstone [" + tombstoneDV + "]");
+//            }
             termsEnum = null;
         } else {
             termsEnum = terms.iterator();

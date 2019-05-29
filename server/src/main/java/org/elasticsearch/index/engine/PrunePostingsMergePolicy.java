@@ -20,35 +20,37 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.FieldsProducer;
-import org.apache.lucene.codecs.NormsProducer;
-import org.apache.lucene.codecs.TermVectorsReader;
 import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.FilterNumericDocValues;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.OneMergeWrappingMergePolicy;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.Iterator;
-import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 /**
- * This merge policy drops postings for all deleted documents which is useful to guarantee
- * consistent search and update performance even if a large number of deleted / updated documents
+ * This merge policy drops id field postings for all delete documents as well as all docs within the provided retention policy this can be
+ * useful to guarantee consistent search and update performance even if a large number of deleted / updated documents
  * are retained. Merging postings away is efficient since lucene visits postings term by term and
  * with the original live-docs being available we are adding a negotiable overhead such that we can
  * prune soft-deletes by default. Yet, using this merge policy will cause loosing all search capabilities on top of
@@ -58,12 +60,18 @@ import java.util.function.Predicate;
  */
 final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
 
-    PrunePostingsMergePolicy(MergePolicy in, Predicate<String> pruneFieldPredicate) {
+    PrunePostingsMergePolicy(MergePolicy in, String idField, Supplier<Query> retentionQuery) {
         super(in, toWrap -> new OneMerge(toWrap.segments) {
             @Override
             public CodecReader wrapForMerge(CodecReader reader) throws IOException {
+                FieldInfo fieldInfo = reader.getFieldInfos().fieldInfo(idField);
+                if (fieldInfo != null
+                    && (fieldInfo.hasNorms() || fieldInfo.hasVectors() || fieldInfo.getDocValuesType() != DocValuesType.NONE)) {
+                    // TODO can we guarantee this?
+                    throw new IllegalStateException(idField + " must not have norms, vectors or doc-values");
+                }
                 CodecReader wrapped = toWrap.wrapForMerge(reader);
-                return wrapReader(wrapped, pruneFieldPredicate);
+                return wrapReader(wrapped, idField, retentionQuery);
             }
         });
     }
@@ -76,60 +84,43 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
         return docId;
     }
 
-    private static CodecReader wrapReader(CodecReader reader, Predicate<String> pruneFieldPredicate) {
-        Bits liveDocs = reader.getLiveDocs();
+    private static Bits processLiveDocs(Bits liveDocs, Supplier<Query> retentionQuery, CodecReader reader) throws IOException {
+        Scorer scorer = getScorer(retentionQuery.get(), reader);
+        if (scorer != null) {
+            BitSet retentionDocs = BitSet.of(scorer.iterator(), reader.maxDoc());
+            if (liveDocs == null) {
+                return retentionDocs;
+            }
+            return new Bits() {
+                @Override
+                public boolean get(int index) {
+                    return liveDocs.get(index) && retentionDocs.get(index);
+                }
+
+                @Override
+                public int length() {
+                    return reader.maxDoc();
+                }
+            };
+        } else {
+            return new Bits.MatchNoBits(reader.maxDoc());
+        }
+    }
+
+    private static Scorer getScorer(Query query, CodecReader reader) throws IOException {
+        IndexSearcher s = new IndexSearcher(reader);
+        s.setQueryCache(null);
+        Weight weight = s.createWeight(s.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        return weight.scorer(reader.getContext());
+    }
+
+
+    private static CodecReader wrapReader(CodecReader reader, String idField, Supplier<Query> retentionQuery) throws IOException {
+        Bits liveDocs = processLiveDocs(reader.getLiveDocs(), retentionQuery, reader);
         if (liveDocs == null) {
             return reader; // no deleted docs - we are good!
         }
         return new FilterCodecReader(reader) {
-
-            @Override
-            public NormsProducer getNormsReader() {
-                NormsProducer normsReader = reader.getNormsReader();
-                if (normsReader == null) {
-                    return null;
-                }
-                return new NormsProducer() {
-                    @Override
-                    public NumericDocValues getNorms(FieldInfo field) throws IOException {
-                        NumericDocValues in = normsReader.getNorms(field);
-                        if (pruneFieldPredicate.test(field.name) == false) {
-                            return in;
-                        }
-                        return new FilterNumericDocValues(in) {
-                            @Override
-                            public int nextDoc() throws IOException {
-                                return skipDeletedDocs(in, liveDocs);
-                            }
-
-                            @Override
-                            public int advance(int target) throws IOException {
-                                throw new UnsupportedEncodingException();
-                            }
-
-                            @Override
-                            public boolean advanceExact(int target) throws IOException {
-                                throw new UnsupportedEncodingException();
-                            }
-                        };
-                    }
-
-                    @Override
-                    public void checkIntegrity() throws IOException {
-                        normsReader.checkIntegrity();;
-                    }
-
-                    @Override
-                    public void close() throws IOException {
-                        normsReader.close();
-                    }
-
-                    @Override
-                    public long ramBytesUsed() {
-                        return normsReader.ramBytesUsed();
-                    }
-                };
-            }
 
             @Override
             public FieldsProducer getPostingsReader() {
@@ -156,10 +147,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                     @Override
                     public Terms terms(String field) throws IOException {
                         Terms in = postingsReader.terms(field);
-                        if (in == null) {
-                            return null;
-                        }
-                        if (pruneFieldPredicate.test(field) == false) {
+                        if (in == null || idField.equals(field) == false) {
                             return in;
                         }
                         return new FilterLeafReader.FilterTerms(in) {
@@ -167,6 +155,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
                             public TermsEnum iterator() throws IOException {
                                 TermsEnum iterator = super.iterator();
                                 return new FilteredTermsEnum(iterator) {
+                                    private PostingsEnum internal;
                                     @Override
                                     protected AcceptStatus accept(BytesRef term) {
                                         return AcceptStatus.YES;
@@ -174,35 +163,51 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
 
                                     @Override
                                     public BytesRef next() throws IOException {
-                                        return iterator.next();
+                                        if (liveDocs instanceof Bits.MatchNoBits) {
+                                            return null; // short-cut this if we don't match anything
+                                        }
+                                        BytesRef ref;
+                                        while ((ref = iterator.next()) != null) {
+                                            internal = super.postings(internal, PostingsEnum.NONE);
+                                            if (skipDeletedDocs(internal, liveDocs) != DocIdSetIterator.NO_MORE_DOCS) {
+                                                break;
+                                            }
+                                        }
+                                        return ref;
                                     }
 
                                     @Override
-                                    public boolean seekExact(BytesRef text) throws IOException {
-                                        return iterator.seekExact(text);
+                                    public boolean seekExact(BytesRef text) {
+                                       throw new UnsupportedOperationException("This TermsEnum can not seek");
                                     }
 
                                     @Override
-                                    public SeekStatus seekCeil(BytesRef text) throws IOException {
-                                        return iterator.seekCeil(text);
+                                    public SeekStatus seekCeil(BytesRef text) {
+                                        throw new UnsupportedOperationException("This TermsEnum can not seek");
                                     }
 
                                     @Override
-                                    public void seekExact(long ord) throws IOException {
-                                        iterator.seekExact(ord);
+                                    public void seekExact(long ord) {
+                                        throw new UnsupportedOperationException("This TermsEnum can not seek");
                                     }
 
                                     @Override
-                                    public void seekExact(BytesRef term, TermState state) throws IOException {
-                                        iterator.seekExact(term, state);
+                                    public void seekExact(BytesRef term, TermState state) {
+                                        throw new UnsupportedOperationException("This TermsEnum can not seek");
                                     }
 
                                     @Override
-                                    public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
-                                        return new FilterLeafReader.FilterPostingsEnum(super.postings(reuse, flags)) {
+                                    public PostingsEnum postings(PostingsEnum reuse, int flags) {
+                                        assert internal != null;
+                                        return new FilterLeafReader.FilterPostingsEnum(internal) {
+
                                             @Override
                                             public int nextDoc() throws IOException {
-                                                return skipDeletedDocs(in, liveDocs);
+                                                int currentDocId = in.docID();
+                                                if (currentDocId != NO_MORE_DOCS) {
+                                                    skipDeletedDocs(in, liveDocs);
+                                                }
+                                                return currentDocId;
                                             }
 
                                             @Override
@@ -244,59 +249,7 @@ final class PrunePostingsMergePolicy extends OneMergeWrappingMergePolicy {
             public CacheHelper getReaderCacheHelper() {
                 return null;
             }
-
-            @Override
-            public TermVectorsReader getTermVectorsReader() {
-                TermVectorsReader termVectorsReader = super.getTermVectorsReader();
-                if (termVectorsReader == null) {
-                    return null;
-                }
-                return new FilteredTermVectorsReader(liveDocs, termVectorsReader);
-            }
         };
     }
 
-    private static class FilteredTermVectorsReader extends TermVectorsReader {
-        private final Bits liveDocs;
-        private final TermVectorsReader termVectorsReader;
-
-        FilteredTermVectorsReader(Bits liveDocs, TermVectorsReader termVectorsReader) {
-            this.liveDocs = liveDocs;
-            this.termVectorsReader = termVectorsReader;
-        }
-
-        @Override
-        public Fields get(int doc) throws IOException {
-            if (liveDocs.get(doc)) { // we can drop the entire TV for a deleted document.
-                return termVectorsReader.get(doc);
-            } else {
-                return null;
-            }
-        }
-
-        @Override
-        public void checkIntegrity() throws IOException {
-            termVectorsReader.checkIntegrity();
-        }
-
-        @Override
-        public TermVectorsReader clone() {
-            return new FilteredTermVectorsReader(liveDocs, termVectorsReader.clone());
-        }
-
-        @Override
-        public void close() throws IOException {
-            termVectorsReader.close();
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return termVectorsReader.ramBytesUsed();
-        }
-
-        @Override
-        public TermVectorsReader getMergeInstance() {
-            return new FilteredTermVectorsReader(liveDocs, termVectorsReader.getMergeInstance());
-        }
-    }
 }

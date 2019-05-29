@@ -22,6 +22,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -34,6 +35,8 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
@@ -41,16 +44,18 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 public class PrunePostingsMergePolicyTests extends ESTestCase {
 
     public void testPrune() throws IOException {
+        AtomicReference<Query> retention = new AtomicReference<>(new MatchAllDocsQuery());
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
             iwc.setSoftDeletesField("_soft_deletes");
             MergePolicy mp = new SoftDeletesRetentionMergePolicy("_soft_deletes", MatchAllDocsQuery::new,
-                new PrunePostingsMergePolicy(newLogMergePolicy(), t -> true));
+                new PrunePostingsMergePolicy(newLogMergePolicy(), "id", retention::get));
             iwc.setMergePolicy(mp);
             boolean sorted = randomBoolean();
             if (sorted) {
@@ -69,7 +74,7 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
                     }
                     int id = i % numUniqueDocs;
                     Document doc = new Document();
-                    doc.add(newStringField("id", "" + id, Field.Store.NO));
+                    doc.add(new StringField("id", "" + id, Field.Store.NO));
                     doc.add(newTextField("text", "the quick brown fox", Field.Store.YES));
                     doc.add(new NumericDocValuesField("sort", i));
                     writer.softUpdateDocument(new Term("id", "" + id), doc, new NumericDocValuesField("_soft_deletes", 1));
@@ -92,21 +97,68 @@ public class PrunePostingsMergePolicyTests extends ESTestCase {
                     }
                     iterator = leafReader.terms("text").iterator();
                     assertTrue(iterator.seekExact(new BytesRef("quick")));
-                    assertEquals(numUniqueDocs, iterator.docFreq());
-                        int numValues = 0;
-                        NumericDocValues sort = leafReader.getNumericDocValues("sort");
-                        while (sort.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                            if (sorted) {
-                                assertEquals(sort.docID(), sort.longValue());
-                            } else {
-                                assertTrue(sort.longValue() >= 0);
-                                assertTrue(sort.longValue() < numDocs);
-                            }
-                            numValues++;
+                    assertEquals(leafReader.maxDoc(), iterator.docFreq());
+                    int numValues = 0;
+                    NumericDocValues sort = leafReader.getNumericDocValues("sort");
+                    while (sort.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        if (sorted) {
+                            assertEquals(sort.docID(), sort.longValue());
+                        } else {
+                            assertTrue(sort.longValue() >= 0);
+                            assertTrue(sort.longValue() < numDocs);
                         }
-                        assertEquals(numValues, numDocs);
+                        numValues++;
+                    }
+                    assertEquals(numValues, numDocs);
+                }
+                {
+                    // prune away a single ID
+                    Document doc = new Document();
+                    doc.add(new StringField("id", "test", Field.Store.NO));
+                    writer.deleteDocuments(new Term("id", "test"));
+                    writer.flush();
+                    writer.forceMerge(1);
+                    writer.updateNumericDocValue(new Term("id", "test"), "_soft_deletes", 1);// delete it
+                    writer.flush();
+                    writer.forceMerge(1);
+
+                    try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                        LeafReader leafReader = reader.leaves().get(0).reader();
+                        assertEquals(numDocs, leafReader.maxDoc());
+                        Terms id = leafReader.terms("id");
+                        TermsEnum iterator = id.iterator();
+                        for (int i = 0; i < numUniqueDocs; i++) {
+                            assertTrue(iterator.seekExact(new BytesRef("" + i)));
+                            assertEquals(1, iterator.docFreq());
+                        }
+                        assertFalse(iterator.seekExact(new BytesRef("test")));
+                        iterator = leafReader.terms("text").iterator();
+                        assertTrue(iterator.seekExact(new BytesRef("quick")));
+                        assertEquals(leafReader.maxDoc(), iterator.docFreq());
+                    }
+                }
+
+                { // drop all ids
+                    retention.set(new MatchNoDocsQuery());
+                    Document doc = new Document();
+                    doc.add(new StringField("id", "0", Field.Store.NO));
+                    doc.add(newTextField("text", "the quick brown fox", Field.Store.YES));
+                    doc.add(new NumericDocValuesField("sort", 0));
+                    writer.softUpdateDocument(new Term("id", "0"), doc, new NumericDocValuesField("_soft_deletes", 1));
+                    writer.flush();
+                    writer.forceMerge(1);
+
+                    try (DirectoryReader reader = DirectoryReader.open(writer)) {
+                        LeafReader leafReader = reader.leaves().get(0).reader();
+                        assertEquals(numDocs + 1, leafReader.maxDoc());
+                        assertNull(leafReader.terms("id"));
+                        TermsEnum iterator = leafReader.terms("text").iterator();
+                        assertTrue(iterator.seekExact(new BytesRef("quick")));
+                        assertEquals(leafReader.maxDoc(), iterator.docFreq());
+                    }
                 }
             }
+
         }
     }
 }

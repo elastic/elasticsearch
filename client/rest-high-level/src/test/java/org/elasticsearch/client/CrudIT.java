@@ -1023,19 +1023,17 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
     public void testGetIdWithPlusSign() throws Exception {
         String id = "id+id";
         {
-            IndexRequest indexRequest = new IndexRequest("index", "type", id);
+            IndexRequest indexRequest = new IndexRequest("index").id(id);
             indexRequest.source("field", "value");
             IndexResponse indexResponse = highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
             assertEquals("index", indexResponse.getIndex());
-            assertEquals("type", indexResponse.getType());
             assertEquals(id, indexResponse.getId());
         }
         {
-            GetRequest getRequest = new GetRequest("index", "type", id);
+            GetRequest getRequest = new GetRequest("index").id(id);
             GetResponse getResponse = highLevelClient().get(getRequest, RequestOptions.DEFAULT);
             assertTrue(getResponse.isExists());
             assertEquals("index", getResponse.getIndex());
-            assertEquals("type", getResponse.getType());
             assertEquals(id, getResponse.getId());
         }
     }

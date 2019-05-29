@@ -118,7 +118,7 @@ public class ConnectionManagerTests extends ESTestCase {
         assertEquals(1, nodeDisconnectedCount.get());
     }
 
-    public void testConnectFails() {
+    public void testConnectFailsDuringValidation() {
         AtomicInteger nodeConnectedCount = new AtomicInteger();
         AtomicInteger nodeDisconnectedCount = new AtomicInteger();
         connectionManager.addListener(new TransportConnectionListener() {
@@ -151,6 +151,44 @@ public class ConnectionManagerTests extends ESTestCase {
         expectThrows(ConnectTransportException.class, () -> fut.actionGet());
 
         assertTrue(connection.isClosed());
+        assertFalse(connectionManager.nodeConnected(node));
+        expectThrows(NodeNotConnectedException.class, () -> connectionManager.getConnection(node));
+        assertEquals(0, connectionManager.size());
+        assertEquals(0, nodeConnectedCount.get());
+        assertEquals(0, nodeDisconnectedCount.get());
+    }
+
+    public void testConnectFailsDuringConnect() {
+        AtomicInteger nodeConnectedCount = new AtomicInteger();
+        AtomicInteger nodeDisconnectedCount = new AtomicInteger();
+        connectionManager.addListener(new TransportConnectionListener() {
+            @Override
+            public void onNodeConnected(DiscoveryNode node) {
+                nodeConnectedCount.incrementAndGet();
+            }
+
+            @Override
+            public void onNodeDisconnected(DiscoveryNode node) {
+                nodeDisconnectedCount.incrementAndGet();
+            }
+        });
+
+
+        DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        doAnswer(invocationOnMock -> {
+            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            listener.onFailure(new ConnectTransportException(node, ""));
+            return null;
+        }).when(transport).openConnection(eq(node), eq(connectionProfile), any(ActionListener.class));
+
+        assertFalse(connectionManager.nodeConnected(node));
+
+        ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
+
+        PlainActionFuture<Void> fut = new PlainActionFuture<>();
+        connectionManager.connectToNode(node, connectionProfile, validator, fut);
+        expectThrows(ConnectTransportException.class, () -> fut.actionGet());
+
         assertFalse(connectionManager.nodeConnected(node));
         expectThrows(NodeNotConnectedException.class, () -> connectionManager.getConnection(node));
         assertEquals(0, connectionManager.size());

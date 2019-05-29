@@ -75,8 +75,8 @@ GET /_search
 
 WARNING: Scores calculated for queries in query context are represented 
 as single precision floating point numbers; they have only
-24 bits for significand precision. Score calculations that exceed 
-this significand precision will be converted to floats with loss of precision. 
+24 bits for significand's precision. Score calculations that exceed the
+significand's precision will be converted to floats with loss of precision.
 
 TIP: Use query clauses in query context for conditions which should affect the
 score of matching documents (i.e. how well does the document match), and use

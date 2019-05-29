@@ -365,8 +365,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         LOGGER.info("Restarting {}", this);
         stop(false);
         try {
-            Files.delete(httpPortsFile);
-            Files.delete(transportPortFile);
+            if (Files.exists(httpPortsFile)) {
+                Files.delete(httpPortsFile);
+            }
+            if (Files.exists(transportPortFile)) {
+                Files.delete(transportPortFile);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -40,8 +40,8 @@ task writeJavaPolicy {
 }
 
 task "follow-cluster"(type: RestIntegTestTask) {
-    dependsOn writeJavaPolicy, "leader-cluster"
-    useCluster testClusters."leader-cluster"
+    dependsOn writeJavaPolicy
+    chainCluster "leader-cluster"
     runner {
         systemProperty 'java.security.policy', "file://${writeJavaPolicy.policyFile}"
         systemProperty 'tests.target_cluster', 'follow'
@@ -56,7 +56,6 @@ testClusters."follow-cluster" {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'cluster.remote.leader_cluster.seeds', { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
 }
-
 
 check.dependsOn "follow-cluster"
 test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test

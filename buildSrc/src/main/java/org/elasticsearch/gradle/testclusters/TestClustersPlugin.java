@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
 public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
-    private static final String NODE_EXTENSION_NAME = "testClusters";
+    private static final String TESTCLUSTERS_EXTENSION_NAME = "testClusters";
     private static final String HELPER_CONFIGURATION_PREFIX = "testclusters";
     private static final String SYNC_ARTIFACTS_TASK_NAME = "syncTestClustersArtifacts";
     private static final int EXECUTOR_SHUTDOWN_TIMEOUT = 1;
@@ -86,7 +86,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         createListClustersTask(project, container);
 
         // create DSL for tasks to mark clusters these use
-        createUseClusterTaskExtension(project, container);
+        createUseClusterTaskExtensions(project, container);
 
         // When we know what tasks will run, we claim the clusters of those task to differentiate between clusters
         // that are defined in the build script and the ones that will actually be used in this invocation of gradle
@@ -124,7 +124,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 new File(project.getBuildDir(), "testclusters")
             )
         );
-        project.getExtensions().add(NODE_EXTENSION_NAME, container);
+        project.getExtensions().add(TESTCLUSTERS_EXTENSION_NAME, container);
         return container;
     }
 
@@ -140,33 +140,82 @@ public class TestClustersPlugin implements Plugin<Project> {
         );
     }
 
-    private void createUseClusterTaskExtension(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
+    private void createUseClusterTaskExtensions(Project project, NamedDomainObjectContainer<ElasticsearchCluster> container) {
         // register an extension for all current and future tasks, so that any task can declare that it wants to use a
         // specific cluster.
         project.getTasks().all((Task task) ->
             task.getExtensions().findByType(ExtraPropertiesExtension.class)
-                .set(
-                    "useCluster",
-                    new Closure<Void>(project, task) {
-                        public void doCall(ElasticsearchCluster cluster) {
-                            if (container.contains(cluster) == false) {
-                                throw new TestClustersException(
-                                    "Task " + task.getPath() + " can't use test cluster from" +
+            .set(
+                "useCluster",
+                new Closure<Void>(project, task) {
+                    public void doCall(ElasticsearchCluster cluster) {
+                        Object thisObject = this.getThisObject();
+                        if (thisObject instanceof Task == false) {
+                            throw new AssertionError("Expected " + thisObject + " to be an instance of " +
+                                "Task, but got: " + thisObject.getClass());
+                        }
+                        if (container.contains(cluster) == false) {
+                            throw new TestClustersException(
+                                "Task " + task.getPath() + " can't use test cluster from" +
                                     " another project " + cluster
-                                );
-                            }
-                            Object thisObject = this.getThisObject();
-                            if (thisObject instanceof Task == false) {
-                                throw new AssertionError("Expected " + thisObject + " to be an instance of " +
-                                    "Task, but got: " + thisObject.getClass());
-                            }
-                            usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).add(cluster);
-                            ((Task) thisObject).dependsOn(
-                                project.getRootProject().getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME)
                             );
                         }
-                    })
+                        usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).add(cluster);
+                        task.dependsOn(
+                            project.getRootProject().getTasks().getByName(SYNC_ARTIFACTS_TASK_NAME)
+                        );
+                    }
+                })
         );
+
+        project.getTasks().all(task ->
+            task.getExtensions().findByType(ExtraPropertiesExtension.class)
+            .set(
+                "chainCluster",
+                new Closure<Void>(project, task) {
+                    public void doCall(Object taskOrName) {
+                        Object thisObject = this.getThisObject();
+                        if (thisObject instanceof Task == false) {
+                            throw new AssertionError("Expected " + thisObject + " to be an instance of " +
+                                "Task, but got: " + thisObject.getClass());
+                        }
+                        // chaining implies a dependency on the task we are chaining to
+                        task.dependsOn(taskOrName);
+                        // Claim usage of all the clusters in the dependency path of the  task we are chaining too
+                        // Dependencies are a set and clusters area map, no live collections so we have to defer this
+                        project.afterEvaluate(project -> {
+                            Task chainTo;
+                            if (taskOrName instanceof Task) {
+                                chainTo = (Task) taskOrName;
+                                if (chainTo.getProject().equals(project) == false) {
+                                    throw new TestClustersException(
+                                        "Task " + task.getPath() + " can't chain task from" +
+                                            " another project " + chainTo.getPath()
+                                    );
+                                }
+                            } else {
+                                chainTo = project.getTasks().getByName(taskOrName.toString());
+                            }
+
+                            usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).addAll(
+                                usedClusters.getOrDefault(chainTo, Collections.emptyList())
+                            );
+                            // TODO: Remove this when RestIntegTestTask actually uses the cluster and runs tests instead of having a runner
+                            chainTo.getTaskDependencies().getDependencies(chainTo).forEach(depTask -> {
+                                usedClusters.computeIfAbsent(task, k -> new ArrayList<>()).addAll(
+                                    usedClusters.getOrDefault(depTask, Collections.emptyList())
+                                );
+                            });
+                        });
+                    }
+                })
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static NamedDomainObjectContainer<ElasticsearchCluster> getElasticsearchClusters(Project project) {
+        return (NamedDomainObjectContainer<ElasticsearchCluster>)
+                project.getExtensions().getByName(TESTCLUSTERS_EXTENSION_NAME);
     }
 
     private void configureClaimClustersHook(Project project) {
@@ -274,7 +323,7 @@ public class TestClustersPlugin implements Plugin<Project> {
     @SuppressWarnings("unchecked")
     public static NamedDomainObjectContainer<ElasticsearchCluster> getNodeExtension(Project project) {
         return (NamedDomainObjectContainer<ElasticsearchCluster>)
-            project.getExtensions().getByName(NODE_EXTENSION_NAME);
+            project.getExtensions().getByName(TESTCLUSTERS_EXTENSION_NAME);
     }
 
     private static void autoConfigureClusterDependencies(

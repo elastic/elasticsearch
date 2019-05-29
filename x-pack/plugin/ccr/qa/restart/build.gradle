@@ -37,18 +37,18 @@ testClusters.'follow-cluster' {
 }
 
 task followClusterRestartTest(type: Test) {
-    dependsOn tasks.'follow-cluster'
-    useCluster testClusters.'leader-cluster'
-    useCluster testClusters.'follow-cluster'
+    chainCluster "follow-cluster"
 
     maxParallelForks = 1
     systemProperty 'tests.rest.load_packaged', 'false'
     systemProperty 'tests.target_cluster', 'follow-restart'
+
     doFirst {
         testClusters.'follow-cluster'.restart()
         nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters.'leader-cluster'.getAllHttpSocketURI().get(0)}"
         nonInputProperties.systemProperty 'tests.rest.cluster', "${-> testClusters.'follow-cluster'.getAllHttpSocketURI().join(",")}"
     }
+
     outputs.doNotCacheIf "Caching of REST tests not implemented yet", { false }
 }
 

@@ -23,8 +23,7 @@ testClusters.'leader-cluster' {
 }
 
 task 'follow-cluster'(type: RestIntegTestTask) {
-    dependsOn 'leader-cluster'
-    useCluster testClusters.'leader-cluster'
+    chainCluster "leader-cluster"
     runner {
         systemProperty 'tests.target_cluster', 'follow'
         nonInputProperties.systemProperty 'tests.leader_host',

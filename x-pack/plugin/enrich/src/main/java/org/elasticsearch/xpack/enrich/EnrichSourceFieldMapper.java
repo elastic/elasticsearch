@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -175,24 +176,7 @@ public final class EnrichSourceFieldMapper extends MetadataFieldMapper {
 
             @Override
             public SortedBinaryDocValues getBytesValues() {
-                return new SortedBinaryDocValues() {
-
-                    @Override
-                    public boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
-                    }
-
-                    @Override
-                    public int docValueCount() {
-                        return 1;
-                    }
-
-                    @Override
-                    public BytesRef nextValue() throws IOException {
-                        return values.binaryValue();
-                    }
-
-                };
+                return FieldData.singleton(values);
             }
 
             @Override

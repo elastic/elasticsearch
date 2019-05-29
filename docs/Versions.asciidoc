@@ -11,7 +11,7 @@
 release-state can be: released | prerelease | unreleased
 //////////
 
-:release-state:   unreleased
+:release-state:   released
 
 :issue:           https://github.com/elastic/elasticsearch/issues/
 :ml-issue:        https://github.com/elastic/ml-cpp/issues/

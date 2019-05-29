@@ -2558,7 +2558,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
 
-        indexShardOperationPermits.acquire(onPermitAcquired, executorOnDelay, false, debugInfo);
+        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, false, debugInfo);
     }
 
     /**
@@ -2569,7 +2569,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyNotClosed();
         assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
-        asyncBlockOperations(onPermitAcquired, timeout.duration(), timeout.timeUnit());
+        asyncBlockOperations(wrapPrimaryOperationPermitListener(onPermitAcquired), timeout.duration(), timeout.timeUnit());
+    }
+
+    /**
+     * Wraps the action to run on a primary after acquiring permit. This wrapping is used to check if the shard is in primary mode before
+     * executing the action.
+     *
+     * @param listener the listener to wrap
+     * @return the wrapped listener
+     */
+    private ActionListener<Releasable> wrapPrimaryOperationPermitListener(final ActionListener<Releasable> listener) {
+        return ActionListener.wrap(
+                r -> {
+                    if (replicationTracker.isPrimaryMode()) {
+                        listener.onResponse(r);
+                    } else {
+                        r.close();
+                        listener.onFailure(new ShardNotInPrimaryModeException(shardId, state));
+                    }
+                },
+                listener::onFailure);
     }
 
     private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {

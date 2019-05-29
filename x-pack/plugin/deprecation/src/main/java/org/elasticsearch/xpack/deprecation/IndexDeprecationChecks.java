@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -50,11 +52,13 @@ public class IndexDeprecationChecks {
      * @param type the document type
      * @param parentMap the mapping to read properties from
      * @param predicate the predicate to check against for issues, issue is returned if predicate evaluates to true
+     * @param fieldFormatter a function that takes a type and mapping field entry and returns a formatted field representation
      * @return a list of issues found in fields
      */
     @SuppressWarnings("unchecked")
     static List<String> findInPropertiesRecursively(String type, Map<String, Object> parentMap,
-                                                    Function<Map<?,?>, Boolean> predicate) {
+                                                    Function<Map<?,?>, Boolean> predicate,
+                                                    BiFunction<String, Map.Entry<?, ?>, String> fieldFormatter) {
         List<String> issues = new ArrayList<>();
         Map<?, ?> properties = (Map<?, ?>) parentMap.get("properties");
         if (properties == null) {
@@ -63,7 +67,7 @@ public class IndexDeprecationChecks {
         for (Map.Entry<?, ?> entry : properties.entrySet()) {
             Map<String, Object> valueMap = (Map<String, Object>) entry.getValue();
             if (predicate.apply(valueMap)) {
-                issues.add("[type: " + type + ", field: " + entry.getKey() + "]");
+                issues.add("[" + fieldFormatter.apply(type, entry) + "]");
             }
 
             Map<?, ?> values = (Map<?, ?>) valueMap.get("fields");
@@ -71,19 +75,29 @@ public class IndexDeprecationChecks {
                 for (Map.Entry<?, ?> multifieldEntry : values.entrySet()) {
                     Map<String, Object> multifieldValueMap = (Map<String, Object>) multifieldEntry.getValue();
                     if (predicate.apply(multifieldValueMap)) {
-                        issues.add("[type: " + type + ", field: " + entry.getKey() + ", multifield: " + multifieldEntry.getKey() + "]");
+                        issues.add("[" + fieldFormatter.apply(type, entry) + ", multifield: " + multifieldEntry.getKey() + "]");
                     }
                     if (multifieldValueMap.containsKey("properties")) {
-                        issues.addAll(findInPropertiesRecursively(type, multifieldValueMap, predicate));
+                        issues.addAll(findInPropertiesRecursively(type, multifieldValueMap, predicate, fieldFormatter));
                     }
                 }
             }
             if (valueMap.containsKey("properties")) {
-                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate));
+                issues.addAll(findInPropertiesRecursively(type, valueMap, predicate, fieldFormatter));
             }
         }
 
         return issues;
+    }
+
+    private static String formatDateField(String type, Map.Entry<?, ?> entry) {
+        Map<?,?> value = (Map<?, ?>) entry.getValue();
+        return "type: " + type + ", field: " + entry.getKey() +", format: "+ value.get("format") +", suggestion: "
+            + JodaDeprecationPatterns.formatSuggestion((String)value.get("format"));
+    }
+
+    private static String formatField(String type, Map.Entry<?, ?> entry) {
+        return "type: " + type + ", field: " + entry.getKey();
     }
 
     static DeprecationIssue delimitedPayloadFilterCheck(IndexMetaData indexMetaData) {
@@ -173,7 +187,7 @@ public class IndexDeprecationChecks {
         List<String> issues = new ArrayList<>();
         fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> issues.addAll(
             findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
-                property -> "classic".equals(property.get("similarity"))))));
+                property -> "classic".equals(property.get("similarity")), IndexDeprecationChecks::formatField))));
         if (issues.size() > 0) {
             return new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "Classic similarity has been removed",
@@ -233,6 +247,7 @@ public class IndexDeprecationChecks {
         return null;
     }
 
+
     static DeprecationIssue tooManyFieldsCheck(IndexMetaData indexMetaData) {
         if (indexMetaData.getSettings().get(IndexSettings.DEFAULT_FIELD_SETTING_KEY) == null) {
             AtomicInteger fieldCount = new AtomicInteger(0);
@@ -258,6 +273,28 @@ public class IndexDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue deprecatedDateTimeFormat(IndexMetaData indexMetaData) {
+        List<String> fields = new ArrayList<>();
+
+        fieldLevelMappingIssue(indexMetaData, ((mappingMetaData, sourceAsMap) -> fields.addAll(
+            findInPropertiesRecursively(mappingMetaData.type(), sourceAsMap,
+                IndexDeprecationChecks::isDateFieldWithDeprecatedPattern,
+                IndexDeprecationChecks::formatDateField))));
+
+        if (fields.size() > 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Date field format uses patterns which may change meaning in 7.0",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
+                "This index has date fields with deprecated formats: " + fields + ". "+JodaDeprecationPatterns.USE_PREFIX_8_WARNING);
+        }
+        return null;
+    }
+
+    private static boolean isDateFieldWithDeprecatedPattern(Map<?, ?> property) {
+        return "date".equals(property.get("type")) &&
+            property.containsKey("format") &&
+            JodaDeprecationPatterns.isDeprecatedPattern((String) property.get("format"));
+    }
 
     private static final Set<String> TYPES_THAT_DONT_COUNT;
     static {

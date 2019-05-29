@@ -31,6 +31,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -246,15 +247,16 @@ public abstract class MetaDataStateFormat<T> {
     }
 
     /**
-     * Tries to load the latest state from the given data-locations. It tries to load the latest state determined by
-     * the states version from one or more data directories and if none of the latest states can be loaded an exception
-     * is thrown to prevent accidentally loading a previous state and silently omitting the latest state.
+     * Tries to load the latest state from the given data-locations.
      *
-     * @param logger a logger instance
+     * @param logger        a logger instance.
      * @param dataLocations the data-locations to try.
-     * @return the latest state or <code>null</code> if no state was found.
+     * @return tuple of the latest state and generation. (-1, null) if no state is found.
      */
-    public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
+    public Tuple<T, Long> loadLatestStateWithGeneration(
+            final Logger logger,
+            final NamedXContentRegistry namedXContentRegistry,
+            final Path... dataLocations) throws IOException {
         List<PathAndStateId> files = new ArrayList<>();
         long maxStateId = -1;
         if (dataLocations != null) { // select all eligible files first
@@ -293,7 +295,7 @@ public abstract class MetaDataStateFormat<T> {
             try {
                 T state = read(namedXContentRegistry, pathAndStateId.file);
                 logger.trace("state id [{}] read from [{}]", pathAndStateId.id, pathAndStateId.file.getFileName());
-                return state;
+                return Tuple.tuple(state, pathAndStateId.id);
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + pathAndStateId.toString(), e));
                 logger.debug(() -> new ParameterizedMessage(
@@ -307,6 +309,24 @@ public abstract class MetaDataStateFormat<T> {
             throw new IllegalStateException("Could not find a state file to recover from among " + files);
         }
         return null;
+    }
+
+    /**
+     * Tries to load the latest state from the given data-locations. It tries to load the latest state determined by
+     * the states version from one or more data directories and if none of the latest states can be loaded an exception
+     * is thrown to prevent accidentally loading a previous state and silently omitting the latest state.
+     *
+     * @param logger a logger instance
+     * @param dataLocations the data-locations to try.
+     * @return the latest state or <code>null</code> if no state was found.
+     */
+    public T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
+        final Tuple<T, Long> maybeLatestStateWithGeneration = loadLatestStateWithGeneration(logger, namedXContentRegistry, dataLocations);
+        if (maybeLatestStateWithGeneration == null) {
+            return null;
+        } else {
+            return maybeLatestStateWithGeneration.v1();
+        }
     }
 
     /**

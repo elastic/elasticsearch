@@ -1,0 +1,10 @@
+[[breaking-changes-6.8]]
+== Breaking changes in 6.8
+++++
+<titleabbrev>6.8</titleabbrev>
+++++
+
+There are no breaking changes for 6.8.0
+
+See also <<release-highlights>> and <<es-release-notes>>.
+

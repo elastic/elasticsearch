@@ -1,7 +1,12 @@
 [[mapping-uid-field]]
 === `_uid` field
 
+ifdef::asciidoctor[]
+deprecated::[6.0.0, "Now that types have been removed, documents are uniquely identified by their `_id` and the `_uid` field has only been kept as a view over the `_id` field for backward compatibility."]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.0.0, Now that types have been removed, documents are uniquely identified by their `_id` and the `_uid` field has only been kept as a view over the `_id` field for backward compatibility.]
+endif::[]
 
 Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
 <<mapping-type>>) and an <<mapping-id-field,`_id`>>.  These values are

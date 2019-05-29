@@ -642,10 +642,12 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShard indexShard;
 
+        final boolean isPrimaryMode;
         if (randomBoolean()) {
             // relocation target
             indexShard = newShard(newShardRouting(shardId, "local_node", "other node",
                 true, ShardRoutingState.INITIALIZING, AllocationId.newRelocation(AllocationId.newInitializing())));
+            isPrimaryMode = false;
         } else if (randomBoolean()) {
             // simulate promotion
             indexShard = newStartedShard(false);
@@ -662,21 +664,59 @@ public class IndexShardTests extends IndexShardTestCase {
                 new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build(),
                 Collections.emptySet());
             latch.await();
+            isPrimaryMode = true;
         } else {
             indexShard = newStartedShard(true);
+            isPrimaryMode = true;
         }
-        final long primaryTerm = indexShard.getPendingPrimaryTerm();
-        assertEquals(0, indexShard.getActiveOperationsCount());
-        Releasable operation1 = acquirePrimaryOperationPermitBlockingly(indexShard);
-        assertEquals(1, indexShard.getActiveOperationsCount());
-        Releasable operation2 = acquirePrimaryOperationPermitBlockingly(indexShard);
-        assertEquals(2, indexShard.getActiveOperationsCount());
+        final long pendingPrimaryTerm = indexShard.getPendingPrimaryTerm();
+        if (isPrimaryMode) {
+            assertEquals(0, indexShard.getActiveOperationsCount());
+            Releasable operation1 = acquirePrimaryOperationPermitBlockingly(indexShard);
+            assertEquals(1, indexShard.getActiveOperationsCount());
+            Releasable operation2 = acquirePrimaryOperationPermitBlockingly(indexShard);
+            assertEquals(2, indexShard.getActiveOperationsCount());
 
-        Releasables.close(operation1, operation2);
-        assertEquals(0, indexShard.getActiveOperationsCount());
+            Releasables.close(operation1, operation2);
+            assertEquals(0, indexShard.getActiveOperationsCount());
+        } else {
+            indexShard.acquirePrimaryOperationPermit(
+                    new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(final Releasable releasable) {
+                            throw new AssertionError();
+                        }
+
+                        @Override
+                        public void onFailure(final Exception e) {
+                            assertThat(e, instanceOf(ShardNotInPrimaryModeException.class));
+                            assertThat(e, hasToString(containsString("shard is not in primary mode")));
+                        }
+                    },
+                    ThreadPool.Names.SAME,
+                    "test");
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            indexShard.acquireAllPrimaryOperationsPermits(
+                    new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(final Releasable releasable) {
+                            throw new AssertionError();
+                        }
+
+                        @Override
+                        public void onFailure(final Exception e) {
+                            assertThat(e, instanceOf(ShardNotInPrimaryModeException.class));
+                            assertThat(e, hasToString(containsString("shard is not in primary mode")));
+                            latch.countDown();
+                        }
+                    },
+                    TimeValue.timeValueSeconds(30));
+            latch.await();
+        }
 
         if (Assertions.ENABLED && indexShard.routingEntry().isRelocationTarget() == false) {
-            assertThat(expectThrows(AssertionError.class, () -> indexShard.acquireReplicaOperationPermit(primaryTerm,
+            assertThat(expectThrows(AssertionError.class, () -> indexShard.acquireReplicaOperationPermit(pendingPrimaryTerm,
                 indexShard.getGlobalCheckpoint(), indexShard.getMaxSeqNoOfUpdatesOrDeletes(), new ActionListener<Releasable>() {
                     @Override
                     public void onResponse(Releasable releasable) {
@@ -1679,10 +1719,9 @@ public class IndexShardTests extends IndexShardTestCase {
         // recovery can be now finalized
         recoveryThread.join();
         assertTrue(shard.isRelocatedPrimary());
-        try (Releasable ignored = acquirePrimaryOperationPermitBlockingly(shard)) {
-            // lock can again be acquired
-            assertTrue(shard.isRelocatedPrimary());
-        }
+        final ExecutionException e = expectThrows(ExecutionException.class, () -> acquirePrimaryOperationPermitBlockingly(shard));
+        assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+        assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
 
         closeShards(shard);
     }
@@ -1690,30 +1729,66 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
         IndexShardTestCase.updateRoutingEntry(shard, ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
+        final CountDownLatch startRecovery = new CountDownLatch(1);
+        final CountDownLatch relocationStarted = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
             try {
-                shard.relocated(primaryContext -> {});
+                startRecovery.await();
+                shard.relocated(primaryContext -> relocationStarted.countDown());
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
         });
 
         recoveryThread.start();
-        List<PlainActionFuture<Releasable>> onLockAcquiredActions = new ArrayList<>();
-        for (int i = 0; i < 10; i++) {
-            PlainActionFuture<Releasable> onLockAcquired = new PlainActionFuture<Releasable>() {
-                @Override
-                public void onResponse(Releasable releasable) {
-                    releasable.close();
-                    super.onResponse(releasable);
-                }
-            };
-            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.INDEX, "i_" + i);
-            onLockAcquiredActions.add(onLockAcquired);
+
+        final int numberOfAcquisitions = randomIntBetween(1, 10);
+        final List<Runnable> assertions = new ArrayList<>(numberOfAcquisitions);
+        final int recoveryIndex = randomIntBetween(0, numberOfAcquisitions - 1);
+
+        for (int i = 0; i < numberOfAcquisitions; i++) {
+            final PlainActionFuture<Releasable> onLockAcquired;
+            if (i < recoveryIndex) {
+                final AtomicBoolean invoked = new AtomicBoolean();
+                onLockAcquired = new PlainActionFuture<Releasable>() {
+
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        invoked.set(true);
+                        releasable.close();
+                        super.onResponse(releasable);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError();
+                    }
+
+                };
+                assertions.add(() -> assertTrue(invoked.get()));
+            } else if (recoveryIndex == i) {
+                startRecovery.countDown();
+                relocationStarted.await();
+                onLockAcquired = new PlainActionFuture<>();
+                assertions.add(() -> {
+                    final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
+                    assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+                    assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+                });
+            } else {
+                onLockAcquired = new PlainActionFuture<>();
+                assertions.add(() -> {
+                    final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
+                    assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+                    assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+                });
+            }
+
+            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE, "i_" + i);
         }
 
-        for (PlainActionFuture<Releasable> onLockAcquired : onLockAcquiredActions) {
-            assertNotNull(onLockAcquired.get(30, TimeUnit.SECONDS));
+        for (final Runnable assertion : assertions) {
+            assertion.run();
         }
 
         recoveryThread.join();

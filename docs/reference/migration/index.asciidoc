@@ -37,3 +37,5 @@ include::migrate_6_5.asciidoc[]
 include::migrate_6_6.asciidoc[]
 
 include::migrate_6_7.asciidoc[]
+
+include::migrate_6_8.asciidoc[]

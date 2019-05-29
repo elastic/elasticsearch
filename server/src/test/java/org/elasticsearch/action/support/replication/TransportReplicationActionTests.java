@@ -61,9 +61,11 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -379,6 +381,40 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequests.size(), equalTo(1));
         assertThat(capturedRequests.get(0).action, equalTo("internal:testAction[p]"));
         assertIndexShardCounter(0);
+    }
+
+    public void testShardNotInPrimaryMode() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final ClusterState state = state(index, true, ShardRoutingState.RELOCATING);
+        setState(clusterService, state);
+        final ReplicationTask task = maybeTask();
+        final Request request = new Request(shardId);
+        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        final AtomicBoolean executed = new AtomicBoolean();
+
+        final ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
+        final long primaryTerm = state.metaData().index(index).primaryTerm(shardId.id());
+
+        isPrimaryMode.set(false);
+
+        new TestAction(Settings.EMPTY, "internal:test-action", transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected PrimaryResult shardOperationOnPrimary(Request shardRequest, IndexShard primary) throws Exception {
+                assertPhase(task, "primary");
+                assertFalse(executed.getAndSet(true));
+                return super.shardOperationOnPrimary(shardRequest, primary);
+            }
+        }.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), primaryTerm, createTransportChannel(listener), task).run();
+
+        assertFalse(executed.get());
+        assertIndexShardCounter(0);  // no permit should be held
+
+        final ExecutionException e = expectThrows(ExecutionException.class, listener::get);
+        assertThat(e.getCause(), instanceOf(ReplicationOperation.RetryOnPrimaryException.class));
+        assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+        assertThat(e.getCause().getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+        assertThat(e.getCause().getCause(), hasToString(containsString("shard is not in primary mode")));
     }
 
     /**
@@ -1134,6 +1170,8 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     private final AtomicBoolean isRelocated = new AtomicBoolean(false);
 
+    private final AtomicBoolean isPrimaryMode = new AtomicBoolean(true);
+
     /**
      * Sometimes build a ReplicationTask for tracking the phase of the
      * TransportReplicationAction. Since TransportReplicationAction has to work
@@ -1275,10 +1313,16 @@ public class TransportReplicationActionTests extends ESTestCase {
     private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService) {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
+        when(indexShard.state()).thenReturn(IndexShardState.STARTED);
         doAnswer(invocation -> {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
-            count.incrementAndGet();
-            callback.onResponse(count::decrementAndGet);
+            if (isPrimaryMode.get()) {
+                count.incrementAndGet();
+                callback.onResponse(count::decrementAndGet);
+
+            } else {
+                callback.onFailure(new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED));
+            }
             return null;
         }).when(indexShard).acquirePrimaryOperationPermit(any(ActionListener.class), anyString(), anyObject());
         doAnswer(invocation -> {

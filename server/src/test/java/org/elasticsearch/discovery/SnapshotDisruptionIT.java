@@ -20,7 +20,6 @@ package org.elasticsearch.discovery;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.concurrent.ExecutionException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -48,11 +47,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  * Tests snapshot operations during disruptions.
@@ -75,7 +74,6 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
             .build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/36779")
     public void testDisruptionOnSnapshotInitialization() throws Exception {
         final String idxName = "test";
         final List<String> allMasterEligibleNodes = internalCluster().startMasterOnlyNodes(3);
@@ -134,34 +132,14 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
         logger.info("--> waiting for disruption to start");
         assertTrue(disruptionStarted.await(1, TimeUnit.MINUTES));
 
-        logger.info("--> wait until the snapshot is done");
-        assertBusy(() -> {
-            ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
-            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
-            SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
-            if (snapshots != null && snapshots.entries().size() > 0) {
-                logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
-                fail("Snapshot is still running");
-            } else if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.hasDeletionsInProgress()) {
-                logger.info("Current snapshot deletion state [{}]", snapshotDeletionsInProgress);
-                fail("Snapshot deletion is still running");
-            } else {
-                logger.info("Snapshot is no longer in the cluster state");
-            }
-        }, 1, TimeUnit.MINUTES);
+        assertAllSnapshotsCompleted();
 
         logger.info("--> verify that snapshot was successful or no longer exist");
         assertBusy(() -> {
             try {
-                GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots("test-repo")
-                    .setSnapshots("test-snap-2").get();
-                SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
-                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-                assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
-                assertEquals(0, snapshotInfo.failedShards());
-                logger.info("--> done verifying");
+                assertSnapshotExists("test-repo", "test-snap-2");
             } catch (SnapshotMissingException exception) {
-                logger.info("--> snapshot doesn't exist");
+                logger.info("--> done verifying, snapshot doesn't exist");
             }
         }, 1, TimeUnit.MINUTES);
 
@@ -178,11 +156,38 @@ public class SnapshotDisruptionIT extends ESIntegTestCase {
                 logger.info("--> got exception from race in master operation retries");
             } else {
                 logger.info("--> got exception from hanged master", ex);
-                assertThat(cause, instanceOf(MasterNotDiscoveredException.class));
-                cause = cause.getCause();
-                assertThat(cause, instanceOf(Discovery.FailedToCommitClusterStateException.class));
             }
         }
+
+        assertAllSnapshotsCompleted();
+    }
+
+    private void assertAllSnapshotsCompleted() throws Exception {
+        logger.info("--> wait until the snapshot is done");
+        assertBusy(() -> {
+            ClusterState state = dataNodeClient().admin().cluster().prepareState().get().getState();
+            SnapshotsInProgress snapshots = state.custom(SnapshotsInProgress.TYPE);
+            SnapshotDeletionsInProgress snapshotDeletionsInProgress = state.custom(SnapshotDeletionsInProgress.TYPE);
+            if (snapshots != null && snapshots.entries().isEmpty() == false) {
+                logger.info("Current snapshot state [{}]", snapshots.entries().get(0).state());
+                fail("Snapshot is still running");
+            } else if (snapshotDeletionsInProgress != null && snapshotDeletionsInProgress.hasDeletionsInProgress()) {
+                logger.info("Current snapshot deletion state [{}]", snapshotDeletionsInProgress);
+                fail("Snapshot deletion is still running");
+            } else {
+                logger.info("Snapshot is no longer in the cluster state");
+            }
+        }, 1L, TimeUnit.MINUTES);
+    }
+
+    private void assertSnapshotExists(String repository, String snapshot) {
+        GetSnapshotsResponse snapshotsStatusResponse = dataNodeClient().admin().cluster().prepareGetSnapshots(repository)
+                .setSnapshots(snapshot).get();
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+        assertEquals(snapshotInfo.totalShards(), snapshotInfo.successfulShards());
+        assertEquals(0, snapshotInfo.failedShards());
+        logger.info("--> done verifying, snapshot exists");
     }
 
     private void createRandomIndex(String idxName) throws InterruptedException, ExecutionException {

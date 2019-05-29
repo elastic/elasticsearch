@@ -60,7 +60,7 @@ ml_autodetect (default distro only)
 ml_datafeed (default distro only)
 ml_utility (default distro only)
 refresh
-rollup_indexing (default distro only)`
+rollup_indexing (default distro only)
 search
 security-token-key (default distro only)
 snapshot

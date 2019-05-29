@@ -180,6 +180,18 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private RetentionLeases retentionLeases = RetentionLeases.EMPTY;
 
     /**
+     * The primary term of the most-recently persisted retention leases. This is used to check if we need to persist the current retention
+     * leases.
+     */
+    private long persistedRetentionLeasesPrimaryTerm;
+
+    /**
+     * The version of the most-recently persisted retention leases. This is used to check if we need to persist the current retention
+     * leases.
+     */
+    private long persistedRetentionLeasesVersion;
+
+    /**
      * Get all retention leases tracked on this shard.
      *
      * @return the retention leases
@@ -341,7 +353,8 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     private final Object retentionLeasePersistenceLock = new Object();
 
     /**
-     * Persists the current retention leases to their dedicated state file.
+     * Persists the current retention leases to their dedicated state file. If this version of the retention leases are already persisted
+     * then persistence is skipped.
      *
      * @param path the path to the directory containing the state file
      * @throws IOException if an exception occurs writing the state file
@@ -350,10 +363,16 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         synchronized (retentionLeasePersistenceLock) {
             final RetentionLeases currentRetentionLeases;
             synchronized (this) {
+                if (retentionLeases.supersedes(persistedRetentionLeasesPrimaryTerm, persistedRetentionLeasesVersion) == false) {
+                    logger.trace("skipping persisting retention leases [{}], already persisted", retentionLeases);
+                    return;
+                }
                 currentRetentionLeases = retentionLeases;
             }
             logger.trace("persisting retention leases [{}]", currentRetentionLeases);
             RetentionLeases.FORMAT.write(currentRetentionLeases, path);
+            persistedRetentionLeasesPrimaryTerm = currentRetentionLeases.primaryTerm();
+            persistedRetentionLeasesVersion = currentRetentionLeases.version();
         }
     }
 

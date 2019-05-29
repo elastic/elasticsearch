@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -53,11 +54,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -74,6 +77,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class UpdateRequestTests extends ESTestCase {
 
     private UpdateHelper updateHelper;
+    private final AtomicBoolean canUseIfSeqNo = new AtomicBoolean(true);
 
     @Override
     @Before
@@ -139,7 +143,7 @@ public class UpdateRequestTests extends ESTestCase {
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
-        updateHelper = new UpdateHelper(scriptService);
+        updateHelper = new UpdateHelper(scriptService, canUseIfSeqNo::get);
     }
 
     public void testFromXContent() throws Exception {
@@ -694,6 +698,39 @@ public class UpdateRequestTests extends ESTestCase {
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
+    }
+
+    public void testOldClusterFallbackToUseVersion() throws Exception {
+        ShardId shardId = new ShardId("test", "", 0);
+        long version = randomNonNegativeLong();
+        long seqNo = randomNonNegativeLong();
+        long primaryTerm = randomNonNegativeLong();
+        GetResult getResult = new GetResult("test", "type", "1", seqNo, primaryTerm, version, true,
+            new BytesArray("{\"body\": \"bar\"}"), null);
+        UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
+            createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}")));
+
+        canUseIfSeqNo.set(false);
+        IndexRequest updateUsingVersion = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
+        assertThat(updateUsingVersion.ifSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(updateUsingVersion.ifPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+        assertThat(updateUsingVersion.version(), equalTo(version));
+
+        canUseIfSeqNo.set(true);
+        IndexRequest updateUsingSeqNo = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
+        assertThat(updateUsingSeqNo.ifSeqNo(), equalTo(seqNo));
+        assertThat(updateUsingSeqNo.ifPrimaryTerm(), equalTo(primaryTerm));
+        assertThat(updateUsingSeqNo.version(), equalTo(Versions.MATCH_ANY));
+    }
+
+    public void testOldClusterRejectIfSeqNo() {
+        canUseIfSeqNo.set(false);
+        long ifSeqNo = randomNonNegativeLong();
+        long ifPrimaryTerm = randomNonNegativeLong();
+        UpdateRequest request = new UpdateRequest("test", "type1", "1").setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm);
+        AssertionError error = expectThrows(AssertionError.class,
+            () -> updateHelper.prepare(request, null, ESTestCase::randomNonNegativeLong));
+        assertThat(error.getMessage(), equalTo("setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]"));
     }
 
     public void testToString() throws IOException {

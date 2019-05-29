@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.joda.JodaDeprecationPatterns;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -99,7 +101,57 @@ public class ClusterDeprecationChecks {
                 "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig + " will change to using ECS output format by default in 7.0");
         }
         return null;
+    }
 
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkFormatOnPipeline(ClusterState state) {
+        List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
+
+        StringJoiner pipelinesMessages = new StringJoiner("\n");
+        for (PipelineConfiguration pipeline : pipelines) {
+            Map<String, Object> pipelineConfig = pipeline.getConfigAsMap();
+
+            List<Map<String, Map<String, Object>>> processors =
+                (List<Map<String, Map<String, Object>>>) pipelineConfig.get("processors");
+
+            List<String> fields = new ArrayList<>();
+            for (Map<String, Map<String, Object>> processor : processors) {
+                if (processor.containsKey("date")) {
+                    Map<String, Object> date = processor.get("date");
+                    List<String> formats = (List<String>) date.get("formats");
+                    for (String format : formats) {
+                        if (JodaDeprecationPatterns.isDeprecatedPattern(format)) {
+                            fields.add(formatPipelineField("date", format));
+                        }
+                    }
+                }
+                if (processor.containsKey("date_index_name")) {
+                    Map<String, Object> date_index_name = processor.get("date_index_name");
+                    String index_name_format = (String) date_index_name.get("index_name_format");
+                    if (JodaDeprecationPatterns.isDeprecatedPattern(index_name_format)) {
+                        fields.add(formatPipelineField("index_name_format", index_name_format));
+                    }
+                }
+
+                if (fields.isEmpty() == false) {
+                    pipelinesMessages.add("pipelineId: " + pipeline.getId() + ", fields: " + fields + ".");
+                }
+            }
+        }
+
+        if (pipelinesMessages.length() != 0) {
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "Pipelines contain date fields with deprecated format",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.0/breaking-changes-7.0.html#breaking_70_java_time_changes",
+                "Ingest pipelines which contain deprecated date formats: " + pipelinesMessages);
+        }
+        return null;
+
+    }
+
+    private static String formatPipelineField(String field, String format){
+      return "[field: " + field +", format: "+ format +", suggestion: "
+        + JodaDeprecationPatterns.formatSuggestion(format)+"]";
     }
 
     static DeprecationIssue checkTemplatesWithTooManyFields(ClusterState state) {

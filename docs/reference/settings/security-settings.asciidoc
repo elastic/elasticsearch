@@ -1420,6 +1420,7 @@ http layer.
 :client-auth-default:    none
 :verifies!:
 :server:
+:ssl-context:            security-http
 
 include::ssl-settings.asciidoc[]
 
@@ -1429,6 +1430,7 @@ include::ssl-settings.asciidoc[]
 :client-auth-default!:
 :verifies:
 :server:
+:ssl-context:            security-transport
 
 include::ssl-settings.asciidoc[]
 
@@ -1452,6 +1454,7 @@ setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 :component:              Auditing
 :client-auth-default!:
 :server!:
+:ssl-context:            auditing
 
 include::ssl-settings.asciidoc[]
 

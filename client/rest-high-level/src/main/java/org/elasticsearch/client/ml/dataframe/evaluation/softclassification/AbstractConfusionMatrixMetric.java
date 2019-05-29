@@ -34,19 +34,7 @@ abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
     protected final double[] thresholds;
 
     protected AbstractConfusionMatrixMetric(List<Double> at) {
-        this(at.stream().mapToDouble(Double::doubleValue).toArray());
-    }
-
-    private AbstractConfusionMatrixMetric(double[] thresholds) {
-        this.thresholds = Objects.requireNonNull(thresholds);
-        if (thresholds.length == 0) {
-            throw new IllegalArgumentException("[" + getName() + "." + AT.getPreferredName() + "] must have at least one value");
-        }
-        for (double threshold : thresholds) {
-            if (threshold < 0 || threshold > 1.0) {
-                throw new IllegalArgumentException("[" + getName() + "." + AT.getPreferredName() + "] values must be in [0.0, 1.0]");
-            }
-        }
+        this.thresholds = Objects.requireNonNull(at).stream().mapToDouble(Double::doubleValue).toArray();
     }
 
     @Override

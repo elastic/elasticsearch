@@ -40,19 +40,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * Area under the curve (AUC) of the receiver operating characteristic (ROC).
  * The ROC curve is a plot of the TPR (true positive rate) against
  * the FPR (false positive rate) over a varying threshold.
- *
- * This particular implementation is making use of ES aggregations
- * to calculate the curve. It then uses the trapezoidal rule to calculate
- * the AUC.
- *
- * In particular, in order to calculate the ROC, we get percentiles of TP
- * and FP against the predicted probability. We call those Rate-Threshold
- * curves. We then scan ROC points from each Rate-Threshold curve against the
- * other using interpolation. This gives us an approximation of the ROC curve
- * that has the advantage of being efficient and resilient to some edge cases.
- *
- * When this is used for multi-class classification, it will calculate the ROC
- * curve of each class versus the rest.
  */
 public class AucRocMetric implements EvaluationMetric {
 
@@ -249,38 +236,6 @@ public class AucRocMetric implements EvaluationMetric {
         @Override
         public String toString() {
             return Strings.toString(this);
-        }
-
-        public static Builder builder() {
-            return new Builder();
-        }
-
-        public static class Builder {
-
-            private double tpr;
-            private double fpr;
-            private double threshold;
-
-            private Builder() {}
-
-            public Builder setTruePositiveRate(double tpr) {
-                this.tpr = tpr;
-                return this;
-            }
-
-            public Builder setFalsePositiveRate(double fpr) {
-                this.fpr = fpr;
-                return this;
-            }
-
-            public Builder setThreshold(double threshold) {
-                this.threshold = threshold;
-                return this;
-            }
-
-            public AucRocPoint build() {
-                return new AucRocPoint(tpr, fpr, threshold);
-            }
         }
     }
 }

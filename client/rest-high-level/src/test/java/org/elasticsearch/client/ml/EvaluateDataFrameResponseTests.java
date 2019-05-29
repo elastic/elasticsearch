@@ -45,7 +45,7 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
         if (randomBoolean()) {
             metrics.add(ConfusionMatrixMetricResultTests.randomResult());
         }
-        return new EvaluateDataFrameResponse(metrics);
+        return new EvaluateDataFrameResponse(randomAlphaOfLength(5), metrics);
     }
 
     @Override
@@ -65,8 +65,8 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // allow unknown fields in the root of the object and in the metrics map (i.e. alongside named metrics like "precision" or "recall")
-        return field -> field.contains(".");
+        // allow unknown fields in the metrics map (i.e. alongside named metrics like "precision" or "recall")
+        return field -> field.isEmpty() || field.contains(".");
     }
 
     @Override

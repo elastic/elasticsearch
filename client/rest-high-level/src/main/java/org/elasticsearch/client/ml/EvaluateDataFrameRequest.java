@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +35,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class EvaluateDataFrameRequest implements ToXContentObject, Validatable {
 
@@ -48,15 +50,15 @@ public class EvaluateDataFrameRequest implements ToXContentObject, Validatable {
             "evaluate_data_frame_request", true, args -> new EvaluateDataFrameRequest((List<String>) args[0], (Evaluation) args[1]));
 
     static {
-        PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> parseEvaluation(p), EVALUATION);
+        PARSER.declareStringArray(constructorArg(), INDEX);
+        PARSER.declareObject(constructorArg(), (p, c) -> parseEvaluation(p), EVALUATION);
     }
 
     private static Evaluation parseEvaluation(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
         Evaluation evaluation = parser.namedObject(Evaluation.class, parser.currentName(), null);
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
         return evaluation;
     }
 

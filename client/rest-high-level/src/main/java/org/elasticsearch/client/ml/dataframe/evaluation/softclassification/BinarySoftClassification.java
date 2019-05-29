@@ -32,6 +32,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 /**
  * Evaluation of binary soft classification methods, e.g. outlier detection.
  * This is useful to evaluate problems where a model outputs a probability of whether
@@ -52,10 +55,9 @@ public class BinarySoftClassification implements Evaluation {
             args -> new BinarySoftClassification((String) args[0], (String) args[1], (List<EvaluationMetric>) args[2]));
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PREDICTED_PROBABILITY_FIELD);
-        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(EvaluationMetric.class, n, null), METRICS);
+        PARSER.declareString(constructorArg(), ACTUAL_FIELD);
+        PARSER.declareString(constructorArg(), PREDICTED_PROBABILITY_FIELD);
+        PARSER.declareNamedObjects(optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, n, null), METRICS);
     }
 
     public static BinarySoftClassification fromXContent(XContentParser parser) {

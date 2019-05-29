@@ -45,7 +45,7 @@ public class ConfusionMatrixMetric extends AbstractConfusionMatrixMetric {
         new ConstructingObjectParser<>(NAME, args -> new ConfusionMatrixMetric((List<Double>) args[0]));
 
     static {
-        PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), AT);
+        PARSER.declareDoubleArray(constructorArg(), AT);
     }
 
     public static ConfusionMatrixMetric fromXContent(XContentParser parser) {
@@ -158,6 +158,22 @@ public class ConfusionMatrixMetric extends AbstractConfusionMatrixMetric {
             this.fn = fn;
         }
 
+        public long getTruePositives() {
+            return tp;
+        }
+
+        public long getFalsePositives() {
+            return fp;
+        }
+
+        public long getTrueNegatives() {
+            return tn;
+        }
+
+        public long getFalseNegatives() {
+            return fn;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder
@@ -185,44 +201,6 @@ public class ConfusionMatrixMetric extends AbstractConfusionMatrixMetric {
         @Override
         public String toString() {
             return Strings.toString(this);
-        }
-
-        public static Builder builder() {
-            return new Builder();
-        }
-
-        public static class Builder {
-
-            private long tp;
-            private long fp;
-            private long tn;
-            private long fn;
-
-            private Builder() {}
-
-            public Builder setTruePositives(long tp) {
-                this.tp = tp;
-                return this;
-            }
-
-            public Builder setFalsePositives(long fp) {
-                this.fp = fp;
-                return this;
-            }
-
-            public Builder setTrueNegatives(long tn) {
-                this.tn = tn;
-                return this;
-            }
-
-            public Builder setFalseNegatives(long fn) {
-                this.fn = fn;
-                return this;
-            }
-
-            public ConfusionMatrix build() {
-                return new ConfusionMatrix(tp, fp, tn, fn);
-            }
         }
     }
 }

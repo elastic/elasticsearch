@@ -20,10 +20,7 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.client.ml.dataframe.evaluation.softclassification.BinarySoftClassification;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -32,35 +29,35 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-
 public class EvaluateDataFrameResponse implements ToXContentObject {
 
-    public static EvaluateDataFrameResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
-
-    private static final ParseField SOFT_CLASSIFICATION_METRICS = new ParseField(BinarySoftClassification.NAME);
-
-    @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<EvaluateDataFrameResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "evaluate_data_frame_response", true, args -> new EvaluateDataFrameResponse((List<EvaluationMetric.Result>) args[0]));
-
-    static {
-        PARSER.declareNamedObjects(constructorArg(), (p, c, n) -> parseMetric(p, n), SOFT_CLASSIFICATION_METRICS);
-    }
-
-    private static EvaluationMetric.Result parseMetric(XContentParser parser, String fieldName) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+    public static EvaluateDataFrameResponse fromXContent(XContentParser parser) throws IOException {
+        if (parser.currentToken() == null) {
+            parser.nextToken();
+        }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+        String evaluationName = parser.currentName();
         parser.nextToken();
+        Map<String, EvaluationMetric.Result> metrics = parser.map(LinkedHashMap::new, EvaluateDataFrameResponse::parseMetric);
+        List<EvaluationMetric.Result> knownMetrics =
+            metrics.values().stream()
+                .filter(Objects::nonNull)  // Filter out null values returned by {@link EvaluateDataFrameResponse::parseMetric}.
+                .collect(Collectors.toList());
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        return new EvaluateDataFrameResponse(evaluationName, knownMetrics);
+    }
+
+    private static EvaluationMetric.Result parseMetric(XContentParser parser) throws IOException {
+        String metricName = parser.currentName();
         try {
-            return parser.namedObject(EvaluationMetric.Result.class, fieldName, null);
+            return parser.namedObject(EvaluationMetric.Result.class, metricName, null);
         } catch (NamedObjectNotFoundException e) {
             parser.skipChildren();
             // Metric name not recognized. Return {@code null} value here and filter it out later.
@@ -68,26 +65,25 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
         }
     }
 
+    private final String evaluationName;
     private final Map<String, EvaluationMetric.Result> metrics;
 
-    public EvaluateDataFrameResponse(List<EvaluationMetric.Result> metrics) {
-        Objects.requireNonNull(metrics);
-        // Convert List to Map so that lookups done by {@link EvaluateDataFrameResponse::getMetricByName} methods are fast.
-        this.metrics = metrics.stream()
-            .filter(Objects::nonNull)  // Filter out null values returned by {@link EvaluateDataFrameResponse::parseMetric}.
-            .collect(Collectors.toMap(r -> r.getMetricName(), r -> r));
+    public EvaluateDataFrameResponse(String evaluationName, List<EvaluationMetric.Result> metrics) {
+        this.evaluationName = Objects.requireNonNull(evaluationName);
+        this.metrics = Objects.requireNonNull(metrics).stream().collect(Collectors.toUnmodifiableMap(m -> m.getMetricName(), m -> m));
     }
 
     public String getEvaluationName() {
-        return BinarySoftClassification.NAME;
+        return evaluationName;
     }
 
     public List<EvaluationMetric.Result> getMetrics() {
-        return metrics.values().stream().collect(Collectors.toUnmodifiableList());
+        return metrics.values().stream().collect(Collectors.toList());
     }
 
     @SuppressWarnings("unchecked")
     public <T extends EvaluationMetric.Result> T getMetricByName(String metricName) {
+        Objects.requireNonNull(metricName);
         return (T) metrics.get(metricName);
     }
 
@@ -95,7 +91,7 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         return builder
             .startObject()
-            .field(BinarySoftClassification.NAME, metrics)
+            .field(evaluationName, metrics)
             .endObject();
     }
 
@@ -104,12 +100,13 @@ public class EvaluateDataFrameResponse implements ToXContentObject {
         if (o == this) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EvaluateDataFrameResponse that = (EvaluateDataFrameResponse) o;
-        return Objects.equals(metrics, that.metrics);
+        return Objects.equals(evaluationName, that.evaluationName)
+            && Objects.equals(metrics, that.metrics);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(metrics);
+        return Objects.hash(evaluationName, metrics);
     }
 
     @Override

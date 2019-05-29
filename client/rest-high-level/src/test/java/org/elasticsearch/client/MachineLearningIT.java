@@ -1510,15 +1510,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         ConfusionMatrixMetric.Result confusionMatrixResult = evaluateDataFrameResponse.getMetricByName(ConfusionMatrixMetric.NAME);
         assertThat(confusionMatrixResult.getMetricName(), equalTo(ConfusionMatrixMetric.NAME));
-        assertThat(
-            confusionMatrixResult.getScoreByThreshold("0.5"),
-            equalTo(
-                ConfusionMatrixMetric.ConfusionMatrix.builder()
-                    .setTruePositives(2)  // docs #8 and #9
-                    .setFalsePositives(1)  // doc #4
-                    .setTrueNegatives(4)  // docs #0, #1, #2 and #3
-                    .setFalseNegatives(3)  // docs #5, #6 and #7
-                    .build()));
+        ConfusionMatrixMetric.ConfusionMatrix confusionMatrix = confusionMatrixResult.getScoreByThreshold("0.5");
+        assertThat(confusionMatrix.getTruePositives(), equalTo(2));  // docs #8 and #9
+        assertThat(confusionMatrix.getFalsePositives(), equalTo(1));  // doc #4
+        assertThat(confusionMatrix.getTrueNegatives(), equalTo(4));  // docs #0, #1, #2 and #3
+        assertThat(confusionMatrix.getFalseNegatives(), equalTo(3));  // docs #5, #6 and #7
         assertNull(confusionMatrixResult.getScoreByThreshold("0.1"));
 
         AucRocMetric.Result aucRocResult = evaluateDataFrameResponse.getMetricByName(AucRocMetric.NAME);
@@ -1526,22 +1522,14 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(aucRocResult.getScore(), closeTo(0.70025, 1e-9));
         assertNotNull(aucRocResult.getCurve());
         List<AucRocMetric.AucRocPoint> curve = aucRocResult.getCurve();
-        assertThat(
-            curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get(),
-            equalTo(
-                AucRocMetric.AucRocPoint.builder()
-                    .setTruePositiveRate(1.0)
-                    .setFalsePositiveRate(1.0)
-                    .setThreshold(0.0)
-                    .build()));
-        assertThat(
-            curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get(),
-            equalTo(
-                AucRocMetric.AucRocPoint.builder()
-                    .setTruePositiveRate(0.0)
-                    .setFalsePositiveRate(0.0)
-                    .setThreshold(1.0)
-                    .build()));
+        AucRocMetric.AucRocPoint curvePointAtThreshold0 = curve.stream().filter(p -> p.getThreshold() == 0.0).findFirst().get();
+        assertThat(curvePointAtThreshold0.getTruePositiveRate(), equalTo(1.0));
+        assertThat(curvePointAtThreshold0.getFalsePositiveRate(), equalTo(1.0));
+        assertThat(curvePointAtThreshold0.getThreshold(), equalTo(0.0));
+        AucRocMetric.AucRocPoint curvePointAtThreshold1 = curve.stream().filter(p -> p.getThreshold() == 1.0).findFirst().get();
+        assertThat(curvePointAtThreshold1.getTruePositiveRate(), equalTo(0.0));
+        assertThat(curvePointAtThreshold1.getFalsePositiveRate(), equalTo(0.0));
+        assertThat(curvePointAtThreshold1.getThreshold(), equalTo(1.0));
     }
 
     private static XContentBuilder defaultMappingForTest() throws IOException {

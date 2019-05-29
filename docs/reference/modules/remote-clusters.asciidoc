@@ -34,9 +34,10 @@ registered to. This is subject to the same rules as <<rolling-upgrades>>.
 Any node can communicate with any other node on the same major version (e.g.
 6.0 can talk to any 6.x node). Only nodes on the last minor version (6.8 is a
 bit special in this context as it was released after 7.0) of a certain major
-version can communicate with nodes on the following major version (e.g. 6.7
-and 6.8 can communicate with 7.0, as well as any 7.x node, while 6.6 or
-earlier cannot talk to any 7.x node). Note that version compatibility
+version can communicate with nodes on the following major version: 6.7 can
+communicate with 7.0, as well as any 7.x node, while 6.6 or earlier cannot
+talk to any 7.x node; note that 7.1, which was released after 7.0, cannot
+talk to 7.0 but rather to 7.1 and later. Note that version compatibility
  is symmetric, meaning that if 6.7 can communicate with 7.0, 7.0 can also
  communicate with 6.7. The matrix below summarizes compatibility as described
  above.

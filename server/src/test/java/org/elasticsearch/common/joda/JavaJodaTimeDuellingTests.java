@@ -49,8 +49,6 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
 
 
         //in joda 'Z' was able to parse 'Z' zulu but in java it fails. You have to use 'X' to do that.
-        //Caused by: java.time.format.DateTimeParseException: Text '2019-01-01T01:01:01.001Z' could not be parsed at index 23
-        //assertSameMillis("2019-01-01T01:01:01.001Z","YYYY-MM-dd'T'HH:mm:ss.SSSZ","8yyyy-MM-dd'T'HH:mm:ss.SSSZ");
         assertSameMillis("2019-01-01T01:01:01.001Z", "YYYY-MM-dd'T'HH:mm:ss.SSSZ", "8yyyy-MM-dd'T'HH:mm:ss.SSSX");
         assertSameMillis("2019-01-01T01:01:01.001+0000", "YYYY-MM-dd'T'HH:mm:ss.SSSZ", "8yyyy-MM-dd'T'HH:mm:ss.SSSZ");
 

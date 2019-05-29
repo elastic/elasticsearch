@@ -39,11 +39,11 @@ Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8
 Java Cryptography Architecture documentation]. Defaults to ``.
 
 ifdef::asciidoctor[]
-[[{ssl-context}-tls-ssl-key-trusted-certificate-settings]]
+[#{ssl-context}-tls-ssl-key-trusted-certificate-settings]
 ===== {component} TLS/SSL Key and Trusted Certificate Settings
 endif::[]
 ifndef::asciidoctor[]
-==== anchor:{ssl-context}-tls-ssl-key-trusted-certificate-settings[] {component} TLS/SSL Key and Trusted Certificate Settings
+===== anchor:{ssl-context}-tls-ssl-key-trusted-certificate-settings[] {component} TLS/SSL Key and Trusted Certificate Settings
 endif::[]
 
 The following settings are used to specify a private key, certificate, and the
@@ -111,11 +111,11 @@ Password to the truststore.
 Password to the truststore.
 
 ifdef::asciidoctor[]
-[[{ssl-context}-pkcs12-files]]
+[#{ssl-context}-pkcs12-files]
 ===== PKCS#12 Files
 endif::[]
 ifndef::asciidoctor[]
-==== anchor:{ssl-context}-pkcs12-files[] PKCS#12 Files
+===== anchor:{ssl-context}-pkcs12-files[] PKCS#12 Files
 endif::[]
 
 {es} can be configured to use PKCS#12 container files (`.p12` or `.pfx` files)
@@ -155,11 +155,11 @@ Password to the PKCS#12 file.
 Password to the PKCS#12 file.
 
 ifdef::asciidoctor[]
-[[{ssl-context}-pkcs11-tokens]]
+[#{ssl-context}-pkcs11-tokens]
 ===== PKCS#11 Tokens
 endif::[]
 ifndef::asciidoctor[]
-==== anchor:{ssl-context}-pkcs11-tokens[] PKCS#11 Tokens
+===== anchor:{ssl-context}-pkcs11-tokens[] PKCS#11 Tokens
 endif::[]
 
 {es} can be configured to use a PKCS#11 token that contains the private key,

@@ -1253,9 +1253,14 @@ through the list of URLs will continue until a successful connection is made.
 [[ssl-tls-settings]]
 ==== Default TLS/SSL settings
 
+ifdef::asciidoctor[]
+deprecated:[6.7.0, "fallback to the default TLS/SSL settings is deprecated as it leads to ambiguity in what configuration is used. Fully configure each components' TLS/SSL settings as the default settings will be removed in 7.0"]
+endif::[]
+ifndef::asciidoctor[]
 deprecated[6.7.0, fallback to the default TLS/SSL settings is deprecated as it
 leads to ambiguity in what configuration is used. Fully configure each components'
 TLS/SSL settings as the default settings will be removed in 7.0]
+endif::[]
 
 You can configure the following TLS/SSL settings in
 `elasticsearch.yml`. For more information, see
@@ -1460,6 +1465,7 @@ http layer.
 :client-auth-default:    none
 :verifies!:
 :server:
+:ssl-context:            security-http
 
 include::ssl-settings.asciidoc[]
 
@@ -1469,6 +1475,7 @@ include::ssl-settings.asciidoc[]
 :client-auth-default!:
 :verifies:
 :server:
+:ssl-context:            security-transport
 
 include::ssl-settings.asciidoc[]
 
@@ -1492,6 +1499,7 @@ setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.key`.
 :component:              Auditing
 :client-auth-default!:
 :server!:
+:ssl-context:            auditing
 
 include::ssl-settings.asciidoc[]
 

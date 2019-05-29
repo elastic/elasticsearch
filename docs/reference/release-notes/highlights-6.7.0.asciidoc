@@ -23,6 +23,7 @@ geo-proximity so that reads can be served locally.
 For more information, see {stack-ov}/xpack-ccr.html[Cross-cluster replication]
 and <<ccr-apis>>.
 
+[float]
 === Index lifecycle management
 
 We introduced index lifecycle management in 6.6.0 as a beta feature, it is now

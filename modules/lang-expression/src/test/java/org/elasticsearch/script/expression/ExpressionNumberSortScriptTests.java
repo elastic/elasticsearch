@@ -19,9 +19,6 @@
 
 package org.elasticsearch.script.expression;
 
-import java.io.IOException;
-import java.text.ParseException;
-import java.util.Collections;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -32,6 +29,10 @@ import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.text.ParseException;
+import java.util.Collections;
 
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyObject;
@@ -63,7 +64,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         when(fieldData.load(anyObject())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(mapperService, ignored -> fieldData, null);
+        lookup = new SearchLookup(mapperService, ignored -> fieldData);
     }
 
     private NumberSortScript.LeafFactory compile(String expression) {

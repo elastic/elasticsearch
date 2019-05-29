@@ -817,7 +817,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 test.jvmArgumentProviders.add(nonInputProperties)
-                test.extensions.getByType(ExtraPropertiesExtension).set('nonInputProperties', nonInputProperties)
+                test.extensions.add('nonInputProperties', nonInputProperties)
 
                 test.executable = "${ext.get('runtimeJavaHome')}/bin/java"
                 test.workingDir = project.file("${project.buildDir}/testrun/${test.name}")
@@ -842,16 +842,24 @@ class BuildPlugin implements Plugin<Project> {
 
                 // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
                 test.systemProperties 'gradle.dist.lib': new File(project.class.location.toURI()).parent,
-                        'gradle.worker.jar': "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar",
-                        'gradle.user.home': project.gradle.getGradleUserHomeDir(),
                         'java.io.tmpdir': './temp',
                         'java.awt.headless': 'true',
                         'tests.gradle': 'true',
                         'tests.artifact': project.name,
                         'tests.task': test.path,
                         'tests.security.manager': 'true',
-                        'tests.seed': project.property('testSeed'),
                         'jna.nosys': 'true'
+
+                // ignore changing test seed when build is passed -Dignore.tests.seed for cacheability experimentation
+                if (System.getProperty('ignore.tests.seed') != null) {
+                    nonInputProperties.systemProperty('tests.seed', project.property('testSeed'))
+                } else {
+                    test.systemProperty('tests.seed', project.property('testSeed'))
+                }
+
+                // don't track these as inputs since they contain absolute paths and break cache relocatability
+                nonInputProperties.systemProperty('gradle.worker.jar', "${project.gradle.getGradleUserHomeDir()}/caches/${project.gradle.gradleVersion}/workerMain/gradle-worker.jar")
+                nonInputProperties.systemProperty('gradle.user.home', project.gradle.getGradleUserHomeDir())
 
                 nonInputProperties.systemProperty('compiler.java', "${-> (ext.get('compilerJavaVersion') as JavaVersion).getMajorVersion()}")
 
@@ -963,21 +971,6 @@ class BuildPlugin implements Plugin<Project> {
                     }
                 }
             })
-        }
-    }
-
-    private static class SystemPropertyCommandLineArgumentProvider implements CommandLineArgumentProvider {
-        private final Map<String, Object> systemProperties = [:]
-
-        void systemProperty(String key, Object value) {
-            systemProperties.put(key, value)
-        }
-
-        @Override
-        Iterable<String> asArguments() {
-            return systemProperties.collect { key, value ->
-                "-D${key}=${value.toString()}".toString()
-            }
         }
     }
 }

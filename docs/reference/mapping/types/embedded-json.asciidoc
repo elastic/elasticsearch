@@ -5,30 +5,26 @@ By default, each subfield in an object is mapped and indexed separately. If
 the names or types of the subfields are not known in advance, then they are
 <<dynamic-mapping, mapped dynamically>>.
 
-The `embedded_json` type provides an alternative approach, where the entire object is
-mapped as a single field. Given an object, the `embedded_json` mapping will parse out
-its leaf values and index them into one field. The object's contents can then
-be searched through simple keyword-style queries.
+The `embedded_json` type provides an alternative approach, where the entire
+object is mapped as a single field. Given an object, the `embedded_json`
+mapping will parse out its leaf values and index them into one field as
+keywords. The object's contents can then be searched through simple queries
+and aggregations.
 
-This data type can be useful for indexing objects with a very large number of
-distinct keys. Compared to mapping each field separately, embedded JSON fields have
-the following advantages:
+This data type can be useful for indexing objects with a large or unknown
+number of unique keys. Only one field mapping is created for the whole JSON
+object, which can help prevent a <<mapping-limit-settings, mappings explosion>>
+from having too many distinct field mappings.
 
-- Only one field mapping is created for the whole object, which can help
-  prevent a <<mapping-limit-settings, mappings explosion>> due to a large
-  number of field mappings.
-- An embedded JSON field may take up less space in the index, as only one underlying
-  field is created.
+On the other hand, embedded JSON fields present a trade-off in terms of search
+functionality. Only basic queries are allowed, with no support for numeric
+range queries or highlighting. Further information on the limitations can be
+found in the <<supported-operations, Supported operations>> section.
 
-However, embedded JSON fields present a trade-off in terms of search functionality.
-Only basic queries are allowed, with no support for numeric range queries or
-highlighting. Further information on the limitations can be found in the
-<<supported-operations, Supported operations>> section.
-
-NOTE: The `embedded_json` mapping type should **not** be used for indexing all JSON
-content, as it provides only limited search functionality. The default
-approach, where each subfield has its own entry in the mappings, works well in
-the majority of cases.
+NOTE: The `embedded_json` mapping type should **not** be used for indexing all
+JSON content, as it treats all values as keywords and does not provide full
+search functionality. The default approach, where each subfield has its own
+entry in the mappings, works well in the majority of cases.
 
 An embedded JSON field can be created as follows:
 [source,js]
@@ -67,7 +63,9 @@ During indexing, tokens are created for each leaf value in the JSON object. The
 values are indexed as string keywords, without analysis or special handling for
 numbers or dates.
 
-Querying the top-level `embedded_json` field searches all leaf values in the object:
+Querying the top-level `embedded_json` field searches all leaf values in the
+object:
+
 [source,js]
 --------------------------------
 POST bug_reports/_search
@@ -94,6 +92,10 @@ POST bug_reports/_search
 [[supported-operations]]
 ==== Supported operations
 
+Because of the similarities in the way values are indexed, `embedded_json`
+fields share much of the same mapping and search functionality as
+<<keyword, `keyword`>> fields.
+
 Currently, embedded JSON fields can be used with the following query types:
 
 - `term`, `terms`, and `terms_set`
@@ -106,12 +108,13 @@ Currently, embedded JSON fields can be used with the following query types:
 When querying, it is not possible to refer to field keys using wildcards, as in
 `{ "term": {"labels.time*": 1541457010}}`. Note that all queries, including
 `range`, treat the values as string keywords. Highlighting is not supported on
-`json` fields.
+`embedded_json` fields.
 
 It is possible to sort on an embedded JSON field, as well as perform simple
 keyword-style aggregations such as `terms`. As with queries, there is no
 special support for numerics -- all values in the JSON object are treated as
-keywords. When sorting, this implies that values are compared lexicographically.
+keywords. When sorting, this implies that values are compared
+lexicographically.
 
 Embedded JSON fields currently cannot be stored. It is not possible to specify
 the <<mapping-store, `store`>> parameter in the mapping.
@@ -119,9 +122,7 @@ the <<mapping-store, `store`>> parameter in the mapping.
 [[json-params]]
 ==== Parameters for JSON fields
 
-Because of the similarities in the way values are indexed, the `embedded_json` type
-shares many mapping options with <<keyword, `keyword`>>. The following
-parameters are accepted:
+The following mapping parameters are accepted:
 
 [horizontal]
 
@@ -144,9 +145,9 @@ parameters are accepted:
 
 <<eager-global-ordinals,`eager_global_ordinals`>>::
 
-    Should global ordinals be loaded eagerly on refresh? Accepts `true` or `false`
-    (default). Enabling this is a good idea on fields that are frequently used for
-    terms aggregations.
+    Should global ordinals be loaded eagerly on refresh? Accepts `true` or
+    `false` (default). Enabling this is a good idea on fields that are
+    frequently used for terms aggregations.
 
 <<ignore-above,`ignore_above`>>::
 

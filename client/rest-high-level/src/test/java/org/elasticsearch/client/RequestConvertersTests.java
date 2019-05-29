@@ -1751,11 +1751,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         {
             EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("foo+bar");
-            assertEquals("/foo+bar", endpointBuilder.build());
+            assertEquals("/foo%2Bbar", endpointBuilder.build());
         }
         {
             EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("foo+bar");
-            assertEquals("/foo+bar", endpointBuilder.build());
+            assertEquals("/foo%2Bbar", endpointBuilder.build());
         }
         {
             EndpointBuilder endpointBuilder = new EndpointBuilder().addPathPart("foo/bar");

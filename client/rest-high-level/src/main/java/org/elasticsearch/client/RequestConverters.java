@@ -1122,6 +1122,7 @@ final class RequestConverters {
         }
 
         private static String encodePart(String pathPart) {
+            // TODO: look at using URLEncodedUtils#formatSegments instead of this hand rolled impl
             try {
                 //encode each part (e.g. index, type and id) separately before merging them into the path
                 //we prepend "/" to the path part to make this path absolute, otherwise there can be issues with
@@ -1129,8 +1130,10 @@ final class RequestConverters {
                 //the authority must be an empty string and not null, else paths that being with slashes could have them
                 //misinterpreted as part of the authority.
                 URI uri = new URI(null, "", "/" + pathPart, null, null);
-                //manually encode any slash that each part may contain
-                return uri.getRawPath().substring(1).replaceAll("/", "%2F");
+                //manually encode any slash or plus that each part may contain
+                return uri.getRawPath().substring(1)
+                    .replaceAll("/", "%2F")
+                    .replaceAll("\\+", "%2B");
             } catch (URISyntaxException e) {
                 throw new IllegalArgumentException("Path part [" + pathPart + "] couldn't be encoded", e);
             }

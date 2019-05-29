@@ -104,7 +104,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             protected Boolean featureValueOf(JsonLogLine actual) {
                 return actual.level().equals("WARN") &&
                     actual.component().equals("o.e.x.c.a.AutoFollowCoordinator") &&
-                    actual.nodeName().equals("node-0") &&
+                    actual.nodeName().startsWith("follow-cluster-0") &&
                     actual.message().contains("failure occurred while fetching cluster state for auto follow pattern [test_pattern]") &&
                     actual.stacktrace().contains("org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state " +
                         "as the remote cluster [leader_cluster] is not licensed for [ccr]; the license mode [BASIC]" +

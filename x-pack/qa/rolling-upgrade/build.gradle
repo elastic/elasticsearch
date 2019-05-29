@@ -123,6 +123,8 @@ for (Version version : bwcVersions.wireCompatible) {
         setting 'xpack.security.authc.token.timeout', '60m'
         setting 'logger.org.elasticsearch.xpack.security.authc.TokenService', 'trace'
         setting 'xpack.security.audit.enabled', 'true'
+	setting 'logger.org.elasticsearch.xpack.watcher', 'debug'
+        setting 'logger.org.elasticsearch.xpack.core.watcher', 'debug'
         rootProject.globalInfo.ready {
             if (project.inFipsJvm) {
                 setting 'xpack.security.transport.ssl.key', 'testnode.pem'

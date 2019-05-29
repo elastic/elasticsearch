@@ -36,7 +36,7 @@ public class SqlTranslateRequestTests extends AbstractSerializingTestCase<SqlTra
 
     @Override
     protected SqlTranslateRequest createTestInstance() {
-        return new SqlTranslateRequest(randomAlphaOfLength(10),  Collections.emptyList(), randomFilterOrNull(random()),
+        return new SqlTranslateRequest(randomAlphaOfLength(10), Collections.emptyList(), randomFilterOrNull(random()),
                 randomZone(), between(1, Integer.MAX_VALUE), randomTV(), randomTV(), new RequestInfo(testMode));
     }
 

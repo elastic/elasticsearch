@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Strings;
@@ -252,9 +251,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> implement
         field = in.readOptionalString();
         explain = in.readBoolean();
         attributes = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            normalizer = in.readOptionalString();
-        }
+        normalizer = in.readOptionalString();
     }
 
     @Override
@@ -268,9 +265,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> implement
         out.writeOptionalString(field);
         out.writeBoolean(explain);
         out.writeStringArray(attributes);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeOptionalString(normalizer);
-        }
+        out.writeOptionalString(normalizer);
     }
 
     @Override

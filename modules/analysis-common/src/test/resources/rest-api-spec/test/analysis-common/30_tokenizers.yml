@@ -23,38 +23,6 @@
     - match:  { detail.tokenizer.tokens.0.token: Foo Bar! }
 
 ---
-"nGram":
-    - do:
-        indices.analyze:
-          body:
-            text: good
-            explain: true
-            tokenizer:
-              type: nGram
-              min_gram: 2
-              max_gram: 2
-    - length: { detail.tokenizer.tokens: 3 }
-    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
-    - match:  { detail.tokenizer.tokens.0.token: go }
-    - match:  { detail.tokenizer.tokens.1.token: oo }
-    - match:  { detail.tokenizer.tokens.2.token: od }
-
----
-"nGram_exception":
-    - skip:
-        version: " - 6.99.99"
-        reason: only starting from version 7.x this throws an error
-    - do:
-        catch: /The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to[:] \[1\] but was \[2\]\. This limit can be set by changing the \[index.max_ngram_diff\] index level setting\./
-        indices.analyze:
-          body:
-            text: good
-            explain: true
-            tokenizer:
-              type: nGram
-              min_gram: 2
-              max_gram: 4
----
 "simple_pattern":
     - do:
         indices.analyze:
@@ -133,7 +101,7 @@
             text: "foobar"
             explain: true
             tokenizer:
-              type: nGram
+              type: ngram
               min_gram: 3
               max_gram: 3
     - length: { detail.tokenizer.tokens: 4 }
@@ -162,14 +130,27 @@
           body:
             text: "foo"
             explain: true
-            tokenizer: nGram
+            tokenizer: ngram
     - length: { detail.tokenizer.tokens: 5 }
-    - match:  { detail.tokenizer.name: nGram }
+    - match:  { detail.tokenizer.name: ngram }
     - match:  { detail.tokenizer.tokens.0.token: f }
     - match:  { detail.tokenizer.tokens.1.token: fo }
     - match:  { detail.tokenizer.tokens.2.token: o }
     - match:  { detail.tokenizer.tokens.3.token: oo }
     - match:  { detail.tokenizer.tokens.4.token: o }
+
+---
+"ngram_exception":
+    - do:
+        catch: /The difference between max_gram and min_gram in NGram Tokenizer must be less than or equal to[:] \[1\] but was \[2\]\. This limit can be set by changing the \[index.max_ngram_diff\] index level setting\./
+        indices.analyze:
+          body:
+            text: good
+            explain: true
+            tokenizer:
+              type: ngram
+              min_gram: 2
+              max_gram: 4
 
 ---
 "edge_ngram":
@@ -194,7 +175,7 @@
             text: "foo"
             explain: true
             tokenizer:
-              type: edgeNGram
+              type: edge_ngram
               min_gram: 1
               max_gram: 3
     - length: { detail.tokenizer.tokens: 3 }
@@ -219,9 +200,9 @@
           body:
             text: "foo"
             explain: true
-            tokenizer: edgeNGram
+            tokenizer: edge_ngram
     - length: { detail.tokenizer.tokens: 2 }
-    - match:  { detail.tokenizer.name: edgeNGram }
+    - match:  { detail.tokenizer.name: edge_ngram }
     - match:  { detail.tokenizer.tokens.0.token: f }
     - match:  { detail.tokenizer.tokens.1.token: fo }
 

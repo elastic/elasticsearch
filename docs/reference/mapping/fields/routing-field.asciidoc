@@ -82,10 +82,8 @@ custom `routing` value required for all CRUD operations:
 PUT my_index2
 {
   "mappings": {
-    "_doc": {
-      "_routing": {
-        "required": true <1>
-      }
+    "_routing": {
+      "required": true <1>
     }
   }
 }

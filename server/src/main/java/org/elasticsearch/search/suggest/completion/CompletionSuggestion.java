@@ -20,8 +20,7 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.suggest.Lookup;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,9 +35,9 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,11 +70,8 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     private boolean skipDuplicates;
 
-    public CompletionSuggestion() {
-    }
-
     /**
-     * Ctr
+     * Creates a completion suggestion given its name, size and whether it should skip duplicates
      * @param name The name for the suggestions
      * @param size The number of suggestions to return
      * @param skipDuplicates Whether duplicate suggestions should be filtered out
@@ -87,9 +83,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     public CompletionSuggestion(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            skipDuplicates = in.readBoolean();
-        }
+        skipDuplicates = in.readBoolean();
     }
 
     @Override
@@ -100,9 +94,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(skipDuplicates);
-        }
+        out.writeBoolean(skipDuplicates);
     }
 
     /**
@@ -141,85 +133,96 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         return suggestion;
     }
 
-    private static final class OptionPriorityQueue extends org.apache.lucene.util.PriorityQueue<Entry.Option> {
-
-        private final Comparator<Suggest.Suggestion.Entry.Option> comparator;
-
-        OptionPriorityQueue(int maxSize, Comparator<Suggest.Suggestion.Entry.Option> comparator) {
+    private static final class OptionPriorityQueue extends PriorityQueue<ShardOptions> {
+        OptionPriorityQueue(int maxSize) {
             super(maxSize);
-            this.comparator = comparator;
         }
 
         @Override
-        protected boolean lessThan(Entry.Option a, Entry.Option b) {
-            int cmp = comparator.compare(a, b);
-            if (cmp != 0) {
-                return cmp > 0;
+        protected boolean lessThan(ShardOptions a, ShardOptions b) {
+            int compare = COMPARATOR.compare(a.current, b.current);
+            if (compare != 0) {
+                return compare < 0;
             }
-            return Lookup.CHARSEQUENCE_COMPARATOR.compare(a.getText().string(), b.getText().string()) > 0;
-        }
-
-        Entry.Option[] get() {
-            int size = size();
-            Entry.Option[] results = new Entry.Option[size];
-            for (int i = size - 1; i >= 0; i--) {
-                results[i] = pop();
+            ScoreDoc aDoc = a.current.getDoc();
+            ScoreDoc bDoc = b.current.getDoc();
+            if (aDoc.shardIndex == bDoc.shardIndex) {
+                return aDoc.doc < bDoc.doc;
             }
-            return results;
+            return aDoc.shardIndex < bDoc.shardIndex;
         }
     }
 
-    /**
-     * Reduces suggestions to a single suggestion containing at most
-     * top {@link CompletionSuggestion#getSize()} options across <code>toReduce</code>
-     */
-    public static CompletionSuggestion reduceTo(List<Suggest.Suggestion<Entry>> toReduce) {
+    private static class ShardOptions {
+        final Iterator<Entry.Option> optionsIterator;
+        Entry.Option current;
+
+        private ShardOptions(Iterator<Entry.Option> optionsIterator) {
+            assert optionsIterator.hasNext();
+            this.optionsIterator = optionsIterator;
+            this.current = optionsIterator.next();
+            assert this.current.getDoc().shardIndex != -1 : "shardIndex is not set";
+        }
+
+        boolean advanceToNextOption() {
+            if (optionsIterator.hasNext()) {
+                current = optionsIterator.next();
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    @Override
+    public CompletionSuggestion reduce(List<Suggest.Suggestion<Entry>> toReduce) {
         if (toReduce.isEmpty()) {
             return null;
         } else {
             final CompletionSuggestion leader = (CompletionSuggestion) toReduce.get(0);
             final Entry leaderEntry = leader.getEntries().get(0);
             final String name = leader.getName();
+            int size = leader.getSize();
             if (toReduce.size() == 1) {
                 return leader;
             } else {
                 // combine suggestion entries from participating shards on the coordinating node
                 // the global top <code>size</code> entries are collected from the shard results
                 // using a priority queue
-                OptionPriorityQueue priorityQueue = new OptionPriorityQueue(leader.getSize(), COMPARATOR);
-                // Dedup duplicate suggestions (based on the surface form) if skip duplicates is activated
-                final CharArraySet seenSurfaceForms = leader.skipDuplicates ? new CharArraySet(leader.getSize(), false) : null;
+                OptionPriorityQueue pq = new OptionPriorityQueue(toReduce.size());
                 for (Suggest.Suggestion<Entry> suggestion : toReduce) {
                     assert suggestion.getName().equals(name) : "name should be identical across all suggestions";
-                    for (Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
-                        if (leader.skipDuplicates) {
-                            assert ((CompletionSuggestion) suggestion).skipDuplicates;
-                            String text = option.getText().string();
-                            if (seenSurfaceForms.contains(text)) {
-                                continue;
-                            }
-                            seenSurfaceForms.add(text);
-                        }
-                        if (option == priorityQueue.insertWithOverflow(option)) {
-                            // if the current option has overflown from pq,
-                            // we can assume all of the successive options
-                            // from this shard result will be overflown as well
+                    Iterator<Entry.Option> it = ((CompletionSuggestion) suggestion).getOptions().iterator();
+                    if (it.hasNext()) {
+                        pq.add(new ShardOptions(it));
+                    }
+                }
+                // Dedup duplicate suggestions (based on the surface form) if skip duplicates is activated
+                final CharArraySet seenSurfaceForms = leader.skipDuplicates ? new CharArraySet(leader.getSize(), false) : null;
+                final Entry entry = new Entry(leaderEntry.getText(), leaderEntry.getOffset(), leaderEntry.getLength());
+                final List<Entry.Option> options = entry.getOptions();
+                while (pq.size() > 0) {
+                    ShardOptions top = pq.top();
+                    Entry.Option current = top.current;
+                    if (top.advanceToNextOption()) {
+                        pq.updateTop();
+                    } else {
+                        //options exhausted for this shard
+                        pq.pop();
+                    }
+                    if (leader.skipDuplicates == false ||
+                        seenSurfaceForms.add(current.getText().toString())) {
+                        options.add(current);
+                        if (options.size() >= size) {
                             break;
                         }
                     }
                 }
                 final CompletionSuggestion suggestion = new CompletionSuggestion(leader.getName(), leader.getSize(), leader.skipDuplicates);
-                final Entry entry = new Entry(leaderEntry.getText(), leaderEntry.getOffset(), leaderEntry.getLength());
-                Collections.addAll(entry.getOptions(), priorityQueue.get());
                 suggestion.addTerm(entry);
                 return suggestion;
             }
         }
-    }
-
-    @Override
-    public Suggest.Suggestion<Entry> reduce(List<Suggest.Suggestion<Entry>> toReduce) {
-        return reduceTo(toReduce);
     }
 
     public void setShardIndex(int shardIndex) {
@@ -236,11 +239,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
     }
 
     @Override
-    protected Entry newEntry() {
-        return new Entry();
-    }
-
-    @Override
     protected Entry newEntry(StreamInput in) throws IOException {
         return new Entry(in);
     }
@@ -251,15 +249,10 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             super(text, offset, length);
         }
 
-        Entry() {}
+        private Entry() {}
 
         public Entry(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        protected Option newOption() {
-            return new Option();
         }
 
         @Override
@@ -280,8 +273,8 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
-            private Map<String, Set<String>> contexts = Collections.emptyMap();
-            private ScoreDoc doc;
+            private final Map<String, Set<String>> contexts;
+            private final ScoreDoc doc;
             private SearchHit hit;
 
             public static final ParseField CONTEXTS = new ParseField("contexts");
@@ -292,15 +285,11 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 this.contexts = Objects.requireNonNull(contexts, "context map cannot be null");
             }
 
-            protected Option() {
-                super();
-            }
-
             public Option(StreamInput in) throws IOException {
                 super(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    this.hit = SearchHit.readSearchHit(in);
+                    this.hit = new SearchHit(in);
                 }
                 int contextSize = in.readInt();
                 this.contexts = new LinkedHashMap<>(contextSize);
@@ -455,5 +444,4 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
         }
     }
-
 }

@@ -52,7 +52,6 @@ import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RolloverRequestTests extends ESTestCase {
-
     private NamedWriteableRegistry writeableRegistry;
 
     @Override
@@ -72,7 +71,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .field("max_size", "45gb")
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
+        request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(3));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
@@ -108,7 +107,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .startObject("alias1").endObject()
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
+        request.fromXContent(true, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));
@@ -147,7 +146,7 @@ public class RolloverRequestTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(rolloverRequest, xContentType, EMPTY_PARAMS, humanReadable);
 
         RolloverRequest parsedRolloverRequest = new RolloverRequest();
-        parsedRolloverRequest.fromXContent(createParser(xContentType.xContent(), originalBytes));
+        parsedRolloverRequest.fromXContent(true, createParser(xContentType.xContent(), originalBytes));
 
         CreateIndexRequest createIndexRequest = rolloverRequest.getCreateIndexRequest();
         CreateIndexRequest parsedCreateIndexRequest = parsedRolloverRequest.getCreateIndexRequest();
@@ -172,7 +171,7 @@ public class RolloverRequestTests extends ESTestCase {
         }
         builder.endObject();
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
-        expectThrows(XContentParseException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
+        expectThrows(XContentParseException.class, () -> request.fromXContent(false, createParser(xContentType.xContent(), mutated)));
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {

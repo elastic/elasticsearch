@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.predicate;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Literal;
+import org.elasticsearch.xpack.sql.expression.Nullability;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.sql.expression.gen.script.Params;
@@ -17,8 +18,8 @@ import org.elasticsearch.xpack.sql.expression.predicate.logical.BinaryLogicProce
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonPipe;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.util.List;
@@ -32,7 +33,6 @@ import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.pa
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends ScalarFunction {
 
-    private final String name;
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
 
@@ -44,12 +44,6 @@ public class Range extends ScalarFunction {
         this.upper = upper;
         this.includeLower = includeLower;
         this.includeUpper = includeUpper;
-        this.name = name(value, lower, upper, includeLower, includeUpper);
-    }
-
-    @Override
-    public String name() {
-        return name;
     }
 
     @Override
@@ -119,8 +113,8 @@ public class Range extends ScalarFunction {
     }
 
     @Override
-    public boolean nullable() {
-        return value.nullable() && lower.nullable() && upper.nullable();
+    public Nullability nullable() {
+        return Nullability.and(value.nullable(), lower.nullable(), upper.nullable());
     }
 
     @Override
@@ -210,10 +204,5 @@ public class Range extends ScalarFunction {
         }
 
         return sb.toString();
-    }
-
-    @Override
-    public String toString() {
-        return name();
     }
 }

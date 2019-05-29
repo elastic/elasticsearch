@@ -10,25 +10,18 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo.NodeCtor2;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 
 import java.time.ZoneId;
-import java.time.ZonedDateTime;
 
-import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.QuarterProcessor.quarter;
 import static org.elasticsearch.xpack.sql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 public class Quarter extends BaseDateTimeFunction {
 
     public Quarter(Source source, Expression field, ZoneId zoneId) {
         super(source, field, zoneId);
-    }
-
-    @Override
-    protected Object doFold(ZonedDateTime dateTime) {
-        return quarter(dateTime);
     }
 
     @Override

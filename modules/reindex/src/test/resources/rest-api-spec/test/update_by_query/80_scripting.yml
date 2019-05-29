@@ -3,7 +3,6 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -35,7 +34,6 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -64,13 +62,11 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -112,13 +108,11 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -141,7 +135,6 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -161,7 +154,6 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
@@ -181,25 +173,21 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     3
         body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     4
         body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
@@ -247,25 +235,21 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     3
         body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     4
         body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
@@ -326,13 +310,11 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "user": "foo" }
   - do:
@@ -355,25 +337,21 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "level": 9, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     2
         body:   { "level": 10, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     3
         body:   { "level": 11, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     4
         body:   { "level": 12, "last_updated": "2016-01-01T12:10:30Z" }
   - do:
@@ -439,7 +417,6 @@
   - do:
       index:
         index:  twitter
-        type:   _doc
         id:     1
         body:   { "user": "kimchy" }
   - do:

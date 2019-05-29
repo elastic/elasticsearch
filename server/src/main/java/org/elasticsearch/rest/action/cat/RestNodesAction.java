@@ -201,6 +201,9 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("refresh.external_total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total external refreshes");
+        table.addCell("refresh.external_time",
+            "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in external refreshes");
         table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;"
                 + "desc:number of pending refresh listeners");
 
@@ -378,6 +381,8 @@ public class RestNodesAction extends AbstractCatAction {
             RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());
             table.addCell(refreshStats == null ? null : refreshStats.getTotalTime());
+            table.addCell(refreshStats == null ? null : refreshStats.getExternalTotal());
+            table.addCell(refreshStats == null ? null : refreshStats.getExternalTotalTime());
             table.addCell(refreshStats == null ? null : refreshStats.getListeners());
 
             ScriptStats scriptStats = stats == null ? null : stats.getScriptStats();

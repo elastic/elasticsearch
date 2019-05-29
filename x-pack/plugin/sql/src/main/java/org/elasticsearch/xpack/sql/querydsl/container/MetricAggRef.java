@@ -17,19 +17,21 @@ public class MetricAggRef extends AggRef {
     private final String name;
     private final String property;
     private final String innerKey;
+    private final boolean isDateTimeBased;
 
-    public MetricAggRef(String name) {
-        this(name, "value");
+    public MetricAggRef(String name, boolean isDateTimeBased) {
+        this(name, "value", isDateTimeBased);
     }
 
-    public MetricAggRef(String name, String property) {
-        this(name, property, null);
+    public MetricAggRef(String name, String property, boolean isDateTimeBased) {
+        this(name, property, null, isDateTimeBased);
     }
 
-    public MetricAggRef(String name, String property, String innerKey) {
+    public MetricAggRef(String name, String property, String innerKey, boolean isDateTimeBased) {
         this.name = name;
         this.property = property;
         this.innerKey = innerKey;
+        this.isDateTimeBased = isDateTimeBased;
     }
 
     public String name() {
@@ -42,6 +44,10 @@ public class MetricAggRef extends AggRef {
 
     public String innerKey() {
         return innerKey;
+    }
+
+    public boolean isDateTimeBased() {
+        return isDateTimeBased;
     }
 
     @Override

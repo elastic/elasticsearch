@@ -65,7 +65,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
         globalSettings = Settings.builder()
             .put("path.home", createTempDir())
-            .put("xpack.ssl.certificate_authorities", certPath)
+            .put("xpack.security.transport.ssl.certificate_authorities", certPath)
             .build();
         sslService = new SSLService(globalSettings, env);
         threadPool = new TestThreadPool("LdapUserSearchSessionFactoryTests");

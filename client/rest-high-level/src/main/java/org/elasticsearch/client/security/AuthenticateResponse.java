@@ -53,11 +53,11 @@ public final class AuthenticateResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AuthenticateResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "client_security_authenticate_response",
+            "client_security_authenticate_response", true,
             a -> new AuthenticateResponse(new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2],
                 (String) a[3], (String) a[4]), (Boolean) a[5], (RealmInfo) a[6], (RealmInfo) a[7]));
     static {
-        final ConstructingObjectParser<RealmInfo, Void> realmInfoParser = new ConstructingObjectParser<>("realm_info",
+        final ConstructingObjectParser<RealmInfo, Void> realmInfoParser = new ConstructingObjectParser<>("realm_info", true,
             a -> new RealmInfo((String) a[0], (String) a[1]));
         realmInfoParser.declareString(constructorArg(), REALM_NAME);
         realmInfoParser.declareString(constructorArg(), REALM_TYPE);

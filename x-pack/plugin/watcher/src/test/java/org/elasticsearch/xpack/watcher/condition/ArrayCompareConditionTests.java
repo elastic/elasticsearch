@@ -14,12 +14,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.joda.time.DateTime;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -158,7 +158,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         List<Object> values = new ArrayList<>(numberOfValues);
         for (int i = 0; i < numberOfValues; i++) {
             clock.fastForwardSeconds(1);
-            values.add(new DateTime(clock.millis()));
+            values.add(clock.instant().atZone(ZoneOffset.UTC));
         }
 
         ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.value", "", op, value, quantifier, clock);

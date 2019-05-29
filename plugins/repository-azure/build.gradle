@@ -37,30 +37,58 @@ dependencyLicenses {
   mapping from: /stax-.*/, to: 'stax'
 }
 
-thirdPartyAudit.excludes = [
-  // Optional and not enabled by Elasticsearch
-  'org.slf4j.Logger',
-  'org.slf4j.LoggerFactory',
-  // uses internal java api: sun.misc.Unsafe
-  'com.google.common.cache.Striped64',
-  'com.google.common.cache.Striped64$1',
-  'com.google.common.cache.Striped64$Cell',
-  'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-  'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-  'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-  'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-  'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-  'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-]
+thirdPartyAudit {
+    ignoreMissingClasses (
+      // Optional and not enabled by Elasticsearch
+      'org.slf4j.Logger',
+      'org.slf4j.LoggerFactory'
+    )
+
+    ignoreViolations (
+      // uses internal java api: sun.misc.Unsafe
+      'com.google.common.cache.Striped64',
+      'com.google.common.cache.Striped64$1',
+      'com.google.common.cache.Striped64$Cell',
+      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+      'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+      'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+      'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+   )
+}
 
 check {
   // also execute the QA tests when testing the plugin
   dependsOn 'qa:microsoft-azure-storage:check'
 }
 
-integTestCluster {
-  keystoreSetting 'azure.client.integration_test.account', 'azure_account'
-  keystoreSetting 'azure.client.integration_test.key', 'azure_key'
+testClusters {
+    integTest {
+        keystore 'azure.client.integration_test.account', 'azure_account'
+        keystore 'azure.client.integration_test.key', 'azure_key'
+    }
+}
+
+String azureAccount = System.getenv("azure_storage_account")
+String azureKey = System.getenv("azure_storage_key")
+String azureContainer = System.getenv("azure_storage_container")
+String azureBasePath = System.getenv("azure_storage_base_path")
+
+test {
+  exclude '**/AzureStorageCleanupThirdPartyTests.class'
+}
+
+task thirdPartyTest(type: Test) {
+  include '**/AzureStorageCleanupThirdPartyTests.class'
+  systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
+  systemProperty 'test.azure.key', azureKey ? azureKey : ""
+  systemProperty 'test.azure.container', azureContainer ? azureContainer : ""
+  systemProperty 'test.azure.base', azureBasePath ? azureBasePath : ""
+}
+
+if (azureAccount || azureKey || azureContainer || azureBasePath) {
+  check.dependsOn(thirdPartyTest)
 }

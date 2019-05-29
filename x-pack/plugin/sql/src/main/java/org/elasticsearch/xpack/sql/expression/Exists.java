@@ -36,7 +36,7 @@ public class Exists extends SubQueryExpression {
     }
 
     @Override
-    public boolean nullable() {
-        return false;
+    public Nullability nullable() {
+        return Nullability.FALSE;
     }
 }

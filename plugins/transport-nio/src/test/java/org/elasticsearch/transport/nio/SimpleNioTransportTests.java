@@ -52,12 +52,12 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
 
-    public static MockTransportService nioFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
+    public MockTransportService nioFromThreadPool(Settings settings, ThreadPool threadPool, final Version version,
                                                          ClusterSettings clusterSettings, boolean doHandshake) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         NetworkService networkService = new NetworkService(Collections.emptyList());
         Transport transport = new NioTransport(settings, version, threadPool, networkService, new MockPageCacheRecycler(settings),
-            namedWriteableRegistry, new NoneCircuitBreakerService()) {
+            namedWriteableRegistry, new NoneCircuitBreakerService(), new NioGroupFactory(settings, logger)) {
 
             @Override
             public void executeHandshake(DiscoveryNode node, TcpChannel channel, ConnectionProfile profile,

@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.geo.Rectangle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.geo.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -45,7 +45,7 @@ public class GeoDistanceTests extends ESTestCase {
         GeoDistance geoDistance = randomFrom(GeoDistance.PLANE, GeoDistance.ARC);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             geoDistance.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {;
+            try (StreamInput in = out.bytes().streamInput()) {
                 GeoDistance copy = GeoDistance.readFromStream(in);
                 assertEquals(copy.toString() + " vs. " + geoDistance.toString(), copy, geoDistance);
             }
@@ -70,15 +70,17 @@ public class GeoDistanceTests extends ESTestCase {
     public void testDistanceCheck() {
         // Note, is within is an approximation, so, even though 0.52 is outside 50mi, we still get "true"
         double radius = DistanceUnit.convert(50, DistanceUnit.MILES, DistanceUnit.METERS);
-        Rectangle box = Rectangle.fromPointDistance(0, 0, radius);
-        assertThat(GeoUtils.rectangleContainsPoint(box, 0.5, 0.5), equalTo(true));
-        assertThat(GeoUtils.rectangleContainsPoint(box, 0.52, 0.52), equalTo(true));
-        assertThat(GeoUtils.rectangleContainsPoint(box, 1, 1), equalTo(false));
+        org.apache.lucene.geo.Rectangle r = org.apache.lucene.geo.Rectangle.fromPointDistance(0, 0, radius);
+        Rectangle box = new Rectangle(r.minLat, r.maxLat, r.minLon, r.maxLon);
+        assertThat(box.containsPoint(0.5, 0.5), equalTo(true));
+        assertThat(box.containsPoint(0.52, 0.52), equalTo(true));
+        assertThat(box.containsPoint(1, 1), equalTo(false));
 
         radius = DistanceUnit.convert(200, DistanceUnit.MILES, DistanceUnit.METERS);
-        box = Rectangle.fromPointDistance(0, 179, radius);
-        assertThat(GeoUtils.rectangleContainsPoint(box, 0, -179), equalTo(true));
-        assertThat(GeoUtils.rectangleContainsPoint(box, 0, -178), equalTo(false));
+        r = org.apache.lucene.geo.Rectangle.fromPointDistance(0, 179, radius);
+        box = new Rectangle(r.minLat, r.maxLat, r.minLon, r.maxLon);
+        assertThat(box.containsPoint(0, -179), equalTo(true));
+        assertThat(box.containsPoint(0, -178), equalTo(false));
     }
 
     private static double arcDistance(GeoPoint p1, GeoPoint p2) {

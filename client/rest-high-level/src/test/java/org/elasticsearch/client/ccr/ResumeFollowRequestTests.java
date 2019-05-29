@@ -19,67 +19,22 @@
 
 package org.elasticsearch.client.ccr;
 
+import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
 
-public class ResumeFollowRequestTests extends AbstractXContentTestCase<ResumeFollowRequest> {
+import static org.elasticsearch.client.ccr.PutFollowRequestTests.assertFollowConfig;
+import static org.hamcrest.Matchers.equalTo;
 
-    private static final ConstructingObjectParser<ResumeFollowRequest, Void> PARSER = new ConstructingObjectParser<>("test_parser",
-        true, (args) -> new ResumeFollowRequest((String) args[0]));
-
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), PutFollowRequest.FOLLOWER_INDEX_FIELD);
-        PARSER.declareInt(ResumeFollowRequest::setMaxReadRequestOperationCount, FollowConfig.MAX_READ_REQUEST_OPERATION_COUNT);
-        PARSER.declareField(
-            ResumeFollowRequest::setMaxReadRequestSize,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), FollowConfig.MAX_READ_REQUEST_SIZE.getPreferredName()),
-            PutFollowRequest.MAX_READ_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareInt(ResumeFollowRequest::setMaxOutstandingReadRequests, FollowConfig.MAX_OUTSTANDING_READ_REQUESTS);
-        PARSER.declareInt(ResumeFollowRequest::setMaxWriteRequestOperationCount, FollowConfig.MAX_WRITE_REQUEST_OPERATION_COUNT);
-        PARSER.declareField(
-            ResumeFollowRequest::setMaxWriteRequestSize,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), FollowConfig.MAX_WRITE_REQUEST_SIZE.getPreferredName()),
-            PutFollowRequest.MAX_WRITE_REQUEST_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareInt(ResumeFollowRequest::setMaxOutstandingWriteRequests, FollowConfig.MAX_OUTSTANDING_WRITE_REQUESTS);
-        PARSER.declareInt(ResumeFollowRequest::setMaxWriteBufferCount, FollowConfig.MAX_WRITE_BUFFER_COUNT);
-        PARSER.declareField(
-            ResumeFollowRequest::setMaxWriteBufferSize,
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), FollowConfig.MAX_WRITE_BUFFER_SIZE.getPreferredName()),
-            PutFollowRequest.MAX_WRITE_BUFFER_SIZE,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareField(
-            ResumeFollowRequest::setMaxRetryDelay,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), FollowConfig.MAX_RETRY_DELAY_FIELD.getPreferredName()),
-            PutFollowRequest.MAX_RETRY_DELAY_FIELD,
-            ObjectParser.ValueType.STRING);
-        PARSER.declareField(
-            ResumeFollowRequest::setReadPollTimeout,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), FollowConfig.READ_POLL_TIMEOUT.getPreferredName()),
-            PutFollowRequest.READ_POLL_TIMEOUT,
-            ObjectParser.ValueType.STRING);
-    }
+public class ResumeFollowRequestTests extends AbstractRequestTestCase<ResumeFollowRequest, ResumeFollowAction.Request> {
 
     @Override
-    protected ResumeFollowRequest doParseInstance(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return true;
-    }
-
-    @Override
-    protected ResumeFollowRequest createTestInstance() {
-        ResumeFollowRequest resumeFollowRequest = new ResumeFollowRequest(randomAlphaOfLength(4));
+    protected ResumeFollowRequest createClientTestInstance() {
+        ResumeFollowRequest resumeFollowRequest = new ResumeFollowRequest("followerIndex");
         if (randomBoolean()) {
             resumeFollowRequest.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));
         }
@@ -111,6 +66,17 @@ public class ResumeFollowRequestTests extends AbstractXContentTestCase<ResumeFol
             resumeFollowRequest.setReadPollTimeout(new TimeValue(randomNonNegativeLong()));
         }
         return resumeFollowRequest;
+    }
+
+    @Override
+    protected ResumeFollowAction.Request doParseToServerInstance(XContentParser parser) throws IOException {
+        return ResumeFollowAction.Request.fromXContent(parser, "followerIndex");
+    }
+
+    @Override
+    protected void assertInstances(ResumeFollowAction.Request serverInstance, ResumeFollowRequest clientTestInstance) {
+        assertThat(serverInstance.getFollowerIndex(), equalTo(clientTestInstance.getFollowerIndex()));
+        assertFollowConfig(serverInstance.getParameters(), clientTestInstance);
     }
 
 }

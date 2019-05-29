@@ -12,10 +12,21 @@ class InfoResponse {
     final String cluster;
     final int majorVersion;
     final int minorVersion;
+    final int revisionVersion;
 
-    InfoResponse(String clusterName, byte versionMajor, byte versionMinor) {
+    InfoResponse(String clusterName, byte versionMajor, byte versionMinor, byte revisionVersion) {
         this.cluster = clusterName;
         this.majorVersion = versionMajor;
         this.minorVersion = versionMinor;
+        this.revisionVersion = revisionVersion;
+    }
+
+    @Override
+    public String toString() {
+        return cluster + "[" + versionString() + "]";
+    }
+    
+    public String versionString() {
+        return majorVersion + "." + minorVersion + "." + revisionVersion;
     }
 }

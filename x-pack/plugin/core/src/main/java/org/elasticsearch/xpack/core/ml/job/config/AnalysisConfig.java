@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -125,16 +124,12 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public AnalysisConfig(StreamInput in) throws IOException {
         bucketSpan = in.readTimeValue();
         categorizationFieldName = in.readOptionalString();
-        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readList(StreamInput::readString)) : null;
-        if (in.getVersion().onOrAfter(Version.V_6_2_0)) {
-            categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
-        } else {
-            categorizationAnalyzerConfig = null;
-        }
+        categorizationFilters = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
         latency = in.readOptionalTimeValue();
         summaryCountFieldName = in.readOptionalString();
         detectors = Collections.unmodifiableList(in.readList(Detector::new));
-        influencers = Collections.unmodifiableList(in.readList(StreamInput::readString));
+        influencers = Collections.unmodifiableList(in.readStringList());
 
         multivariateByFields = in.readOptionalBoolean();
     }
@@ -145,17 +140,15 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(categorizationFieldName);
         if (categorizationFilters != null) {
             out.writeBoolean(true);
-            out.writeStringList(categorizationFilters);
+            out.writeStringCollection(categorizationFilters);
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_2_0)) {
-            out.writeOptionalWriteable(categorizationAnalyzerConfig);
-        }
+        out.writeOptionalWriteable(categorizationAnalyzerConfig);
         out.writeOptionalTimeValue(latency);
         out.writeOptionalString(summaryCountFieldName);
         out.writeList(detectors);
-        out.writeStringList(influencers);
+        out.writeStringCollection(influencers);
 
         out.writeOptionalBoolean(multivariateByFields);
     }

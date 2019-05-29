@@ -137,6 +137,7 @@ public class ExtendedStatsBucketIT extends ESIntegTestCase {
         double sumOfSqrs = 1.0 + 1.0 + 1.0 + 4.0 + 0.0 + 1.0;
         double avg = sum / count;
         double var = (sumOfSqrs - ((sum * sum) / count)) / count;
+        var = var < 0  ? 0 : var;
         double stdDev = Math.sqrt(var);
         assertThat(extendedStatsBucketValue, notNullValue());
         assertThat(extendedStatsBucketValue.getName(), equalTo("extended_stats_bucket"));

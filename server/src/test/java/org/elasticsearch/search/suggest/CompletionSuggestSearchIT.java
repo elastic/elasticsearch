@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -54,6 +55,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -378,17 +380,13 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatWeightMustBeAnInteger() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        try {
-            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                    .startObject().startObject(FIELD)
-                    .startArray("input").value("sth").endArray()
-                    .field("weight", 2.5)
-                    .endObject().endObject()
-            ).get();
-            fail("Indexing with a float weight was successful, but should not be");
-        } catch (MapperParsingException e) {
-            assertThat(e.toString(), containsString("2.5"));
-        }
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("sth").endArray()
+                .field("weight", 2.5)
+                .endObject().endObject()).get());
+        assertThat(e.toString(), containsString("2.5"));
     }
 
     public void testThatWeightCanBeAString() throws Exception {
@@ -421,34 +419,28 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     public void testThatWeightMustNotBeANonNumberString() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
-        try {
-            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                            .startObject().startObject(FIELD)
-                            .startArray("input").value("sth").endArray()
-                            .field("weight", "thisIsNotValid")
-                            .endObject().endObject()
-            ).get();
-            fail("Indexing with a non-number representing string as weight was successful, but should not be");
-        } catch (MapperParsingException e) {
-            assertThat(e.toString(), containsString("thisIsNotValid"));
-        }
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("sth").endArray()
+                .field("weight", "thisIsNotValid")
+                .endObject().endObject()
+            ).get());
+        assertThat(e.toString(), containsString("thisIsNotValid"));
     }
 
     public void testThatWeightAsStringMustBeInt() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
         String weight = String.valueOf(Long.MAX_VALUE - 4);
-        try {
-            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                            .startObject().startObject(FIELD)
-                            .startArray("input").value("testing").endArray()
-                            .field("weight", weight)
-                            .endObject().endObject()
-            ).get();
-            fail("Indexing with weight string representing value > Int.MAX_VALUE was successful, but should not be");
-        } catch (MapperParsingException e) {
-            assertThat(e.toString(), containsString(weight));
-        }
+
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                .startObject().startObject(FIELD)
+                .startArray("input").value("testing").endArray()
+                .field("weight", weight)
+                .endObject().endObject()).get());
+        assertThat(e.toString(), containsString(weight));
     }
 
     public void testThatInputCanBeAStringInsteadOfAnArray() throws Exception {
@@ -820,13 +812,11 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ).get();
 
         refresh();
-        try {
-            client().prepareSearch(INDEX).setTypes(TYPE).addSort(new FieldSortBuilder(FIELD)).get();
-            fail("Expected an exception due to trying to sort on completion field, but did not happen");
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status().getStatus(), is(400));
-            assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
-        }
+
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch(INDEX).addSort(new FieldSortBuilder(FIELD)).get());
+        assertThat(e.status().getStatus(), is(400));
+        assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
     }
 
     public void testThatSuggestStopFilterWorks() throws Exception {
@@ -890,29 +880,40 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(10, 100);
         int numUnique = randomIntBetween(1, numDocs);
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        int[] weights = new int[numUnique];
+        Integer[] termIds = new Integer[numUnique];
         for (int i = 1; i <= numDocs; i++) {
             int id = i % numUnique;
-            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+            termIds[id] = id;
+            int weight = randomIntBetween(0, 100);
+            weights[id] = Math.max(weight, weights[id]);
+            String suggestion = "suggestion-" + String.format(Locale.ENGLISH, "%03d" , id);
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE)
                 .setSource(jsonBuilder()
                     .startObject()
                         .startObject(FIELD)
-                            .field("input", "suggestion" + id)
-                            .field("weight", id)
+                            .field("input", suggestion)
+                            .field("weight", weight)
                         .endObject()
                     .endObject()
                 ));
         }
-        String[] expected = new String[numUnique];
-        int sugg = numUnique - 1;
-        for (int i = 0; i < numUnique; i++) {
-            expected[i] = "suggestion" + sugg--;
-        }
         indexRandom(true, indexRequestBuilders);
-        CompletionSuggestionBuilder completionSuggestionBuilder =
-            SuggestBuilders.completionSuggestion(FIELD).prefix("sugg").skipDuplicates(true).size(numUnique);
+
+        Arrays.sort(termIds,
+            Comparator.comparingInt(o -> weights[(int) o]).reversed().thenComparingInt(a -> (int) a));
+        String[] expected = new String[numUnique];
+        for (int i = 0; i < termIds.length; i++) {
+            expected[i] = "suggestion-" + String.format(Locale.ENGLISH, "%03d" , termIds[i]);
+        }
+        CompletionSuggestionBuilder completionSuggestionBuilder = SuggestBuilders.completionSuggestion(FIELD)
+            .prefix("sugg")
+            .skipDuplicates(true)
+            .size(numUnique);
 
         SearchResponse searchResponse = client().prepareSearch(INDEX)
-            .suggest(new SuggestBuilder().addSuggestion("suggestions", completionSuggestionBuilder)).get();
+            .suggest(new SuggestBuilder().addSuggestion("suggestions", completionSuggestionBuilder))
+            .get();
         assertSuggestions(searchResponse, true, "suggestions", expected);
     }
 
@@ -1106,17 +1107,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject()).get());
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
-        try {
-            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                    .startObject().startObject(FIELD)
-                    .startArray("input").value(string).endArray()
-                    .field("output", "foobar")
-                    .endObject().endObject()
-            ).get();
-            fail("Expected MapperParsingException");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), containsString("failed to parse"));
-        }
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder().startObject().startObject(FIELD)
+                .startArray("input").value(string).endArray()
+                .field("output", "foobar")
+                .endObject().endObject()).get());
+        assertThat(e.getMessage(), containsString("failed to parse"));
     }
 
     // see #5930
@@ -1135,14 +1131,10 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                         .endObject()
         ).setRefreshPolicy(IMMEDIATE).get();
 
-        try {
-            client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)
-                    .collectMode(randomFrom(SubAggCollectionMode.values()))).get();
-            // Exception must be thrown
-            assertFalse(true);
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
-        }
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+            () -> client().prepareSearch(INDEX).addAggregation(AggregationBuilders.terms("suggest_agg").field(FIELD)
+                .collectMode(randomFrom(SubAggCollectionMode.values()))).get());
+        assertThat(e.toString(), containsString("Fielddata is not supported on field [" + FIELD + "] of type [completion]"));
     }
 
     public void testMultiDocSuggestions() throws Exception {
@@ -1191,6 +1183,29 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
         CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion("alias").text("app");
         assertSuggestions("suggestion", suggestionBuilder, "apple");
+    }
+
+    public void testSuggestOnlyExplain() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = 10;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 1; i <= numDocs; i++) {
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                .setSource(jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", "suggestion" + i)
+                    .field("weight", i)
+                    .endObject()
+                    .endObject()
+                ));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
+        SearchResponse searchResponse = client().prepareSearch(INDEX).setExplain(true)
+            .suggest(new SuggestBuilder().addSuggestion("foo", prefix)).get();
+        assertSuggestions(searchResponse, "foo", "suggestion10", "suggestion9", "suggestion8", "suggestion7", "suggestion6");
     }
 
     public static boolean isReservedChar(char c) {

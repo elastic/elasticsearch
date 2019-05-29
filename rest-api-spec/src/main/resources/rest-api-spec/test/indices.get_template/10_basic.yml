@@ -7,6 +7,10 @@ setup:
           settings:
             number_of_shards:   1
             number_of_replicas: 0
+          mappings:
+            properties:
+              field:
+                type: keyword
 
 ---
 "Get template":
@@ -17,6 +21,27 @@ setup:
 
   - match: {test.index_patterns: ["test-*"]}
   - match: {test.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - match: {test.mappings: {properties: {field: {type: keyword}}}}
+
+---
+"Get template with no mappings":
+
+  - do:
+      indices.put_template:
+        name: test_no_mappings
+        body:
+          index_patterns: test-*
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      indices.get_template:
+        name: test_no_mappings
+
+  - match: {test_no_mappings.index_patterns: ["test-*"]}
+  - match: {test_no_mappings.settings: {index: {number_of_shards: '1', number_of_replicas: '0'}}}
+  - match: {test_no_mappings.mappings: {}}
 
 ---
 "Get all templates":

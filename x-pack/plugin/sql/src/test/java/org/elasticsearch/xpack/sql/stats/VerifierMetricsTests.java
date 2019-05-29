@@ -33,8 +33,7 @@ public class VerifierMetricsTests extends ESTestCase {
     
     private SqlParser parser = new SqlParser();
     private String[] commands = {"SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
-                                 "SHOW TABLES", "SYS CATALOGS", "SYS COLUMNS LIKE '%name'",
-                                 "SYS TABLES", "SYS TYPES"};
+                                 "SHOW TABLES", "SYS COLUMNS LIKE '%name'", "SYS TABLES", "SYS TYPES"};
     
     public void testWhereQuery() {
         Counters c = sql("SELECT emp_no FROM test WHERE languages > 2");
@@ -93,8 +92,7 @@ public class VerifierMetricsTests extends ESTestCase {
     
     public void testCommand() {
         Counters c = sql(randomFrom("SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
-                                    "SHOW TABLES", "SYS CATALOGS", "SYS COLUMNS LIKE '%name'",
-                                    "SYS TABLES", "SYS TYPES"));
+                                    "SHOW TABLES", "SYS COLUMNS LIKE '%name'", "SYS TABLES", "SYS TYPES"));
         assertEquals(0, where(c));
         assertEquals(0, limit(c));
         assertEquals(0, groupby(c));

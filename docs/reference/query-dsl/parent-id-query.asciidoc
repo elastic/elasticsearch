@@ -9,13 +9,11 @@ Given the following mapping definition:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "relations": {
-            "my_parent": "my_child"
-          }
+    "properties": {
+      "my_join_field": {
+        "type": "join",
+        "relations": {
+          "my_parent": "my_child"
         }
       }
     }

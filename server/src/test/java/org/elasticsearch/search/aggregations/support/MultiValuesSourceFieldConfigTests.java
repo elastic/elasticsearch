@@ -23,9 +23,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -40,7 +40,7 @@ public class MultiValuesSourceFieldConfigTests extends AbstractSerializingTestCa
     protected MultiValuesSourceFieldConfig createTestInstance() {
         String field = randomAlphaOfLength(10);
         Object missing = randomBoolean() ? randomAlphaOfLength(10) : null;
-        DateTimeZone timeZone = randomBoolean() ? randomDateTimeZone() : null;
+        ZoneId timeZone = randomBoolean() ? randomZone() : null;
         return new MultiValuesSourceFieldConfig.Builder()
             .setFieldName(field).setMissing(missing).setScript(null).setTimeZone(timeZone).build();
     }

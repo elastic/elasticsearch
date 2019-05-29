@@ -10,7 +10,6 @@ teardown:
   - do:
       index:
         index:   test
-        type:    test
         id:      1
         body:    { "text": "test" }
   - do:
@@ -37,7 +36,6 @@ teardown:
   - do:
       index:
         index:   test
-        type:    test
         id:      1
         body:    { "text": "test" }
   - do:
@@ -59,7 +57,6 @@ teardown:
   - do:
       index:
         index:   test
-        type:    test
         id:      1
         body:    { "text": "test" }
   - do:

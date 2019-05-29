@@ -416,14 +416,14 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Job.Builder builder = buildJobBuilder("foo");
         Job job = builder.build();
         assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT,
-                job.getResultsIndexName());
+                job.getInitialResultsIndexName());
     }
 
     public void testBuilder_setsIndexName() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsIndexName("carol");
         Job job = builder.build();
-        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-carol", job.getResultsIndexName());
+        assertEquals(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "custom-carol", job.getInitialResultsIndexName());
     }
 
     public void testBuilder_withInvalidIndexNameThrows() {
@@ -511,6 +511,20 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setGroups(Collections.singletonList("foo"));
         ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class, builder::build);
         assertEquals(e.getMessage(), "job and group names must be unique but job [foo] and group [foo] have the same name");
+    }
+
+    public void testInvalidAnalysisConfig_duplicateDetectors() throws Exception {
+        Job.Builder builder =
+            new Job.Builder("job_with_duplicate_detectors")
+                .setCreateTime(new Date())
+                .setDataDescription(new DataDescription.Builder())
+                .setAnalysisConfig(new AnalysisConfig.Builder(Arrays.asList(
+                    new Detector.Builder("mean", "responsetime").build(),
+                    new Detector.Builder("mean", "responsetime").build()
+                )));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::validateDetectorsAreUnique);
+        assertThat(e.getMessage(), containsString("Duplicate detectors are not allowed: [mean(responsetime)]"));
     }
 
     public void testEarliestValidTimestamp_GivenEmptyDataCounts() {

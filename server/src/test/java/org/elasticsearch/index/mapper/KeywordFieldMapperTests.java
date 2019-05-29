@@ -51,8 +51,8 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
-import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static java.util.Collections.singletonMap;
+import static org.apache.lucene.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -81,7 +81,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
             });
         }
 
-    };
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -401,7 +401,8 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 () -> indexService.mapperService().merge("type",
                         new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE));
         assertEquals(
-                "Mapper for [field] conflicts with existing mapping:\n[mapper [field] has different [normalizer]]",
+                "Mapper for [field] conflicts with existing mapping:\n" +
+                    "[mapper [field] has different [analyzer], mapper [field] has different [normalizer]]",
                 e.getMessage());
     }
 

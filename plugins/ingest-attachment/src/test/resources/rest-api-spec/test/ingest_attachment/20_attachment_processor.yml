@@ -19,7 +19,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=" }
@@ -27,7 +26,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=" }
   - length: { _source.attachment: 4 }
@@ -62,7 +60,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3MK" }
@@ -70,7 +67,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - match: { _source.field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3MK" }
   - length: { _source.attachment: 1 }
@@ -98,7 +94,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=" }
@@ -106,7 +101,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - length: { _source.attachment: 4 }
   - match: { _source.attachment.content: "This is an english text to tes" }
@@ -136,7 +130,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 1
         pipeline: "my_pipeline"
         body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=" }
@@ -144,7 +137,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 1
   - length: { _source.attachment: 4 }
   - match: { _source.attachment.content: "This is an english text to tes" }
@@ -154,7 +146,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 2
         pipeline: "my_pipeline"
         body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=", "max_size": 18 }
@@ -162,7 +153,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 2
   - length: { _source.attachment: 4 }
   - match: { _source.attachment.content: "This is an english" }
@@ -172,7 +162,6 @@
   - do:
       index:
         index: test
-        type: test
         id: 3
         pipeline: "my_pipeline"
         body: { field1: "VGhpcyBpcyBhbiBlbmdsaXNoIHRleHQgdG8gdGVzdCBpZiB0aGUgcGlwZWxpbmUgd29ya3M=", "max_size": 100000000 }
@@ -180,7 +169,6 @@
   - do:
       get:
         index: test
-        type: test
         id: 3
   - length: { _source.attachment: 4 }
   - match: { _source.attachment.content: "This is an english text to test if the pipeline works" }

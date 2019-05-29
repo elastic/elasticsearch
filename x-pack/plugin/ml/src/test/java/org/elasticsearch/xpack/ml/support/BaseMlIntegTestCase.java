@@ -26,7 +26,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -37,7 +36,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
@@ -68,8 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Note for other type of integration tests you should use the external test cluster created by the Gradle integTest task.
  * For example tests extending this base class test with the non native autodetect process.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0,
-        transportClientRatio = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @Override
@@ -91,30 +89,14 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        return settings.build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateMachineLearning.class, CommonAnalysisPlugin.class,
                 ReindexPlugin.class);
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        return Arrays.asList(TestZenDiscovery.TestPlugin.class, TestSeedPlugin.class, MockHttpTransport.TestPlugin.class);
+        return Arrays.asList(TestSeedPlugin.class, MockHttpTransport.TestPlugin.class);
     }
 
     @Before
@@ -318,7 +300,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
         try {
             CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
-            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
+            closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
             logger.info("Closing jobs using [{}]", MetaData.ALL);
             CloseJobAction.Response response = client.execute(CloseJobAction.INSTANCE, closeRequest)
                     .get();
@@ -327,7 +309,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             try {
                 CloseJobAction.Request closeRequest = new CloseJobAction.Request(MetaData.ALL);
                 closeRequest.setForce(true);
-                closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(20L));
+                closeRequest.setCloseTimeout(TimeValue.timeValueSeconds(30L));
                 CloseJobAction.Response response =
                         client.execute(CloseJobAction.INSTANCE, closeRequest).get();
                 assertTrue(response.isClosed());

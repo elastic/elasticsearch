@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -114,11 +113,8 @@ public class SnapshotBlocksIT extends ESIntegTestCase {
         logger.info("-->  creating a snapshot is blocked when an index is blocked for reads");
         try {
             enableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
-            assertBlocked(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2")
-                .setIndices(COMMON_INDEX_NAME_MASK), IndexMetaData.INDEX_READ_BLOCK);
-            logger.info("-->  creating a snapshot is not blocked when an read-blocked index is not part of the snapshot");
             assertThat(client().admin().cluster().prepareCreateSnapshot(REPOSITORY_NAME, "snapshot-2")
-                .setIndices(OTHER_INDEX_NAME).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
+                .setIndices(COMMON_INDEX_NAME_MASK).setWaitForCompletion(true).get().status(), equalTo(RestStatus.OK));
         } finally {
             disableIndexBlock(INDEX_NAME, SETTING_BLOCKS_READ);
         }

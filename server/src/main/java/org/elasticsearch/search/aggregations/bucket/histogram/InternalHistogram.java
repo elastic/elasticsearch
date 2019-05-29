@@ -73,7 +73,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
             this.keyed = keyed;
             key = in.readDouble();
             docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
+            aggregations = new InternalAggregations(in);
         }
 
         @Override
@@ -178,7 +178,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         }
 
         EmptyBucketInfo(StreamInput in) throws IOException {
-            this(in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), InternalAggregations.readAggregations(in));
+            this(in.readDouble(), in.readDouble(), in.readDouble(), in.readDouble(), new InternalAggregations(in));
         }
 
         public void writeTo(StreamOutput out) throws IOException {
@@ -233,7 +233,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
      */
     public InternalHistogram(StreamInput in) throws IOException {
         super(in);
-        order = InternalOrder.Streams.readHistogramOrder(in, false);
+        order = InternalOrder.Streams.readHistogramOrder(in);
         minDocCount = in.readVLong();
         if (minDocCount == 0) {
             emptyBucketInfo = new EmptyBucketInfo(in);
@@ -247,7 +247,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        InternalOrder.Streams.writeHistogramOrder(order, out, false);
+        InternalOrder.Streams.writeHistogramOrder(order, out);
         out.writeVLong(minDocCount);
         if (minDocCount == 0) {
             emptyBucketInfo.writeTo(out);

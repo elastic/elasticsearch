@@ -22,14 +22,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.QueryParserHelper;
@@ -161,6 +159,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         for (int i = 0; i < size; i++) {
             String field = in.readString();
             Float weight = in.readFloat();
+            checkNegativeBoost(weight);
             fields.put(field, weight);
         }
         fieldsAndWeights.putAll(fields);
@@ -172,12 +171,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         settings.analyzeWildcard(in.readBoolean());
         minimumShouldMatch = in.readOptionalString();
         settings.quoteFieldSuffix(in.readOptionalString());
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());
-            settings.fuzzyPrefixLength(in.readVInt());
-            settings.fuzzyMaxExpansions(in.readVInt());
-            settings.fuzzyTranspositions(in.readBoolean());
-        }
+        settings.autoGenerateSynonymsPhraseQuery(in.readBoolean());
+        settings.fuzzyPrefixLength(in.readVInt());
+        settings.fuzzyMaxExpansions(in.readVInt());
+        settings.fuzzyTranspositions(in.readBoolean());
     }
 
     @Override
@@ -196,12 +193,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeBoolean(settings.analyzeWildcard());
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(settings.quoteFieldSuffix());
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());
-            out.writeVInt(settings.fuzzyPrefixLength());
-            out.writeVInt(settings.fuzzyMaxExpansions());
-            out.writeBoolean(settings.fuzzyTranspositions());
-        }
+        out.writeBoolean(settings.autoGenerateSynonymsPhraseQuery());
+        out.writeVInt(settings.fuzzyPrefixLength());
+        out.writeVInt(settings.fuzzyMaxExpansions());
+        out.writeBoolean(settings.fuzzyTranspositions());
     }
 
     /** Returns the text to parse the query from. */
@@ -223,6 +218,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         if (Strings.isEmpty(field)) {
             throw new IllegalArgumentException("supplied field is null or empty");
         }
+        checkNegativeBoost(boost);
         this.fieldsAndWeights.put(field, boost);
         return this;
     }
@@ -230,6 +226,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Add several fields to run the query against with a specific boost. */
     public SimpleQueryStringBuilder fields(Map<String, Float> fields) {
         Objects.requireNonNull(fields, "fields cannot be null");
+        for (float fieldBoost : fields.values()) {
+            checkNegativeBoost(fieldBoost);
+        }
         this.fieldsAndWeights.putAll(fields);
         return this;
     }
@@ -399,16 +398,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Settings newSettings = new Settings(settings);
         final Map<String, Float> resolvedFieldsAndWeights;
+        boolean isAllField;
         if (fieldsAndWeights.isEmpty() == false) {
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context, fieldsAndWeights);
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(fieldsAndWeights.keySet());
         } else {
             List<String> defaultFields = context.defaultFields();
-            boolean isAllField = defaultFields.size() == 1 && Regex.isMatchAllPattern(defaultFields.get(0));
-            if (isAllField) {
-                newSettings.lenient(lenientSet ? settings.lenient() : true);
-            }
             resolvedFieldsAndWeights = QueryParserHelper.resolveMappingFields(context,
                 QueryParserHelper.parseFieldsAndWeights(defaultFields));
+            isAllField = QueryParserHelper.hasAllFieldsWildcard(defaultFields);
+        }
+
+        if (isAllField) {
+            newSettings.lenient(lenientSet ? settings.lenient() : true);
         }
 
         final SimpleQueryStringQueryParser sqp;

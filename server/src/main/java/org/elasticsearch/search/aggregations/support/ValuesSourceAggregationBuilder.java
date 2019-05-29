@@ -28,9 +28,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.internal.SearchContext;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
@@ -81,7 +81,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private ValueType valueType = null;
     private String format = null;
     private Object missing = null;
-    private DateTimeZone timeZone = null;
+    private ZoneId timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
     protected ValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
@@ -144,9 +144,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
-        if (in.readBoolean()) {
-            timeZone = DateTimeZone.forID(in.readString());
-        }
+        timeZone = in.readOptionalZoneId();
     }
 
     @Override
@@ -167,11 +165,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         }
         out.writeOptionalString(format);
         out.writeGenericValue(missing);
-        boolean hasTimeZone = timeZone != null;
-        out.writeBoolean(hasTimeZone);
-        if (hasTimeZone) {
-            out.writeString(timeZone.getID());
-        }
+        out.writeOptionalZoneId(timeZone);
         innerWriteTo(out);
     }
 
@@ -289,7 +283,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * Sets the time zone to use for this aggregation
      */
     @SuppressWarnings("unchecked")
-    public AB timeZone(DateTimeZone timeZone) {
+    public AB timeZone(ZoneId timeZone) {
         if (timeZone == null) {
             throw new IllegalArgumentException("[timeZone] must not be null: [" + name + "]");
         }
@@ -300,7 +294,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Gets the time zone to use for this aggregation
      */
-    public DateTimeZone timeZone() {
+    public ZoneId timeZone() {
         return timeZone;
     }
 

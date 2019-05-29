@@ -34,6 +34,10 @@
             "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "wait_for_active_shards": {
+          "type" : "string",
+          "description" : "Sets the number of active shards to wait for before the operation returns."
         }
       }
     },

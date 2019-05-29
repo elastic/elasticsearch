@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class MultiSearchAction extends Action<MultiSearchResponse> {
 
@@ -32,6 +33,11 @@ public class MultiSearchAction extends Action<MultiSearchResponse> {
 
     @Override
     public MultiSearchResponse newResponse() {
-        return new MultiSearchResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<MultiSearchResponse> getResponseReader() {
+        return MultiSearchResponse::new;
     }
 }

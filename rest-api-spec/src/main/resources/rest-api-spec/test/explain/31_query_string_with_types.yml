@@ -2,6 +2,7 @@
 "explain with query_string parameters":
   - do:
       indices.create:
+          include_type_name: true
           index:  test
           body:
             mappings:

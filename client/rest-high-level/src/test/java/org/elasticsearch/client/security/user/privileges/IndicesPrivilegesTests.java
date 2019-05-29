@@ -37,6 +37,7 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
         final IndicesPrivileges.Builder indicesPrivilegesBuilder = IndicesPrivileges.builder()
             .indices(generateRandomStringArray(4, 4, false, false))
             .privileges(randomSubsetOf(randomIntBetween(1, 4), Role.IndexPrivilegeName.ALL_ARRAY))
+            .allowRestrictedIndices(randomBoolean())
             .query(query);
         if (randomBoolean()) {
             final List<String> fields = Arrays.asList(generateRandomStringArray(4, 4, false));
@@ -49,7 +50,8 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
     }
 
     public void testToXContentWithNullFieldSecurity() {
-        final IndicesPrivileges privileges = IndicesPrivileges.builder().indices("abc").privileges("all").build();
+        final IndicesPrivileges privileges = IndicesPrivileges.builder().indices("abc").privileges("all")
+                .allowRestrictedIndices(randomBoolean()).build();
         final String json = Strings.toString(privileges);
         assertThat(json, not(containsString("field_security")));
     }
@@ -60,6 +62,7 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
             .privileges("all")
             .grantedFields(Collections.emptyList())
             .deniedFields(Collections.emptyList())
+            .allowRestrictedIndices(randomBoolean())
             .build();
         final String json = Strings.toString(privileges);
         assertThat(json, containsString("field_security"));
@@ -71,6 +74,7 @@ public class IndicesPrivilegesTests extends AbstractXContentTestCase<IndicesPriv
             .indices("abc")
             .privileges("all")
             .deniedFields("secret.*")
+            .allowRestrictedIndices(randomBoolean())
             .build();
         final String json = Strings.toString(privileges);
         assertThat(json, containsString("field_security"));

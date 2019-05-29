@@ -29,7 +29,7 @@ import java.io.IOException;
 public class FreezeAction implements LifecycleAction, ToXContentObject {
     public static final String NAME = "freeze";
 
-    private static final ObjectParser<FreezeAction, Void> PARSER = new ObjectParser<>(NAME, FreezeAction::new);
+    private static final ObjectParser<FreezeAction, Void> PARSER = new ObjectParser<>(NAME, true, FreezeAction::new);
 
     public static FreezeAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);

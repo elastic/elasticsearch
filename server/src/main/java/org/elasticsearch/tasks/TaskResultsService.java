@@ -190,7 +190,7 @@ public class TaskResultsService {
                 } else {
                     TimeValue wait = backoff.next();
                     logger.warn(() -> new ParameterizedMessage("failed to store task result, retrying in [{}]", wait), e);
-                    threadPool.schedule(wait, ThreadPool.Names.SAME, () -> doStoreResult(backoff, index, listener));
+                    threadPool.schedule(() -> doStoreResult(backoff, index, listener), wait, ThreadPool.Names.SAME);
                 }
             }
         });

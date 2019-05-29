@@ -65,9 +65,7 @@ A type used to be a logical category/partition of your index to allow you to sto
 [float]
 === Document
 
-A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format.
-
-Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
+A document is a basic unit of information that can be indexed. For example, you can have a document for a single customer, another document for a single product, and yet another for a single order. This document is expressed in http://json.org/[JSON] (JavaScript Object Notation) which is a ubiquitous internet data interchange format. Within an index, you can store as many documents as you want.
 
 [[getting-started-shards-and-replicas]]
 [float]
@@ -116,26 +114,25 @@ https://www.elastic.co/cloud/elasticsearch-service/signup[Try out the
 Elasticsearch Service for free].
 ==============
 
-Elasticsearch requires at least Java 8. Specifically as of this writing, it is recommended that you use the Oracle JDK version {jdk}. Java installation varies from platform to platform so we won't go into those details here. Oracle's recommended installation documentation can be found on http://docs.oracle.com/javase/8/docs/technotes/guides/install/install_overview.html[Oracle's website]. Suffice to say, before you install Elasticsearch, please check your Java version first by running (and then install/upgrade accordingly if needed):
+NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+from the JDK maintainers (GPLv2+CE). To use your own version of Java,
+see the <<jvm-version, JVM version requirements>>
 
-[source,sh]
---------------------------------------------------
-java -version
-echo $JAVA_HOME
---------------------------------------------------
-
-Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, a `DEB` or `RPM` package, or a Windows `MSI` installation package.
+The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`]
+along with all the releases that have been made in the past. For each release, platform
+dependent archive versions are available for Windows, Linux and MacOS, as well as `DEB` and `RPM`
+packages for Linux, and `MSI` installation packages for Windows.
 
 [float]
-=== Installation example with tar
+=== Installation example on Linux
 
-For simplicity, let's use the {ref}/zip-targz.html[tar] file.
+For simplicity, let's use the {ref}/targz.html[tar] file.
 
-Let's download the Elasticsearch {version} tar as follows:
+Let's download the Elasticsearch {version} Linux tar as follows:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
+curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -143,7 +140,7 @@ Then extract it as follows:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-tar -xvf elasticsearch-{version}.tar.gz
+tar -xvf elasticsearch-{version}-linux-x86_64.tar.gz
 --------------------------------------------------
 
 It will then create a bunch of files and folders in your current directory. We then go into the bin directory as follows:
@@ -174,7 +171,7 @@ Then double-click the downloaded file to launch the GUI. Within the first screen
 image::images/msi_installer/msi_installer_locations.png[]
 
 Then select whether to install as a service or start Elasticsearch manually as needed.
-To align with the tar example, choose not to install as a service:
+To align with the Linux example, choose not to install as a service:
 
 [[getting-started-msi-installer-service]]
 image::images/msi_installer/msi_installer_no_service.png[]
@@ -248,10 +245,10 @@ If everything goes well with installation, you should see a bunch of messages th
 [2018-09-13T12:20:05,006][INFO ][o.e.n.Node               ] [localhost.localdomain] initialized
 [2018-09-13T12:20:05,007][INFO ][o.e.n.Node               ] [localhost.localdomain] starting ...
 [2018-09-13T12:20:05,202][INFO ][o.e.t.TransportService   ] [localhost.localdomain] publish_address {127.0.0.1:9300}, bound_addresses {[::1]:9300}, {127.0.0.1:9300}
-[2018-09-13T12:20:05,221][WARN ][o.e.b.BootstrapChecks    ] [localhost.localdomain] max file descriptors [4096] for elasticsearch process is too low, increase to at least [65536]
+[2018-09-13T12:20:05,221][WARN ][o.e.b.BootstrapChecks    ] [localhost.localdomain] max file descriptors [4096] for elasticsearch process is too low, increase to at least [65535]
 [2018-09-13T12:20:05,221][WARN ][o.e.b.BootstrapChecks    ] [localhost.localdomain] max virtual memory areas vm.max_map_count [65530] is too low, increase to at least [262144]
-[2018-09-13T12:20:08,355][INFO ][o.e.c.s.MasterService    ] [localhost.localdomain] zen-disco-elected-as-master ([0] nodes joined)[, ], reason: master node changed {previous [], current [{localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test}]}
-[2018-09-13T12:20:08,360][INFO ][o.e.c.s.ClusterApplierService] [localhost.localdomain] master node changed {previous [], current [{localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test}]}, reason: apply cluster state (from master [master {localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test} committed version [1] source [zen-disco-elected-as-master ([0] nodes joined)[, ]]])
+[2018-09-13T12:20:08,355][INFO ][o.e.c.s.MasterService    ] [localhost.localdomain] elected-as-master ([0] nodes joined)[, ], reason: master node changed {previous [], current [{localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test}]}
+[2018-09-13T12:20:08,360][INFO ][o.e.c.s.ClusterApplierService] [localhost.localdomain] master node changed {previous [], current [{localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test}]}, reason: apply cluster state (from master [master {localhost.localdomain}{B0aEHNagTiWx7SYj-l4NTw}{hzsQz6CVQMCTpMCVLM4IHg}{127.0.0.1}{127.0.0.1:9300}{testattr=test} committed version [1] source [elected-as-master ([0] nodes joined)[, ]]])
 [2018-09-13T12:20:08,384][INFO ][o.e.h.n.Netty4HttpServerTransport] [localhost.localdomain] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
 [2018-09-13T12:20:08,384][INFO ][o.e.n.Node               ] [localhost.localdomain] started
 
@@ -304,7 +301,7 @@ And the response:
 epoch      timestamp cluster       status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
 1475247709 17:01:49  elasticsearch green           1         1      0   0    0    0        0             0                  -                100.0%
 --------------------------------------------------
-// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ docs_integTestCluster/]
+// TESTRESPONSE[s/1475247709 17:01:49  elasticsearch/\\d+ \\d+:\\d+:\\d+ integTest/]
 // TESTRESPONSE[s/0             0                  -/0             \\d+                  -/]
 // TESTRESPONSE[_cat]
 
@@ -496,7 +493,7 @@ If we study the above commands carefully, we can actually see a pattern of how w
 
 [source,js]
 --------------------------------------------------
-<HTTP Verb> /<Index>/<Type>/<ID>
+<HTTP Verb> /<Index>/<Endpoint>/<ID>
 --------------------------------------------------
 // NOTCONSOLE
 
@@ -508,6 +505,7 @@ This REST access pattern is so pervasive throughout all the API commands that if
 Elasticsearch provides data manipulation and search capabilities in near real time. By default, you can expect a one second delay (refresh interval) from the time you index/update/delete your data until the time that it appears in your search results. This is an important distinction from other platforms like SQL wherein data is immediately available after a transaction is completed.
 
 [float]
+[[indexing-replacing-documents]]
 === Indexing/Replacing Documents
 
 We've previously seen how we can index a single document. Let's recall that command again:
@@ -572,7 +570,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_update/1?pretty
 {
   "doc": { "name": "Jane Doe" }
 }
@@ -584,7 +582,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_update/1?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
 }
@@ -596,7 +594,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/1/_update?pretty
+POST /customer/_update/1?pretty
 {
   "script" : "ctx._source.age += 5"
 }
@@ -633,7 +631,7 @@ As a quick example, the following call indexes two documents (ID 1 - John Doe an
 
 [source,js]
 --------------------------------------------------
-POST /customer/_doc/_bulk?pretty
+POST /customer/_bulk?pretty
 {"index":{"_id":"1"}}
 {"name": "John Doe" }
 {"index":{"_id":"2"}}
@@ -645,7 +643,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/_doc/_bulk?pretty
+POST /customer/_bulk?pretty
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}
@@ -692,7 +690,7 @@ You can download the sample dataset (accounts.json) from https://github.com/elas
 
 [source,sh]
 --------------------------------------------------
-curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_doc/_bulk?pretty&refresh" --data-binary "@accounts.json"
+curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_bulk?pretty&refresh" --data-binary "@accounts.json"
 curl "localhost:9200/_cat/indices?v"
 --------------------------------------------------
 // NOTCONSOLE
@@ -719,7 +717,7 @@ yellow open   bank  l7sSYV2cQXmu6_4rJWVIww   5   1       1000            0    12
 // TESTRESPONSE[s/128.6kb/\\d+(\\.\\d+)?[mk]?b/]
 // TESTRESPONSE[s/l7sSYV2cQXmu6_4rJWVIww/.+/ _cat]
 
-Which means that we just successfully bulk indexed 1000 documents into the bank index (under the `_doc` type).
+Which means that we just successfully bulk indexed 1000 documents into the bank index.
 
 [[getting-started-search-API]]
 === The Search API
@@ -793,7 +791,11 @@ As for the response, we see the following parts:
 * `hits._score` and `max_score` - ignore these fields for now
 
 The accuracy of `hits.total` is controlled by the request parameter `track_total_hits`, when set to true
-the request will track the total hits accurately (`"relation": "eq"`).
+the request will track the total hits accurately (`"relation": "eq"`). It defaults to `10,000`
+which means that the total hit count is accurately tracked up to `10,000` documents.
+You can force an accurate count by setting `track_total_hits` to true explicitly.
+See the <<search-request-track-total-hits, request body>> documentation
+for more details.
 
 Here is the same exact search above using the alternative request body method:
 

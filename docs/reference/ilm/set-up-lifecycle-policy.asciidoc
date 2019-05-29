@@ -3,8 +3,6 @@
 [[set-up-lifecycle-policy]]
 == Set up {ilm} policy
 
-beta[]
-
 In order for an index to use an {ilm} policy to manage its lifecycle we must
 first define a lifecycle policy for it to use. The following request creates a
 policy called `my_policy` in Elasticsearch which we can later use to manage our
@@ -48,8 +46,6 @@ To set the policy for an index there are two options:
 
 [[applying-policy-to-template]]
 === Applying a policy to an index template
-
-beta[]
 
 The `index.lifecycle.name` setting can be set in an index template so that it
 is automatically applied to indexes matching the templates index pattern:
@@ -95,8 +91,6 @@ create a new index and roll the alias over to use the new index automatically.
 
 === Apply a policy to a create index request
 
-beta[]
-
 The `index.lifecycle.name` setting can be set on an individual create index
 request so {ilm} immediately starts managing the index:
 
@@ -113,7 +107,8 @@ PUT test-index
 -----------------------
 // CONSOLE
 
-IMPORTANT: Its recommended not to use the create index API with a policy that
+IMPORTANT: Do not to use the create index API with a policy that
 defines a rollover action. If you do so, the new index as the result of the
-rollover will not carry forward the policy. Always use index templates to
-define policies with rollover actions.
+rollover will not carry forward the policy. Always use
+<<applying-policy-to-template, index templates>> to define policies with rollover
+actions.

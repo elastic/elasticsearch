@@ -62,7 +62,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         final BytesReference templateBytesRoundTrip;
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
             builder.startObject();
-            IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
+            IndexTemplateMetaData.Builder.toXContentWithTypes(indexTemplateMetaData, builder, params);
             builder.endObject();
             templateBytesRoundTrip = BytesReference.bytes(builder);
         }
@@ -161,7 +161,7 @@ public class IndexTemplateMetaDataTests extends ESTestCase {
         IndexTemplateMetaData template = templateBuilder.build();
         XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON.xContent()));
         builder.startObject();
-        IndexTemplateMetaData.Builder.toXContent(template, builder, ToXContent.EMPTY_PARAMS);
+        IndexTemplateMetaData.Builder.toXContentWithTypes(template, builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         try (XContentParser parser = createParser(shuffleXContent(builder))) {
             IndexTemplateMetaData parsed = IndexTemplateMetaData.Builder.fromXContent(parser, templateName);

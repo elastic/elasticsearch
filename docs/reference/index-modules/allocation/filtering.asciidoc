@@ -49,6 +49,7 @@ settings support three types of filters: `include`, `exclude`, and `require`.
 For example, to tell {es} to allocate shards from the `test` index to either
 `big` or `medium` nodes, use `index.routing.allocation.include`:
 +
+--
 [source,js]
 ------------------------
 PUT test/_settings
@@ -58,11 +59,11 @@ PUT test/_settings
 ------------------------
 // CONSOLE
 // TEST[s/^/PUT test\n/]
-+
+
 If you specify multiple filters, all conditions must be satisfied for shards to
 be relocated. For example, to move the `test` index to `big` nodes in `rack1`,
 you could specify:
-+
+
 [source,js]
 ------------------------
 PUT test/_settings
@@ -73,6 +74,7 @@ PUT test/_settings
 ------------------------
 // CONSOLE
 // TEST[s/^/PUT test\n/]
+--
 
 [float]
 [[index-allocation-settings]]

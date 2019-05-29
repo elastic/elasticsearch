@@ -68,7 +68,7 @@ public class SqlRequestParsersTests extends ESTestCase {
         
         request = generateRequest("{\"cursor\" : \"whatever\", \"client_id\" : \"CLI\"}",
                 SqlClearCursorRequest::fromXContent);
-        assertEquals("cli", request.clientId());
+        assertNull(request.clientId());
         assertEquals(Mode.PLAIN, request.mode());
         assertEquals("whatever", request.getCursor());
         

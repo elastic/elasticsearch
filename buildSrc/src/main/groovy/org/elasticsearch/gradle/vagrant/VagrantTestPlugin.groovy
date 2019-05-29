@@ -1,10 +1,18 @@
 package org.elasticsearch.gradle.vagrant
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.BwcVersions
 import org.elasticsearch.gradle.FileContentsTask
+import org.elasticsearch.gradle.Jdk
+import org.elasticsearch.gradle.JdkDownloadPlugin
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.gradle.api.*
+import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
+import org.gradle.api.NamedDomainObjectContainer
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.execution.TaskExecutionAdapter
 import org.gradle.api.internal.artifacts.dependencies.DefaultProjectDependency
@@ -13,6 +21,8 @@ import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.StopExecutionException
 import org.gradle.api.tasks.TaskState
+
+import java.nio.file.Paths
 
 import static java.util.Collections.unmodifiableList
 
@@ -24,13 +34,13 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-7',
             'debian-8',
             'debian-9',
-            'fedora-27',
             'fedora-28',
+            'fedora-29',
             'oel-6',
             'oel-7',
             'opensuse-42',
+            /* TODO: need a real RHEL license now that it is out of beta 'rhel-8',*/
             'sles-12',
-            'ubuntu-1404',
             'ubuntu-1604',
             'ubuntu-1804'
     ])
@@ -47,19 +57,27 @@ class VagrantTestPlugin implements Plugin<Project> {
     /** Boxes used when sampling the tests **/
     static final List<String> SAMPLE = unmodifiableList([
             'centos-7',
-            'ubuntu-1404'
+            'ubuntu-1604'
     ])
 
     /** All distributions to bring into test VM, whether or not they are used **/
     static final List<String> DISTRIBUTIONS = unmodifiableList([
-            'archives:tar',
-            'archives:oss-tar',
-            'archives:zip',
-            'archives:oss-zip',
+            'archives:linux-tar',
+            'archives:oss-linux-tar',
+            'archives:windows-zip',
+            'archives:oss-windows-zip',
             'packages:rpm',
             'packages:oss-rpm',
             'packages:deb',
-            'packages:oss-deb'
+            'packages:oss-deb',
+            'archives:no-jdk-linux-tar',
+            'archives:oss-no-jdk-linux-tar',
+            'archives:no-jdk-windows-zip',
+            'archives:oss-no-jdk-windows-zip',
+            'packages:no-jdk-rpm',
+            'packages:oss-no-jdk-rpm',
+            'packages:no-jdk-deb',
+            'packages:oss-no-jdk-deb'
     ])
 
     /** Packages onboarded for upgrade tests **/
@@ -69,7 +87,6 @@ class VagrantTestPlugin implements Plugin<Project> {
     private static final PACKAGING_TEST_CONFIGURATION = 'packagingTest'
     private static final BATS = 'bats'
     private static final String BATS_TEST_COMMAND ="cd \$PACKAGING_ARCHIVES && sudo bats --tap \$BATS_TESTS/*.$BATS"
-    private static final String PLATFORM_TEST_COMMAND ="rm -rf ~/elasticsearch && rsync -r /elasticsearch/ ~/elasticsearch && cd ~/elasticsearch && ./gradlew test integTest"
 
     /** Boxes that have been supplied and are available for testing **/
     List<String> availableBoxes = []
@@ -77,8 +94,33 @@ class VagrantTestPlugin implements Plugin<Project> {
     /** extra env vars to pass to vagrant for box configuration **/
     Map<String, String> vagrantBoxEnvVars = [:]
 
+    private static final String SYSTEM_JDK_VERSION = "11.0.2+9"
+    private static final String GRADLE_JDK_VERSION = "12.0.1+12@69cfe15208a647278a19ef0990eea691"
+    private Jdk linuxSystemJdk;
+    private Jdk linuxGradleJdk;
+    private Jdk windowsSystemJdk;
+    private Jdk windowsGradleJdk;
+
     @Override
     void apply(Project project) {
+        project.pluginManager.apply(JdkDownloadPlugin.class)
+        NamedDomainObjectContainer<Jdk> jdksContainer = (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName("jdks");
+        linuxSystemJdk = jdksContainer.create("linux_system") {
+            version = SYSTEM_JDK_VERSION
+            platform = "linux"
+        }
+        linuxGradleJdk = jdksContainer.create("linux_gradle") {
+            version = GRADLE_JDK_VERSION
+            platform = "linux"
+        }
+        windowsSystemJdk = jdksContainer.create("windows_system") {
+            version = SYSTEM_JDK_VERSION
+            platform = "windows"
+        }
+        windowsGradleJdk = jdksContainer.create("windows_gradle") {
+            version = GRADLE_JDK_VERSION
+            platform = "windows"
+        }
 
         collectAvailableBoxes(project)
 
@@ -166,6 +208,7 @@ class VagrantTestPlugin implements Plugin<Project> {
           which should work for 5.0.0+. This isn't a real ivy repository but gradle
           is fine with that */
         repos.ivy {
+            name "elasticsearch"
             artifactPattern "https://artifacts.elastic.co/downloads/elasticsearch/[module]-[revision].[ext]"
         }
     }
@@ -184,20 +227,48 @@ class VagrantTestPlugin implements Plugin<Project> {
             upgradeFromVersion = Version.fromString(upgradeFromVersionRaw)
         }
 
+        List<Object> dependencies = new ArrayList<>()
         DISTRIBUTIONS.each {
             // Adds a dependency for the current version
-            project.dependencies.add(PACKAGING_CONFIGURATION,
-                    project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
+            dependencies.add(project.dependencies.project(path: ":distribution:${it}", configuration: 'default'))
         }
 
-        UPGRADE_FROM_ARCHIVES.each {
+        if (project.ext.bwc_tests_enabled) {
             // The version of elasticsearch that we upgrade *from*
-            project.dependencies.add(PACKAGING_CONFIGURATION,
-                    "org.elasticsearch.distribution.${it}:elasticsearch:${upgradeFromVersion}@${it}")
-            if (upgradeFromVersion.onOrAfter('6.3.0')) {
-                project.dependencies.add(PACKAGING_CONFIGURATION,
-                        "org.elasticsearch.distribution.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+            // we only add them as dependencies if the bwc tests are enabled, so we don't trigger builds otherwise
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = project.bwcVersions.unreleasedInfo(upgradeFromVersion)
+            if (unreleasedInfo != null) {
+                // handle snapshots pointing to bwc build
+                UPGRADE_FROM_ARCHIVES.each {
+                    dependencies.add(project.dependencies.project(
+                            path: "${unreleasedInfo.gradleProjectPath}", configuration: it))
+                    if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                        dependencies.add(project.dependencies.project(
+                                path: "${unreleasedInfo.gradleProjectPath}", configuration: "oss-${it}"))
+                    }
+                }
+            } else {
+                UPGRADE_FROM_ARCHIVES.each {
+                    // The version of elasticsearch that we upgrade *from*
+                    if (upgradeFromVersion.onOrAfter('7.0.0')) {
+                        String arch = it == "rpm" ? "x86_64" : "amd64"
+                        dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}-${arch}@${it}")
+                        dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}-${arch}@${it}")
+                    } else {
+                        dependencies.add("downloads.${it}:elasticsearch:${upgradeFromVersion}@${it}")
+                        if (upgradeFromVersion.onOrAfter('6.3.0')) {
+                            dependencies.add("downloads.${it}:elasticsearch-oss:${upgradeFromVersion}@${it}")
+                        }
+                    }
+                }
             }
+        } else {
+            // Upgrade tests will go from current to current when the BWC tests are disabled to skip real BWC tests.
+            upgradeFromVersion = Version.fromString(project.version)
+        }
+
+        for (Object dependency : dependencies) {
+            project.dependencies.add(PACKAGING_CONFIGURATION, dependency)
         }
 
         project.extensions.esvagrant.upgradeFromVersion = upgradeFromVersion
@@ -227,7 +298,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static void createPrepareVagrantTestEnvTask(Project project) {
+    private void createPrepareVagrantTestEnvTask(Project project) {
         File packagingDir = new File(project.buildDir, PACKAGING_CONFIGURATION)
 
         File archivesDir = new File(packagingDir, 'archives')
@@ -243,7 +314,7 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
 
         Task createLinuxRunnerScript = project.tasks.create('createLinuxRunnerScript', FileContentsTask) {
-            dependsOn copyPackagingTests
+            dependsOn copyPackagingTests, linuxGradleJdk, linuxSystemJdk
             file "${testsDir}/run-tests.sh"
             contents """\
                      if [ "\$#" -eq 0 ]; then
@@ -251,11 +322,15 @@ class VagrantTestPlugin implements Plugin<Project> {
                      else
                        test_args=( "\$@" )
                      fi
-                     java -cp "\$PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner "\${test_args[@]}"
+                     
+                     if [ -z "\$SYSTEM_JAVA_HOME" ]; then
+                       export SYSTEM_JAVA_HOME="${-> convertPath(project, linuxSystemJdk.toString()) }"
+                     fi
+                     "${-> convertPath(project, linuxGradleJdk.toString()) }"/bin/java -cp "\$PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner "\${test_args[@]}"
                      """
         }
         Task createWindowsRunnerScript = project.tasks.create('createWindowsRunnerScript', FileContentsTask) {
-            dependsOn copyPackagingTests
+            dependsOn copyPackagingTests, windowsGradleJdk, windowsSystemJdk
             file "${testsDir}/run-tests.ps1"
             // the use of $args rather than param() here is deliberate because the syntax for array (multivalued) parameters is likely
             // a little trappy for those unfamiliar with powershell
@@ -265,7 +340,8 @@ class VagrantTestPlugin implements Plugin<Project> {
                      } else {
                        \$testArgs = \$args
                      }
-                     java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
+                     \$Env:SYSTEM_JAVA_HOME = "${-> convertPath(project, windowsSystemJdk.toString()) }"
+                     & "${-> convertPath(project, windowsGradleJdk.toString()) }"/bin/java -cp "\$Env:PACKAGING_TESTS/*" org.elasticsearch.packaging.VMTestRunner @testArgs
                      exit \$LASTEXITCODE
                      """
         }
@@ -357,15 +433,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         }
     }
 
-    private static void createPlatformTestTask(Project project) {
-        project.tasks.create('platformTest') {
-            group 'Verification'
-            description "Test unit and integ tests on different platforms using vagrant. See TESTING.asciidoc for details. This test " +
-                    "is unmaintained."
-            dependsOn 'vagrantCheckVersion'
-        }
-    }
-
     private void createBoxListTasks(Project project) {
         project.tasks.create('listAllBoxes') {
             group 'Verification'
@@ -398,7 +465,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         createSmokeTestTask(project)
         createPrepareVagrantTestEnvTask(project)
         createPackagingTestTask(project)
-        createPlatformTestTask(project)
         createBoxListTasks(project)
     }
 
@@ -422,9 +488,6 @@ class VagrantTestPlugin implements Plugin<Project> {
 
         assert project.tasks.packagingTest != null
         Task packagingTest = project.tasks.packagingTest
-
-        assert project.tasks.platformTest != null
-        Task platformTest = project.tasks.platformTest
 
         /*
          * We always use the main project.rootDir as Vagrant's current working directory (VAGRANT_CWD)
@@ -515,10 +578,10 @@ class VagrantTestPlugin implements Plugin<Project> {
 
             if (LINUX_BOXES.contains(box)) {
                 Task batsPackagingTest = project.tasks.create("vagrant${boxTask}#batsPackagingTest", BatsOverVagrantTask) {
-                    remoteCommand BATS_TEST_COMMAND
+                    remoteCommand "export SYSTEM_JAVA_HOME=\"${-> convertPath(project, linuxSystemJdk.toString())}\"; " + BATS_TEST_COMMAND
                     boxName box
                     environmentVars vagrantEnvVars
-                    dependsOn up, setupPackagingTest
+                    dependsOn up, setupPackagingTest, linuxSystemJdk
                     finalizedBy halt
                 }
 
@@ -579,31 +642,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                     packagingTest.dependsOn(javaPackagingTest)
                 }
             }
-
-            /*
-             * This test is unmaintained and was created to run on Linux. We won't allow it to run on Windows
-             * until it's been brought back into maintenance
-             */
-            if (LINUX_BOXES.contains(box)) {
-                Task platform = project.tasks.create("vagrant${boxTask}#platformTest", VagrantCommandTask) {
-                    command 'ssh'
-                    boxName box
-                    environmentVars vagrantEnvVars
-                    dependsOn up
-                    finalizedBy halt
-                    args '--command', PLATFORM_TEST_COMMAND + " -Dtests.seed=${-> project.testSeed}"
-                }
-                TaskExecutionAdapter platformReproListener = createReproListener(project, platform.path)
-                platform.doFirst {
-                    project.gradle.addListener(platformReproListener)
-                }
-                platform.doLast {
-                    project.gradle.removeListener(platformReproListener)
-                }
-                if (project.extensions.esvagrant.boxes.contains(box)) {
-                    platformTest.dependsOn(platform)
-                }
-            }
         }
     }
 
@@ -613,9 +651,14 @@ class VagrantTestPlugin implements Plugin<Project> {
             void afterExecute(Task task, TaskState state) {
                 final String gradlew = Os.isFamily(Os.FAMILY_WINDOWS) ? "gradlew" : "./gradlew"
                 if (state.failure != null) {
-                    println "REPRODUCE WITH: ${gradlew} ${reproTaskPath} -Dtests.seed=${project.testSeed} "
+                    println "REPRODUCE WITH: ${gradlew} \"${reproTaskPath}\" -Dtests.seed=${project.testSeed} "
                 }
             }
         }
+    }
+
+    // convert the given path from an elasticsearch repo path to a VM path
+    private String convertPath(Project project, String path) {
+        return "/elasticsearch/" + project.rootDir.toPath().relativize(Paths.get(path));
     }
 }

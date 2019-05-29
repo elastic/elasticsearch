@@ -19,11 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A flush request to flush one or more indices. The flush process of an index basically frees memory from the index
@@ -47,6 +50,12 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
      */
     public FlushRequest(String... indices) {
         super(indices);
+    }
+
+    public FlushRequest(StreamInput in) throws IOException {
+        super(in);
+        force = in.readBoolean();
+        waitIfOngoing = in.readBoolean();
     }
 
     /**
@@ -83,6 +92,15 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
     }
 
     @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationError = super.validate();
+        if (force && waitIfOngoing == false) {
+            validationError = addValidationError("wait_if_ongoing must be true for a force flush", validationError);
+        }
+        return validationError;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(force);
@@ -91,9 +109,7 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        force = in.readBoolean();
-        waitIfOngoing = in.readBoolean();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
     }
 
     @Override

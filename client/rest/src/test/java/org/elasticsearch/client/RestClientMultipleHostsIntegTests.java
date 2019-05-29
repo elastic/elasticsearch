@@ -199,7 +199,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
      * Test host selector against a real server <strong>and</strong>
      * test what happens after calling
      */
-    public void testNodeSelector() throws IOException {
+    public void testNodeSelector() throws Exception {
         try (RestClient restClient = buildRestClient(firstPositionNodeSelector())) {
             Request request = new Request("GET", "/200");
             int rounds = between(1, 10);
@@ -210,7 +210,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                  */
                 if (stoppedFirstHost) {
                     try {
-                        restClient.performRequest(request);
+                        RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
                         fail("expected to fail to connect");
                     } catch (ConnectException e) {
                         // Windows isn't consistent here. Sometimes the message is even null!
@@ -219,7 +219,7 @@ public class RestClientMultipleHostsIntegTests extends RestClientTestCase {
                         }
                     }
                 } else {
-                    Response response = restClient.performRequest(request);
+                    Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
                     assertEquals(httpHosts[0], response.getHost());
                 }
             }

@@ -34,7 +34,7 @@ dependencies {
 
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 
     if (isEclipse == false || project.path == ":libs:secure-sm-tests") {
         testCompile("org.elasticsearch.test:framework:${version}") {
@@ -63,6 +63,11 @@ if (isEclipse) {
 // JAR hell is part of core which we do not want to add as a dependency
 jarHell.enabled = false
 
-namingConventions {
-    testClass = 'junit.framework.TestCase'
+testingConventions {
+    naming.clear()
+    naming {
+        Tests {
+            baseClass 'junit.framework.TestCase'
+        }
+    }
 }

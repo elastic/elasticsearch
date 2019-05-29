@@ -18,27 +18,42 @@ a composite bucket.
 --------------------------------------------------
 PUT /sales
 {
-    "mappings": {
-        "_doc": {
-            "properties": {
-                "product": {
-                    "type": "keyword"
-                },
-                "timestamp": {
-                    "type": "date"
-                },
-                "price": {
-                    "type": "long"
-                },
-                "shop": {
-                    "type": "keyword"
-                }
+  "mappings": {
+    "properties": {
+      "product": {
+          "type": "keyword"
+      },
+      "timestamp": {
+          "type": "date"
+      },
+      "price": {
+          "type": "long"
+      },
+      "shop": {
+          "type": "keyword"
+      },
+      "nested": {
+          "type": "nested",
+          "properties": {
+            "product": {
+                "type": "keyword"
+            },
+            "timestamp": {
+                "type": "date"
+            },
+            "price": {
+                "type": "long"
+            },
+            "shop": {
+                "type": "keyword"
             }
-        }
+          }
+       }
     }
+  }
 }
 
-POST /sales/_doc/_bulk?refresh
+POST /sales/_bulk?refresh
 {"index":{"_id":0}}
 {"product": "mad max", "price": "20", "timestamp": "2017-05-09T14:35"}
 {"index":{"_id":1}}
@@ -83,6 +98,11 @@ for the aggregation:
 ==== Values source
 
 The `sources` parameter controls the sources that should be used to build the composite buckets.
+The order that the `sources` are defined is important because it also controls the order
+the keys are returned.
+
+The name given to each sources must be unique.
+
 There are three different types of values source:
 
 ===== Terms
@@ -206,7 +226,7 @@ GET /_search
         "my_buckets": {
             "composite" : {
                 "sources" : [
-                    { "date": { "date_histogram" : { "field": "timestamp", "interval": "1d" } } }
+                    { "date": { "date_histogram" : { "field": "timestamp", "calendar_interval": "1d" } } }
                 ]
             }
         }
@@ -240,7 +260,7 @@ GET /_search
                         "date": {
                             "date_histogram" : {
                                 "field": "timestamp",
-                                "interval": "1d",
+                                "calendar_interval": "1d",
                                 "format": "yyyy-MM-dd" <1>
                             }
                         }
@@ -279,7 +299,7 @@ GET /_search
         "my_buckets": {
             "composite" : {
                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
                     { "product": { "terms": {"field": "product" } } }
                 ]
             }
@@ -288,7 +308,6 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
-
 
 This will create composite buckets from the values created by two values source, a `date_histogram` and a `terms`.
 Each bucket is composed of two values, one for each value source defined in the aggregation.
@@ -305,7 +324,7 @@ GET /_search
                 "sources" : [
                     { "shop": { "terms": {"field": "shop" } } },
                     { "product": { "terms": { "field": "product" } } },
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } }
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } }
                 ]
             }
         }
@@ -333,7 +352,7 @@ GET /_search
         "my_buckets": {
             "composite" : {
                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "desc" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
                     { "product": { "terms": {"field": "product", "order": "asc" } } }
                 ]
             }
@@ -401,7 +420,7 @@ GET /_search
             "composite" : {
                 "size": 2,
                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
                     { "product": { "terms": {"field": "product" } } }
                 ]
             }
@@ -467,7 +486,7 @@ GET /_search
             "composite" : {
                 "size": 2,
                  "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "desc" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
                     { "product": { "terms": {"field": "product", "order": "asc" } } }
                 ],
                 "after": { "date": 1494288000000, "product": "mad max" } <1>
@@ -496,7 +515,7 @@ GET /_search
         "my_buckets": {
             "composite" : {
                  "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "interval": "1d", "order": "desc" } } },
+                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
                     { "product": { "terms": {"field": "product" } } }
                 ]
             },

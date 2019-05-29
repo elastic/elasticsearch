@@ -35,7 +35,6 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
     public RestDeleteByQueryAction(Settings settings, RestController controller) {
         super(settings, DeleteByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_delete_by_query", this);
-        controller.registerHandler(POST, "/{index}/{type}/_delete_by_query", this);
     }
 
     @Override

@@ -63,45 +63,27 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         assertEquals("/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("a");
-        searchRequest.types("b");
-        assertEquals("/a/b/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        assertEquals("/a/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("a", "b");
-        searchRequest.types("c", "d");
-        assertEquals("/a,b/c,d/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
-
+        assertEquals("/a,b/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat,");
-        expectBadStartRequest(searchRequest, "Index", ",", "cat,");
-        searchRequest.indices("cat,", "dog");
-        expectBadStartRequest(searchRequest, "Index", ",", "cat,");
-        searchRequest.indices("dog", "cat,");
-        expectBadStartRequest(searchRequest, "Index", ",", "cat,");
+        assertEquals("/cat%2C/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat/");
-        expectBadStartRequest(searchRequest, "Index", "/", "cat/");
+        assertEquals("/cat%2F/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
         searchRequest.indices("cat/", "dog");
-        expectBadStartRequest(searchRequest, "Index", "/", "cat/");
-        searchRequest.indices("dog", "cat/");
-        expectBadStartRequest(searchRequest, "Index", "/", "cat/");
+        assertEquals("/cat%2F,dog/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        // test a specific date math + all characters that need escaping.
+        searchRequest.indices("<cat{now/d}>", "<>/{}|+:,");
+        assertEquals("/%3Ccat%7Bnow%2Fd%7D%3E,%3C%3E%2F%7B%7D%7C%2B%3A%2C/_search",
+            initialSearch(searchRequest, query, remoteVersion).getEndpoint());
 
-        searchRequest.indices("ok");
-        searchRequest.types("cat,");
-        expectBadStartRequest(searchRequest, "Type", ",", "cat,");
-        searchRequest.types("cat,", "dog");
-        expectBadStartRequest(searchRequest, "Type", ",", "cat,");
-        searchRequest.types("dog", "cat,");
-        expectBadStartRequest(searchRequest, "Type", ",", "cat,");
-        searchRequest.types("cat/");
-        expectBadStartRequest(searchRequest, "Type", "/", "cat/");
-        searchRequest.types("cat/", "dog");
-        expectBadStartRequest(searchRequest, "Type", "/", "cat/");
-        searchRequest.types("dog", "cat/");
-        expectBadStartRequest(searchRequest, "Type", "/", "cat/");
-    }
-
-    private void expectBadStartRequest(SearchRequest searchRequest, String type, String bad, String failed) {
-        Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
-        BytesReference query = new BytesArray("{}");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> initialSearch(searchRequest, query, remoteVersion));
-        assertEquals(type + " containing [" + bad + "] not supported but got [" + failed + "]", e.getMessage());
+        // re-escape already escaped (no special handling).
+        searchRequest.indices("%2f", "%3a");
+        assertEquals("/%252f,%253a/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        searchRequest.indices("%2fcat,");
+        assertEquals("/%252fcat%2C/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
+        searchRequest.indices("%3ccat/");
+        assertEquals("/%253ccat%2F/_search", initialSearch(searchRequest, query, remoteVersion).getEndpoint());
     }
 
     public void testInitialSearchParamsSort() {
@@ -179,7 +161,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
             fetchVersion = randomBoolean();
             searchRequest.source().version(fetchVersion);
         }
-
+        
         Map<String, String> params = initialSearch(searchRequest, query, remoteVersion).getParameters();
 
         if (scroll == null) {

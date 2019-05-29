@@ -16,9 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.gradle.api.internal.provider.Providers
-
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'nebula.maven-base-publish'
@@ -64,9 +61,15 @@ dependencies {
   testCompile "org.elasticsearch.test:framework:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
   testCompile "org.elasticsearch:rest-api-spec:${version}"
+  // Needed for serialization tests:
+  // (In order to serialize a server side class to a client side class or the other way around)
+  if (isEclipse == false || project.path == ":client:rest-high-level-tests") {
+    testCompile("org.elasticsearch.plugin:x-pack-core:${version}") {
+        exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
+    }
+  }
 
   restSpec "org.elasticsearch:rest-api-spec:${version}"
 }
@@ -93,6 +96,20 @@ forbiddenApisMain {
   addSignatureFiles 'http-signatures'
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
+
+if (isEclipse) {
+    // in eclipse the project is under a fake root, we need to change around the source sets
+    sourceSets {
+        if (project.path == ":client:rest-high-level") {
+            main.java.srcDirs = ['java']
+            main.resources.srcDirs = ['resources']
+        } else {
+            test.java.srcDirs = ['java']
+            test.resources.srcDirs = ['resources']
+        }
+    }
+}
+
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 
@@ -104,13 +121,15 @@ integTestRunner {
 integTestCluster {
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
   systemProperty 'es.rest.url_plus_as_space', 'false'
-  setting 'reindex.remote.whitelist', '"[::1]:*"'
+  setting 'reindex.remote.whitelist', ['"[::1]:*"', '"127.0.0.1:*"']
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
-  setting 'xpack.ssl.certificate_authorities', 'testnode.crt'
+  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
+  setting 'indices.lifecycle.poll_interval', '1000ms'
   keystoreSetting 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   setupCommand 'setupDummyUser',
           'bin/elasticsearch-users',

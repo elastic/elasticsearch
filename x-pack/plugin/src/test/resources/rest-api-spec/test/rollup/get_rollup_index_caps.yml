@@ -4,7 +4,6 @@ setup:
   - do:
       indices.create:
         index: foo
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -16,7 +15,6 @@ setup:
   - do:
       indices.create:
         index: foo2
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -28,7 +26,6 @@ setup:
   - do:
       indices.create:
         index: foo3
-        include_type_name: false
         body:
           mappings:
             properties:
@@ -39,7 +36,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo
         body:  >
           {
@@ -50,7 +47,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -65,7 +62,7 @@ setup:
 "Verify one job caps by rollup index":
 
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "foo_rollup"
 
   - match:
@@ -77,7 +74,7 @@ setup:
             fields:
               the_field:
                 - agg: "date_histogram"
-                  interval: "1h"
+                  calendar_interval: "1h"
                   time_zone: "UTC"
               value_field:
                 - agg: "min"
@@ -90,7 +87,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -101,7 +98,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -112,7 +109,7 @@ setup:
             ]
           }
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "foo_rollup"
 
   - match:
@@ -124,7 +121,7 @@ setup:
             fields:
               the_field:
                 - agg: "date_histogram"
-                  interval: "1h"
+                  calendar_interval: "1h"
                   time_zone: "UTC"
               value_field:
                 - agg: "min"
@@ -136,7 +133,7 @@ setup:
             fields:
               the_field:
                 - agg: "date_histogram"
-                  interval: "1h"
+                  calendar_interval: "1h"
                   time_zone: "UTC"
               value_field:
                 - agg: "min"
@@ -150,7 +147,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -161,7 +158,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -172,7 +169,7 @@ setup:
             ]
           }
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "foo_rollup"
 
   - match:
@@ -184,7 +181,7 @@ setup:
             fields:
               the_field:
                 - agg: "date_histogram"
-                  interval: "1h"
+                  calendar_interval: "1h"
                   time_zone: "UTC"
               value_field:
                 - agg: "min"
@@ -197,7 +194,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -208,7 +205,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -221,7 +218,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo3
         body:  >
           {
@@ -232,7 +229,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -244,7 +241,7 @@ setup:
           }
 
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "_all"
 
   - match:
@@ -257,7 +254,7 @@ setup:
               fields:
                 the_field:
                   - agg: "date_histogram"
-                    interval: "1h"
+                    calendar_interval: "1h"
                     time_zone: "UTC"
                 value_field:
                   - agg: "min"
@@ -269,7 +266,7 @@ setup:
               fields:
                 the_field:
                   - agg: "date_histogram"
-                    interval: "1h"
+                    calendar_interval: "1h"
                     time_zone: "UTC"
                 value_field:
                   - agg: "min"
@@ -283,7 +280,7 @@ setup:
               fields:
                 the_field:
                   - agg: "date_histogram"
-                    interval: "1h"
+                    calendar_interval: "1h"
                     time_zone: "UTC"
                 value_field:
                   - agg: "min"
@@ -293,14 +290,10 @@ setup:
 ---
 "Verify job caps by rollup index comma delimited list":
 
-- skip:
-    version: " - 6.99.99"
-    reason: "comma delimited index support was fixed in 7.0"
-
 - do:
     headers:
       Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-    xpack.rollup.put_job:
+    rollup.put_job:
       id: foo2
       body:  >
         {
@@ -311,7 +304,7 @@ setup:
           "groups" : {
             "date_histogram": {
               "field": "the_field",
-              "interval": "1h"
+              "calendar_interval": "1h"
             }
           },
           "metrics": [
@@ -324,7 +317,7 @@ setup:
 - do:
     headers:
       Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-    xpack.rollup.put_job:
+    rollup.put_job:
       id: foo3
       body:  >
         {
@@ -335,7 +328,7 @@ setup:
           "groups" : {
             "date_histogram": {
               "field": "the_field",
-              "interval": "1h"
+              "calendar_interval": "1h"
             }
           },
           "metrics": [
@@ -347,7 +340,7 @@ setup:
         }
 
 - do:
-    xpack.rollup.get_rollup_index_caps:
+    rollup.get_rollup_index_caps:
       index: "foo_rollup2,foo_rollup"
 
 - match:
@@ -360,7 +353,7 @@ setup:
           fields:
             the_field:
             - agg: "date_histogram"
-              interval: "1h"
+              calendar_interval: "1h"
               time_zone: "UTC"
             value_field:
             - agg: "min"
@@ -372,7 +365,7 @@ setup:
           fields:
             the_field:
             - agg: "date_histogram"
-              interval: "1h"
+              calendar_interval: "1h"
               time_zone: "UTC"
             value_field:
             - agg: "min"
@@ -386,7 +379,7 @@ setup:
           fields:
             the_field:
             - agg: "date_histogram"
-              interval: "1h"
+              calendar_interval: "1h"
               time_zone: "UTC"
             value_field:
             - agg: "min"
@@ -399,7 +392,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo2
         body:  >
           {
@@ -410,7 +403,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -423,7 +416,7 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      xpack.rollup.put_job:
+      rollup.put_job:
         id: foo3
         body:  >
           {
@@ -434,7 +427,7 @@ setup:
             "groups" : {
               "date_histogram": {
                 "field": "the_field",
-                "interval": "1h"
+                "calendar_interval": "1h"
               }
             },
             "metrics": [
@@ -446,7 +439,7 @@ setup:
           }
 
   - do:
-      xpack.rollup.get_rollup_index_caps:
+      rollup.get_rollup_index_caps:
         index: "*_rollup2"
 
   - match:
@@ -459,7 +452,7 @@ setup:
               fields:
                 the_field:
                   - agg: "date_histogram"
-                    interval: "1h"
+                    calendar_interval: "1h"
                     time_zone: "UTC"
                 value_field:
                   - agg: "min"

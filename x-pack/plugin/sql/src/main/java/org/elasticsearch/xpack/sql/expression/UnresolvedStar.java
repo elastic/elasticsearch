@@ -35,7 +35,7 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         throw new UnresolvedException("nullable", this);
     }
 

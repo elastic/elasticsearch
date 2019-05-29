@@ -19,12 +19,17 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.transport.TransportService;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
 
 public class UpdateByQueryWithScriptTests
         extends AbstractAsyncBulkByScrollActionScriptTestCase<UpdateByQueryRequest, BulkByScrollResponse> {
@@ -53,7 +58,10 @@ public class UpdateByQueryWithScriptTests
 
     @Override
     protected TransportUpdateByQueryAction.AsyncIndexBySearchAction action(ScriptService scriptService, UpdateByQueryRequest request) {
-        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, request, scriptService,
-                null, listener());
+        TransportService transportService = mock(TransportService.class);
+        TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(threadPool,
+            new ActionFilters(Collections.emptySet()), null, transportService, scriptService, null);
+        return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(task, logger, null, threadPool, transportAction, request,
+                ClusterState.EMPTY_STATE, listener());
     }
 }

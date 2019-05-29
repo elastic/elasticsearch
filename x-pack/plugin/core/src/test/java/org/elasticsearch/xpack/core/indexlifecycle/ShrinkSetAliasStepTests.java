@@ -119,7 +119,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.performAction(indexMetaData, null, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {
@@ -163,7 +163,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetaData, null, new Listener() {
+        step.performAction(indexMetaData, null, null, new Listener() {
 
             @Override
             public void onResponse(boolean complete) {

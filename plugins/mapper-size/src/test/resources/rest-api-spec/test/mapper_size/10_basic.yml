@@ -9,12 +9,11 @@
             index: test
             body:
                 mappings:
-                    type1: { "_size": { "enabled": true } }
+                    _size: { "enabled": true }
 
     - do:
         index:
             index: test
-            type: type1
             id: 1
             body: { "foo": "bar" }
 
@@ -24,9 +23,7 @@
     - do:
         get:
             index: test
-            type: type1
             id: 1
             stored_fields: "_size"
 
     - gt: { _size: 0 }
-

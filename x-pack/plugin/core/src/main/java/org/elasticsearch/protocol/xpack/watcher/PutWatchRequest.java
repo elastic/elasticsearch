@@ -7,16 +7,20 @@ package org.elasticsearch.protocol.xpack.watcher;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.IOException;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * This request class contains the data needed to create a watch along with the name of the watch.
@@ -31,6 +35,9 @@ public final class PutWatchRequest extends ActionRequest {
     private XContentType xContentType = XContentType.JSON;
     private boolean active = true;
     private long version = Versions.MATCH_ANY;
+
+    private long ifSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
+    private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
     public PutWatchRequest() {}
 
@@ -52,6 +59,8 @@ public final class PutWatchRequest extends ActionRequest {
         active = in.readBoolean();
         xContentType = in.readEnum(XContentType.class);
         version = in.readZLong();
+        ifSeqNo = in.readZLong();
+        ifPrimaryTerm = in.readVLong();
     }
 
     @Override
@@ -62,6 +71,8 @@ public final class PutWatchRequest extends ActionRequest {
         out.writeBoolean(active);
         out.writeEnum(xContentType);
         out.writeZLong(version);
+        out.writeZLong(ifSeqNo);
+        out.writeVLong(ifPrimaryTerm);
     }
 
     /**
@@ -122,20 +133,80 @@ public final class PutWatchRequest extends ActionRequest {
         this.version = version;
     }
 
+    /**
+     * only performs this put request if the watch's last modification was assigned the given
+     * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
+     *
+     * If the watch's last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public PutWatchRequest setIfSeqNo(long seqNo) {
+        if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+        }
+        ifSeqNo = seqNo;
+        return this;
+    }
+
+    /**
+     * only performs this put request if the watch's last modification was assigned the given
+     * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
+     *
+     * If the watch last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public PutWatchRequest setIfPrimaryTerm(long term) {
+        if (term < 0) {
+            throw new IllegalArgumentException("primary term must be non negative. got [" + term + "]");
+        }
+        ifPrimaryTerm = term;
+        return this;
+    }
+
+    /**
+     * If set, only perform this put watch request if the watch's last modification was assigned this sequence number.
+     * If the watch last last modification was assigned a different sequence number a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long getIfSeqNo() {
+        return ifSeqNo;
+    }
+
+    /**
+     * If set, only perform this put watch request if the watch's last modification was assigned this primary term.
+     *
+     * If the watch's last modification was assigned a different term a
+     * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
+     */
+    public long getIfPrimaryTerm() {
+        return ifPrimaryTerm;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (id == null) {
-            validationException = ValidateActions.addValidationError("watch id is missing", validationException);
+            validationException = addValidationError("watch id is missing", validationException);
         } else if (isValidId(id) == false) {
-            validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
+            validationException = addValidationError("watch id contains whitespace", validationException);
         }
         if (source == null) {
-            validationException = ValidateActions.addValidationError("watch source is missing", validationException);
+            validationException = addValidationError("watch source is missing", validationException);
         }
         if (xContentType == null) {
-            validationException = ValidateActions.addValidationError("request body is missing", validationException);
+            validationException = addValidationError("request body is missing", validationException);
         }
+        if (ifSeqNo != UNASSIGNED_SEQ_NO && version != Versions.MATCH_ANY) {
+            validationException = addValidationError("compare and write operations can not use versioning", validationException);
+        }
+        if (ifPrimaryTerm == UNASSIGNED_PRIMARY_TERM && ifSeqNo != UNASSIGNED_SEQ_NO) {
+            validationException = addValidationError("ifSeqNo is set, but primary term is [0]", validationException);
+        }
+        if (ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM && ifSeqNo == UNASSIGNED_SEQ_NO) {
+            validationException =
+                addValidationError("ifSeqNo is unassigned, but primary term is [" + ifPrimaryTerm + "]", validationException);
+        }
+
         return validationException;
     }
 

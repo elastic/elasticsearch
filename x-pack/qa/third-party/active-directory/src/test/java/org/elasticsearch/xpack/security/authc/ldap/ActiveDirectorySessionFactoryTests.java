@@ -66,7 +66,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         return false;
     }
 
-    @SuppressWarnings("unchecked")
     public void testAdAuth() throws Exception {
         RealmConfig config = configureRealm("ad-test", buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false));
         try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
@@ -101,7 +100,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         return new RealmConfig(identifier, mergedSettings, env, new ThreadContext(globalSettings));
     }
 
-    @SuppressWarnings("unchecked")
     public void testNetbiosAuth() throws Exception {
         final String adUrl = randomFrom(AD_LDAP_URL, AD_LDAP_GC_URL);
         RealmConfig config = configureRealm("ad-test", buildAdSettings(adUrl, AD_DOMAIN, false));
@@ -139,7 +137,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testAuthenticate() throws Exception {
         Settings settings = buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                 LdapSearchScope.ONE_LEVEL, false);
@@ -163,7 +160,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testAuthenticateBaseUserSearch() throws Exception {
         Settings settings = buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN,
                 "CN=Bruce Banner, CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.BASE, false);
@@ -208,7 +204,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testAuthenticateWithUserPrincipalName() throws Exception {
         Settings settings = buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                 LdapSearchScope.ONE_LEVEL, false);
@@ -229,7 +224,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testAuthenticateWithSAMAccountName() throws Exception {
         Settings settings = buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
                 LdapSearchScope.ONE_LEVEL, false);
@@ -251,7 +245,6 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testCustomUserFilter() throws Exception {
         Settings settings = Settings.builder()
                 .put(buildAdSettings(REALM_ID, AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com",
@@ -275,26 +268,20 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
     }
 
 
-    @SuppressWarnings("unchecked")
     public void testStandardLdapConnection() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
-                .put(LdapTestCase.buildLdapSettings(
-                        new String[]{AD_LDAP_URL},
-                        new String[]{userTemplate},
-                        groupSearchBase,
-                        LdapSearchScope.SUB_TREE,
-                        null,
-                        true))
-                .put("follow_referrals", FOLLOW_REFERRALS)
-                .build();
-        if (useGlobalSSL == false) {
-            settings = Settings.builder()
-                .put(settings)
-                .putList("ssl.certificate_authorities", certificatePaths)
-                .build();
-        }
+            .put(LdapTestCase.buildLdapSettings(
+                    new String[]{AD_LDAP_URL},
+                    new String[]{userTemplate},
+                    groupSearchBase,
+                    LdapSearchScope.SUB_TREE,
+                    null,
+                    true))
+            .put("follow_referrals", FOLLOW_REFERRALS)
+            .putList("ssl.certificate_authorities", certificatePaths)
+            .build();
         RealmConfig config = configureRealm("ad-as-ldap-test", settings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -325,9 +312,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             null,
             ignoreReferralErrors);
         final Settings.Builder builder = Settings.builder().put(settings).put(globalSettings);
-        if (useGlobalSSL == false) {
-            builder.putList(RealmSettings.realmSslPrefix(realmId) + "certificate_authorities", certificatePaths);
-        }
+        builder.putList(RealmSettings.realmSslPrefix(realmId) + "certificate_authorities", certificatePaths);
         settings = builder.build();
         RealmConfig config = new RealmConfig(realmId,
                 settings, TestEnvironment.newEnvironment(globalSettings),
@@ -348,16 +333,13 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testStandardLdapWithAttributeGroups() throws Exception {
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = LdapTestCase.buildLdapSettings(new String[]{AD_LDAP_URL}, userTemplate, false);
-        if (useGlobalSSL == false) {
-            settings = Settings.builder()
-                .put(settings)
-                .putList("ssl.certificate_authorities", certificatePaths)
-                .build();
-        }
+        settings = Settings.builder()
+            .put(settings)
+            .putList("ssl.certificate_authorities", certificatePaths)
+            .build();
         RealmConfig config = configureRealm("ad-as-ldap-test", settings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService, threadPool);
 
@@ -412,9 +394,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
             builder.put(getFullSettingKey(REALM_ID, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING), hostnameVerification);
         }
 
-        if (useGlobalSSL == false) {
-            builder.putList(getFullSettingKey(REALM_ID, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
-        }
+        builder.putList(getFullSettingKey(REALM_ID, SSLConfigurationSettings.CAPATH_SETTING_REALM), certificatePaths);
 
         if (useBindUser) {
             final String user = randomFrom("cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow", "cap@ad.test.elasticsearch.com",

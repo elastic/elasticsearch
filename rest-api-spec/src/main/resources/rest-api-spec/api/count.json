@@ -4,7 +4,7 @@
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_count",
-      "paths": ["/_count", "/{index}/_count", "/{index}/{type}/_count"],
+      "paths": ["/_count", "/{index}/_count"],
       "parts": {
         "index": {
           "type" : "list",

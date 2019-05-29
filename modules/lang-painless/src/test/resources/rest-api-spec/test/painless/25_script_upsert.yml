@@ -4,7 +4,6 @@
   - do:
       update:
           index:    test_1
-          type:     test
           id:       1
           body:
             script:
@@ -16,7 +15,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match:  { _source.foo: baz }
@@ -25,7 +23,6 @@
   - do:
       update:
           index:    test_1
-          type:     test
           id:       1
           body:
             script:
@@ -37,7 +34,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     1
 
   - match:  { _source.foo: xxx }
@@ -45,7 +41,6 @@
   - do:
       update:
           index:    test_1
-          type:     test
           id:       2
           body:
             script:
@@ -58,7 +53,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     2
 
   - match:  { _source.foo: xxx }
@@ -66,7 +60,6 @@
   - do:
       update:
           index:    test_1
-          type:     test
           id:       3
           body:
             script:
@@ -78,9 +71,6 @@
   - do:
       get:
           index:  test_1
-          type:   test
           id:     3
 
   - match:  { _source.has_now: true }
-
-

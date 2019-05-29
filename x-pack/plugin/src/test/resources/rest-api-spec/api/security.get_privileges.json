@@ -5,6 +5,8 @@
     "url": {
       "path": "/_security/privilege/{application}/{name}",
       "paths": [
+        "/_security/privilege",
+        "/_security/privilege/{application}",
         "/_security/privilege/{application}/{name}"
       ],
       "parts": {

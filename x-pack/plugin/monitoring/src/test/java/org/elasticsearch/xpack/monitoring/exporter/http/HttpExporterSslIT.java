@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
+import com.sun.net.httpserver.HttpsServer;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -15,6 +17,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -28,13 +31,16 @@ import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.SUITE,
-    numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
+    numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
     private final Settings globalSettings = Settings.builder().put("path.home", createTempDir()).build();
@@ -95,14 +101,15 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         final Path key = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.pem");
 
         final Settings sslSettings = Settings.builder()
-            .put("xpack.ssl.certificate", cert)
-            .put("xpack.ssl.key", key)
-            .put("xpack.ssl.key_passphrase", "testnode")
+            .put("xpack.transport.security.ssl.certificate", cert)
+            .put("xpack.transport.security.ssl.key", key)
+            .put("xpack.transport.security.ssl.key_passphrase", "testnode")
+            .putList("xpack.transport.security.ssl.supported_protocols", getProtocols())
             .put(globalSettings)
             .build();
 
         TestsSSLService sslService = new TestsSSLService(sslSettings, environment);
-        final SSLContext sslContext = sslService.sslContext(Settings.EMPTY);
+        final SSLContext sslContext = sslService.sslContext("xpack.security.transport.ssl");
         MockWebServer server = new MockWebServer(sslContext, false);
         server.start();
         return server;
@@ -184,5 +191,23 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
         }
         updateSettings.transientSettings(builder.build());
         client().admin().cluster().updateSettings(updateSettings).actionGet();
+    }
+
+
+    /**
+     * The {@link HttpsServer} in the JDK has issues with TLSv1.3 when running in a JDK prior to
+     * 12.0.1 so we pin to TLSv1.2 when running on an earlier JDK
+     */
+    private static List<String> getProtocols() {
+        if (JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0) {
+            return List.of("TLSv1.2");
+        } else {
+            JavaVersion full =
+                AccessController.doPrivileged((PrivilegedAction<JavaVersion>) () -> JavaVersion.parse(System.getProperty("java.version")));
+            if (full.compareTo(JavaVersion.parse("12.0.1")) < 0) {
+                return List.of("TLSv1.2");
+            }
+        }
+        return XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
     }
 }

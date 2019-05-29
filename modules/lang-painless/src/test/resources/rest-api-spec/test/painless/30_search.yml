@@ -4,19 +4,16 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "test": "value beck", "num1": 1.0, "bool": true }
     - do:
         index:
             index: test
-            type: test
             id: 2
             body: { "test": "value beck", "num1": 2.0, "bool": false }
     - do:
         index:
             index: test
-            type: test
             id: 3
             body: { "test": "value beck", "num1": 3.0, "bool": true }
     - do:
@@ -34,7 +31,7 @@
                             lang: painless
                 script_fields:
                     sNum1:
-                        script: 
+                        script:
                             source: "doc['num1'].value;"
                             lang: painless
                 sort:
@@ -86,7 +83,7 @@
 
                 script_fields:
                     sNum1:
-                        script: 
+                        script:
                             source: "doc['num1'].value;"
                             lang: painless
                 sort:
@@ -118,13 +115,11 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "test": "value beck", "num1": 1.0 }
     - do:
         index:
             index: test
-            type: test
             id: 2
             body: { "test": "value beck", "num1": 2.0 }
     - do:
@@ -277,7 +272,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "dummy_field": 1 }
     - do:
@@ -328,7 +322,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "dummy_field": 1 }
     - do:
@@ -368,7 +361,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "f": 42 }
     - do:
@@ -382,7 +374,7 @@
             body:
                 script_fields:
                     foobar:
-                        script: 
+                        script:
                             source: "doc['f'].size()"
                             lang: painless
 
@@ -396,7 +388,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "dummy_field": 1 }
     - do:
@@ -433,7 +424,6 @@
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "genre": 1 }
 
@@ -462,14 +452,9 @@
 ---
 
 "Exception on negative score":
-    - skip:
-        version: " - 6.99.99"
-        reason: "check on negative scores was added from 7.0.0 on"
-
     - do:
         index:
             index: test
-            type: test
             id: 1
             body: { "test": "value beck", "num1": 1.0 }
     - do:

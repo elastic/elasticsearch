@@ -18,13 +18,13 @@ cluster. In many cases you can do this simply by starting or stopping the nodes
 as required. See <<modules-discovery-adding-removing-nodes>>.
 
 As nodes are added or removed Elasticsearch maintains an optimal level of fault
-tolerance by updating the cluster's _voting configuration_, which is the set of
-master-eligible nodes whose responses are counted when making decisions such as
-electing a new master or committing a new cluster state. A decision is made only
-after more than half of the nodes in the voting configuration have responded.
-Usually the voting configuration is the same as the set of all the
-master-eligible nodes that are currently in the cluster. However, there are some
-situations in which they may be different.
+tolerance by updating the cluster's <<modules-discovery-voting,voting
+configuration>>, which is the set of master-eligible nodes whose responses are
+counted when making decisions such as electing a new master or committing a new
+cluster state. A decision is made only after more than half of the nodes in the
+voting configuration have responded.  Usually the voting configuration is the
+same as the set of all the master-eligible nodes that are currently in the
+cluster. However, there are some situations in which they may be different.
 
 To be sure that the cluster remains available you **must not stop half or more
 of the nodes in the voting configuration at the same time**. As long as more
@@ -37,46 +37,6 @@ After a node has joined or left the cluster the elected master must issue a
 cluster-state update that adjusts the voting configuration to match, and this
 can take a short time to complete. It is important to wait for this adjustment
 to complete before removing more nodes from the cluster.
-
-[float]
-==== Setting the initial quorum
-
-When a brand-new cluster starts up for the first time, it must elect its first
-master node. To do this election, it needs to know the set of master-eligible
-nodes whose votes should count. This initial voting configuration is known as
-the _bootstrap configuration_ and is set in the
-<<modules-discovery-bootstrap-cluster,cluster bootstrapping process>>.
-
-It is important that the bootstrap configuration identifies exactly which nodes
-should vote in the first election. It is not sufficient to configure each node
-with an expectation of how many nodes there should be in the cluster. It is also
-important to note that the bootstrap configuration must come from outside the
-cluster: there is no safe way for the cluster to determine the bootstrap
-configuration correctly on its own.
-
-If the bootstrap configuration is not set correctly, when you start a brand-new
-cluster there is a risk that you will accidentally form two separate clusters
-instead of one. This situation can lead to data loss: you might start using both
-clusters before you notice that anything has gone wrong and it is impossible to
-merge them together later.
-
-NOTE: To illustrate the problem with configuring each node to expect a certain
-cluster size, imagine starting up a three-node cluster in which each node knows
-that it is going to be part of a three-node cluster. A majority of three nodes
-is two, so normally the first two nodes to discover each other form a cluster
-and the third node joins them a short time later. However, imagine that four
-nodes were erroneously started instead of three. In this case, there are enough
-nodes to form two separate clusters. Of course if each node is started manually
-then it's unlikely that too many nodes are started. If you're using an automated
-orchestrator, however, it's certainly possible to get into this situation--
-particularly if the orchestrator is not resilient to failures such as network
-partitions.
-
-The initial quorum is only required the very first time a whole cluster starts
-up. New nodes joining an established cluster can safely obtain all the
-information they need from the elected master. Nodes that have previously been
-part of a cluster will have stored to disk all the information that is required
-when they restart.
 
 [float]
 ==== Master elections
@@ -104,92 +64,3 @@ and then started again then it will automatically recover, such as during a
 action with the APIs described here in these cases, because the set of master
 nodes is not changing permanently.
 
-[float]
-==== Automatic changes to the voting configuration
-
-Nodes may join or leave the cluster, and Elasticsearch reacts by automatically
-making corresponding changes to the voting configuration in order to ensure that
-the cluster is as resilient as possible. 
-
-The default auto-reconfiguration
-behaviour is expected to give the best results in most situations. The current
-voting configuration is stored in the cluster state so you can inspect its
-current contents as follows:
-
-[source,js]
---------------------------------------------------
-GET /_cluster/state?filter_path=metadata.cluster_coordination.last_committed_config
---------------------------------------------------
-// CONSOLE
-
-NOTE: The current voting configuration is not necessarily the same as the set of
-all available master-eligible nodes in the cluster. Altering the voting
-configuration involves taking a vote, so it takes some time to adjust the
-configuration as nodes join or leave the cluster. Also, there are situations
-where the most resilient configuration includes unavailable nodes, or does not
-include some available nodes, and in these situations the voting configuration
-differs from the set of available master-eligible nodes in the cluster.
-
-Larger voting configurations are usually more resilient, so Elasticsearch
-normally prefers to add master-eligible nodes to the voting configuration after
-they join the cluster. Similarly, if a node in the voting configuration
-leaves the cluster and there is another master-eligible node in the cluster that
-is not in the voting configuration then it is preferable to swap these two nodes
-over. The size of the voting configuration is thus unchanged but its
-resilience increases.
-
-It is not so straightforward to automatically remove nodes from the voting
-configuration after they have left the cluster. Different strategies have
-different benefits and drawbacks, so the right choice depends on how the cluster
-will be used. You can control whether the voting configuration automatically shrinks by using the following setting:
-
-`cluster.auto_shrink_voting_configuration`::
-
-    Defaults to `true`, meaning that the voting configuration will automatically
-    shrink, shedding departed nodes, as long as it still contains at least 3
-    nodes.  If set to `false`, the voting configuration never automatically
-    shrinks; departed nodes must be removed manually using the
-    <<modules-discovery-adding-removing-nodes,voting configuration exclusions API>>.
-
-NOTE: If `cluster.auto_shrink_voting_configuration` is set to `true`, the
-recommended and default setting, and there are at least three master-eligible
-nodes in the cluster, then Elasticsearch remains capable of processing
-cluster-state updates as long as all but one of its master-eligible nodes are
-healthy.
-
-There are situations in which Elasticsearch might tolerate the loss of multiple
-nodes, but this is not guaranteed under all sequences of failures. If this
-setting is set to `false` then departed nodes must be removed from the voting
-configuration manually, using the
-<<modules-discovery-adding-removing-nodes,voting exclusions API>>, to achieve
-the desired level of resilience.
-
-No matter how it is configured, Elasticsearch will not suffer from a "split-brain" inconsistency.
-The `cluster.auto_shrink_voting_configuration` setting affects only its availability in the
-event of the failure of some of its nodes, and the administrative tasks that
-must be performed as nodes join and leave the cluster.
-
-[float]
-==== Even numbers of master-eligible nodes
-
-There should normally be an odd number of master-eligible nodes in a cluster.
-If there is an even number, Elasticsearch leaves one of them out of the voting
-configuration to ensure that it has an odd size. This omission does not decrease
-the failure-tolerance of the cluster. In fact, improves it slightly: if the
-cluster suffers from a network partition that divides it into two equally-sized
-halves then one of the halves will contain a majority of the voting
-configuration and will be able to keep operating. If all of the master-eligible
-nodes' votes were counted, neither side would contain a strict majority of the
-nodes and so the cluster would not be able to make any progress.
-
-For instance if there are four master-eligible nodes in the cluster and the
-voting configuration contained all of them, any quorum-based decision would
-require votes from at least three of them. This situation means that the cluster
-can tolerate the loss of only a single master-eligible node. If this cluster
-were split into two equal halves, neither half would contain three
-master-eligible nodes and the cluster would not be able to make any progress.
-If the voting configuration contains only three of the four master-eligible
-nodes, however, the cluster is still only fully tolerant to the loss of one
-node, but quorum-based decisions require votes from two of the three voting
-nodes. In the event of an even split, one half will contain two of the three
-voting nodes so that half will remain available.

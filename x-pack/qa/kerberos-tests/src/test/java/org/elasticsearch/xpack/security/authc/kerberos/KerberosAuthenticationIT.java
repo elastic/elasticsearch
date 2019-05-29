@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
+import javax.security.auth.login.LoginContext;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -32,8 +33,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.List;
 import java.util.Map;
-
-import javax.security.auth.login.LoginContext;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -148,13 +147,7 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         return restClientBuilder.build();
     }
 
-    private static void configureRestClientBuilder(final RestClientBuilder restClientBuilder, final Settings settings)
-            throws IOException {
-        final String requestTimeoutString = settings.get(CLIENT_RETRY_TIMEOUT);
-        if (requestTimeoutString != null) {
-            final TimeValue maxRetryTimeout = TimeValue.parseTimeValue(requestTimeoutString, CLIENT_RETRY_TIMEOUT);
-            restClientBuilder.setMaxRetryTimeoutMillis(Math.toIntExact(maxRetryTimeout.getMillis()));
-        }
+    private static void configureRestClientBuilder(final RestClientBuilder restClientBuilder, final Settings settings) {
         final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
         if (socketTimeoutString != null) {
             final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);

@@ -33,3 +33,4 @@ include-tagged::{doc-tests-file}[{api}-response]
 <1> a List of Cluster deprecations
 <2> a List of Node deprecations
 <3> a Map of key IndexName, value List of deprecations for the index
+<4> a list of Machine Learning related deprecations

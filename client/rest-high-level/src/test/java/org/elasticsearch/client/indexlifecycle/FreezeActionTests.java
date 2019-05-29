@@ -35,6 +35,6 @@ public class FreezeActionTests extends AbstractXContentTestCase<FreezeAction> {
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 }

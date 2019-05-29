@@ -16,9 +16,7 @@ import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowFunctionsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowSchemasContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ShowTablesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysCatalogsContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysColumnsContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTableTypesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTablesContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SysTypesContext;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
@@ -29,9 +27,7 @@ import org.elasticsearch.xpack.sql.plan.logical.command.ShowColumns;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowFunctions;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowSchemas;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
-import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysCatalogs;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysColumns;
-import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTableTypes;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTables;
 import org.elasticsearch.xpack.sql.plan.logical.command.sys.SysTypes;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
@@ -129,7 +125,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowTables(ShowTablesContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new ShowTables(source(ctx), index, visitLikePattern(ctx.likePattern()));
+        return new ShowTables(source(ctx), index, visitLikePattern(ctx.likePattern()), ctx.FROZEN() != null);
     }
 
     @Override
@@ -141,12 +137,7 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
     public Object visitShowColumns(ShowColumnsContext ctx) {
         TableIdentifier ti = visitTableIdentifier(ctx.tableIdent);
         String index = ti != null ? ti.qualifiedIndex() : null;
-        return new ShowColumns(source(ctx), index, visitLikePattern(ctx.likePattern()));
-    }
-
-    @Override
-    public Object visitSysCatalogs(SysCatalogsContext ctx) {
-        return new SysCatalogs(source(ctx));
+        return new ShowColumns(source(ctx), index, visitLikePattern(ctx.likePattern()), ctx.FROZEN() != null);
     }
 
     @Override
@@ -155,21 +146,29 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         boolean legacyTableType = false;
         for (StringContext string : ctx.string()) {
             String value = string(string);
-            if (value != null) {
+            if (value != null && value.isEmpty() == false) {
                 // check special ODBC wildcard case
                 if (value.equals(StringUtils.SQL_WILDCARD) && ctx.string().size() == 1) {
-                    // convert % to enumeration
-                    // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments?view=ssdt-18vs2017
-                    types.addAll(IndexType.VALID);
+                    // treat % as null
+                    // https://docs.microsoft.com/en-us/sql/odbc/reference/develop-app/value-list-arguments
                 }
                 // special case for legacy apps (like msquery) that always asks for 'TABLE'
                 // which we manually map to all concrete tables supported
-                else if (value.toUpperCase(Locale.ROOT).equals("TABLE")) {
-                    legacyTableType = true;
-                    types.add(IndexType.INDEX);
-                } else {
-                    IndexType type = IndexType.from(value);
-                    types.add(type);
+                else {
+                    switch (value.toUpperCase(Locale.ROOT)) {
+                        case IndexType.SQL_TABLE:
+                            legacyTableType = true;
+                            types.add(IndexType.STANDARD_INDEX);
+                            break;
+                        case IndexType.SQL_BASE_TABLE:
+                            types.add(IndexType.STANDARD_INDEX);
+                            break;
+                        case IndexType.SQL_VIEW:
+                            types.add(IndexType.ALIAS);
+                            break;
+                        default:
+                            types.add(IndexType.UNKNOWN);
+                    }
                 }
             }
         }
@@ -198,10 +197,5 @@ abstract class CommandBuilder extends LogicalPlanBuilder {
         }
 
         return new SysTypes(source(ctx), Integer.valueOf(type));
-    }
-
-    @Override
-    public Object visitSysTableTypes(SysTableTypesContext ctx) {
-        return new SysTableTypes(source(ctx));
     }
 }

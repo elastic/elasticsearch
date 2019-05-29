@@ -26,6 +26,7 @@ setup:
   - do:
       indices.close:
         index: _all
+  - is_true: acknowledged
 
   - do:
       catch: bad_request
@@ -36,6 +37,7 @@ setup:
   - do:
       indices.open:
         index: _all
+  - is_true: acknowledged
 
   - do:
       cluster.health:
@@ -51,6 +53,7 @@ setup:
   - do:
       indices.close:
         index: test_*
+  - is_true: acknowledged
 
   - do:
       catch: bad_request
@@ -61,6 +64,7 @@ setup:
   - do:
       indices.open:
         index: test_*
+  - is_true: acknowledged
 
   - do:
       cluster.health:
@@ -76,6 +80,7 @@ setup:
   - do:
       indices.close:
         index: '*'
+  - is_true: acknowledged
 
   - do:
       catch: bad_request
@@ -86,6 +91,7 @@ setup:
   - do:
       indices.open:
         index: '*'
+  - is_true: acknowledged
 
   - do:
       cluster.health:

@@ -11,10 +11,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -67,8 +67,8 @@ public final class WatcherUtils {
             }
             return;
         }
-        if (value instanceof DateTime) {
-            result.put(key, formatDate((DateTime) value));
+        if (value instanceof ZonedDateTime) {
+            result.put(key, formatDate((ZonedDateTime) value));
             return;
         }
         if (value instanceof TimeValue) {

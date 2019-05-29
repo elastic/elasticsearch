@@ -6,13 +6,15 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.Interval;
 
+import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.type.DataType.BYTE;
-import static org.elasticsearch.xpack.sql.type.DataType.DATE;
+import static org.elasticsearch.xpack.sql.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.sql.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.sql.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.sql.type.DataType.INTEGER;
@@ -27,6 +29,7 @@ import static org.elasticsearch.xpack.sql.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.sql.type.DataType.LONG;
 import static org.elasticsearch.xpack.sql.type.DataType.NULL;
 import static org.elasticsearch.xpack.sql.type.DataType.SHORT;
+import static org.elasticsearch.xpack.sql.type.DataType.TIME;
 import static org.elasticsearch.xpack.sql.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.sql.type.DataType.fromTypeName;
 
@@ -67,14 +70,20 @@ public final class DataTypes {
         if (value instanceof Short) {
             return SHORT;
         }
+        if (value instanceof OffsetTime) {
+            return TIME;
+        }
         if (value instanceof ZonedDateTime) {
-            return DATE;
+            return DATETIME;
         }
         if (value instanceof String || value instanceof Character) {
             return KEYWORD;
         }
         if (value instanceof Interval) {
             return ((Interval<?>) value).dataType();
+        }
+        if (value instanceof GeoShape) {
+            return DataType.GEO_SHAPE;
         }
         throw new SqlIllegalArgumentException("No idea what's the DataType for {}", value.getClass());
     }
@@ -166,7 +175,7 @@ public final class DataTypes {
     // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-date-time/metadata-catalog
     // https://github.com/elastic/elasticsearch/issues/30386
     public static Integer metaSqlDataType(DataType t) {
-        if (t == DATE) {
+        if (t == DATETIME) {
             // ODBC SQL_DATETME
             return Integer.valueOf(9);
         }
@@ -175,9 +184,9 @@ public final class DataTypes {
     }
 
     // https://github.com/elastic/elasticsearch/issues/30386
-    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function?view=sql-server-2017
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
     public static Integer metaSqlDateTimeSub(DataType t) {
-        if (t == DATE) {
+        if (t == DATETIME) {
             // ODBC SQL_CODE_TIMESTAMP
             return Integer.valueOf(3);
         }
@@ -185,42 +194,55 @@ public final class DataTypes {
         return 0;
     }
 
-    // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/decimal-digits?view=sql-server-2017
     public static Short metaSqlMinimumScale(DataType t) {
-        // TODO: return info for HALF/SCALED_FLOATS (should be based on field not type)
-        if (t == DATE) {
-            return Short.valueOf((short) 3);
-        }
-        if (t.isInteger()) {
-            return Short.valueOf((short) 0);
-        }
-        // minimum scale?
-        if (t.isRational()) {
-            return Short.valueOf((short) 0);
-        }
-        return null;
+        return metaSqlSameScale(t);
     }
 
     public static Short metaSqlMaximumScale(DataType t) {
-        // TODO: return info for HALF/SCALED_FLOATS (should be based on field not type)
-        if (t == DATE) {
-            return Short.valueOf((short) 3);
-        }
+        return metaSqlSameScale(t);
+    }
+
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/decimal-digits
+    // https://github.com/elastic/elasticsearch/issues/40357
+    // since the scale is fixed, minimum and maximum should return the same value
+    // hence why this method exists
+    private static Short metaSqlSameScale(DataType t) {
+        // TODO: return info for SCALED_FLOATS (should be based on field not type)
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (t.isRational()) {
+        if (t.isDateBased() || t.isRational()) {
             return Short.valueOf((short) t.defaultPrecision);
         }
         return null;
     }
 
-    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function?view=sql-server-2017
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
     public static Integer metaSqlRadix(DataType t) {
         // RADIX  - Determines how numbers returned by COLUMN_SIZE and DECIMAL_DIGITS should be interpreted.
         // 10 means they represent the number of decimal digits allowed for the column.
         // 2 means they represent the number of bits allowed for the column.
         // null means radix is not applicable for the given type.
         return t.isInteger() ? Integer.valueOf(10) : (t.isRational() ? Integer.valueOf(2) : null);
+    }
+
+    //https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function#comments
+    //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size
+    public static Integer precision(DataType t) {
+        if (t.isNumeric()) {
+            return t.defaultPrecision;
+        }
+        return t.displaySize;
+    }
+
+    public static boolean areTypesCompatible(DataType left, DataType right) {
+        if (left == right) {
+            return true;
+        } else {
+            return
+                (left == DataType.NULL || right == DataType.NULL) ||
+                    (left.isString() && right.isString()) ||
+                    (left.isNumeric() && right.isNumeric());
+        }
     }
 }

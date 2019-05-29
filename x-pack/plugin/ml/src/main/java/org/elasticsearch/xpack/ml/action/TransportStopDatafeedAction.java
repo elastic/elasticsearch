@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -28,7 +29,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 
@@ -103,7 +103,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         final DiscoveryNodes nodes = state.nodes();
         if (nodes.isLocalNodeElectedMaster() == false) {
             // Delegates stop datafeed to elected master node, so it becomes the coordinating node.
-            // See comment in StartDatafeedAction.Transport class for more information.
+            // See comment in TransportStartDatafeedAction for more information.
             if (nodes.getMasterNode() == null) {
                 listener.onFailure(new MasterNotDiscoveredException("no known master node"));
             } else {
@@ -141,13 +141,21 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
         Set<String> executorNodes = new HashSet<>();
         for (String datafeedId : startedDatafeeds) {
             PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(datafeedId, tasks);
-            if (datafeedTask == null || datafeedTask.isAssigned() == false) {
-                String message = "Cannot stop datafeed [" + datafeedId + "] because the datafeed does not have an assigned node." +
-                        " Use force stop to stop the datafeed";
-                listener.onFailure(ExceptionsHelper.conflictStatusException(message));
-                return;
-            } else {
+            if (datafeedTask == null) {
+                // This should not happen, because startedDatafeeds was derived from the same tasks that is passed to this method
+                String msg = "Requested datafeed [" + datafeedId + "] be stopped, but datafeed's task could not be found.";
+                assert datafeedTask != null : msg;
+                logger.error(msg);
+            } else if (datafeedTask.isAssigned()) {
                 executorNodes.add(datafeedTask.getExecutorNode());
+            } else {
+                // This is the easy case - the datafeed is not currently assigned to a node,
+                // so can be gracefully stopped simply by removing its persistent task.  (Usually
+                // a graceful stop cannot be achieved by simply removing the persistent task, but
+                // if the datafeed has no running code then graceful/forceful are the same.)
+                // The listener here can be a no-op, as waitForDatafeedStopped() already waits for
+                // these persistent tasks to disappear.
+                persistentTasksService.sendRemoveRequest(datafeedTask.getId(), ActionListener.wrap(r -> {}, e -> {}));
             }
         }
 
@@ -187,16 +195,20 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     @Override
                     public void onFailure(Exception e) {
                         final int slot = counter.incrementAndGet();
-                        failures.set(slot - 1, e);
+                        if ((e instanceof ResourceNotFoundException &&
+                            Strings.isAllOrWildcard(new String[]{request.getDatafeedId()})) == false) {
+                            failures.set(slot - 1, e);
+                        }
                         if (slot == startedDatafeeds.size()) {
                             sendResponseOrFailure(request.getDatafeedId(), listener, failures);
                         }
                     }
                 });
             } else {
-                String msg = "Requested datafeed [" + request.getDatafeedId() + "] be force-stopped, but " +
-                        "datafeed's task could not be found.";
-                logger.warn(msg);
+                // This should not happen, because startedDatafeeds was derived from the same tasks that is passed to this method
+                String msg = "Requested datafeed [" + datafeedId + "] be force-stopped, but datafeed's task could not be found.";
+                assert datafeedTask != null : msg;
+                logger.error(msg);
                 final int slot = counter.incrementAndGet();
                 failures.set(slot - 1, new RuntimeException(msg));
                 if (slot == startedDatafeeds.size()) {
@@ -215,7 +227,13 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
                     threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
-                            listener.onFailure(e);
+                            if ((e instanceof ResourceNotFoundException &&
+                                Strings.isAllOrWildcard(new String[]{request.getDatafeedId()}))) {
+                                datafeedTask.stop("stop_datafeed (api)", request.getStopTimeout());
+                                listener.onResponse(new StopDatafeedAction.Response(true));
+                            } else {
+                                listener.onFailure(e);
+                            }
                         }
 
                         @Override
@@ -238,19 +256,18 @@ public class TransportStopDatafeedAction extends TransportTasksAction<TransportS
 
     private void sendResponseOrFailure(String datafeedId, ActionListener<StopDatafeedAction.Response> listener,
                                        AtomicArray<Exception> failures) {
-        List<Exception> catchedExceptions = failures.asList();
-        if (catchedExceptions.size() == 0) {
+        List<Exception> caughtExceptions = failures.asList();
+        if (caughtExceptions.size() == 0) {
             listener.onResponse(new StopDatafeedAction.Response(true));
             return;
         }
 
-        String msg = "Failed to stop datafeed [" + datafeedId + "] with [" + catchedExceptions.size()
+        String msg = "Failed to stop datafeed [" + datafeedId + "] with [" + caughtExceptions.size()
             + "] failures, rethrowing last, all Exceptions: ["
-            + catchedExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
+            + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
             + "]";
 
-        ElasticsearchException e = new ElasticsearchException(msg,
-                catchedExceptions.get(0));
+        ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
         listener.onFailure(e);
     }
 

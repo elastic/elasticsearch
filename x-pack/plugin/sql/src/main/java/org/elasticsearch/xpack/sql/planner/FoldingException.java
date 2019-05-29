@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.ClientSqlException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.tree.Node;
 
-import java.util.Locale;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class FoldingException extends ClientSqlException {
 
@@ -54,6 +54,6 @@ public class FoldingException extends ClientSqlException {
 
     @Override
     public String getMessage() {
-        return String.format(Locale.ROOT, "line %s:%s: %s", getLineNumber(), getColumnNumber(), super.getMessage());
+        return format("line {}:{}: {}", getLineNumber(), getColumnNumber(), super.getMessage());
     }
 }

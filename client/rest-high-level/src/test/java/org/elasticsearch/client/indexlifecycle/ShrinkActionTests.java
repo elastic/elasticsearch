@@ -43,7 +43,7 @@ public class ShrinkActionTests extends AbstractXContentTestCase<ShrinkAction> {
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     public void testNonPositiveShardNumber() {

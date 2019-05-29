@@ -87,11 +87,6 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
-    @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
         return super.configUsers() +
@@ -350,8 +345,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         MultiSearchResponse response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -368,8 +363,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
         assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
@@ -386,9 +381,9 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         response = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareMultiSearch()
-                .add(client().prepareSearch("test1").setTypes("type1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                .add(client().prepareSearch("test1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
                         .setQuery(QueryBuilders.matchAllQuery()))
-                .add(client().prepareSearch("test2").setTypes("type1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                .add(client().prepareSearch("test2").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
                         .setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertFalse(response.getResponses()[0].isFailure());
@@ -841,7 +836,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         ElasticsearchSecurityException securityException = (ElasticsearchSecurityException) bulkItem.getFailure().getCause();
         assertThat(securityException.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(securityException.getMessage(),
-                equalTo("Can't execute a bulk request with update requests embedded if field or document level security is enabled"));
+                equalTo("Can't execute a bulk item request with update requests embedded if field or document level security is enabled"));
 
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field1").toString(), equalTo("value2"));
 

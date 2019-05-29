@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -49,7 +49,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.stashWithOrigin;
 
 class DatafeedJob {
 
@@ -127,7 +126,6 @@ class DatafeedJob {
                 TimeValue.timeValueMillis(frequencyMs).getStringRep());
         auditor.info(jobId, msg);
         LOGGER.info("[{}] {}", jobId, msg);
-
 
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
@@ -225,12 +223,12 @@ class DatafeedJob {
        Date currentTime = new Date(currentTimeSupplier.get());
        return new Annotation(msg,
            currentTime,
-           SystemUser.NAME,
+           XPackUser.NAME,
            startTime,
            endTime,
            jobId,
            currentTime,
-           SystemUser.NAME,
+           XPackUser.NAME,
            "annotation");
     }
 
@@ -238,9 +236,11 @@ class DatafeedJob {
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
             IndexRequest request = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             request.source(xContentBuilder);
-            IndexResponse response = client.index(request).actionGet();
-            lastDataCheckAnnotation = annotation;
-            return response.getId();
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+                IndexResponse response = client.index(request).actionGet();
+                lastDataCheckAnnotation = annotation;
+                return response.getId();
+            }
         } catch (IOException ex) {
             String errorMessage = "[" + jobId + "] failed to create annotation for delayed data checker.";
             LOGGER.error(errorMessage, ex);
@@ -251,7 +251,7 @@ class DatafeedJob {
 
     private void updateAnnotation(Annotation annotation) {
         Annotation updatedAnnotation = new Annotation(lastDataCheckAnnotation);
-        updatedAnnotation.setModifiedUsername(SystemUser.NAME);
+        updatedAnnotation.setModifiedUsername(XPackUser.NAME);
         updatedAnnotation.setModifiedTime(new Date(currentTimeSupplier.get()));
         updatedAnnotation.setAnnotation(annotation.getAnnotation());
         updatedAnnotation.setTimestamp(annotation.getTimestamp());
@@ -260,8 +260,10 @@ class DatafeedJob {
             IndexRequest indexRequest = new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME);
             indexRequest.id(lastDataCheckAnnotationId);
             indexRequest.source(xContentBuilder);
-            client.index(indexRequest).actionGet();
-            lastDataCheckAnnotation = updatedAnnotation;
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+                client.index(indexRequest).actionGet();
+                lastDataCheckAnnotation = updatedAnnotation;
+            }
         } catch (IOException ex) {
             String errorMessage = "[" + jobId + "] failed to update annotation for delayed data checker.";
             LOGGER.error(errorMessage, ex);
@@ -377,7 +379,7 @@ class DatafeedJob {
             }
         }
 
-        lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, end - 1);
+        lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, dataExtractor.getEndTime() - 1);
         LOGGER.debug("[{}] Complete iterating data extractor [{}], [{}], [{}], [{}], [{}]", jobId, error, recordCount,
                 lastEndTimeMs, isRunning(), dataExtractor.isCancelled());
 
@@ -408,7 +410,7 @@ class DatafeedJob {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         Streams.copy(inputStream, outputStream);
         request.setContent(new BytesArray(outputStream.toByteArray()), xContentType);
-        try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).actionGet();
             return response.getDataCounts();
         }
@@ -437,7 +439,7 @@ class DatafeedJob {
     private FlushJobAction.Response flushJob(FlushJobAction.Request flushRequest) {
         try {
             LOGGER.trace("[" + jobId + "] Sending flush request");
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 return client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
             }
         } catch (Exception e) {
@@ -462,7 +464,7 @@ class DatafeedJob {
     private void sendPersistRequest() {
         try {
             LOGGER.trace("[" + jobId + "] Sending persist request");
-            try (ThreadContext.StoredContext ignore = stashWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN)) {
+            try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
                 client.execute(PersistJobAction.INSTANCE, new PersistJobAction.Request(jobId));
             }
         } catch (Exception e) {

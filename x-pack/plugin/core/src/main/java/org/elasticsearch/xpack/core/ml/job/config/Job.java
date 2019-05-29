@@ -186,11 +186,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         jobId = in.readString();
         jobType = in.readString();
         jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
-        if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-            groups = Collections.unmodifiableList(in.readList(StreamInput::readString));
-        } else {
-            groups = Collections.emptyList();
-        }
+        groups = Collections.unmodifiableList(in.readStringList());
         description = in.readOptionalString();
         createTime = new Date(in.readVLong());
         finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -199,10 +195,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (in.readBoolean()) {
                 in.readVLong();
             }
-        }
-        // for removed establishedModelMemory field
-        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0)) {
-            in.readOptionalLong();
         }
         analysisConfig = new AnalysisConfig(in);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
@@ -265,18 +257,24 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     }
 
     /**
-     * The name of the index storing the job's results and state.
-     * This defaults to {@link #getId()} if a specific index name is not set.
-     * @return The job's index name
+     * A good starting name for the index storing the job's results.
+     * This defaults to the shared results index if a specific index name is not set.
+     * This method must <em>only</em> be used during initial job creation.
+     * After that the read/write aliases must always be used to access the job's
+     * results index, as the underlying index may roll or be reindexed.
+     * @return The job's initial results index name
      */
-    public String getResultsIndexName() {
+    public String getInitialResultsIndexName() {
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + resultsIndexName;
     }
 
     /**
-     * Private version of getResultsIndexName so that a job can be built from another
-     * job and pass index name validation
-     * @return The job's index name, minus prefix
+     * Get the unmodified <code>results_index_name</code> field from the job.
+     * This is provided to allow a job to be copied via the builder.
+     * After creation this does not necessarily reflect the actual concrete
+     * index used by the job.  A job's results must always be read and written
+     * using the read and write aliases.
+     * @return The job's configured "index name"
      */
     private String getResultsIndexNameNoPrefix() {
         return resultsIndexName;
@@ -443,9 +441,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            out.writeStringList(groups);
-        }
+        out.writeStringCollection(groups);
         out.writeOptionalString(description);
         out.writeVLong(createTime.getTime());
         if (finishedTime != null) {
@@ -457,10 +453,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         // for removed last_data_time field
         if (out.getVersion().before(Version.V_7_0_0)) {
             out.writeBoolean(false);
-        }
-        // for removed establishedModelMemory field
-        if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalLong(null);
         }
         analysisConfig.writeTo(out);
         out.writeOptionalWriteable(analysisLimits);
@@ -670,11 +662,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             id = in.readOptionalString();
             jobType = in.readString();
             jobVersion = in.readBoolean() ? Version.readVersion(in) : null;
-            if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                groups = in.readList(StreamInput::readString);
-            } else {
-                groups = Collections.emptyList();
-            }
+            groups = in.readStringList();
             description = in.readOptionalString();
             createTime = in.readBoolean() ? new Date(in.readVLong()) : null;
             finishedTime = in.readBoolean() ? new Date(in.readVLong()) : null;
@@ -683,10 +671,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 if (in.readBoolean()) {
                     in.readVLong();
                 }
-            }
-            // for removed establishedModelMemory field
-            if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.getVersion().before(Version.V_7_0_0)) {
-                 in.readOptionalLong();
             }
             analysisConfig = in.readOptionalWriteable(AnalysisConfig::new);
             analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
@@ -855,9 +839,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             } else {
                 out.writeBoolean(false);
             }
-            if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeStringList(groups);
-            }
+            out.writeStringCollection(groups);
             out.writeOptionalString(description);
             if (createTime != null) {
                 out.writeBoolean(true);
@@ -874,10 +856,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             // for removed last_data_time field
             if (out.getVersion().before(Version.V_7_0_0)) {
                 out.writeBoolean(false);
-            }
-            // for removed establishedModelMemory field
-            if (out.getVersion().onOrAfter(Version.V_6_1_0) && out.getVersion().before(Version.V_7_0_0)) {
-                out.writeOptionalLong(null);
             }
             out.writeOptionalWriteable(analysisConfig);
             out.writeOptionalWriteable(analysisLimits);
@@ -1057,6 +1035,21 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 if (this.id.equals(group)) {
                     // cannot have a group name the same as the job id
                     throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE, group));
+                }
+            }
+        }
+
+        /**
+         * Validates that the Detector configs are unique up to detectorIndex field (which is ignored).
+         */
+        public void validateDetectorsAreUnique() {
+            Set<Detector> canonicalDetectors = new HashSet<>();
+            for (Detector detector : this.analysisConfig.getDetectors()) {
+                // While testing for equality, ignore detectorIndex field as this field is auto-generated.
+                Detector canonicalDetector = new Detector.Builder(detector).setDetectorIndex(0).build();
+                if (canonicalDetectors.add(canonicalDetector) == false) {
+                    throw new IllegalArgumentException(
+                        Messages.getMessage(Messages.JOB_CONFIG_DUPLICATE_DETECTORS_DISALLOWED, detector.getDetectorDescription()));
                 }
             }
         }

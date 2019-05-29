@@ -34,7 +34,7 @@ dependencyLicenses {
   mapping from: /morfologik-.*/, to: 'lucene'
 }
 
-thirdPartyAudit.excludes = [
+thirdPartyAudit.ignoreMissingClasses (
   // we don't use the morfologik-fsa polish stemmer
   'morfologik.stemming.polish.PolishStemmer'
-]
+)

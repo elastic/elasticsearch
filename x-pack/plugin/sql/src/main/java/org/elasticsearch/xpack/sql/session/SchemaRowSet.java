@@ -19,6 +19,6 @@ public interface SchemaRowSet extends RowSet {
 
     @Override
     default int columnCount() {
-        return schema().names().size();
+        return schema().size();
     }
 }

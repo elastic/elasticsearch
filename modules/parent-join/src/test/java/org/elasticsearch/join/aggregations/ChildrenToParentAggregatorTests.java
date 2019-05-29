@@ -90,6 +90,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
             assertEquals(0, childrenToParent.getDocCount());
             assertNotNull("Aggregations: " + childrenToParent.getAggregations().asMap(), parentAggregation);
             assertEquals(Double.POSITIVE_INFINITY, ((InternalMin) parentAggregation).getValue(), Double.MIN_VALUE);
+            assertFalse(JoinAggregationInspectionHelper.hasValue(childrenToParent));
         });
         indexReader.close();
         directory.close();
@@ -119,6 +120,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
                     parent.getAggregations().asMap(),
                 expectedTotalParents, parent.getDocCount());
             assertEquals(expectedMinValue, ((InternalMin) parent.getAggregations().get("in_parent")).getValue(), Double.MIN_VALUE);
+            assertTrue(JoinAggregationInspectionHelper.hasValue(parent));
         });
 
         // verify for each children
@@ -170,6 +172,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         // verify a terms-aggregation inside the parent-aggregation
         testCaseTerms(new MatchAllDocsQuery(), indexSearcher, parent -> {
             assertNotNull(parent);
+            assertTrue(JoinAggregationInspectionHelper.hasValue(parent));
             LongTerms valueTerms = parent.getAggregations().get("value_terms");
             assertNotNull(valueTerms);
 

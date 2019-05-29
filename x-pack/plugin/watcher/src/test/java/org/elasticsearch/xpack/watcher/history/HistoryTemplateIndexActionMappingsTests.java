@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
@@ -30,11 +31,10 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
 
     public void testIndexActionFields() throws Exception {
         String index = "the-index";
-        String type = "the-type";
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5m")))
-                .addAction("index", indexAction(index, type)))
+                .addAction("index", indexAction(index)))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -66,7 +66,7 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
         terms = aggs.get("index_action_types");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(1));
-        assertThat(terms.getBucketByKey(type), notNullValue());
-        assertThat(terms.getBucketByKey(type).getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey(SINGLE_MAPPING_NAME), notNullValue());
+        assertThat(terms.getBucketByKey(SINGLE_MAPPING_NAME).getDocCount(), is(1L));
     }
 }

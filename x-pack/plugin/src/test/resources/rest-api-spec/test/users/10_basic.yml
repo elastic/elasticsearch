@@ -124,7 +124,6 @@ teardown:
   - do:
       get:
         index: .security
-        type: doc
         id: user-bob
   - set: { _source.password: "hash" }
 

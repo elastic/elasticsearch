@@ -10,7 +10,6 @@ setup:
   - do:
       index:
           index:  test_1
-          type:   test
           id:     1
           body:   { foo: bar }
 
@@ -66,9 +65,6 @@ setup:
 ---
 "Docvalues_fields size limit":
 
-  - skip:
-      version: " - 6.3.99"
-      reason: "The object notation for docvalue_fields is only supported on 6.4+"
   - do:
       catch:      /Trying to retrieve too many docvalue_fields\. Must be less than or equal to[:] \[2\] but was \[3\]\. This limit can be set by changing the \[index.max_docvalue_fields_search\] index level setting\./
       search:
@@ -78,12 +74,9 @@ setup:
           query:
             match_all: {}
           docvalue_fields:
-            - field: "one"
-              format: "use_field_mapping"
-            - field: "two"
-              format: "use_field_mapping"
-            - field: "three"
-              format: "use_field_mapping"
+            - "one"
+            - "two"
+            - "three"
 
 ---
 "Script_fields size limit":
@@ -96,16 +89,13 @@ setup:
         body:
           query:
             match_all: {}
-          script_fields: 
+          script_fields:
             "test1" : { "script" : { "lang": "painless", "source": "1;" }}
             "test2" : { "script" : { "lang": "painless", "source": "1;" }}
             "test3" : { "script" : { "lang": "painless", "source": "1;" }}
 
 ---
 "Regexp length limit":
-  - skip:
-      version: " - 6.99.99"
-      reason: "The regex length limit was introduced in 7.0.0"
 
   - do:
       catch: /The length of regex \[1110\] used in the Regexp Query request has exceeded the allowed maximum of \[1000\]\. This maximum can be set by changing the \[index.max_regex_length\] index level setting\./
@@ -114,7 +104,7 @@ setup:
         index: test_1
         body:
           query:
-            regexp: 
+            regexp:
               foo: "^\\[\\]\\r\\\\]|\\\\.)*\\](?:(?:\\r\\n)?[\\t])*)(?:\\.(?:(?:\\r\\n)?[\\t])*(?:[^()<>@,;:\\\\\" |
                    .\\[\\]\\000-\\031]+(?:(?:(?:\\r\\n)?[\\t])+|\\Z|(?=[\\[\"()<>@,;:\\\\\".\\[\\]]))|\\[([^\\[\\ |
                    ]\\r\\\\]|\\\\.)*\\](?:(?:\\r\\n)?[\\t])*))*(?:,@(?:(?:\\r\\n)?[ \\t])*(?:[^()<>@,;:\\\\\".\\  |

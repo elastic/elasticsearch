@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.test.ESTestCase;
@@ -29,6 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.anyString;
@@ -123,9 +125,10 @@ public class MlMemoryTrackerTests extends ESTestCase {
             return null;
         }).when(jobResultsProvider).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(Consumer.class), any());
 
-        long modelMemoryLimitMb = 2;
+        boolean simulateVeryOldJob = randomBoolean();
+        long recentJobModelMemoryLimitMb = 2;
         Job job = mock(Job.class);
-        when(job.getAnalysisLimits()).thenReturn(new AnalysisLimits(modelMemoryLimitMb, 4L));
+        when(job.getAnalysisLimits()).thenReturn(simulateVeryOldJob ? null : new AnalysisLimits(recentJobModelMemoryLimitMb, 4L));
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<Job> listener = (ActionListener<Job>) invocation.getArguments()[1];
@@ -141,7 +144,9 @@ public class MlMemoryTrackerTests extends ESTestCase {
                 assertEquals(Long.valueOf(modelBytes + Job.PROCESS_MEMORY_OVERHEAD.getBytes()),
                     memoryTracker.getJobMemoryRequirement(jobId));
             } else {
-                assertEquals(Long.valueOf(ByteSizeUnit.MB.toBytes(modelMemoryLimitMb) + Job.PROCESS_MEMORY_OVERHEAD.getBytes()),
+                long expectedModelMemoryLimit =
+                    simulateVeryOldJob ? AnalysisLimits.PRE_6_1_DEFAULT_MODEL_MEMORY_LIMIT_MB : recentJobModelMemoryLimitMb;
+                assertEquals(Long.valueOf(ByteSizeUnit.MB.toBytes(expectedModelMemoryLimit) + Job.PROCESS_MEMORY_OVERHEAD.getBytes()),
                     memoryTracker.getJobMemoryRequirement(jobId));
             }
         } else {
@@ -152,6 +157,19 @@ public class MlMemoryTrackerTests extends ESTestCase {
 
         memoryTracker.removeJob(jobId);
         assertNull(memoryTracker.getJobMemoryRequirement(jobId));
+    }
+
+    public void testStop() {
+
+        memoryTracker.onMaster();
+        memoryTracker.stop();
+
+        AtomicReference<Exception> exception = new AtomicReference<>();
+        memoryTracker.refreshJobMemory("job", ActionListener.wrap(ESTestCase::assertNull, exception::set));
+
+        assertNotNull(exception.get());
+        assertThat(exception.get(), instanceOf(EsRejectedExecutionException.class));
+        assertEquals("Couldn't run ML memory update - node is shutting down", exception.get().getMessage());
     }
 
     private PersistentTasksCustomMetaData.PersistentTask<OpenJobAction.JobParams> makeTestTask(String jobId) {

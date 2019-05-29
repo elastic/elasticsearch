@@ -59,8 +59,12 @@ public class NullIfProcessor implements Processor {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         NullIfProcessor that = (NullIfProcessor) o;
         return Objects.equals(leftProcessor, that.leftProcessor) &&
             Objects.equals(rightProcessor, that.rightProcessor);

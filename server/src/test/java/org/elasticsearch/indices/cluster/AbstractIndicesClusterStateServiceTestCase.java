@@ -28,9 +28,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -58,7 +60,6 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -196,7 +197,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                 IndexMetaData indexMetaData,
                 List<IndexEventListener> buildInIndexListener) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
-            indices = newMapBuilder(indices).put(indexMetaData.getIndexUUID(), indexService).immutableMap();
+            indices = Maps.copyMapWithAddedEntry(indices, indexMetaData.getIndexUUID(), indexService);
             return indexService;
         }
 
@@ -226,12 +227,15 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public MockIndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState,
-                                          PeerRecoveryTargetService recoveryTargetService,
-                                          PeerRecoveryTargetService.RecoveryListener recoveryListener,
-                                          RepositoriesService repositoriesService,
-                                          Consumer<IndexShard.ShardFailure> onShardFailure,
-                                          Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+        public MockIndexShard createShard(
+                final ShardRouting shardRouting,
+                final RecoveryState recoveryState,
+                final PeerRecoveryTargetService recoveryTargetService,
+                final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+                final RepositoriesService repositoriesService,
+                final Consumer<IndexShard.ShardFailure> onShardFailure,
+                final Consumer<ShardId> globalCheckpointSyncer,
+                final RetentionLeaseSyncer retentionLeaseSyncer) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
@@ -294,7 +298,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         public synchronized MockIndexShard createShard(ShardRouting routing) throws IOException {
             failRandomly();
             MockIndexShard shard = new MockIndexShard(routing, indexSettings.getIndexMetaData().primaryTerm(routing.shardId().id()));
-            shards = newMapBuilder(shards).put(routing.id(), shard).immutableMap();
+            shards = Maps.copyMapWithAddedEntry(shards, routing.id(), shard);
             return shard;
         }
 
@@ -351,17 +355,19 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                                      BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
                                      long applyingClusterStateVersion,
                                      Set<String> inSyncAllocationIds,
-                                     IndexShardRoutingTable routingTable,
-                                     Set<String> pre60AllocationIds) throws IOException {
+                                     IndexShardRoutingTable routingTable) throws IOException {
             failRandomly();
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));
             assertTrue("current: " + this.shardRouting + ", got: " + shardRouting, this.shardRouting.isSameAllocation(shardRouting));
             if (this.shardRouting.active()) {
-                assertTrue("and active shard must stay active, current: " + this.shardRouting + ", got: " + shardRouting,
+                assertTrue("an active shard must stay active, current: " + this.shardRouting + ", got: " + shardRouting,
                     shardRouting.active());
             }
             if (this.shardRouting.primary()) {
                 assertTrue("a primary shard can't be demoted", shardRouting.primary());
+                if (this.shardRouting.initializing()) {
+                    assertEquals("primary term can not be updated on an initializing primary shard: " + shardRouting, term, newPrimaryTerm);
+                }
             } else if (shardRouting.primary()) {
                 // note: it's ok for a replica in post recovery to be started and promoted at once
                 // this can happen when the primary failed after we sent the start shard message
@@ -384,6 +390,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         @Override
         public IndexShardState state() {
             return null;
+        }
+
+        public long term() {
+            return term;
         }
 
         public void updateTerm(long newTerm) {

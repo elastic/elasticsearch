@@ -181,7 +181,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
         if (removed) {
-            clusterState = strategy.deassociateDeadNodes(clusterState, randomBoolean(), "removed nodes");
+            clusterState = strategy.disassociateDeadNodes(clusterState, randomBoolean(), "removed nodes");
         }
 
         logger.info("start all the primary shards, replicas will start initializing");

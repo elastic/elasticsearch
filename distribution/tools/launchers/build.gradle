@@ -24,7 +24,7 @@ dependencies {
     compile parent.project('java-version-checker')
     testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
     testCompile "junit:junit:${versions.junit}"
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
 }
 
 archivesBaseName = 'elasticsearch-launchers'
@@ -33,9 +33,13 @@ tasks.withType(CheckForbiddenApis) {
     replaceSignatureFiles 'jdk-signatures'
 }
 
-namingConventions {
-    testClass = 'org.elasticsearch.tools.launchers.LaunchersTestCase'
-    skipIntegTestInDisguise = true
+testingConventions {
+    naming.clear()
+    naming {
+      Tests {
+        baseClass 'org.elasticsearch.tools.launchers.LaunchersTestCase'
+      }
+    }
 }
 
 javadoc.enabled = false

@@ -1,10 +1,5 @@
 ---
 "Translate SQL":
-  - skip:
-      version: " - 6.3.99"
-      reason: format option was added in 6.4
-      features: warnings
-
   - do:
       bulk:
         refresh: true
@@ -17,7 +12,7 @@
             int: 1
 
   - do:
-      xpack.sql.translate:
+      sql.translate:
         body:
           query: "SELECT * FROM test ORDER BY int asc"
   - match:
@@ -29,7 +24,6 @@
           excludes: []
         docvalue_fields:
           - field: int
-            format: use_field_mapping
         sort:
           - int:
               order: asc

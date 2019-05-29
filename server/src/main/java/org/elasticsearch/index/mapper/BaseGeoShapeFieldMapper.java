@@ -190,7 +190,7 @@ public abstract class BaseGeoShapeFieldMapper extends FieldMapper {
                 }
             }
             final Builder builder;
-            if (parsedDeprecatedParams || parserContext.indexVersionCreated().before(Version.V_7_0_0)) {
+            if (parsedDeprecatedParams || parserContext.indexVersionCreated().before(Version.V_6_6_0)) {
                 // Legacy index-based shape
                 builder = new LegacyGeoShapeFieldMapper.Builder(name, deprecatedParameters);
             } else {

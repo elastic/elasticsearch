@@ -37,7 +37,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.junit.AfterClass;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.BeforeClass;
 
 import java.util.Collection;
@@ -59,7 +60,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
 
     private static final ConcurrentMap<String, byte[]> blobs = new ConcurrentHashMap<>();
     private static String bucket;
-    private static String client;
     private static ByteSizeValue bufferSize;
     private static boolean serverSideEncryption;
     private static String cannedACL;
@@ -68,7 +68,6 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
     @BeforeClass
     public static void setUpRepositorySettings() {
         bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
-        client = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
         bufferSize = new ByteSizeValue(randomIntBetween(5, 50), ByteSizeUnit.MB);
         serverSideEncryption = randomBoolean();
         if (randomBoolean()) {
@@ -79,8 +78,8 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         }
     }
 
-    @AfterClass
-    public static void wipeRepository() {
+    @After
+    public void wipeRepository() {
         blobs.clear();
     }
 
@@ -116,14 +115,15 @@ public class S3BlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCa
         }
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry) {
+        public Map<String, Repository.Factory> getRepositories(final Environment env, final NamedXContentRegistry registry,
+                                                               final ThreadPool threadPool) {
             return Collections.singletonMap(S3Repository.TYPE,
-                    (metadata) -> new S3Repository(metadata, env.settings(), registry, new S3Service() {
+                    metadata -> new S3Repository(metadata, env.settings(), registry, new S3Service() {
                         @Override
                         AmazonS3 buildClient(S3ClientSettings clientSettings) {
                             return new MockAmazonS3(blobs, bucket, serverSideEncryption, cannedACL, storageClass);
                         }
-                    }));
+                    }, threadPool));
         }
     }
 

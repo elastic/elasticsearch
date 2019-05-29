@@ -56,10 +56,10 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
             newIndices[i] = randomSimpleString(random(), 1, 30);
         }
         request.indices(newIndices);
-        for (int i = 0; i < numNewIndices; i++) {;
+        for (int i = 0; i < numNewIndices; i++) {
             assertEquals(newIndices[i], request.indices()[i]);
         }
-        for (int i = 0; i < numNewIndices; i++) {;
+        for (int i = 0; i < numNewIndices; i++) {
             assertEquals(newIndices[i], request.getSearchRequest().indices()[i]);
         }
     }
@@ -77,30 +77,6 @@ public class DeleteByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     @Override
     protected void extraForSliceAssertions(DeleteByQueryRequest original, DeleteByQueryRequest forSliced) {
         // No extra assertions needed
-    }
-
-    public void testTypesGetter() {
-        int numTypes = between(1, 50);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = randomSimpleString(random(), 1, 30);
-        }
-        SearchRequest searchRequest = new SearchRequest();
-        searchRequest.types(types);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        assertArrayEquals(request.types(), types);
-    }
-
-    public void testTypesSetter() {
-        int numTypes = between(1, 50);
-        String[] types = new String[numTypes];
-        for (int i = 0; i < numTypes; i++) {
-            types[i] = randomSimpleString(random(), 1, 30);
-        }
-        SearchRequest searchRequest = new SearchRequest();
-        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
-        request.types(types);
-        assertArrayEquals(request.types(), types);
     }
 
     public void testValidateGivenNoQuery() {

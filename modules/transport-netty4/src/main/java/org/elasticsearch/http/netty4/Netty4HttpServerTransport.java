@@ -23,8 +23,8 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandler;
-import io.netty.channel.ChannelHandlerAdapter;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
@@ -45,7 +45,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -59,6 +58,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
+import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfigBuilder;
@@ -289,12 +289,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
-    protected void onException(HttpChannel channel, Exception cause) {
+    public void onException(HttpChannel channel, Exception cause) {
         if (cause instanceof ReadTimeoutException) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("Http read timeout {}", channel);
-            }
-            CloseableChannel.closeChannel(channel);
+            super.onException(channel, new HttpReadTimeoutException(readTimeoutMillis, cause));
         } else {
             super.onException(channel, cause);
         }
@@ -354,7 +351,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @ChannelHandler.Sharable
-    private static class ServerChannelExceptionHandler extends ChannelHandlerAdapter {
+    private static class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
 
         private final Netty4HttpServerTransport transport;
 

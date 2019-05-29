@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -51,12 +51,12 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         for (String role : roles) {
             c.preparePutRole(role)
                     .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null)
+                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null, randomBoolean())
                     .get();
             logger.debug("--> created role [{}]", role);
         }
 
-        ensureGreen(SecurityIndexManager.SECURITY_INDEX_NAME);
+        ensureGreen(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
 
         final Set<String> rolesSet = new HashSet<>(Arrays.asList(roles));
         // warm up the caches on every node
@@ -74,7 +74,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
     }
 
     public void testModifyingViaApiClearsCache() throws Exception {
-        Client client = internalCluster().transportClient();
+        Client client = client();
         SecurityClient securityClient = securityClient(client);
 
         int modifiedRolesCount = randomIntBetween(1, roles.length);
@@ -83,7 +83,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         for (String role : toModify) {
             PutRoleResponse response = securityClient.preparePutRole(role)
                     .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null)
+                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null, randomBoolean())
                     .runAs(role)
                     .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
                     .get();

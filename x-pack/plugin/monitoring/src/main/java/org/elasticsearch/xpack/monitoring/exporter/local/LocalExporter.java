@@ -28,6 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -51,10 +52,11 @@ import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.DateTimeFormatter;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -89,7 +91,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     private final XPackLicenseState licenseState;
     private final CleanerService cleanerService;
     private final boolean useIngest;
-    private final DateTimeFormatter dateTimeFormatter;
+    private final DateFormatter dateTimeFormatter;
     private final List<String> clusterAlertBlacklist;
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
@@ -251,7 +253,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                                          final boolean clusterStateChange) {
         // we are on the elected master
         // Check that there is nothing that could block metadata updates
-        if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
+        if (clusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_WRITE)) {
             logger.debug("waiting until metadata writes are unblocked");
             return false;
         }
@@ -489,12 +491,12 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
             // Reference date time will be compared to index.creation_date settings,
             // that's why it must be in UTC
-            DateTime expiration = new DateTime(DateTimeZone.UTC).minus(retention.millis());
+            ZonedDateTime expiration = ZonedDateTime.now(ZoneOffset.UTC).minus(retention.millis(), ChronoUnit.MILLIS);
             logger.debug("cleaning indices [expiration={}, retention={}]", expiration, retention);
 
             ClusterState clusterState = clusterService.state();
             if (clusterState != null) {
-                final long expirationTimeMillis = expiration.getMillis();
+                final long expirationTimeMillis = expiration.toInstant().toEpochMilli();
                 final long currentTimeMillis = System.currentTimeMillis();
                 final boolean cleanUpWatcherHistory = clusterService.getClusterSettings().get(CLEAN_WATCHER_HISTORY);
 
@@ -524,7 +526,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                         if (creationDate <= expirationTimeMillis) {
                             if (logger.isDebugEnabled()) {
                                 logger.debug("detected expired index [name={}, created={}, expired={}]",
-                                        indexName, new DateTime(creationDate, DateTimeZone.UTC), expiration);
+                                        indexName, Instant.ofEpochMilli(creationDate).atZone(ZoneOffset.UTC), expiration);
                             }
                             indices.add(indexName);
                         }

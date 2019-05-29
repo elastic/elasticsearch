@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.geo.geometry.Geometry;
+import org.elasticsearch.geo.geometry.Point;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -21,18 +24,24 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Last;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.MatrixStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.MedianAbsoluteDeviation;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.PercentileRanks;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Percentiles;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Stats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.GeoShape;
+import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StDistance;
 import org.elasticsearch.xpack.sql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.expression.literal.Intervals;
 import org.elasticsearch.xpack.sql.expression.predicate.Range;
@@ -62,6 +71,7 @@ import org.elasticsearch.xpack.sql.querydsl.agg.AndAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.AvgAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.CardinalityAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.ExtendedStatsAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.FilterExistsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByKey;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByNumericHistogram;
@@ -69,14 +79,17 @@ import org.elasticsearch.xpack.sql.querydsl.agg.GroupByValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MatrixStatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MaxAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.MedianAbsoluteDeviationAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.MinAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.OrAggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.PercentileRanksAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.PercentilesAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.StatsAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.SumAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.TopHitsAgg;
 import org.elasticsearch.xpack.sql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.ExistsQuery;
+import org.elasticsearch.xpack.sql.querydsl.query.GeoDistanceQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
@@ -90,8 +103,8 @@ import org.elasticsearch.xpack.sql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.sql.tree.Source;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 import org.elasticsearch.xpack.sql.util.ReflectionUtils;
 
 import java.util.Arrays;
@@ -99,12 +112,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.expression.Foldables.doubleValuesOf;
 import static org.elasticsearch.xpack.sql.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.sql.type.DataType.DATE;
 
 final class QueryTranslator {
 
@@ -135,8 +148,11 @@ final class QueryTranslator {
             new MatrixStatsAggs(),
             new PercentilesAggs(),
             new PercentileRanksAggs(),
-            new DistinctCounts(),
-            new DateTimes()
+            new CountAggs(),
+            new DateTimes(),
+            new Firsts(),
+            new Lasts(), 
+            new MADs()
             );
 
     static class QueryTranslation {
@@ -249,10 +265,7 @@ final class QueryTranslator {
 
                 // change analyzed to non non-analyzed attributes
                 if (exp instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) exp;
-                    if (fa.isInexact()) {
-                        ne = fa.exactAttribute();
-                    }
+                    ne = ((FieldAttribute) exp).exactAttribute();
                 }
 
                 // handle functions differently
@@ -274,9 +287,16 @@ final class QueryTranslator {
                             Expression field = h.field();
 
                             // date histogram
-                            if (h.dataType() == DataType.DATE) {
+                            if (h.dataType().isDateBased()) {
                                 long intervalAsMillis = Intervals.inMillis(h.interval());
-                                // TODO: set timezone
+
+                                // When the histogram in SQL is applied on DATE type instead of DATETIME, the interval
+                                // specified is truncated to the multiple of a day. If the interval specified is less
+                                // than 1 day, then the interval used will be `INTERVAL '1' DAY`.
+                                if (h.dataType() == DATE) {
+                                    intervalAsMillis = DateUtils.minDayInterval(intervalAsMillis);
+                                }
+
                                 if (field instanceof FieldAttribute) {
                                     key = new GroupByDateHistogram(aggId, nameOf(field), intervalAsMillis, h.zoneId());
                                 } else if (field instanceof Function) {
@@ -429,7 +449,13 @@ final class QueryTranslator {
     static String field(AggregateFunction af) {
         Expression arg = af.field();
         if (arg instanceof FieldAttribute) {
-            return ((FieldAttribute) arg).name();
+            FieldAttribute field = (FieldAttribute) arg;
+            // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
+            if (af instanceof Count && ((Count) af).distinct()) {
+                // use the `keyword` version of the field, if there is one
+                return field.exactAttribute().name();
+            }
+            return field.name();
         }
         if (arg instanceof Literal) {
             return String.valueOf(((Literal) arg).value());
@@ -438,43 +464,41 @@ final class QueryTranslator {
                 af.nodeString());
     }
 
-    // TODO: need to optimize on ngram
+    private static String topAggsField(AggregateFunction af, Expression e) {
+        if (e == null) {
+            return null;
+        }
+        if (e instanceof FieldAttribute) {
+            return ((FieldAttribute) e).exactAttribute().name();
+        }
+        throw new SqlIllegalArgumentException("Does not know how to convert argument {} for function {}", e.nodeString(),
+            af.nodeString());
+    }
+
     // TODO: see whether escaping is needed
+    @SuppressWarnings("rawtypes")
     static class Likes extends ExpressionTranslator<RegexMatch> {
 
         @Override
         protected QueryTranslation asQuery(RegexMatch e, boolean onAggs) {
             Query q = null;
-            boolean inexact = true;
-            String target = null;
+            String targetFieldName = null;
 
             if (e.field() instanceof FieldAttribute) {
-                FieldAttribute fa = (FieldAttribute) e.field();
-                inexact = fa.isInexact();
-                target = nameOf(inexact ? fa : fa.exactAttribute());
+                targetFieldName = nameOf(((FieldAttribute) e.field()).exactAttribute());
             } else {
-                throw new SqlIllegalArgumentException("Scalar function ({}) not allowed (yet) as arguments for LIKE",
+                throw new SqlIllegalArgumentException("Scalar function [{}] not allowed (yet) as argument for " + e.functionName(),
                         Expressions.name(e.field()));
             }
 
             if (e instanceof Like) {
                 LikePattern p = ((Like) e).pattern();
-                if (inexact) {
-                    q = new QueryStringQuery(e.source(), p.asLuceneWildcard(), target);
-                }
-                else {
-                    q = new WildcardQuery(e.source(), nameOf(e.field()), p.asLuceneWildcard());
-                }
+                q = new WildcardQuery(e.source(), targetFieldName, p.asLuceneWildcard());
             }
 
             if (e instanceof RLike) {
                 String pattern = ((RLike) e).pattern();
-                if (inexact) {
-                    q = new QueryStringQuery(e.source(), "/" + pattern + "/", target);
-                }
-                else {
-                    q = new RegexQuery(e.source(), nameOf(e.field()), pattern);
-                }
+                q = new RegexQuery(e.source(), targetFieldName, pattern);
             }
 
             return q != null ? new QueryTranslation(wrapIfNested(q, e.field())) : null;
@@ -637,6 +661,24 @@ final class QueryTranslator {
             Object value = valueOf(bc.right());
             String format = dateFormat(bc.left());
 
+            // Possible geo optimization
+            if (bc.left() instanceof StDistance && value instanceof Number) {
+                 if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                    // Special case for ST_Distance translatable into geo_distance query
+                    StDistance stDistance = (StDistance) bc.left();
+                    if (stDistance.left() instanceof FieldAttribute && stDistance.right().foldable()) {
+                        Object geoShape = valueOf(stDistance.right());
+                        if (geoShape instanceof GeoShape) {
+                            Geometry geometry = ((GeoShape) geoShape).toGeometry();
+                            if (geometry instanceof Point) {
+                                String field = nameOf(stDistance.left());
+                                return new GeoDistanceQuery(source, field, ((Number) value).doubleValue(),
+                                    ((Point) geometry).getLat(), ((Point) geometry).getLon());
+                            }
+                        }
+                    }
+                }
+            }
             if (bc instanceof GreaterThan) {
                 return new RangeQuery(source, name, value, false, null, false, format);
             }
@@ -651,12 +693,9 @@ final class QueryTranslator {
             }
             if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
                 if (bc.left() instanceof FieldAttribute) {
-                    FieldAttribute fa = (FieldAttribute) bc.left();
                     // equality should always be against an exact match
                     // (which is important for strings)
-                    if (fa.isInexact()) {
-                        name = fa.exactAttribute().name();
-                    }
+                    name = ((FieldAttribute) bc.left()).exactAttribute().name();
                 }
                 Query query = new TermQuery(source, name, value);
                 if (bc instanceof NotEquals) {
@@ -675,16 +714,6 @@ final class QueryTranslator {
 
         @Override
         protected QueryTranslation asQuery(In in, boolean onAggs) {
-            Optional<Expression> firstNotFoldable = in.list().stream().filter(expression -> !expression.foldable()).findFirst();
-
-            if (firstNotFoldable.isPresent()) {
-                throw new SqlIllegalArgumentException(
-                    "Line {}:{}: Comparisons against variables are not (currently) supported; offender [{}] in [{}]",
-                    firstNotFoldable.get().sourceLocation().getLineNumber(),
-                    firstNotFoldable.get().sourceLocation().getColumnNumber(),
-                    Expressions.name(firstNotFoldable.get()),
-                    in.name());
-            }
 
             if (in.value() instanceof NamedExpression) {
                 NamedExpression ne = (NamedExpression) in.value();
@@ -702,7 +731,9 @@ final class QueryTranslator {
                 else {
                     Query q = null;
                     if (in.value() instanceof FieldAttribute) {
-                        q = new TermsQuery(in.source(), ne.name(), in.list());
+                        FieldAttribute fa = (FieldAttribute) in.value();
+                        // equality should always be against an exact match (which is important for strings)
+                        q = new TermsQuery(in.source(), fa.exactAttribute().name(), in.list());
                     } else {
                         q = new ScriptQuery(in.source(), in.asScript());
                     }
@@ -772,15 +803,16 @@ final class QueryTranslator {
     //
     // Agg translators
     //
-
-    static class DistinctCounts extends SingleValueAggTranslator<Count> {
+    
+    static class CountAggs extends SingleValueAggTranslator<Count> {
 
         @Override
         protected LeafAgg toAgg(String id, Count c) {
-            if (!c.distinct()) {
-                return null;
+            if (c.distinct()) {
+                return new CardinalityAgg(id, field(c));
+            } else {
+                return new FilterExistsAgg(id, field(c));
             }
-            return new CardinalityAgg(id, field(c));
         }
     }
 
@@ -813,6 +845,31 @@ final class QueryTranslator {
         @Override
         protected LeafAgg toAgg(String id, Min m) {
             return new MinAgg(id, field(m));
+        }
+    }
+
+    static class MADs extends SingleValueAggTranslator<MedianAbsoluteDeviation> {
+        @Override
+        protected LeafAgg toAgg(String id, MedianAbsoluteDeviation m) {
+            return new MedianAbsoluteDeviationAgg(id, field(m));
+        }
+    }
+
+    static class Firsts extends TopHitsAggTranslator<First> {
+
+        @Override
+        protected LeafAgg toAgg(String id, First f) {
+            return new TopHitsAgg(id, topAggsField(f, f.field()), f.dataType(),
+                topAggsField(f, f.orderField()), f.orderField() == null ? null : f.orderField().dataType(), SortOrder.ASC);
+        }
+    }
+
+    static class Lasts extends TopHitsAggTranslator<Last> {
+
+        @Override
+        protected LeafAgg toAgg(String id, Last l) {
+            return new TopHitsAgg(id, topAggsField(l, l.field()), l.dataType(),
+                topAggsField(l, l.orderField()), l.orderField() == null ? null : l.orderField().dataType(), SortOrder.DESC);
         }
     }
 
@@ -896,6 +953,15 @@ final class QueryTranslator {
         protected abstract LeafAgg toAgg(String id, C f);
     }
 
+    abstract static class TopHitsAggTranslator<C extends TopHits> extends AggTranslator<C> {
+
+        @Override
+        protected final LeafAgg asAgg(String id, C function) {
+            return toAgg(id, function);
+        }
+
+        protected abstract LeafAgg toAgg(String id, C f);
+    }
 
     abstract static class ExpressionTranslator<E extends Expression> {
 
@@ -911,6 +977,9 @@ final class QueryTranslator {
 
         protected static Query handleQuery(ScalarFunction sf, Expression field, Supplier<Query> query) {
             Query q = query.get();
+            if (field instanceof StDistance && q instanceof GeoDistanceQuery) {
+                return wrapIfNested(q, ((StDistance) field).left());
+            }
             if (field instanceof FieldAttribute) {
                 return wrapIfNested(q, field);
             }

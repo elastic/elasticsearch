@@ -104,7 +104,7 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
     }
 
     @Override
-    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException;
+    protected abstract PipelineAggregator createInternal(Map<String, Object> metaData);
 
     @Override
     public void doValidate(AggregatorFactory<?> parent, Collection<AggregationBuilder> aggBuilders,

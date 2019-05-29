@@ -53,7 +53,7 @@ public class OriginalIndicesTests extends ESTestCase {
         }
     }
 
-    private static OriginalIndices randomOriginalIndices() {
+    public static OriginalIndices randomOriginalIndices() {
         int numIndices = randomInt(10);
         String[] indices = new String[numIndices];
         for (int j = 0; j < indices.length; j++) {

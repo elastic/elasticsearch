@@ -36,15 +36,9 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
                 .build();
         assertFalse(runCheck(settings, env).isFailure());
 
-        // disable client auth default
-        settings = Settings.builder().put(settings)
-                .put("xpack.ssl.client_authentication", "none")
-                .build();
-        env = TestEnvironment.newEnvironment(settings);
-        assertTrue(runCheck(settings, env).isFailure());
-
         // enable ssl for http
         settings = Settings.builder().put(settings)
+                .put("xpack.security.transport.ssl.enabled", false)
                 .put("xpack.security.http.ssl.enabled", true)
                 .build();
         env = TestEnvironment.newEnvironment(settings);
@@ -73,6 +67,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
 
         // test with transport profile
         settings = Settings.builder().put(settings)
+                .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.client_authentication", "none")
                 .put("transport.profiles.foo.xpack.security.ssl.client_authentication", randomFrom("required", "optional"))
                 .build();
@@ -87,7 +82,7 @@ public class PkiRealmBootstrapCheckTests extends AbstractBootstrapCheckTestCase 
     public void testBootstrapCheckWithDisabledRealm() throws Exception {
         Settings settings = Settings.builder()
                 .put("xpack.security.authc.realms.pki.test_pki.enabled", false)
-                .put("xpack.ssl.client_authentication", "none")
+                .put("xpack.security.transport.ssl.client_authentication", "none")
                 .put("path.home", createTempDir())
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);

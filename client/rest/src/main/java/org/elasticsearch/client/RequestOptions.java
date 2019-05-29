@@ -19,8 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.message.BasicHeader;
 import org.apache.http.Header;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory.HeapBufferedResponseConsumerFactory;
 
@@ -38,7 +38,7 @@ public final class RequestOptions {
      * Default request options.
      */
     public static final RequestOptions DEFAULT = new Builder(
-            Collections.<Header>emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT, null).build();
+            Collections.emptyList(), HeapBufferedResponseConsumerFactory.DEFAULT, null).build();
 
     private final List<Header> headers;
     private final HttpAsyncResponseConsumerFactory httpAsyncResponseConsumerFactory;

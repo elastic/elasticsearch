@@ -29,15 +29,14 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 
 public class GeoCentroidAggregatorTests extends AggregatorTestCase {
 
-    private static final double GEOHASH_TOLERANCE = 1E-4D;
+    private static final double GEOHASH_TOLERANCE = 1E-6D;
 
     public void testEmpty() throws Exception {
         try (Directory dir = newDirectory();
@@ -52,6 +51,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoCentroid result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
+                assertFalse(AggregationInspectionHelper.hasValue(result));
             }
         }
     }
@@ -79,6 +79,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 fieldType.setName("field");
                 result = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertNull(result.centroid());
+                assertFalse(AggregationInspectionHelper.hasValue(result));
             }
         }
     }
@@ -149,6 +150,7 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             assertNotNull(centroid);
             assertEquals(expectedCentroid.getLat(), centroid.getLat(), GEOHASH_TOLERANCE);
             assertEquals(expectedCentroid.getLon(), centroid.getLon(), GEOHASH_TOLERANCE);
+            assertTrue(AggregationInspectionHelper.hasValue(result));
         }
     }
 

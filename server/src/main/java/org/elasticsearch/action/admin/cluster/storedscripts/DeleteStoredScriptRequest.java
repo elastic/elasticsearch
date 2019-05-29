@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -69,22 +68,12 @@ public class DeleteStoredScriptRequest extends AcknowledgedRequest<DeleteStoredS
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-
-        if (in.getVersion().before(Version.V_6_0_0_alpha2)) {
-            in.readString(); // read lang from previous versions
-        }
-
         id = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
-        if (out.getVersion().before(Version.V_6_0_0_alpha2)) {
-            out.writeString(""); // write an empty lang to previous versions
-        }
-
         out.writeString(id);
     }
 

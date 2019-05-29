@@ -19,18 +19,16 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
-import org.locationtech.spatial4j.shape.Point;
-import org.locationtech.jts.geom.Coordinate;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.spatial4j.shape.Point;
 
 import java.io.IOException;
 
-public class PointBuilder extends ShapeBuilder<Point, PointBuilder> {
+public class PointBuilder extends ShapeBuilder<Point, org.elasticsearch.geo.geometry.Point, PointBuilder> {
     public static final GeoShapeType TYPE = GeoShapeType.POINT;
 
     /**
@@ -90,8 +88,8 @@ public class PointBuilder extends ShapeBuilder<Point, PointBuilder> {
     }
 
     @Override
-    public GeoPoint buildLucene() {
-        return new GeoPoint(coordinates.get(0).y, coordinates.get(0).x);
+    public org.elasticsearch.geo.geometry.Point buildGeometry() {
+        return new org.elasticsearch.geo.geometry.Point(coordinates.get(0).y, coordinates.get(0).x);
     }
 
     @Override

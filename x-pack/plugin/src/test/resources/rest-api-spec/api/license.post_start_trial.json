@@ -1,0 +1,23 @@
+{
+  "license.post_start_trial": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/start-trial.html",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_license/start_trial",
+      "paths": ["/_license/start_trial"],
+      "parts" : {
+      },
+      "params": {
+        "type": {
+          "type" : "string",
+          "description" : "The type of trial license to generate (default: \"trial\")"
+        },
+        "acknowledge": {
+          "type" : "boolean",
+          "description" : "whether the user has acknowledged acknowledge messages (default: false)"
+        }
+      }
+    },
+    "body": null
+  }
+}

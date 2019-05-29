@@ -32,6 +32,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
+import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 public class GetIndexTemplatesResponse extends ActionResponse implements ToXContentObject {
 
@@ -41,7 +43,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         indexTemplates = new ArrayList<>();
     }
 
-    GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
+    public GetIndexTemplatesResponse(List<IndexTemplateMetaData> indexTemplates) {
         this.indexTemplates = indexTemplates;
     }
 
@@ -71,9 +73,17 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         params = new ToXContent.DelegatingMapParams(singletonMap("reduce_mappings", "true"), params);
+
+        boolean includeTypeName = params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
+            DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+
         builder.startObject();
         for (IndexTemplateMetaData indexTemplateMetaData : getIndexTemplates()) {
-            IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
+            if (includeTypeName) {
+                IndexTemplateMetaData.Builder.toXContentWithTypes(indexTemplateMetaData, builder, params);
+            } else {
+                IndexTemplateMetaData.Builder.toXContent(indexTemplateMetaData, builder, params);
+            }
         }
         builder.endObject();
         return builder;

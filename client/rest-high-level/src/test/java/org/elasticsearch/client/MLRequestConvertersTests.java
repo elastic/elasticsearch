@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
@@ -61,6 +62,7 @@ import org.elasticsearch.client.ml.PutDatafeedRequest;
 import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
+import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
@@ -81,7 +83,6 @@ import org.elasticsearch.client.ml.job.config.JobUpdate;
 import org.elasticsearch.client.ml.job.config.JobUpdateTests;
 import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.MlFilterTests;
-import org.elasticsearch.client.ml.job.util.PageParams;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -816,6 +817,22 @@ public class MLRequestConvertersTests extends ESTestCase {
             assertNull(request.getParameters().get("explain"));
         }
         assertEquals(sample, requestEntityToString(request));
+    }
+
+    public void testSetUpgradeMode() {
+        SetUpgradeModeRequest setUpgradeModeRequest = new SetUpgradeModeRequest(true);
+
+        Request request = MLRequestConverters.setUpgradeMode(setUpgradeModeRequest);
+        assertThat(request.getEndpoint(), equalTo("/_ml/set_upgrade_mode"));
+        assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
+        assertThat(request.getParameters().get(SetUpgradeModeRequest.ENABLED.getPreferredName()), equalTo(Boolean.toString(true)));
+        assertThat(request.getParameters().containsKey(SetUpgradeModeRequest.TIMEOUT.getPreferredName()), is(false));
+
+        setUpgradeModeRequest.setTimeout(TimeValue.timeValueHours(1));
+        setUpgradeModeRequest.setEnabled(false);
+        request = MLRequestConverters.setUpgradeMode(setUpgradeModeRequest);
+        assertThat(request.getParameters().get(SetUpgradeModeRequest.ENABLED.getPreferredName()), equalTo(Boolean.toString(false)));
+        assertThat(request.getParameters().get(SetUpgradeModeRequest.TIMEOUT.getPreferredName()), is("1h"));
     }
 
     private static Job createValidJob(String jobId) {

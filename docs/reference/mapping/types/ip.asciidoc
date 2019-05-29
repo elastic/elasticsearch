@@ -9,11 +9,9 @@ https://en.wikipedia.org/wiki/IPv6[IPv6] addresses.
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "ip_addr": {
-          "type": "ip"
-        }
+    "properties": {
+      "ip_addr": {
+        "type": "ip"
       }
     }
   }
@@ -71,6 +69,7 @@ The following parameters are accepted by `ip` fields:
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
 
+[[query-ip-fields]]
 ==== Querying `ip` fields
 
 The most common way to query ip addresses is to use the

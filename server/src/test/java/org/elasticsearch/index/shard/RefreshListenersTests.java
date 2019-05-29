@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -72,6 +74,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -87,6 +90,7 @@ public class RefreshListenersTests extends ESTestCase {
     private volatile int maxListeners;
     private ThreadPool threadPool;
     private Store store;
+    private MeanMetric refreshMetric;
 
     @Before
     public void setupListeners() throws Exception {
@@ -94,13 +98,15 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(1, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
+        refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(
                 () -> maxListeners,
                 () -> engine.refresh("too-many-listeners"),
                 // Immediately run listeners rather than adding them to the listener thread pool like IndexShard does to simplify the test.
                 Runnable::run,
                 logger,
-                threadPool.getThreadContext());
+                threadPool.getThreadContext(),
+                refreshMetric);
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
@@ -121,14 +127,31 @@ public class RefreshListenersTests extends ESTestCase {
         final String translogUUID =
             Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
         store.associateIndexWithNewTranslog(translogUUID);
-        EngineConfig config = new EngineConfig(shardId, allocationId, threadPool,
-            indexSettings, null, store, newMergePolicy(), iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger),
-            eventListener, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-            TimeValue.timeValueMinutes(5), Collections.singletonList(listeners), Collections.emptyList(), null,
-            new NoneCircuitBreakerService(), () -> SequenceNumbers.NO_OPS_PERFORMED, () -> primaryTerm,
-            EngineTestCase.tombstoneDocSupplier());
+        EngineConfig config = new EngineConfig(
+                shardId,
+                allocationId,
+                threadPool,
+                indexSettings,
+                null,
+                store,
+                newMergePolicy(),
+                iwc.getAnalyzer(),
+                iwc.getSimilarity(),
+                new CodecService(null, logger),
+                eventListener,
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                translogConfig,
+                TimeValue.timeValueMinutes(5),
+                Collections.singletonList(listeners),
+                Collections.emptyList(),
+                null,
+                new NoneCircuitBreakerService(),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                () -> RetentionLeases.EMPTY,
+                () -> primaryTerm,
+                EngineTestCase.tombstoneDocSupplier());
         engine = new InternalEngine(config);
-        engine.initializeMaxSeqNoOfUpdatesOrDeletes();
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
     }
@@ -280,7 +303,7 @@ public class RefreshListenersTests extends ESTestCase {
                 if (immediate) {
                     assertNotNull(listener.forcedRefresh.get());
                 } else {
-                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()));
+                    assertBusy(() -> assertNotNull(listener.forcedRefresh.get()), 1, TimeUnit.MINUTES);
                 }
                 assertFalse(listener.forcedRefresh.get());
                 listener.assertNoError();
@@ -315,7 +338,7 @@ public class RefreshListenersTests extends ESTestCase {
 
                         DummyRefreshListener listener = new DummyRefreshListener();
                         listeners.addOrNotify(index.getTranslogLocation(), listener);
-                        assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()));
+                        assertBusy(() -> assertNotNull("listener never called", listener.forcedRefresh.get()), 1, TimeUnit.MINUTES);
                         if (threadCount < maxListeners) {
                             assertFalse(listener.forcedRefresh.get());
                         }

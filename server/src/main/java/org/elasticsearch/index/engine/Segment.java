@@ -21,13 +21,12 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.search.SortedNumericSelector;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class Segment implements Streamable {
 
@@ -94,10 +94,6 @@ public class Segment implements Streamable {
         return new ByteSizeValue(sizeInBytes);
     }
 
-    public long getSizeInBytes() {
-        return this.sizeInBytes;
-    }
-
     public org.apache.lucene.util.Version getVersion() {
         return version;
     }
@@ -145,9 +141,8 @@ public class Segment implements Streamable {
 
         Segment segment = (Segment) o;
 
-        if (name != null ? !name.equals(segment.name) : segment.name != null) return false;
+        return Objects.equals(name, segment.name);
 
-        return true;
     }
 
     @Override
@@ -178,12 +173,8 @@ public class Segment implements Streamable {
             // verbose mode
             ramTree = readRamTree(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            segmentSort = readSegmentSort(in);
-        } else {
-            segmentSort = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_6_1_0) && in.readBoolean()) {
+        segmentSort = readSegmentSort(in);
+        if (in.readBoolean()) {
             attributes = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
             attributes = null;
@@ -208,19 +199,15 @@ public class Segment implements Streamable {
         if (verbose) {
             writeRamTree(out, ramTree);
         }
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-            writeSegmentSort(out, segmentSort);
-        }
-        if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-            boolean hasAttributes = attributes != null;
-            out.writeBoolean(hasAttributes);
-            if (hasAttributes) {
-                out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
-            }
+        writeSegmentSort(out, segmentSort);
+        boolean hasAttributes = attributes != null;
+        out.writeBoolean(hasAttributes);
+        if (hasAttributes) {
+            out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         }
     }
 
-    Sort readSegmentSort(StreamInput in) throws IOException {
+    private Sort readSegmentSort(StreamInput in) throws IOException {
         int size = in.readVInt();
         if (size == 0) {
             return null;
@@ -271,7 +258,7 @@ public class Segment implements Streamable {
         return new Sort(fields);
     }
 
-    void writeSegmentSort(StreamOutput out, Sort sort) throws IOException {
+    private void writeSegmentSort(StreamOutput out, Sort sort) throws IOException {
         if (sort == null) {
             out.writeVInt(0);
             return;
@@ -311,14 +298,14 @@ public class Segment implements Streamable {
         }
     }
 
-    Accountable readRamTree(StreamInput in) throws IOException {
+    private Accountable readRamTree(StreamInput in) throws IOException {
         final String name = in.readString();
         final long bytes = in.readVLong();
         int numChildren = in.readVInt();
         if (numChildren == 0) {
             return Accountables.namedAccountable(name, bytes);
         }
-        List<Accountable> children = new ArrayList(numChildren);
+        List<Accountable> children = new ArrayList<>(numChildren);
         while (numChildren-- > 0) {
             children.add(readRamTree(in));
         }
@@ -326,7 +313,7 @@ public class Segment implements Streamable {
     }
 
     // the ram tree is written recursively since the depth is fairly low (5 or 6)
-    void writeRamTree(StreamOutput out, Accountable tree) throws IOException {
+    private void writeRamTree(StreamOutput out, Accountable tree) throws IOException {
         out.writeString(tree.toString());
         out.writeVLong(tree.ramBytesUsed());
         Collection<Accountable> children = tree.getChildResources();

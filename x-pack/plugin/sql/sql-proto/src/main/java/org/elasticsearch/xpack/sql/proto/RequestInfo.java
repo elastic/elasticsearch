@@ -13,7 +13,6 @@ import java.util.Objects;
 import java.util.Set;
 
 public class RequestInfo {
-    public static final String CLI = "cli";
     private static final String CANVAS = "canvas";
     public static final String ODBC_32 = "odbc32";
     private static final String ODBC_64 = "odbc64";
@@ -22,7 +21,6 @@ public class RequestInfo {
     
     static {
         Set<String> clientIds = new HashSet<>(4);
-        clientIds.add(CLI);
         clientIds.add(CANVAS);
         clientIds.add(ODBC_32);
         clientIds.add(ODBC_64);

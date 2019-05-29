@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -78,9 +79,7 @@ public interface BlobContainer {
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
-     * using an atomic write operation if the implementation supports it. When the BlobContainer implementation
-     * does not provide a specific implementation of writeBlobAtomic(String, InputStream, long), then
-     * the {@link #writeBlob(String, InputStream, long, boolean)} method is used.
+     * using an atomic write operation if the implementation supports it.
      *
      * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
      * same name already exists, the operation will fail and an {@link IOException} will be thrown.
@@ -97,14 +96,11 @@ public interface BlobContainer {
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
-    default void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
-        throws IOException {
-        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
-    }
+    void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
 
     /**
-     * Deletes a blob with giving name, if the blob exists. If the blob does not exist,
-     * this method throws a NoSuchFileException.
+     * Deletes the blob with the given name, if the blob exists. If the blob does not exist,
+     * this method may throw a {@link NoSuchFileException} if the underlying implementation supports an existence check before delete.
      *
      * @param   blobName
      *          The name of the blob to delete.
@@ -112,6 +108,31 @@ public interface BlobContainer {
      * @throws  IOException if the blob exists but could not be deleted.
      */
     void deleteBlob(String blobName) throws IOException;
+
+    /**
+     * Deletes the blobs with given names. Unlike {@link #deleteBlob(String)} this method will not throw an exception
+     * when one or multiple of the given blobs don't exist and simply ignore this case.
+     *
+     * @param   blobNames  The names of the blob to delete.
+     * @throws  IOException if a subset of blob exists but could not be deleted.
+     */
+    default void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        IOException ioe = null;
+        for (String blobName : blobNames) {
+            try {
+                deleteBlobIgnoringIfNotExists(blobName);
+            } catch (IOException e) {
+                if (ioe == null) {
+                    ioe = e;
+                } else {
+                    ioe.addSuppressed(e);
+                }
+            }
+        }
+        if (ioe != null) {
+            throw ioe;
+        }
+    }
 
     /**
      * Deletes a blob with giving name, ignoring if the blob does not exist.

@@ -102,12 +102,24 @@ is as follows:
 . Combine the results and respond. Note that in the case of get by ID look up, only one shard is relevant and this step can be skipped.
 
 [float]
-==== Failure handling
+[[shard-failures]]
+==== Shard failures
 
-When a shard fails to respond to a read request, the coordinating node will select another copy from the same replication group
-and send the shard level search request to that copy instead. Repetitive failures can result in no shard copies being available.
-In some cases, such as `_search`, Elasticsearch will prefer to respond fast, albeit with partial results, instead of waiting 
-for the issue to be resolved (partial results are indicated in the `_shards` header of the response).
+When a shard fails to respond to a read request, the coordinating node sends the
+request to another shard copy in the same replication group. Repeated failures
+can result in no available shard copies.
+
+To ensure fast responses, the following APIs will
+respond with partial results if one or more shards fail:
+
+* <<search-search, Search>>
+* <<search-multi-search, Multi Search>>
+* <<docs-bulk, Bulk>>
+* <<docs-multi-get, Multi Get>>
+
+Responses containing partial results still provide a `200 OK` HTTP status code.
+Shard failures are indicated by the `timed_out` and `_shards` fields of
+the response header.
 
 [float]
 === A few simple implications
@@ -142,8 +154,8 @@ Dirty reads:: An isolated primary can expose writes that will not be acknowledge
 === The Tip of the Iceberg
 
 This document provides a high level overview of how Elasticsearch deals with data. Of course, there is much much more 
-going on under the hood. Things like primary terms, cluster state publishing and master election all play a role in 
+going on under the hood. Things like primary terms, cluster state publishing, and master election all play a role in 
 keeping this system behaving correctly. This document also doesn't cover known and important
 bugs (both closed and open). We recognize that https://github.com/elastic/elasticsearch/issues?q=label%3Aresiliency[GitHub is hard to keep up with].
-To help people stay on top of those and we maintain a dedicated https://www.elastic.co/guide/en/elasticsearch/resiliency/current/index.html[resiliency page]
+To help people stay on top of those, we maintain a dedicated https://www.elastic.co/guide/en/elasticsearch/resiliency/current/index.html[resiliency page]
 on our website. We strongly advise reading it.

@@ -35,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -72,6 +73,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             failureCount += mockRepository.getFailureCount();
         }
         return failureCount;
+    }
+
+    public static void assertFileCount(Path dir, int expectedCount) throws IOException {
+        final List<Path> found = new ArrayList<>();
+        Files.walkFileTree(dir, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                found.add(file);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        assertEquals("Unexpected file count, found: [" + found + "].", expectedCount, found.size());
     }
 
     public static int numberOfFiles(Path dir) throws IOException {

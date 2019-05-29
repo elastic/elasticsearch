@@ -80,7 +80,8 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
 
                 logger.trace("[{}] opening probe connection", this);
                 final Connection connection = transportService.openConnection(targetNode,
-                    ConnectionProfile.buildSingleChannelProfile(Type.REG, probeConnectTimeout, probeHandshakeTimeout));
+                    ConnectionProfile.buildSingleChannelProfile(Type.REG, probeConnectTimeout, probeHandshakeTimeout,
+                        TimeValue.MINUS_ONE, null));
                 logger.trace("[{}] opened probe connection", this);
 
                 final DiscoveryNode remoteNode;

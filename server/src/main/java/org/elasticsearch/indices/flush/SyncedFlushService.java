@@ -22,8 +22,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.SyncedFlushResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -219,56 +218,40 @@ public class SyncedFlushService implements IndexEventListener {
                 return;
             }
 
-            final ActionListener<Map<String, PreSyncedFlushResponse>> presyncListener =
-                new ActionListener<Map<String, PreSyncedFlushResponse>>() {
-                @Override
-                public void onResponse(final Map<String, PreSyncedFlushResponse> presyncResponses) {
-                    if (presyncResponses.isEmpty()) {
-                        actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards,
-                            "all shards failed to commit on pre-sync"));
-                        return;
-                    }
-                    final ActionListener<InFlightOpsResponse> inflightOpsListener = new ActionListener<InFlightOpsResponse>() {
-                        @Override
-                        public void onResponse(InFlightOpsResponse response) {
-                            final int inflight = response.opCount();
-                            assert inflight >= 0;
-                            if (inflight != 0) {
-                                actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "[" + inflight +
-                                    "] ongoing operations on primary"));
-                            } else {
-                                // 3. now send the sync request to all the shards;
-                                final String sharedSyncId = sharedExistingSyncId(presyncResponses);
-                                if (sharedSyncId != null) {
-                                    assert presyncResponses.values().stream().allMatch(r -> r.existingSyncId.equals(sharedSyncId)) :
-                                        "Not all shards have the same existing sync id [" + sharedSyncId + "], responses [" +
-                                            presyncResponses + "]";
-                                    reportSuccessWithExistingSyncId(shardId, sharedSyncId, activeShards, totalShards,
-                                        presyncResponses, actionListener);
-                                }else {
-                                    String syncId = UUIDs.randomBase64UUID();
-                                    sendSyncRequests(syncId, activeShards, state, presyncResponses, shardId, totalShards, actionListener);
-                                }
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            actionListener.onFailure(e);
-                        }
-                    };
-                    // 2. fetch in flight operations
-                    getInflightOpsCount(shardId, state, shardRoutingTable, inflightOpsListener);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    actionListener.onFailure(e);
-                }
-            };
-
             // 1. send pre-sync flushes to all replicas
-            sendPreSyncRequests(activeShards, state, shardId, presyncListener);
+            final StepListener<Map<String, PreSyncedFlushResponse>> presyncStep = new StepListener<>();
+            sendPreSyncRequests(activeShards, state, shardId, presyncStep);
+
+            // 2. fetch in flight operations
+            final StepListener<InFlightOpsResponse> inflightOpsStep = new StepListener<>();
+            presyncStep.whenComplete(presyncResponses -> {
+                if (presyncResponses.isEmpty()) {
+                    actionListener.onResponse(new ShardsSyncedFlushResult(shardId, totalShards, "all shards failed to commit on pre-sync"));
+                } else {
+                    getInflightOpsCount(shardId, state, shardRoutingTable, inflightOpsStep);
+                }
+            }, actionListener::onFailure);
+
+            // 3. now send the sync request to all the shards
+            inflightOpsStep.whenComplete(inFlightOpsResponse -> {
+                final Map<String, PreSyncedFlushResponse> presyncResponses = presyncStep.result();
+                final int inflight = inFlightOpsResponse.opCount();
+                assert inflight >= 0;
+                if (inflight != 0) {
+                    actionListener.onResponse(
+                        new ShardsSyncedFlushResult(shardId, totalShards, "[" + inflight + "] ongoing operations on primary"));
+                } else {
+                    final String sharedSyncId = sharedExistingSyncId(presyncResponses);
+                    if (sharedSyncId != null) {
+                        assert presyncResponses.values().stream().allMatch(r -> r.existingSyncId.equals(sharedSyncId)) :
+                            "Not all shards have the same existing sync id [" + sharedSyncId + "], responses [" + presyncResponses + "]";
+                        reportSuccessWithExistingSyncId(shardId, sharedSyncId, activeShards, totalShards, presyncResponses, actionListener);
+                    }else {
+                        String syncId = UUIDs.randomBase64UUID();
+                        sendSyncRequests(syncId, activeShards, state, presyncResponses, shardId, totalShards, actionListener);
+                    }
+                }
+            }, actionListener::onFailure);
         } catch (Exception e) {
             actionListener.onFailure(e);
         }
@@ -305,16 +288,14 @@ public class SyncedFlushService implements IndexEventListener {
         listener.onResponse(new ShardsSyncedFlushResult(shardId, existingSyncId, totalShards, results));
     }
 
-    final IndexShardRoutingTable getShardRoutingTable(ShardId shardId, ClusterState state) {
-        final IndexRoutingTable indexRoutingTable = state.routingTable().index(shardId.getIndexName());
-        if (indexRoutingTable == null) {
-            IndexMetaData index = state.getMetaData().index(shardId.getIndex());
-            if (index != null && index.getState() == IndexMetaData.State.CLOSE) {
-                throw new IndexClosedException(shardId.getIndex());
-            }
+    final IndexShardRoutingTable getShardRoutingTable(final ShardId shardId, final ClusterState state) {
+        final IndexMetaData indexMetaData = state.getMetaData().index(shardId.getIndex());
+        if (indexMetaData == null) {
             throw new IndexNotFoundException(shardId.getIndexName());
+        } else if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+            throw new IndexClosedException(shardId.getIndex());
         }
-        final IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId.id());
+        final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(indexMetaData.getIndex()).shard(shardId.id());
         if (shardRoutingTable == null) {
             throw new ShardNotFoundException(shardId);
         }
@@ -556,7 +537,7 @@ public class SyncedFlushService implements IndexEventListener {
             throw new IllegalStateException("[" + request.shardId() +"] expected a primary shard");
         }
         int opCount = indexShard.getActiveOperationsCount();
-        return new InFlightOpsResponse(opCount);
+        return new InFlightOpsResponse(opCount == IndexShard.OPERATIONS_BLOCKED ? 0 : opCount);
     }
 
     public static final class PreShardSyncedFlushRequest extends TransportRequest {
@@ -585,7 +566,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.shardId = ShardId.readShardId(in);
+            this.shardId = new ShardId(in);
         }
 
         public ShardId shardId() {
@@ -612,38 +593,20 @@ public class SyncedFlushService implements IndexEventListener {
             this.existingSyncId = existingSyncId;
         }
 
-        boolean includeNumDocs(Version version) {
-            return version.onOrAfter(Version.V_6_2_2);
-        }
-
-        boolean includeExistingSyncId(Version version) {
-            return version.onOrAfter(Version.V_6_3_0);
-        }
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             commitId = new Engine.CommitId(in);
-            if (includeNumDocs(in.getVersion())) {
-                numDocs = in.readInt();
-            } else {
-                numDocs = UNKNOWN_NUM_DOCS;
-            }
-            if (includeExistingSyncId(in.getVersion())) {
-                existingSyncId = in.readOptionalString();
-            }
+            numDocs = in.readInt();
+            existingSyncId = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             commitId.writeTo(out);
-            if (includeNumDocs(out.getVersion())) {
-                out.writeInt(numDocs);
-            }
-            if (includeExistingSyncId(out.getVersion())) {
-                out.writeOptionalString(existingSyncId);
-            }
+            out.writeInt(numDocs);
+            out.writeOptionalString(existingSyncId);
         }
     }
 
@@ -665,7 +628,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
             expectedCommitId = new Engine.CommitId(in);
             syncId = in.readString();
         }
@@ -767,7 +730,7 @@ public class SyncedFlushService implements IndexEventListener {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardId = new ShardId(in);
         }
 
         @Override
@@ -799,6 +762,7 @@ public class SyncedFlushService implements IndexEventListener {
         }
 
         InFlightOpsResponse(int opCount) {
+            assert opCount >= 0 : opCount;
             this.opCount = opCount;
         }
 

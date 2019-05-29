@@ -41,7 +41,7 @@ public abstract class UnaryExpression extends Expression {
     }
 
     @Override
-    public boolean nullable() {
+    public Nullability nullable() {
         return child.nullable();
     }
 

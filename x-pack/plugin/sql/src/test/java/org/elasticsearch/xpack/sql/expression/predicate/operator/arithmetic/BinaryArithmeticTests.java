@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Duration;
+import java.time.OffsetTime;
 import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
@@ -77,7 +78,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(interval(Duration.ofDays(1).plusHours(2), INTERVAL_DAY_TO_HOUR), L(x));
     }
 
-    public void testAddYearMonthIntervalToDate() {
+    public void testAddYearMonthIntervalToDateTime() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
@@ -86,7 +87,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(L(now.plus(t)), L(x));
     }
 
-    public void testAddDayTimeIntervalToDate() {
+    public void testAddDayTimeIntervalToDateTime() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
@@ -95,12 +96,39 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(L(now.plus(t)), L(x));
     }
 
-    public void testAddDayTimeIntervalToDateReverse() {
+    public void testAddDayTimeIntervalToDateTimeReverse() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
         ZonedDateTime x = add(r, l);
+        assertEquals(L(now.plus(t)), L(x));
+    }
+
+    public void testAddYearMonthIntervalToTime() {
+        OffsetTime now = OffsetTime.now(DateUtils.UTC);
+        Literal l = L(now);
+        TemporalAmount t = Period.ofYears(100).plusMonths(50);
+        Literal r = interval(t, INTERVAL_HOUR);
+        OffsetTime x = add(l, r);
+        assertEquals(L(now), L(x));
+    }
+
+    public void testAddDayTimeIntervalToTime() {
+        OffsetTime now = OffsetTime.now(DateUtils.UTC);
+        Literal l = L(now);
+        TemporalAmount t = Duration.ofHours(32);
+        Literal r = interval(Duration.ofHours(32), INTERVAL_HOUR);
+        OffsetTime x = add(l, r);
+        assertEquals(L(now.plus(t)), L(x));
+    }
+
+    public void testAddDayTimeIntervalToTimeReverse() {
+        OffsetTime now = OffsetTime.now(DateUtils.UTC);
+        Literal l = L(now);
+        TemporalAmount t = Duration.ofHours(45);
+        Literal r = interval(Duration.ofHours(45), INTERVAL_HOUR);
+        OffsetTime x = add(r, l);
         assertEquals(L(now.plus(t)), L(x));
     }
 
@@ -124,7 +152,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(interval(Duration.ofDays(1).plusHours(8), INTERVAL_DAY_TO_HOUR), L(x));
     }
 
-    public void testSubYearMonthIntervalToDate() {
+    public void testSubYearMonthIntervalToDateTime() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
@@ -133,7 +161,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(L(now.minus(t)), L(x));
     }
 
-    public void testSubYearMonthIntervalToDateIllegal() {
+    public void testSubYearMonthIntervalToDateTimeIllegal() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Period.ofYears(100).plusMonths(50);
@@ -142,13 +170,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals("Cannot subtract a date from an interval; do you mean the reverse?", ex.getMessage());
     }
 
-    public void testSubNumberFromIntervalIllegal() {
-        Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
-        SqlIllegalArgumentException expect = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, L(1)));
-        assertEquals("Cannot compute [-] between [IntervalDayTime] [Integer]", expect.getMessage());
-    }
-
-    public void testSubDayTimeIntervalToDate() {
+    public void testSubDayTimeIntervalToDateTime() {
         ZonedDateTime now = ZonedDateTime.now(DateUtils.UTC);
         Literal l = L(now);
         TemporalAmount t = Duration.ofHours(2);
@@ -157,7 +179,40 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(L(now.minus(t)), L(x));
     }
 
-    public void testMulIntervalNumber() throws Exception {
+    public void testSubYearMonthIntervalToTime() {
+        OffsetTime now = OffsetTime.now(DateUtils.UTC);
+        Literal l = L(now);
+        TemporalAmount t = Period.ofYears(100).plusMonths(50);
+        Literal r = interval(t, INTERVAL_HOUR);
+        OffsetTime x = sub(l, r);
+        assertEquals(L(now), L(x));
+    }
+
+    public void testSubYearMonthIntervalToTimeIllegal() {
+        OffsetTime now = OffsetTime.now(DateUtils.UTC);
+        Literal l = L(now);
+        TemporalAmount t = Period.ofYears(100).plusMonths(50);
+        Literal r = interval(t, INTERVAL_HOUR);
+        SqlIllegalArgumentException ex = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, l));
+        assertEquals("Cannot subtract a date from an interval; do you mean the reverse?", ex.getMessage());
+    }
+
+    public void testSubDayTimeIntervalToTime() {
+        OffsetTime now = OffsetTime.now(DateUtils.UTC);
+        Literal l = L(now);
+        TemporalAmount t = Duration.ofHours(36);
+        Literal r = interval(Duration.ofHours(36), INTERVAL_HOUR);
+        OffsetTime x = sub(l, r);
+        assertEquals(L(now.minus(t)), L(x));
+    }
+
+    public void testSubNumberFromIntervalIllegal() {
+        Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
+        SqlIllegalArgumentException expect = expectThrows(SqlIllegalArgumentException.class, () -> sub(r, L(1)));
+        assertEquals("Cannot compute [-] between [IntervalDayTime] [Integer]", expect.getMessage());
+    }
+
+    public void testMulIntervalNumber() {
         Literal l = interval(Duration.ofHours(2), INTERVAL_HOUR);
         IntervalDayTime interval = mul(l, -1);
         assertEquals(INTERVAL_HOUR, interval.dataType());
@@ -165,7 +220,7 @@ public class BinaryArithmeticTests extends ESTestCase {
         assertEquals(Duration.ofHours(2).negated(), p);
     }
 
-    public void testMulNumberInterval() throws Exception {
+    public void testMulNumberInterval() {
         Literal r = interval(Period.ofYears(1), INTERVAL_YEAR);
         IntervalYearMonth interval = mul(-2, r);
         assertEquals(INTERVAL_YEAR, interval.dataType());

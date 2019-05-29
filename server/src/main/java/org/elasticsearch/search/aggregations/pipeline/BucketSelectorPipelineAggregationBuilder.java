@@ -108,7 +108,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     }
 
     @Override
-    protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
+    protected PipelineAggregator createInternal(Map<String, Object> metaData) {
         return new BucketSelectorPipelineAggregator(name, bucketsPathsMap, script, gapPolicy, metaData);
     }
 

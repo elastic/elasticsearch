@@ -135,7 +135,7 @@ public class GlobalCheckpointListeners implements Closeable {
                                                  * before we could be cancelled by the notification. In this case, our listener here would
                                                  * not be in the map and we should not fire the timeout logic.
                                                  */
-                                                removed = listeners.remove(listener).v2() != null;
+                                                removed = listeners.remove(listener) != null;
                                             }
                                             if (removed) {
                                                 final TimeoutException e = new TimeoutException(timeout.getStringRep());

@@ -35,6 +35,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.intervals.IntervalsSource;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -48,9 +50,9 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 
@@ -333,10 +335,10 @@ public abstract class MappedFieldType extends FieldType {
      * @param relation the relation, nulls should be interpreted like INTERSECTS
      */
     public Query rangeQuery(
-            Object lowerTerm, Object upperTerm,
-            boolean includeLower, boolean includeUpper,
-            ShapeRelation relation, DateTimeZone timeZone, DateMathParser parser,
-            QueryShardContext context) {
+        Object lowerTerm, Object upperTerm,
+        boolean includeLower, boolean includeUpper,
+        ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
+        QueryShardContext context) {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
@@ -365,13 +367,23 @@ public abstract class MappedFieldType extends FieldType {
 
     public abstract Query existsQuery(QueryShardContext context);
 
-    public Query phraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query multiPhraseQuery(String field, TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        throw new IllegalArgumentException("Can only use phrase prefix queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+        throw new IllegalArgumentException("Can only use span prefix queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
@@ -401,7 +413,7 @@ public abstract class MappedFieldType extends FieldType {
         IndexReader reader,
         Object from, Object to,
         boolean includeLower, boolean includeUpper,
-        DateTimeZone timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
+        ZoneId timeZone, DateMathParser dateMathParser, QueryRewriteContext context) throws IOException {
         return Relation.INTERSECTS;
     }
 
@@ -436,7 +448,7 @@ public abstract class MappedFieldType extends FieldType {
     /** Return a {@link DocValueFormat} that can be used to display and parse
      *  values as returned by the fielddata API.
      *  The default implementation returns a {@link DocValueFormat#RAW}. */
-    public DocValueFormat docValueFormat(@Nullable String format, DateTimeZone timeZone) {
+    public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
         if (format != null) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
         }

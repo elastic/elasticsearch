@@ -147,8 +147,7 @@ public class TransportPutAutoFollowPatternAction extends
             markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(), remoteClusterState.metaData(),
                 previousPattern, followedIndexUUIDs);
         } else {
-            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), remoteClusterState.metaData(),
-                followedIndexUUIDs);
+            markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(), remoteClusterState.metaData(), followedIndexUUIDs);
         }
 
         if (filteredHeaders != null) {
@@ -159,16 +158,16 @@ public class TransportPutAutoFollowPatternAction extends
             request.getRemoteCluster(),
             request.getLeaderIndexPatterns(),
             request.getFollowIndexNamePattern(),
-            request.getMaxReadRequestOperationCount(),
-            request.getMaxReadRequestSize(),
-            request.getMaxConcurrentReadBatches(),
-            request.getMaxWriteRequestOperationCount(),
-            request.getMaxWriteRequestSize(),
-            request.getMaxConcurrentWriteBatches(),
-            request.getMaxWriteBufferCount(),
-            request.getMaxWriteBufferSize(),
-            request.getMaxRetryDelay(),
-            request.getReadPollTimeout());
+            request.getParameters().getMaxReadRequestOperationCount(),
+            request.getParameters().getMaxWriteRequestOperationCount(),
+            request.getParameters().getMaxOutstandingReadRequests(),
+            request.getParameters().getMaxOutstandingWriteRequests(),
+            request.getParameters().getMaxReadRequestSize(),
+            request.getParameters().getMaxWriteRequestSize(),
+            request.getParameters().getMaxWriteBufferCount(),
+            request.getParameters().getMaxWriteBufferSize(),
+            request.getParameters().getMaxRetryDelay(),
+            request.getParameters().getReadPollTimeout());
         patterns.put(request.getName(), autoFollowPattern);
         ClusterState.Builder newState = ClusterState.builder(localState);
         newState.metaData(MetaData.builder(localState.getMetaData())

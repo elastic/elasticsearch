@@ -46,7 +46,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
@@ -152,7 +151,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                     }
                 }
             }
-            Set<String> allIgnoreNodes = unmodifiableSet(new HashSet<>(nodesToIgnore));
+            Set<String> allIgnoreNodes = Set.copyOf(nodesToIgnore);
             // clear the nodes to ignore, we had a successful run in fetching everything we can
             // we need to try them if another full run is needed
             nodesToIgnore.clear();

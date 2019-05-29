@@ -31,6 +31,7 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.IOException;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -102,9 +103,9 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         nodeSSL = Settings.builder()
                 .put("xpack.security.transport.ssl.enabled", true)
                 .put("xpack.security.transport.ssl.verification_mode", "certificate")
-                .putList("xpack.ssl.certificate_authorities", ca.getCertPath().toString())
-                .put("xpack.ssl.key", trustedCert.getKeyPath())
-                .put("xpack.ssl.certificate", trustedCert.getCertPath())
+                .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
+                .put("xpack.security.transport.ssl.key", trustedCert.getKeyPath())
+                .put("xpack.security.transport.ssl.certificate", trustedCert.getCertPath())
                 .build();
     }
 
@@ -122,14 +123,14 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
 
         Settings parentSettings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.ssl.") == false))
+                .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
                 .put(nodeSSL);
 
         restrictionsPath = configPath.resolve("trust_restrictions.yml");
         restrictionsTmpPath = configPath.resolve("trust_restrictions.tmp");
 
         writeRestrictions("*.trusted");
-        builder.put("xpack.ssl.trust_restrictions.path", restrictionsPath);
+        builder.put("xpack.security.transport.ssl.trust_restrictions.path", restrictionsPath);
 
         return builder.build();
     }
@@ -149,15 +150,6 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        Settings parentSettings = super.transportClientSettings();
-        Settings.Builder builder = Settings.builder()
-                .put(parentSettings.filter((s) -> s.startsWith("xpack.ssl.") == false))
-                .put(nodeSSL);
-        return builder.build();
-    }
-
-    @Override
     protected boolean transportSSLEnabled() {
         return true;
     }
@@ -165,7 +157,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     public void testCertificateWithTrustedNameIsAccepted() throws Exception {
         writeRestrictions("*.trusted");
         try {
-            tryConnect(trustedCert);
+            tryConnect(trustedCert, false);
         } catch (SSLException | SocketException ex) {
             logger.warn(new ParameterizedMessage("unexpected handshake failure with certificate [{}] [{}]",
                     trustedCert.certificate.getSubjectDN(), trustedCert.certificate.getSubjectAlternativeNames()), ex);
@@ -176,7 +168,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     public void testCertificateWithUntrustedNameFails() throws Exception {
         writeRestrictions("*.trusted");
         try {
-            tryConnect(untrustedCert);
+            tryConnect(untrustedCert, true);
             fail("handshake should have failed, but was successful");
         } catch (SSLException | SocketException ex) {
             // expected
@@ -187,7 +179,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*");
         assertBusy(() -> {
             try {
-                tryConnect(untrustedCert);
+                tryConnect(untrustedCert, false);
             } catch (SSLException | SocketException ex) {
                 fail("handshake should have been successful, but failed with " + ex);
             }
@@ -196,7 +188,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         writeRestrictions("*.trusted");
         assertBusy(() -> {
             try {
-                tryConnect(untrustedCert);
+                tryConnect(untrustedCert, true);
                 fail("handshake should have failed, but was successful");
             } catch (SSLException | SocketException ex) {
                 // expected
@@ -221,24 +213,34 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
         }
     }
 
-    private void tryConnect(CertificateInfo certificate) throws Exception {
+    private void tryConnect(CertificateInfo certificate, boolean shouldFail) throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.ssl.key", certificate.getKeyPath())
-                .put("xpack.ssl.certificate", certificate.getCertPath())
-                .putList("xpack.ssl.certificate_authorities", ca.getCertPath().toString())
-                .put("xpack.ssl.verification_mode", "certificate")
+                .put("xpack.security.transport.ssl.key", certificate.getKeyPath())
+                .put("xpack.security.transport.ssl.certificate", certificate.getCertPath())
+                .putList("xpack.security.transport.ssl.certificate_authorities", ca.getCertPath().toString())
+                .put("xpack.security.transport.ssl.verification_mode", "certificate")
                 .build();
 
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, TestEnvironment.newEnvironment(settings));
-        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.ssl");
+        SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(sslConfiguration);
         TransportAddress address = internalCluster().getInstance(Transport.class, node).boundAddress().publishAddress();
         try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
             assertThat(socket.isConnected(), is(true));
             // The test simply relies on this (synchronously) connecting (or not), so we don't need a handshake handler
             socket.startHandshake();
+
+            // blocking read for TLSv1.3 to see if the other side closed the connection
+            if (socket.getSession().getProtocol().equals("TLSv1.3")) {
+                if (shouldFail) {
+                    socket.getInputStream().read();
+                } else {
+                    socket.setSoTimeout(1000); // 1 second timeout
+                    expectThrows(SocketTimeoutException.class, () -> socket.getInputStream().read());
+                }
+            }
         }
     }
 

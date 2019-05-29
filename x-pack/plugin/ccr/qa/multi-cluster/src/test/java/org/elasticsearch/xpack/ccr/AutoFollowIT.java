@@ -38,7 +38,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 .build();
             Request request = new Request("PUT", "/logs-20190101");
             request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
-                ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }");
+                ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
             assertOK(leaderClient.performRequest(request));
             for (int i = 0; i < 5; i++) {
                 String id = Integer.toString(i);
@@ -51,7 +51,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 .build();
             Request request = new Request("PUT", "/logs-20200101");
             request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
-                ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }");
+                ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
             assertOK(middleClient.performRequest(request));
             for (int i = 0; i < 5; i++) {
                 String id = Integer.toString(i);
@@ -85,7 +85,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 .build();
             request = new Request("PUT", "/metrics-20210101");
             request.setJsonEntity("{\"settings\": " + Strings.toString(settings) +
-                ", \"mappings\": {\"_doc\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}} }");
+                ", \"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
             assertOK(leaderClient.performRequest(request));
 
             for (int i = 0; i < 5; i++) {

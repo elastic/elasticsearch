@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
@@ -101,4 +102,10 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
         return true;
     }
 
+    /**
+     * @return a random date between 1970 and ca 2065
+     */
+    protected Date randomDate() {
+        return new Date(randomLongBetween(0, 3000000000000L));
+    }
 }

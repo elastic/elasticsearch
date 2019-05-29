@@ -10,7 +10,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -30,7 +29,7 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
     public void testScrollIsPerUser() throws Exception {
         assertSecurityIndexActive();
         securityClient().preparePutRole("scrollable")
-                .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null)
+                .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null, randomBoolean())
                 .get();
         securityClient().preparePutUser("other", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), getFastStoredHashAlgoForTests(),
             "scrollable")
@@ -98,15 +97,5 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
     @After
     public void cleanupSecurityIndex() throws Exception {
         super.deleteSecurityIndex();
-    }
-
-    @Override
-    public String transportClientUsername() {
-        return this.nodeClientUsername();
-    }
-
-    @Override
-    public SecureString transportClientPassword() {
-        return this.nodeClientPassword();
     }
 }

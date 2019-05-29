@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -56,6 +57,7 @@ public class SecurityContextTests extends ESTestCase {
         assertNull(securityContext.getUser());
         securityContext.setUser(user, Version.CURRENT);
         assertEquals(user, securityContext.getUser());
+        assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT));
@@ -76,11 +78,15 @@ public class SecurityContextTests extends ESTestCase {
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
         securityContext.executeAsUser(executionUser, (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
+            assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
         }, Version.CURRENT);
 
         final User userAfterExecution = securityContext.getUser();
         assertEquals(original, userAfterExecution);
+        if (original != null) {
+            assertEquals(AuthenticationType.REALM, securityContext.getAuthentication().getAuthenticationType());
+        }
         StoredContext originalContext = contextAtomicReference.get();
         assertNotNull(originalContext);
         originalContext.restore();
@@ -100,6 +106,7 @@ public class SecurityContextTests extends ESTestCase {
             assertEquals(original.getAuthenticatedBy(), authentication.getAuthenticatedBy());
             assertEquals(original.getLookedUpBy(), authentication.getLookedUpBy());
             assertEquals(VersionUtils.getPreviousVersion(), authentication.getVersion());
+            assertEquals(original.getAuthenticationType(), securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
         }, VersionUtils.getPreviousVersion());
 

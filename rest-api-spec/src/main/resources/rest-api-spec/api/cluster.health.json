@@ -12,6 +12,12 @@
         }
       },
       "params": {
+        "expand_wildcards": {
+          "type" : "enum",
+          "options" : ["open","closed","none","all"],
+          "default" : "all",
+          "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
         "level": {
           "type" : "enum",
           "options" : ["cluster","indices","shards"],

@@ -222,7 +222,7 @@ Your SAML users cannot do anything until they are assigned roles. This can be do
 through either the {stack-ov}/saml-role-mapping.html[role mapping API], or with
 {stack-ov}/realm-chains.html#authorization_realms[authorization realms].
 
-NOTE: You cannot use {stack-ov}/defining-roles.html#roles-management-file[role mapping files]
+NOTE: You cannot use {stack-ov}/mapping-roles.html#mapping-roles-file[role mapping files]
 to grant roles to users authenticating via SAML.
 
 --

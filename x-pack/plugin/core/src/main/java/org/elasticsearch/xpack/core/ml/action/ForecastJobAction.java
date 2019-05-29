@@ -48,8 +48,8 @@ public class ForecastJobAction extends Action<ForecastJobAction.Response> {
         public static final ParseField DURATION = new ParseField("duration");
         public static final ParseField EXPIRES_IN = new ParseField("expires_in");
 
-        // Max allowed duration: 8 weeks
-        private static final TimeValue MAX_DURATION = TimeValue.parseTimeValue("56d", "");
+        // Max allowed duration: 10 years
+        private static final TimeValue MAX_DURATION = TimeValue.parseTimeValue("3650d", "");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 

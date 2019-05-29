@@ -19,12 +19,11 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,17 +37,23 @@ import java.util.Objects;
  */
 public class TermsLookup implements Writeable, ToXContentFragment {
     private final String index;
-    private final String type;
+    private @Nullable String type;
     private final String id;
     private final String path;
     private String routing;
 
+
+    public TermsLookup(String index, String id, String path) {
+        this(index, null, id, path);
+    }
+
+    /**
+     * @deprecated Types are in the process of being removed, use {@link TermsLookup(String, String, String)} instead.
+     */
+    @Deprecated
     public TermsLookup(String index, String type, String id, String path) {
         if (id == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the id.");
-        }
-        if (type == null) {
-            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the type.");
         }
         if (path == null) {
             throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the path.");
@@ -66,30 +71,19 @@ public class TermsLookup implements Writeable, ToXContentFragment {
      * Read from a stream.
      */
     public TermsLookup(StreamInput in) throws IOException {
-        type = in.readString();
+        type = in.readOptionalString();
         id = in.readString();
         path = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            index = in.readString();
-        } else {
-            index = in.readOptionalString();
-            if (index == null) {
-                throw new IllegalStateException("index must not be null in a terms lookup");
-            }
-        }
+        index = in.readString();
         routing = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(type);
+        out.writeOptionalString(type);
         out.writeString(id);
         out.writeString(path);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeString(index);
-        } else {
-            out.writeOptionalString(index);
-        }
+        out.writeString(index);
         out.writeOptionalString(routing);
     }
 
@@ -97,6 +91,10 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return index;
     }
 
+    /**
+     * @deprecated Types are in the process of being removed.
+     */
+    @Deprecated
     public String type() {
         return type;
     }
@@ -155,18 +153,28 @@ public class TermsLookup implements Writeable, ToXContentFragment {
                     + token + "] after [" + currentFieldName + "]");
             }
         }
-        return new TermsLookup(index, type, id, path).routing(routing);
+        if (type == null) {
+            return new TermsLookup(index, id, path).routing(routing);
+        } else {
+            return new TermsLookup(index, type, id, path).routing(routing);
+        }
     }
 
     @Override
     public String toString() {
-        return index + "/" + type + "/" + id + "/" + path;
+        if (type == null) {
+            return index + "/" + id + "/" + path;
+        } else {
+            return index + "/" + type + "/" + id + "/" + path;
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("index", index);
-        builder.field("type", type);
+        if (type != null) {
+            builder.field("type", type);
+        }
         builder.field("id", id);
         builder.field("path", path);
         if (routing != null) {

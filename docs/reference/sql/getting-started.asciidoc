@@ -3,8 +3,6 @@
 [[sql-getting-started]]
 == Getting Started with SQL
 
-beta[]
-
 To start using {es-sql}, create
 an index with some data to experiment with:
 

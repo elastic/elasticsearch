@@ -39,13 +39,13 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareCreate("leader").setSource(leaderIndexSettings, XContentType.JSON));
         ensureGreen("leader");
 
-        final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
-        client().execute(PutFollowAction.INSTANCE, followRequest).get();
-
         final long firstBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < firstBatchNumDocs; i++) {
             client().prepareIndex("leader", "doc").setSource("{}", XContentType.JSON).get();
         }
+
+        final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
+        client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
         assertBusy(() -> {
             assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs));
@@ -85,22 +85,22 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         followRequest.setFollowerIndex("follower-index");
         PutFollowAction.Request putFollowRequest = getPutFollowRequest("leader", "follower");
         putFollowRequest.setLeaderIndex("leader-index");
-        putFollowRequest.setFollowRequest(followRequest);
+        putFollowRequest.setFollowerIndex("follower-index");
         IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
             () -> client().execute(PutFollowAction.INSTANCE, putFollowRequest).actionGet());
         assertThat(error.getMessage(), equalTo("leader index [leader-index] does not have soft deletes enabled"));
         assertThat(client().admin().indices().prepareExists("follower-index").get().isExists(), equalTo(false));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/37014")
     public void testRemoveRemoteConnection() throws Exception {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName("my_pattern");
         request.setRemoteCluster("local");
         request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
-        request.setReadPollTimeout(TimeValue.timeValueMillis(10));
+        request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(10));
         assertTrue(client().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
+        long previousNumberOfSuccessfulFollowedIndices = getAutoFollowStats().getNumberOfSuccessfulFollowIndices();
 
         Settings leaderIndexSettings = Settings.builder()
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
@@ -111,7 +111,8 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
-            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
+                equalTo(previousNumberOfSuccessfulFollowedIndices + 1));
             assertThat(response.getFollowStats().getStatsResponses().size(), equalTo(1));
             assertThat(response.getFollowStats().getStatsResponses().get(0).status().followerGlobalCheckpoint(), equalTo(0L));
         });
@@ -127,7 +128,8 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         client().prepareIndex("logs-20200101", "doc").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
-            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(2L));
+            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
+                equalTo(previousNumberOfSuccessfulFollowedIndices + 2));
 
             FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
             statsRequest.setIndices(new String[]{"copy-logs-20200101"});

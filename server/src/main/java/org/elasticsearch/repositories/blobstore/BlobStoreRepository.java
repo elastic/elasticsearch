@@ -22,23 +22,17 @@ package org.elasticsearch.repositories.blobstore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.IndexNotFoundException;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -62,21 +56,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
-import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
@@ -107,21 +100,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
 
 /**
@@ -129,51 +119,16 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
  * <p>
  * This repository works with any {@link BlobStore} implementation. The blobStore could be (and preferred) lazy initialized in
  * {@link #createBlobStore()}.
- * <p>
- * BlobStoreRepository maintains the following structure in the blob store
- * <pre>
- * {@code
- *   STORE_ROOT
- *   |- index-N           - list of all snapshot ids and the indices belonging to each snapshot, N is the generation of the file
- *   |- index.latest      - contains the numeric value of the latest generation of the index file (i.e. N from above)
- *   |- incompatible-snapshots - list of all snapshot ids that are no longer compatible with the current version of the cluster
- *   |- snap-20131010 - JSON serialized Snapshot for snapshot "20131010"
- *   |- meta-20131010.dat - JSON serialized MetaData for snapshot "20131010" (includes only global metadata)
- *   |- snap-20131011 - JSON serialized Snapshot for snapshot "20131011"
- *   |- meta-20131011.dat - JSON serialized MetaData for snapshot "20131011"
- *   .....
- *   |- indices/ - data for all indices
- *      |- Ac1342-B_x/ - data for index "foo" which was assigned the unique id of Ac1342-B_x in the repository
- *      |  |- meta-20131010.dat - JSON Serialized IndexMetaData for index "foo"
- *      |  |- 0/ - data for shard "0" of index "foo"
- *      |  |  |- __1 \
- *      |  |  |- __2 |
- *      |  |  |- __3 |- files from different segments see snapshot-* for their mappings to real segment files
- *      |  |  |- __4 |
- *      |  |  |- __5 /
- *      |  |  .....
- *      |  |  |- snap-20131010.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131010"
- *      |  |  |- snap-20131011.dat - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
- *      |  |  |- list-123 - JSON serialized BlobStoreIndexShardSnapshot for snapshot "20131011"
- *      |  |
- *      |  |- 1/ - data for shard "1" of index "foo"
- *      |  |  |- __1
- *      |  |  .....
- *      |  |
- *      |  |-2/
- *      |  ......
- *      |
- *      |- 1xB0D8_B3y/ - data for index "bar" which was assigned the unique id of 1xB0D8_B3y in the repository
- *      ......
- * }
- * </pre>
+ * </p>
+ * For in depth documentation on how exactly implementations of this class interact with the snapshot functionality please refer to the
+ * documentation of the package {@link org.elasticsearch.repositories.blobstore}.
  */
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
 
     protected final RepositoryMetaData metadata;
 
-    protected final NamedXContentRegistry namedXContentRegistry;
+    private final ThreadPool threadPool;
 
     private static final int BUFFER_SIZE = 4096;
 
@@ -205,7 +160,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String DATA_BLOB_PREFIX = "__";
 
+    /**
+     * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
+     * files that are already compressed by default. Changing the setting does not invalidate existing files since reads
+     * do not observe the setting, instead they examine the file to see if it is compressed or not.
+     */
+    public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", true, Setting.Property.NodeScope);
+
     private final Settings settings;
+
+    private final boolean compress;
 
     private final RateLimiter snapshotRateLimiter;
 
@@ -215,11 +179,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final CounterMetric restoreRateLimitingTimeInNanos = new CounterMetric();
 
-    private ChecksumBlobStoreFormat<MetaData> globalMetaDataFormat;
+    private final ChecksumBlobStoreFormat<MetaData> globalMetaDataFormat;
 
-    private ChecksumBlobStoreFormat<IndexMetaData> indexMetaDataFormat;
+    private final ChecksumBlobStoreFormat<IndexMetaData> indexMetaDataFormat;
 
-    private ChecksumBlobStoreFormat<SnapshotInfo> snapshotFormat;
+    private final ChecksumBlobStoreFormat<SnapshotInfo> snapshotFormat;
 
     private final boolean readOnly;
 
@@ -233,39 +197,43 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final SetOnce<BlobStore> blobStore = new SetOnce<>();
 
+    private final BlobPath basePath;
+
     /**
      * Constructs new BlobStoreRepository
-     *
-     * @param metadata       The metadata for this repository including name and settings
-     * @param settings Settings for the node this repository object is created on
+     * @param metadata   The metadata for this repository including name and settings
+     * @param settings   Settings for the node this repository object is created on
+     * @param threadPool Threadpool to run long running repository manipulations on asynchronously
      */
-    protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry) {
-        super(settings);
+    protected BlobStoreRepository(RepositoryMetaData metadata, Settings settings, NamedXContentRegistry namedXContentRegistry,
+                                  ThreadPool threadPool, BlobPath basePath) {
         this.settings = settings;
         this.metadata = metadata;
-        this.namedXContentRegistry = namedXContentRegistry;
+        this.threadPool = threadPool;
+        this.compress = COMPRESS_SETTING.get(metadata.settings());
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         readOnly = metadata.settings().getAsBoolean("readonly", false);
+        this.basePath = basePath;
 
         indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
-            BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, isCompress());
+            BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, compress);
         indexShardSnapshotsFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_INDEX_CODEC, SNAPSHOT_INDEX_NAME_FORMAT,
-            BlobStoreIndexShardSnapshots::fromXContent, namedXContentRegistry, isCompress());
-        ByteSizeValue chunkSize = chunkSize();
-        if (chunkSize != null && chunkSize.getBytes() <= 0) {
-            throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
-        }
+            BlobStoreIndexShardSnapshots::fromXContent, namedXContentRegistry, compress);
+        globalMetaDataFormat = new ChecksumBlobStoreFormat<>(METADATA_CODEC, METADATA_NAME_FORMAT,
+            MetaData::fromXContent, namedXContentRegistry, compress);
+        indexMetaDataFormat = new ChecksumBlobStoreFormat<>(INDEX_METADATA_CODEC, METADATA_NAME_FORMAT,
+            IndexMetaData::fromXContent, namedXContentRegistry, compress);
+        snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
+            SnapshotInfo::fromXContentInternal, namedXContentRegistry, compress);
     }
 
     @Override
     protected void doStart() {
-        globalMetaDataFormat = new ChecksumBlobStoreFormat<>(METADATA_CODEC, METADATA_NAME_FORMAT,
-            MetaData::fromXContent, namedXContentRegistry, isCompress());
-        indexMetaDataFormat = new ChecksumBlobStoreFormat<>(INDEX_METADATA_CODEC, METADATA_NAME_FORMAT,
-            IndexMetaData::fromXContent, namedXContentRegistry, isCompress());
-        snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
-            SnapshotInfo::fromXContentInternal, namedXContentRegistry, isCompress());
+        ByteSizeValue chunkSize = chunkSize();
+        if (chunkSize != null && chunkSize.getBytes() <= 0) {
+            throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
+        }
     }
 
     @Override
@@ -352,16 +320,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * Returns base path of the repository
+     * Public for testing.
      */
-    protected abstract BlobPath basePath();
+    public BlobPath basePath() {
+        return basePath;
+    }
 
     /**
      * Returns true if metadata and snapshot files should be compressed
      *
      * @return true if compression is needed
      */
-    protected boolean isCompress() {
-        return false;
+    protected final boolean isCompress() {
+        return compress;
     }
 
     /**
@@ -392,9 +363,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (repositoryData.getAllSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
                 throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
             }
-            if (snapshotFormat.exists(blobContainer(), snapshotId.getUUID())) {
-                throw new InvalidSnapshotNameException(metadata.name(), snapshotId.getName(), "snapshot with the same name already exists");
-            }
 
             // Write Global MetaData
             globalMetaDataFormat.write(clusterMetaData, blobContainer(), snapshotId.getUUID());
@@ -412,125 +380,107 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId) {
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId, ActionListener<Void> listener) {
         if (isReadOnly()) {
-            throw new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository");
-        }
-
-        final RepositoryData repositoryData = getRepositoryData();
-        SnapshotInfo snapshot = null;
-        try {
-            snapshot = getSnapshotInfo(snapshotId);
-        } catch (SnapshotMissingException ex) {
-            throw ex;
-        } catch (IllegalStateException | SnapshotException | ElasticsearchParseException ex) {
-            logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
-        }
-
-        try {
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository"));
+        } else {
+            SnapshotInfo snapshot = null;
+            try {
+                snapshot = getSnapshotInfo(snapshotId);
+            } catch (SnapshotMissingException ex) {
+                listener.onFailure(ex);
+                return;
+            } catch (IllegalStateException | SnapshotException | ElasticsearchParseException ex) {
+                logger.warn(() -> new ParameterizedMessage("cannot read snapshot file [{}]", snapshotId), ex);
+            }
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
-            final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
-            writeIndexGen(updatedRepositoryData, repositoryStateId);
+            final RepositoryData repositoryData;
+            final RepositoryData updatedRepositoryData;
+            try {
+                repositoryData = getRepositoryData();
+                updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
+                writeIndexGen(updatedRepositoryData, repositoryStateId);
+            } catch (Exception ex) {
+                listener.onFailure(new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex));
+                return;
+            }
+            final SnapshotInfo finalSnapshotInfo = snapshot;
+            final Collection<IndexId> unreferencedIndices = Sets.newHashSet(repositoryData.getIndices().values());
+            unreferencedIndices.removeAll(updatedRepositoryData.getIndices().values());
+            try {
+                blobContainer().deleteBlobsIgnoringIfNotExists(
+                    Arrays.asList(snapshotFormat.blobName(snapshotId.getUUID()), globalMetaDataFormat.blobName(snapshotId.getUUID())));
+            } catch (IOException e) {
+                logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata files", snapshotId), e);
+            }
+            deleteIndices(
+                Optional.ofNullable(finalSnapshotInfo)
+                    .map(info -> info.indices().stream().map(repositoryData::resolveIndexId).collect(Collectors.toList()))
+                    .orElse(Collections.emptyList()),
+                snapshotId,
+                ActionListener.map(listener, v -> {
+                    try {
+                        blobStore().blobContainer(basePath().add("indices")).deleteBlobsIgnoringIfNotExists(
+                            unreferencedIndices.stream().map(IndexId::getId).collect(Collectors.toList()));
+                    } catch (IOException e) {
+                        logger.warn(() ->
+                            new ParameterizedMessage(
+                                "[{}] indices {} are no longer part of any snapshots in the repository, " +
+                                    "but failed to clean up their index folders.", metadata.name(), unreferencedIndices), e);
+                    }
+                    return null;
+                })
+            );
+        }
+    }
 
-            // delete the snapshot file
-            deleteSnapshotBlobIgnoringErrors(snapshot, snapshotId.getUUID());
-            // delete the global metadata file
-            deleteGlobalMetaDataBlobIgnoringErrors(snapshot, snapshotId.getUUID());
+    private void deleteIndices(List<IndexId> indices, SnapshotId snapshotId, ActionListener<Void> listener) {
+        if (indices.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+        final ActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(listener, v -> null), indices.size());
+        for (IndexId indexId: indices) {
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(groupedListener) {
 
-            // Now delete all indices
-            if (snapshot != null) {
-                final List<String> indices = snapshot.indices();
-                for (String index : indices) {
-                    final IndexId indexId = repositoryData.resolveIndexId(index);
-
+                @Override
+                protected void doRun() {
                     IndexMetaData indexMetaData = null;
                     try {
                         indexMetaData = getSnapshotIndexMetaData(snapshotId, indexId);
-                    } catch (ElasticsearchParseException | IOException ex) {
+                    } catch (Exception ex) {
                         logger.warn(() ->
-                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index), ex);
+                            new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, indexId.getName()), ex);
                     }
-
-                    deleteIndexMetaDataBlobIgnoringErrors(snapshot, indexId);
-
+                    deleteIndexMetaDataBlobIgnoringErrors(snapshotId, indexId);
                     if (indexMetaData != null) {
                         for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
                             try {
-                                delete(snapshotId, indexId, new ShardId(indexMetaData.getIndex(), shardId));
+                                final ShardId sid = new ShardId(indexMetaData.getIndex(), shardId);
+                                new Context(snapshotId, indexId, sid, sid).delete();
                             } catch (SnapshotException ex) {
                                 final int finalShardId = shardId;
                                 logger.warn(() -> new ParameterizedMessage("[{}] failed to delete shard data for shard [{}][{}]",
-                                    snapshotId, index, finalShardId), ex);
+                                    snapshotId, indexId.getName(), finalShardId), ex);
                             }
                         }
                     }
+                    groupedListener.onResponse(null);
                 }
-            }
-
-            // cleanup indices that are no longer part of the repository
-            final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
-            indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
-            final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
-            for (final IndexId indexId : indicesToCleanUp) {
-                try {
-                    indicesBlobContainer.deleteBlob(indexId.getId());
-                } catch (DirectoryNotEmptyException dnee) {
-                    // if the directory isn't empty for some reason, it will fail to clean up;
-                    // we'll ignore that and accept that cleanup didn't fully succeed.
-                    // since we are using UUIDs for path names, this won't be an issue for
-                    // snapshotting indices of the same name
-                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, but failed to clean up " +
-                            "its index folder due to the directory not being empty.", metadata.name(), indexId), dnee);
-                } catch (IOException ioe) {
-                    // a different IOException occurred while trying to delete - will just log the issue for now
-                    logger.debug(() -> new ParameterizedMessage("[{}] index [{}] no longer part of any snapshots in the repository, but failed to clean up " +
-                            "its index folder.", metadata.name(), indexId), ioe);
-                }
-            }
-        } catch (IOException | ResourceNotFoundException ex) {
-            throw new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex);
+            });
         }
     }
 
-    private void deleteSnapshotBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
-        try {
-            snapshotFormat.delete(blobContainer(), blobId);
-        } catch (IOException e) {
-            if (snapshotInfo != null) {
-                logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete snapshot file [{}]",
-                    snapshotInfo.snapshotId(), blobId), e);
-            } else {
-                logger.warn(() -> new ParameterizedMessage("Unable to delete snapshot file [{}]", blobId), e);
-            }
-        }
-    }
-
-    private void deleteGlobalMetaDataBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final String blobId) {
-        try {
-            globalMetaDataFormat.delete(blobContainer(), blobId);
-        } catch (IOException e) {
-            if (snapshotInfo != null) {
-                logger.warn(() -> new ParameterizedMessage("[{}] Unable to delete global metadata file [{}]",
-                    snapshotInfo.snapshotId(), blobId), e);
-            } else {
-                logger.warn(() -> new ParameterizedMessage("Unable to delete global metadata file [{}]", blobId), e);
-            }
-        }
-    }
-
-    private void deleteIndexMetaDataBlobIgnoringErrors(final SnapshotInfo snapshotInfo, final IndexId indexId) {
-        final SnapshotId snapshotId = snapshotInfo.snapshotId();
+    private void deleteIndexMetaDataBlobIgnoringErrors(SnapshotId snapshotId, IndexId indexId) {
         BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId.getId()));
         try {
             indexMetaDataFormat.delete(indexMetaDataBlobContainer, snapshotId.getUUID());
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("[{}] failed to delete metadata for index [{}]", snapshotId, indexId.getName()), ex);
+            logger.warn(() -> new ParameterizedMessage("[{}] failed to delete metadata for index [{}]",
+                snapshotId, indexId.getName()), ex);
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public SnapshotInfo finalizeSnapshot(final SnapshotId snapshotId,
                                          final List<IndexId> indices,
@@ -649,7 +599,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void endVerification(String seed) {
         if (isReadOnly() == false) {
             try {
-                blobStore().delete(basePath().add(testBlobPrefix(seed)));
+                final String testPrefix = testBlobPrefix(seed);
+                final BlobContainer container = blobStore().blobContainer(basePath().add(testPrefix));
+                container.deleteBlobsIgnoringIfNotExists(List.copyOf(container.listBlobs().keySet()));
+                blobStore().blobContainer(basePath()).deleteBlobIgnoringIfNotExists(testPrefix);
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
@@ -730,7 +683,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
             try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
+                repositoryData.snapshotsToXContent(builder);
                 builder.close();
             }
             snapshotsBytes = bStream.bytes();
@@ -764,10 +717,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         assert isReadOnly() == false; // can not write to a read only repository
         final BytesReference bytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
-            try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream);
-                repositoryData.incompatibleSnapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
-                builder.close();
+            try (StreamOutput stream = new OutputStreamStreamOutput(bStream);
+                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, stream)) {
+                repositoryData.incompatibleSnapshotsToXContent(builder);
             }
             bytes = bStream.bytes();
         }
@@ -832,7 +784,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (NumberFormatException nfe) {
                 // the index- blob wasn't of the format index-N where N is a number,
                 // no idea what this blob is but it doesn't belong in the repository!
-                logger.debug("[{}] Unknown blob in the repository: {}", metadata.name(), blobName);
+                logger.warn("[{}] Unknown blob in the repository: {}", metadata.name(), blobName);
             }
         }
         return latest;
@@ -845,8 +797,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshotShard(IndexShard shard, Store store, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                              IndexShardSnapshotStatus snapshotStatus) {
+    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
         SnapshotContext snapshotContext = new SnapshotContext(store, snapshotId, indexId, snapshotStatus, System.currentTimeMillis());
         try {
             snapshotContext.snapshot(snapshotIndexCommit);
@@ -861,12 +813,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-        final RestoreContext snapshotContext = new RestoreContext(shard, snapshotId, indexId, snapshotShardId, recoveryState);
+    public void restoreShard(Store store, SnapshotId snapshotId,
+                             Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
+        ShardId shardId = store.shardId();
+        final Context context = new Context(snapshotId, indexId, shardId, snapshotShardId);
+        BlobPath path = basePath().add("indices").add(indexId.getId()).add(Integer.toString(snapshotShardId.getId()));
+        BlobContainer blobContainer = blobStore().blobContainer(path);
+        final RestoreContext snapshotContext = new RestoreContext(shardId, snapshotId, recoveryState, blobContainer);
         try {
-            snapshotContext.restore();
+            BlobStoreIndexShardSnapshot snapshot = context.loadSnapshot();
+            SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
+            snapshotContext.restore(snapshotFiles, store);
         } catch (Exception e) {
-            throw new IndexShardRestoreFailedException(shard.shardId(), "failed to restore snapshot [" + snapshotId + "]", e);
+            throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId + "]", e);
         }
     }
 
@@ -898,25 +857,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length(), true);
                     }
                 } catch (IOException exp) {
-                    throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() + "] is not accessible on the node [" + localNode + "]", exp);
+                    throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() +
+                        "] is not accessible on the node [" + localNode + "]", exp);
                 }
             } else {
-                throw new RepositoryVerificationException(metadata.name(), "a file written by master to the store [" + blobStore() + "] cannot be accessed on the node [" + localNode + "]. "
-                    + "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or "
-                    + "that permissions on the store don't allow reading files written by the master node");
+                throw new RepositoryVerificationException(metadata.name(), "a file written by master to the store [" + blobStore() +
+                    "] cannot be accessed on the node [" + localNode + "]. " +
+                    "This might indicate that the store [" + blobStore() + "] is not shared between this node and the master node or " +
+                    "that permissions on the store don't allow reading files written by the master node");
             }
         }
-    }
-
-    /**
-     * Delete shard snapshot
-     *
-     * @param snapshotId snapshot id
-     * @param shardId    shard id
-     */
-    private void delete(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        Context context = new Context(snapshotId, indexId, shardId, shardId);
-        context.delete();
     }
 
     @Override
@@ -945,7 +895,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Context(SnapshotId snapshotId, IndexId indexId, ShardId shardId, ShardId snapshotShardId) {
             this.snapshotId = snapshotId;
             this.shardId = shardId;
-            blobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId.getId()).add(Integer.toString(snapshotShardId.getId())));
+            blobContainer = blobStore().blobContainer(basePath().add("indices").add(indexId.getId())
+                .add(Integer.toString(snapshotShardId.getId())));
         }
 
         /**
@@ -966,7 +917,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try {
                 indexShardSnapshotFormat.delete(blobContainer, snapshotId.getUUID());
             } catch (IOException e) {
-                logger.debug("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotId);
+                logger.warn(new ParameterizedMessage("[{}] [{}] failed to delete shard snapshot file", shardId, snapshotId), e);
             }
 
             // Build a list of snapshots that should be preserved
@@ -1007,22 +958,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 final Map<String, BlobMetaData> blobs,
                                 final String reason) {
             final String indexGeneration = Integer.toString(fileListGeneration);
-            final String currentIndexGen = indexShardSnapshotsFormat.blobName(indexGeneration);
-
             final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(snapshots);
             try {
                 // Delete temporary index files first, as we might otherwise fail in the next step creating the new index file if an earlier
                 // attempt to write an index file with this generation failed mid-way after creating the temporary file.
-                for (final String blobName : blobs.keySet()) {
-                    if (FsBlobContainer.isTempBlobName(blobName)) {
-                        try {
-                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
-                        } catch (IOException e) {
-                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blob [{}] during finalization",
-                                snapshotId, shardId, blobName), e);
-                            throw e;
-                        }
-                    }
+                final List<String> blobNames =
+                    blobs.keySet().stream().filter(FsBlobContainer::isTempBlobName).collect(Collectors.toList());
+                try {
+                    blobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs during finalization",
+                        snapshotId, shardId), e);
+                    throw e;
                 }
 
                 // If we deleted all snapshots, we don't need to create a new index file
@@ -1031,68 +978,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 // Delete old index files
-                for (final String blobName : blobs.keySet()) {
-                    if (blobName.startsWith(SNAPSHOT_INDEX_PREFIX)) {
-                        try {
-                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
-                        } catch (IOException e) {
-                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blob [{}] during finalization",
-                                snapshotId, shardId, blobName), e);
-                            throw e;
-                        }
-                    }
+                final List<String> indexBlobs =
+                    blobs.keySet().stream().filter(blob -> blob.startsWith(SNAPSHOT_INDEX_PREFIX)).collect(Collectors.toList());
+                try {
+                    blobContainer.deleteBlobsIgnoringIfNotExists(indexBlobs);
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete index blobs during finalization",
+                        snapshotId, shardId), e);
+                    throw e;
                 }
 
                 // Delete all blobs that don't exist in a snapshot
-                for (final String blobName : blobs.keySet()) {
-                    if (blobName.startsWith(DATA_BLOB_PREFIX) && (updatedSnapshots.findNameFile(canonicalName(blobName)) == null)) {
-                        try {
-                            blobContainer.deleteBlobIgnoringIfNotExists(blobName);
-                        } catch (IOException e) {
-                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blob [{}] during finalization",
-                                snapshotId, shardId, blobName), e);
-                        }
-                    }
+                final List<String> orphanedBlobs = blobs.keySet().stream()
+                    .filter(blobName ->
+                        blobName.startsWith(DATA_BLOB_PREFIX) && updatedSnapshots.findNameFile(canonicalName(blobName)) == null)
+                    .collect(Collectors.toList());
+                try {
+                    blobContainer.deleteBlobsIgnoringIfNotExists(orphanedBlobs);
+                } catch (IOException e) {
+                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete data blobs during finalization",
+                        snapshotId, shardId), e);
                 }
             } catch (IOException e) {
-                String message = "Failed to finalize " + reason + " with shard index [" + currentIndexGen + "]";
+                String message =
+                    "Failed to finalize " + reason + " with shard index [" + indexShardSnapshotsFormat.blobName(indexGeneration) + "]";
                 throw new IndexShardSnapshotFailedException(shardId, message, e);
             }
-        }
-
-        /**
-         * Generates blob name
-         *
-         * @param generation the blob number
-         * @return the blob name
-         */
-        protected String fileNameFromGeneration(long generation) {
-            return DATA_BLOB_PREFIX + Long.toString(generation, Character.MAX_RADIX);
-        }
-
-        /**
-         * Finds the next available blob number
-         *
-         * @param blobs list of blobs in the repository
-         * @return next available blob number
-         */
-        protected long findLatestFileNameGeneration(Map<String, BlobMetaData> blobs) {
-            long generation = -1;
-            for (String name : blobs.keySet()) {
-                if (!name.startsWith(DATA_BLOB_PREFIX)) {
-                    continue;
-                }
-                name = canonicalName(name);
-                try {
-                    long currentGen = Long.parseLong(name.substring(DATA_BLOB_PREFIX.length()), Character.MAX_RADIX);
-                    if (currentGen > generation) {
-                        generation = currentGen;
-                    }
-                } catch (NumberFormatException e) {
-                    logger.warn("file [{}] does not conform to the '{}' schema", name, DATA_BLOB_PREFIX);
-                }
-            }
-            return generation;
         }
 
         /**
@@ -1126,7 +1037,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(() -> new ParameterizedMessage("failed to read index file [{}]", file), e);
                 }
             } else if (blobKeys.isEmpty() == false) {
-                logger.debug("Could not find a readable index-N file in a non-empty shard snapshot directory [{}]", blobContainer.path());
+                logger.warn("Could not find a readable index-N file in a non-empty shard snapshot directory [{}]", blobContainer.path());
             }
 
             // We couldn't load the index file - falling back to loading individual snapshots
@@ -1144,7 +1055,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.warn(() -> new ParameterizedMessage("failed to read commit point [{}]", name), e);
                 }
             }
-            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), -1);
+            return new Tuple<>(new BlobStoreIndexShardSnapshots(snapshots), latest);
         }
     }
 
@@ -1187,7 +1098,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 throw new IndexShardSnapshotFailedException(shardId, "failed to list blobs", e);
             }
 
-            long generation = findLatestFileNameGeneration(blobs);
             Tuple<BlobStoreIndexShardSnapshots, Integer> tuple = buildBlobStoreIndexShardSnapshots(blobs);
             BlobStoreIndexShardSnapshots snapshots = tuple.v1();
             int fileListGeneration = tuple.v2();
@@ -1228,15 +1138,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     List<BlobStoreIndexShardSnapshot.FileInfo> filesInfo = snapshots.findPhysicalIndexFiles(fileName);
                     if (filesInfo != null) {
                         for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : filesInfo) {
-                            try {
-                                // in 1.3.3 we added additional hashes for .si / segments_N files
-                                // to ensure we don't double the space in the repo since old snapshots
-                                // don't have this hash we try to read that hash from the blob store
-                                // in a bwc compatible way.
-                                maybeRecalculateMetadataHash(blobContainer, fileInfo, metadata);
-                            } catch (Exception e) {
-                                logger.warn(() -> new ParameterizedMessage("{} Can't calculate hash from blob for file [{}] [{}]", shardId, fileInfo.physicalName(), fileInfo.metadata()), e);
-                            }
                             if (fileInfo.isSame(md) && snapshotFileExistsInBlobs(fileInfo, blobs)) {
                                 // a commit point file with the same name, size and checksum was already copied to repository
                                 // we will reuse it for this snapshot
@@ -1253,7 +1154,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexIncrementalFileCount++;
                         indexIncrementalSize += md.length();
                         // create a new FileInfo
-                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo = new BlobStoreIndexShardSnapshot.FileInfo(fileNameFromGeneration(++generation), md, chunkSize());
+                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo =
+                            new BlobStoreIndexShardSnapshot.FileInfo(DATA_BLOB_PREFIX + UUIDs.randomBase64UUID(), md, chunkSize());
                         indexCommitPointFiles.add(snapshotFileInfo);
                         filesToSnapshot.add(snapshotFileInfo);
                     } else {
@@ -1406,31 +1308,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    /**
-     * This is a BWC layer to ensure we update the snapshots metadata with the corresponding hashes before we compare them.
-     * The new logic for StoreFileMetaData reads the entire {@code .si} and {@code segments.n} files to strengthen the
-     * comparison of the files on a per-segment / per-commit level.
-     */
-    private static void maybeRecalculateMetadataHash(final BlobContainer blobContainer, final BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store.MetadataSnapshot snapshot) throws Exception {
-        final StoreFileMetaData metadata;
-        if (fileInfo != null && (metadata = snapshot.get(fileInfo.physicalName())) != null) {
-            if (metadata.hash().length > 0 && fileInfo.metadata().hash().length == 0) {
-                // we have a hash - check if our repo has a hash too otherwise we have
-                // to calculate it.
-                // we might have multiple parts even though the file is small... make sure we read all of it.
-                try (InputStream stream = new PartSliceStream(blobContainer, fileInfo)) {
-                    BytesRefBuilder builder = new BytesRefBuilder();
-                    Store.MetadataSnapshot.hashFile(builder, stream, fileInfo.length());
-                    BytesRef hash = fileInfo.metadata().hash(); // reset the file infos metadata hash
-                    assert hash.length == 0;
-                    hash.bytes = builder.bytes();
-                    hash.offset = 0;
-                    hash.length = builder.length();
-                }
-            }
-        }
-    }
-
     private static final class PartSliceStream extends SlicedInputStream {
 
         private final BlobContainer container;
@@ -1451,212 +1328,29 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Context for restore operations
      */
-    private class RestoreContext extends Context {
+    private class RestoreContext extends FileRestoreContext {
 
-        private final IndexShard targetShard;
-
-        private final RecoveryState recoveryState;
+        private final BlobContainer blobContainer;
 
         /**
          * Constructs new restore context
-         *
-         * @param shard           shard to restore into
-         * @param snapshotId      snapshot id
-         * @param indexId         id of the index being restored
-         * @param snapshotShardId shard in the snapshot that data should be restored from
-         * @param recoveryState   recovery state to report progress
+         * @param shardId    shard id to restore into
+         * @param snapshotId    snapshot id
+         * @param recoveryState recovery state to report progress
+         * @param blobContainer the blob container to read the files from
          */
-        RestoreContext(IndexShard shard, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
-            super(snapshotId, indexId, shard.shardId(), snapshotShardId);
-            this.recoveryState = recoveryState;
-            this.targetShard = shard;
+        RestoreContext(ShardId shardId, SnapshotId snapshotId, RecoveryState recoveryState, BlobContainer blobContainer) {
+            super(metadata.name(), shardId, snapshotId, recoveryState, BUFFER_SIZE);
+            this.blobContainer = blobContainer;
         }
 
-        /**
-         * Performs restore operation
-         */
-        public void restore() throws IOException {
-            final Store store = targetShard.store();
-            store.incRef();
-            try {
-                logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, metadata.name(), shardId);
-                BlobStoreIndexShardSnapshot snapshot = loadSnapshot();
-
-                if (snapshot.indexFiles().size() == 1
-                    && snapshot.indexFiles().get(0).physicalName().startsWith("segments_")
-                    && snapshot.indexFiles().get(0).hasUnknownChecksum()) {
-                    // If the shard has no documents, it will only contain a single segments_N file for the
-                    // shard's snapshot.  If we are restoring a snapshot created by a previous supported version,
-                    // it is still possible that in that version, an empty shard has a segments_N file with an unsupported
-                    // version (and no checksum), because we don't know the Lucene version to assign segments_N until we
-                    // have written some data.  Since the segments_N for an empty shard could have an incompatible Lucene
-                    // version number and no checksum, even though the index itself is perfectly fine to restore, this
-                    // empty shard would cause exceptions to be thrown.  Since there is no data to restore from an empty
-                    // shard anyway, we just create the empty shard here and then exit.
-                    store.createEmpty(targetShard.indexSettings().getIndexMetaData().getCreationVersion().luceneVersion);
-                    return;
-                }
-
-                SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-                Store.MetadataSnapshot recoveryTargetMetadata;
-                try {
-                    // this will throw an IOException if the store has no segments infos file. The
-                    // store can still have existing files but they will be deleted just before being
-                    // restored.
-                    recoveryTargetMetadata = targetShard.snapshotStoreMetadata();
-                } catch (IndexNotFoundException e) {
-                    // happens when restore to an empty shard, not a big deal
-                    logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
-                    recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
-                } catch (IOException e) {
-                    logger.warn(() -> new ParameterizedMessage("{} Can't read metadata from store, will not reuse any local file while restoring", shardId), e);
-                    recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
-                }
-
-                final List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover = new ArrayList<>();
-                final Map<String, StoreFileMetaData> snapshotMetaData = new HashMap<>();
-                final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new HashMap<>();
-                for (final BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshot.indexFiles()) {
-                    try {
-                        // in 1.3.3 we added additional hashes for .si / segments_N files
-                        // to ensure we don't double the space in the repo since old snapshots
-                        // don't have this hash we try to read that hash from the blob store
-                        // in a bwc compatible way.
-                        maybeRecalculateMetadataHash(blobContainer, fileInfo, recoveryTargetMetadata);
-                    } catch (Exception e) {
-                        // if the index is broken we might not be able to read it
-                        logger.warn(() -> new ParameterizedMessage("{} Can't calculate hash from blog for file [{}] [{}]", shardId, fileInfo.physicalName(), fileInfo.metadata()), e);
-                    }
-                    snapshotMetaData.put(fileInfo.metadata().name(), fileInfo.metadata());
-                    fileInfos.put(fileInfo.metadata().name(), fileInfo);
-                }
-
-                final Store.MetadataSnapshot sourceMetaData = new Store.MetadataSnapshot(unmodifiableMap(snapshotMetaData), emptyMap(), 0);
-
-                final StoreFileMetaData restoredSegmentsFile = sourceMetaData.getSegmentsFile();
-                if (restoredSegmentsFile == null) {
-                    throw new IndexShardRestoreFailedException(shardId, "Snapshot has no segments file");
-                }
-
-                final Store.RecoveryDiff diff = sourceMetaData.recoveryDiff(recoveryTargetMetadata);
-                for (StoreFileMetaData md : diff.identical) {
-                    BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
-                    recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), true);
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] [{}] not_recovering [{}] from [{}], exists in local store and is same", shardId, snapshotId, fileInfo.physicalName(), fileInfo.name());
-                    }
-                }
-
-                for (StoreFileMetaData md : Iterables.concat(diff.different, diff.missing)) {
-                    BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
-                    filesToRecover.add(fileInfo);
-                    recoveryState.getIndex().addFileDetail(fileInfo.name(), fileInfo.length(), false);
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("[{}] [{}] recovering [{}] from [{}], exists in local store but is different", shardId, snapshotId,
-                                fileInfo.physicalName(), fileInfo.name());
-                    }
-                }
-
-                if (filesToRecover.isEmpty()) {
-                    logger.trace("no files to recover, all exists within the local store");
-                }
-
-                try {
-                    // list of all existing store files
-                    final List<String> deleteIfExistFiles = Arrays.asList(store.directory().listAll());
-
-                    // restore the files from the snapshot to the Lucene store
-                    for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
-                        // if a file with a same physical name already exist in the store we need to delete it
-                        // before restoring it from the snapshot. We could be lenient and try to reuse the existing
-                        // store files (and compare their names/length/checksum again with the snapshot files) but to
-                        // avoid extra complexity we simply delete them and restore them again like StoreRecovery
-                        // does with dangling indices. Any existing store file that is not restored from the snapshot
-                        // will be clean up by RecoveryTarget.cleanFiles().
-                        final String physicalName = fileToRecover.physicalName();
-                        if (deleteIfExistFiles.contains(physicalName)) {
-                            logger.trace("[{}] [{}] deleting pre-existing file [{}]", shardId, snapshotId, physicalName);
-                            store.directory().deleteFile(physicalName);
-                        }
-
-                        logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
-                        restoreFile(fileToRecover, store);
-                    }
-                } catch (IOException ex) {
-                    throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", ex);
-                }
-
-                // read the snapshot data persisted
-                final SegmentInfos segmentCommitInfos;
-                try {
-                    segmentCommitInfos = Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
-                } catch (IOException e) {
-                    throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
-                }
-                recoveryState.getIndex().updateVersion(segmentCommitInfos.getVersion());
-
-                /// now, go over and clean files that are in the store, but were not in the snapshot
-                try {
-                    for (String storeFile : store.directory().listAll()) {
-                        if (Store.isAutogenerated(storeFile) || snapshotFiles.containPhysicalIndexFile(storeFile)) {
-                            continue; //skip write.lock, checksum files and files that exist in the snapshot
-                        }
-                        try {
-                            store.deleteQuiet("restore", storeFile);
-                            store.directory().deleteFile(storeFile);
-                        } catch (IOException e) {
-                            logger.warn("[{}] failed to delete file [{}] during snapshot cleanup", snapshotId, storeFile);
-                        }
-                    }
-                } catch (IOException e) {
-                    logger.warn("[{}] failed to list directory - some of files might not be deleted", snapshotId);
-                }
-            } finally {
-                store.decRef();
-            }
-        }
-
-        /**
-         * Restores a file
-         * This is asynchronous method. Upon completion of the operation latch is getting counted down and any failures are
-         * added to the {@code failures} list
-         *
-         * @param fileInfo file to be restored
-         */
-        private void restoreFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo, final Store store) throws IOException {
-            boolean success = false;
-
-            try (InputStream partSliceStream = new PartSliceStream(blobContainer, fileInfo)) {
-                final InputStream stream;
-                if (restoreRateLimiter == null) {
-                    stream = partSliceStream;
-                } else {
-                    stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
-                }
-
-                try (IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
-                    final byte[] buffer = new byte[BUFFER_SIZE];
-                    int length;
-                    while ((length = stream.read(buffer)) > 0) {
-                        indexOutput.writeBytes(buffer, 0, length);
-                        recoveryState.getIndex().addRecoveredBytesToFile(fileInfo.name(), length);
-                    }
-                    Store.verify(indexOutput);
-                    indexOutput.close();
-                    store.directory().sync(Collections.singleton(fileInfo.physicalName()));
-                    success = true;
-                } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
-                    try {
-                        store.markStoreCorrupted(ex);
-                    } catch (IOException e) {
-                        logger.warn("store cannot be marked as corrupted", e);
-                    }
-                    throw ex;
-                } finally {
-                    if (success == false) {
-                        store.deleteQuiet(fileInfo.physicalName());
-                    }
-                }
+        @Override
+        protected InputStream fileInputStream(BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
+            if (restoreRateLimiter == null) {
+                return new PartSliceStream(blobContainer, fileInfo);
+            } else {
+                RateLimitingInputStream.Listener listener = restoreRateLimitingTimeInNanos::inc;
+                return new RateLimitingInputStream(new PartSliceStream(blobContainer, fileInfo), restoreRateLimiter, listener);
             }
         }
     }

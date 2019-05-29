@@ -27,6 +27,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -73,7 +74,9 @@ public class DocumentMapper implements ToXContentFragment {
 
             final String type = rootObjectMapper.name();
             final DocumentMapper existingMapper = mapperService.documentMapper(type);
-            final Map<String, TypeParser> metadataMapperParsers = mapperService.mapperRegistry.getMetadataMapperParsers();
+            final Version indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+            final Map<String, TypeParser> metadataMapperParsers =
+                mapperService.mapperRegistry.getMetadataMapperParsers(indexCreatedVersion);
             for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : metadataMapperParsers.entrySet()) {
                 final String name = entry.getKey();
                 final MetadataFieldMapper existingMetadataMapper = existingMapper == null

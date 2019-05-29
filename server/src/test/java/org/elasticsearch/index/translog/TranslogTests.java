@@ -380,8 +380,7 @@ public class TranslogTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             stats.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            stats = new TranslogStats();
-            stats.readFrom(in);
+            stats = new TranslogStats(in);
         }
         return stats;
     }
@@ -475,9 +474,7 @@ public class TranslogTests extends ESTestCase {
             final TranslogStats stats = stats();
             final BytesStreamOutput out = new BytesStreamOutput();
             stats.writeTo(out);
-            final TranslogStats copy = new TranslogStats();
-            copy.readFrom(out.bytes().streamInput());
-
+            final TranslogStats copy = new TranslogStats(out.bytes().streamInput());
             assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
             assertThat(copy.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
 
@@ -715,7 +712,6 @@ public class TranslogTests extends ESTestCase {
             Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, between(200, 300), between(300, 400)); // out range
             assertThat(filter, SnapshotMatchers.size(0));
             assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
-            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
             assertThat(filter.skippedOperations(), equalTo(snapshot.totalOperations()));
         }
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
@@ -726,7 +722,6 @@ public class TranslogTests extends ESTestCase {
             Translog.Snapshot filter = new Translog.SeqNoFilterSnapshot(snapshot, fromSeqNo, toSeqNo);
             assertThat(filter, SnapshotMatchers.containsOperationsInAnyOrder(selectedOps));
             assertThat(filter.totalOperations(), equalTo(snapshot.totalOperations()));
-            assertThat(filter.overriddenOperations(), equalTo(snapshot.overriddenOperations()));
             assertThat(filter.skippedOperations(), equalTo(snapshot.skippedOperations() + operations.size() - selectedOps.size()));
         }
     }

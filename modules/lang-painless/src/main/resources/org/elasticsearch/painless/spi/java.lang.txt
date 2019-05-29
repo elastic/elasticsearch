@@ -758,6 +758,8 @@ class java.lang.String {
   String copyValueOf(char[],int,int)
   String org.elasticsearch.painless.api.Augmentation decodeBase64()
   String org.elasticsearch.painless.api.Augmentation encodeBase64()
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String)
+  String[] org.elasticsearch.painless.api.Augmentation splitOnToken(String, int)
   boolean endsWith(String)
   boolean equalsIgnoreCase(String)
   String format(Locale,String,def[])

@@ -21,19 +21,17 @@ to extract those fields from a large `_source` field:
 PUT my_index
 {
   "mappings": {
-    "_doc": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "store": true <1>
-        },
-        "date": {
-          "type": "date",
-          "store": true <1>
-        },
-        "content": {
-          "type": "text"
-        }
+    "properties": {
+      "title": {
+        "type": "text",
+        "store": true <1>
+      },
+      "date": {
+        "type": "date",
+        "store": true <1>
+      },
+      "content": {
+        "type": "text"
       }
     }
   }

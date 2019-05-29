@@ -250,13 +250,11 @@ PUT my_index
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "title": {
-          "type": "text",
-          "analyzer": "autocomplete",
-          "search_analyzer": "autocomplete_search"
-        }
+    "properties": {
+      "title": {
+        "type": "text",
+        "analyzer": "autocomplete",
+        "search_analyzer": "autocomplete_search"
       }
     }
   }

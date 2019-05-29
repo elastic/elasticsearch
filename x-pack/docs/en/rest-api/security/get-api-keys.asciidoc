@@ -1,0 +1,154 @@
+[role="xpack"]
+[[security-api-get-api-key]]
+=== Get API key information API
+++++
+<titleabbrev>Get API key information</titleabbrev>
+++++
+
+Retrieves information for one or more API keys.
+
+==== Request
+
+`GET /_security/api_key`
+
+==== Description
+
+The information for the API keys created by <<security-api-create-api-key,create API Key>> can be retrieved
+using this API.
+
+==== Request Body
+
+The following parameters can be specified in the query parameters of a GET request and
+pertain to retrieving api keys:
+
+`id` (optional)::
+(string) An API key id. This parameter cannot be used with any of `name`,
+`realm_name` or `username` are used.
+
+`name` (optional)::
+(string) An API key name. This parameter cannot be used with any of `id`,
+`realm_name` or `username` are used.
+
+`realm_name` (optional)::
+(string) The name of an authentication realm. This parameter cannot be used with
+either `id` or `name`.
+
+`username` (optional)::
+(string) The username of a user. This parameter cannot be used with either `id`
+or `name`.
+
+NOTE: While all parameters are optional, at least one of them is required.
+
+==== Examples
+
+If you create an API key as follows:
+
+[source, js]
+------------------------------------------------------------
+POST /_security/api_key
+{
+  "name": "my-api-key",
+  "role_descriptors": {}
+}
+------------------------------------------------------------
+// CONSOLE
+// TEST
+
+A successful call returns a JSON structure that provides
+API key information. For example:
+
+[source,js]
+--------------------------------------------------
+{
+  "id":"VuaCfGcBCdbkQm-e5aOx",
+  "name":"my-api-key",
+  "api_key":"ui2lp2axTNmsyakw9tvNnw"
+}
+--------------------------------------------------
+// TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+
+You can use the following example to retrieve the API key by ID:
+
+[source,js]
+--------------------------------------------------
+GET /_security/api_key?id=VuaCfGcBCdbkQm-e5aOx
+--------------------------------------------------
+// CONSOLE
+// TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TEST[continued]
+
+You can use the following example to retrieve the API key by name:
+
+[source,js]
+--------------------------------------------------
+GET /_security/api_key?name=my-api-key
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The following example retrieves all API keys for the `native1` realm:
+
+[source,js]
+--------------------------------------------------
+GET /_security/api_key?realm_name=native1
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The following example retrieves all API keys for the user `myuser` in all realms:
+
+[source,js]
+--------------------------------------------------
+GET /_security/api_key?username=myuser
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Finally, the following example retrieves all API keys for the user `myuser` in
+ the `native1` realm immediately:
+
+[source,js]
+--------------------------------------------------
+GET /_security/api_key?username=myuser&realm_name=native1
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+A successful call returns a JSON structure that contains the information of one or more API keys that were retrieved.
+
+[source,js]
+--------------------------------------------------
+{
+  "api_keys": [ <1>
+    {
+      "id": "dGhpcyBpcyBub3QgYSByZWFsIHRva2VuIGJ1dCBpdCBpcyBvbmx5IHRlc3QgZGF0YS4gZG8gbm90IHRyeSB0byByZWFkIHRva2VuIQ==", <2>
+      "name": "hadoop_myuser_key", <3>
+      "creation": 1548550550158, <4>
+      "expiration": 1548551550158, <5>
+      "invalidated": false, <6>
+      "username": "myuser", <7>
+      "realm": "native1" <8>
+    },
+    {
+      "id": "api-key-id-2",
+      "name": "api-key-name-2",
+      "creation": 1548550550158,
+      "invalidated": false,
+      "username": "user-y",
+      "realm": "realm-2"
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+<1> The list of API keys that were retrieved for this request.
+<2> Id for the API key
+<3> Name of the API key
+<4> Creation time for the API key in milliseconds
+<5> Optional expiration time for the API key in milliseconds
+<6> Invalidation status for the API key. If the key has been invalidated, it has
+a value of `true`. Otherwise, it is `false`.
+<7> Principal for which this API key was created
+<8> Realm name of the principal for which this API key was created

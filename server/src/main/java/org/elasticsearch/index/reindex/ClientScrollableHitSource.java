@@ -70,9 +70,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     @Override
     public void doStart(Consumer<? super Response> onResponse) {
         if (logger.isDebugEnabled()) {
-            logger.debug("executing initial scroll against {}{}",
-                    isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices(),
-                    isEmpty(firstSearchRequest.types()) ? "" : firstSearchRequest.types());
+            logger.debug("executing initial scroll against {}",
+                    isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices());
         }
         searchWithRetry(listener -> client.search(firstSearchRequest, listener), r -> consume(r, onResponse));
     }
@@ -155,7 +154,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                         TimeValue delay = retries.next();
                         logger.trace(() -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
                         countSearchRetry.run();
-                        threadPool.schedule(delay, ThreadPool.Names.SAME, retryWithContext);
+                        threadPool.schedule(retryWithContext, delay, ThreadPool.Names.SAME);
                     } else {
                         logger.warn(() -> new ParameterizedMessage(
                                 "giving up on search because we retried [{}] times without success", retryCount), e);
@@ -239,6 +238,16 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         @Override
         public long getVersion() {
             return delegate.getVersion();
+        }
+
+        @Override
+        public long getSeqNo() {
+            return delegate.getSeqNo();
+        }
+
+        @Override
+        public long getPrimaryTerm() {
+            return delegate.getPrimaryTerm();
         }
 
         @Override

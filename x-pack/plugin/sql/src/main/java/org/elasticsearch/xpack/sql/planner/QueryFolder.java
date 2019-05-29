@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.AggRef;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
+import org.elasticsearch.xpack.sql.expression.AttributeMap;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.Foldables;
@@ -22,10 +23,10 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFuncti
 import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundNumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeHistogramFunction;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.AggPathInput;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.Pipe;
@@ -56,15 +57,13 @@ import org.elasticsearch.xpack.sql.querydsl.container.ScoreSort;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.sql.querydsl.container.Sort.Missing;
+import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
 import org.elasticsearch.xpack.sql.rule.Rule;
 import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
-import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.util.Check;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
-import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -144,8 +143,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     }
                 }
 
-                QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.columns(), aliases,
-                        queryC.pseudoFunctions(), processors, queryC.sort(), queryC.limit());
+                QueryContainer clone = new QueryContainer(queryC.query(), queryC.aggs(), queryC.fields(),
+                        new AttributeMap<>(aliases),
+                        queryC.pseudoFunctions(),
+                        new AttributeMap<>(processors),
+                        queryC.sort(),
+                        queryC.limit(),
+                        queryC.shouldTrackHits(),
+                        queryC.shouldIncludeFrozen());
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
             return project;
@@ -168,11 +173,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 }
                 Aggs aggs = addPipelineAggs(qContainer, qt, plan);
 
-                qContainer = new QueryContainer(query, aggs, qContainer.columns(), qContainer.aliases(),
+                qContainer = new QueryContainer(query, aggs, qContainer.fields(),
+                        qContainer.aliases(),
                         qContainer.pseudoFunctions(),
                         qContainer.scalarFunctions(),
                         qContainer.sort(),
-                        qContainer.limit());
+                        qContainer.limit(),
+                        qContainer.shouldTrackHits(),
+                        qContainer.shouldIncludeFrozen());
 
                 return exec.with(qContainer);
             }
@@ -283,7 +291,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (matchingGroup != null) {
                                     if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
                                         Processor action = null;
-                                        ZoneId zi = DataType.DATE == exp.dataType() ? DateUtils.UTC : null;
+                                        boolean isDateBased = exp.dataType().isDateBased();
                                         /*
                                          * special handling of dates since aggs return the typed Date object which needs
                                          * extraction instead of handling this in the scroller, the folder handles this
@@ -291,9 +299,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                          */
                                         if (exp instanceof DateTimeHistogramFunction) {
                                             action = ((UnaryPipe) p).action();
-                                            zi = ((DateTimeFunction) exp).zoneId();
+                                            isDateBased = true;
                                         }
-                                        return new AggPathInput(exp.source(), exp, new GroupByRef(matchingGroup.id(), null, zi), action);
+                                        return new AggPathInput(exp.source(), exp,
+                                            new GroupByRef(matchingGroup.id(), null, isDateBased), action);
                                     }
                                 }
                                 // or found an aggregate expression (which has to work on an attribute used for grouping)
@@ -313,7 +322,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             }
 
                             // add the computed column
-                            queryC = qC.get().addColumn(new ComputedRef(proc));
+                            queryC = qC.get().addColumn(new ComputedRef(proc), f.toAttribute());
 
                             // TODO: is this needed?
                             // redirect the alias to the scalar group id (changing the id altogether doesn't work it is
@@ -331,24 +340,23 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             // attributes can only refer to declared groups
                             if (child instanceof Attribute) {
                                 Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(child));
-                                // check if the field is a date - if so mark it as such to interpret the long as a date
-                                // UTC is used since that's what the server uses and there's no conversion applied
-                                // (like for date histograms)
-                                ZoneId zi = DataType.DATE == child.dataType() ? DateUtils.UTC : null;
-                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
+                                queryC = queryC.addColumn(
+                                    new GroupByRef(matchingGroup.id(), null, child.dataType().isDateBased()), ((Attribute) child));
                             }
                             // handle histogram
                             else if (child instanceof GroupingFunction) {
-                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, null));
+                                queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, child.dataType().isDateBased()),
+                                        ((GroupingFunction) child).toAttribute());
                             }
                             // fallback to regular agg functions
                             else {
                                 // the only thing left is agg function
                                 Check.isTrue(Functions.isAggregate(child),
                                         "Expected aggregate function inside alias; got [{}]", child.nodeString());
-                                Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup,
-                                        (AggregateFunction) child, compoundAggMap, queryC);
-                                queryC = withAgg.v1().addColumn(withAgg.v2().context());
+                                AggregateFunction af = (AggregateFunction) child;
+                                Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup, af, compoundAggMap, queryC);
+                                // make sure to add the inner id (to handle compound aggs)
+                                queryC = withAgg.v1().addColumn(withAgg.v2().context(), af.toAttribute());
                             }
                         }
                     // not an Alias or Function means it's an Attribute so apply the same logic as above
@@ -358,8 +366,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             matchingGroup = groupingContext.groupFor(ne);
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                            ZoneId zi = DataType.DATE == ne.dataType() ? DateUtils.UTC : null;
-                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, zi));
+                            queryC = queryC.addColumn(
+                                new GroupByRef(matchingGroup.id(), null, ne.dataType().isDateBased()), ne.toAttribute());
                         }
                     }
                 }
@@ -367,7 +375,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 if (!aliases.isEmpty()) {
                     Map<Attribute, Attribute> newAliases = new LinkedHashMap<>(queryC.aliases());
                     newAliases.putAll(aliases);
-                    queryC = queryC.withAliases(newAliases);
+                    queryC = queryC.withAliases(new AttributeMap<>(newAliases));
                 }
                 return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
             }
@@ -380,15 +388,29 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             // handle count as a special case agg
             if (f instanceof Count) {
                 Count c = (Count) f;
-                if (!c.distinct()) {
-                    AggRef ref = groupingAgg == null ?
-                            GlobalCountRef.INSTANCE :
-                            new GroupByRef(groupingAgg.id(), Property.COUNT, null);
+                // COUNT(*) or COUNT(<literal>)
+                if (c.field().foldable()) {
+                    AggRef ref = null;
+
+                    if (groupingAgg == null) {
+                        ref = GlobalCountRef.INSTANCE;
+                        // if the count points to the total track hits, enable accurate count retrieval
+                        queryC = queryC.withTrackHits();
+                    } else {
+                        ref = new GroupByRef(groupingAgg.id(), Property.COUNT, false);
+                    }
 
                     Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(queryC.pseudoFunctions());
                     pseudoFunctions.put(functionId, groupingAgg);
                     return new Tuple<>(queryC.withPseudoFunctions(pseudoFunctions), new AggPathInput(f, ref));
+                // COUNT(<field_name>)
+                } else if (!c.distinct()) {
+                    LeafAgg leafAgg = toAgg(functionId, f);
+                    AggPathInput a = new AggPathInput(f, new MetricAggRef(leafAgg.id(), "doc_count", "_count", false));
+                    queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
+                    return new Tuple<>(queryC, a);
                 }
+                // the only variant left - COUNT(DISTINCT) - will be covered by the else branch below as it maps to an aggregation
             }
 
             AggPathInput aggInput = null;
@@ -410,11 +432,17 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // FIXME: concern leak - hack around MatrixAgg which is not
                 // generalized (afaik)
                 aggInput = new AggPathInput(f,
-                        new MetricAggRef(cAggPath, ia.innerId(), ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null));
+                        new MetricAggRef(cAggPath, ia.innerName(),
+                            ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null,
+                            ia.dataType().isDateBased()));
             }
             else {
                 LeafAgg leafAgg = toAgg(functionId, f);
-                aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id()));
+                if (f instanceof TopHits) {
+                    aggInput = new AggPathInput(f, new TopHitsAggRef(leafAgg.id(), f.dataType()));
+                } else {
+                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), f.dataType().isDateBased()));
+                }
                 queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
             }
 
@@ -460,19 +488,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 if (sfa.orderBy() instanceof NamedExpression) {
                                     Attribute at = ((NamedExpression) sfa.orderBy()).toAttribute();
                                     at = qContainer.aliases().getOrDefault(at, at);
-                                    qContainer = qContainer.sort(new AttributeSort(at, direction, missing));
+                                    qContainer = qContainer.addSort(new AttributeSort(at, direction, missing));
                                 } else if (!sfa.orderBy().foldable()) {
                                     // ignore constant
                                     throw new PlanningException("does not know how to order by expression {}", sfa.orderBy());
                                 }
                             } else {
                                 // nope, use scripted sorting
-                                qContainer = qContainer.sort(new ScriptSort(sfa.script(), direction, missing));
+                                qContainer = qContainer.addSort(new ScriptSort(sfa.script(), direction, missing));
                             }
                         } else if (attr instanceof ScoreAttribute) {
-                            qContainer = qContainer.sort(new ScoreSort(direction, missing));
+                            qContainer = qContainer.addSort(new ScoreSort(direction, missing));
                         } else {
-                            qContainer = qContainer.sort(new AttributeSort(attr, direction, missing));
+                            qContainer = qContainer.addSort(new AttributeSort(attr, direction, missing));
                         }
                     }
                 }

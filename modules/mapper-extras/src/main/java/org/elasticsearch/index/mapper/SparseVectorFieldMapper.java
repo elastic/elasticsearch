@@ -30,10 +30,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.VectorDVIndexFieldData;
 import org.elasticsearch.search.DocValueFormat;
-import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +46,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 public class SparseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "sparse_vector";
-    public static short MAX_DIMS_COUNT = 500; //maximum allowed number of dimensions
+    public static short MAX_DIMS_COUNT = 1024; //maximum allowed number of dimensions
     public static int MAX_DIMS_NUMBER = 65535; //maximum allowed dimension's number
 
     public static class Defaults {
@@ -107,7 +108,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
+        public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
             throw new UnsupportedOperationException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
         }
@@ -119,8 +120,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            throw new UnsupportedOperationException(
-                "Field [" + name() + "] of type [" + typeName() + "] doesn't support sorting, scripting or aggregating");
+            return new VectorDVIndexFieldData.Builder(false);
         }
 
         @Override
@@ -178,10 +178,9 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 }
                 dims[dimCount] = dim;
                 values[dimCount] = value;
-                dimCount ++;
-                if (dimCount >= MAX_DIMS_COUNT) {
+                if (dimCount++ >= MAX_DIMS_COUNT) {
                     throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
-                        "] has exceeded the maximum allowed number of dimensions of :[" + MAX_DIMS_COUNT + "]");
+                        "] has exceeded the maximum allowed number of dimensions of [" + MAX_DIMS_COUNT + "]");
                 }
             } else {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +

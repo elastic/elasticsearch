@@ -16,22 +16,6 @@ public class FIPS140JKSKeystoreBootstrapCheckTests extends AbstractBootstrapChec
         assertFalse(new FIPS140JKSKeystoreBootstrapCheck().check(createTestContext(settings.build(), null)).isFailure());
     }
 
-    public void testSSLKeystoreTypeIsNotAllowed() {
-        final Settings.Builder settings = Settings.builder()
-            .put("xpack.security.fips_mode.enabled", "true")
-            .put("xpack.ssl.keystore.path", "/this/is/the/path")
-            .put("xpack.ssl.keystore.type", "JKS");
-        assertTrue(new FIPS140JKSKeystoreBootstrapCheck().check(createTestContext(settings.build(), null)).isFailure());
-    }
-
-    public void testSSLImplicitKeystoreTypeIsNotAllowed() {
-        final Settings.Builder settings = Settings.builder()
-            .put("xpack.security.fips_mode.enabled", "true")
-            .put("xpack.ssl.keystore.path", "/this/is/the/path")
-            .put("xpack.ssl.keystore.type", "JKS");
-        assertTrue(new FIPS140JKSKeystoreBootstrapCheck().check(createTestContext(settings.build(), null)).isFailure());
-    }
-
     public void testTransportSSLKeystoreTypeIsNotAllowed() {
         final Settings.Builder settings = Settings.builder()
             .put("xpack.security.fips_mode.enabled", "true")

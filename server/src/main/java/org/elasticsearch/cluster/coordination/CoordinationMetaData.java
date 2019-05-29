@@ -94,7 +94,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         this.term = term;
         this.lastCommittedConfiguration = lastCommittedConfiguration;
         this.lastAcceptedConfiguration = lastAcceptedConfiguration;
-        this.votingConfigExclusions = Collections.unmodifiableSet(new HashSet<>(votingConfigExclusions));
+        this.votingConfigExclusions = Set.copyOf(votingConfigExclusions);
     }
 
     public CoordinationMetaData(StreamInput in) throws IOException {
@@ -117,7 +117,7 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
         out.writeLong(term);
         lastCommittedConfiguration.writeTo(out);
         lastAcceptedConfiguration.writeTo(out);
-        out.writeCollection(votingConfigExclusions, (o, v) -> v.writeTo(o));
+        out.writeCollection(votingConfigExclusions);
     }
 
     @Override
@@ -325,11 +325,13 @@ public class CoordinationMetaData implements Writeable, ToXContentFragment {
     public static class VotingConfiguration implements Writeable, ToXContentFragment {
 
         public static final VotingConfiguration EMPTY_CONFIG = new VotingConfiguration(Collections.emptySet());
+        public static final VotingConfiguration MUST_JOIN_ELECTED_MASTER = new VotingConfiguration(Collections.singleton(
+                "_must_join_elected_master_"));
 
         private final Set<String> nodeIds;
 
         public VotingConfiguration(Set<String> nodeIds) {
-            this.nodeIds = Collections.unmodifiableSet(new HashSet<>(nodeIds));
+            this.nodeIds = Set.copyOf(nodeIds);
         }
 
         public VotingConfiguration(StreamInput in) throws IOException {

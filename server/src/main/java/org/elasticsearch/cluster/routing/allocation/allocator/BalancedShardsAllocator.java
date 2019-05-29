@@ -759,7 +759,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
             final Comparator<ShardRouting> comparator = (o1, o2) -> {
                 if (o1.primary() ^ o2.primary()) {
-                    return o1.primary() ? -1 : o2.primary() ? 1 : 0;
+                    return o1.primary() ? -1 : 1;
                 }
                 final int indexCmp;
                 if ((indexCmp = o1.getIndexName().compareTo(o2.getIndexName())) == 0) {
@@ -929,7 +929,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             updateMinNode = ((((nodeHigh > repId && minNodeHigh > repId)
                                                    || (nodeHigh < repId && minNodeHigh < repId))
                                                   && (nodeHigh < minNodeHigh))
-                                                 || (nodeHigh > minNodeHigh && nodeHigh > repId && minNodeHigh < repId));
+                                                 || (nodeHigh > repId && minNodeHigh < repId));
                         } else {
                             updateMinNode = currentDecision.type() == Type.YES;
                         }

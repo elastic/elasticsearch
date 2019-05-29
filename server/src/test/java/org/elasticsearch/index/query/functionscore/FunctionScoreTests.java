@@ -72,6 +72,7 @@ import java.util.concurrent.ExecutionException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.hamcrest.core.IsNot.not;
 
 public class FunctionScoreTests extends ESTestCase {
 
@@ -824,7 +825,6 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(exc.getMessage(), containsString("function score query returned an invalid score: " + Float.NEGATIVE_INFINITY));
     }
 
-
     public void testExceptionOnNegativeScores() {
         IndexSearcher localSearcher = new IndexSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
@@ -836,6 +836,34 @@ public class FunctionScoreTests extends ESTestCase {
             new FunctionScoreQuery(termQuery, fvfFunction, CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(fsQuery1, 1));
         assertThat(exc.getMessage(), containsString("field value function must not produce negative scores"));
+        assertThat(exc.getMessage(), not(containsString("consider using ln1p or ln2p instead of ln to avoid negative scores")));
+        assertThat(exc.getMessage(), not(containsString("consider using log1p or log2p instead of log to avoid negative scores")));
+    }
+
+    public void testExceptionOnLnNegativeScores() {
+        IndexSearcher localSearcher = new IndexSearcher(reader);
+        TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
+
+        // test that field_value_factor function using modifier ln throws an exception on negative scores
+        FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.LN;
+        final ScoreFunction fvfFunction = new FieldValueFactorFunction(FIELD, 0.5f, modifier, 1.0, new IndexNumericFieldDataStub());
+        FunctionScoreQuery fsQuery1 =
+                new FunctionScoreQuery(termQuery, fvfFunction, CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(fsQuery1, 1));
+        assertThat(exc.getMessage(), containsString("consider using ln1p or ln2p instead of ln to avoid negative scores"));
+    }
+
+    public void testExceptionOnLogNegativeScores() {
+        IndexSearcher localSearcher = new IndexSearcher(reader);
+        TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
+
+        // test that field_value_factor function using modifier log throws an exception on negative scores
+        FieldValueFactorFunction.Modifier modifier = FieldValueFactorFunction.Modifier.LOG;
+        final ScoreFunction fvfFunction = new FieldValueFactorFunction(FIELD, 0.5f, modifier, 1.0, new IndexNumericFieldDataStub());
+        FunctionScoreQuery fsQuery1 =
+                new FunctionScoreQuery(termQuery, fvfFunction, CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> localSearcher.search(fsQuery1, 1));
+        assertThat(exc.getMessage(), containsString("consider using log1p or log2p instead of log to avoid negative scores"));
     }
 
     private static class DummyScoreFunction extends ScoreFunction {
@@ -861,6 +889,6 @@ public class FunctionScoreTests extends ESTestCase {
         @Override
         protected int doHashCode() {
             return 0;
-        };
+        }
     }
 }

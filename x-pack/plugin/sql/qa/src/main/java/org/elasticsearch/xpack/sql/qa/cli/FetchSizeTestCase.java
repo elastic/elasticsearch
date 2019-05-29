@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.containsString;
  */
 public abstract class FetchSizeTestCase extends CliIntegrationTestCase {
     public void testSelect() throws IOException {
-        Request request = new Request("PUT", "/test/doc/_bulk");
+        Request request = new Request("PUT", "/test/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (int i = 0; i < 20; i++) {

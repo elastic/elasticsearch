@@ -22,6 +22,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,7 +36,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.ml.action.util.QueryPage;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -55,7 +56,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.UpdateParams;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.utils.ChainTaskExecutor;
+import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,7 +102,7 @@ public class JobManager {
      */
     public JobManager(Environment environment, Settings settings, JobResultsProvider jobResultsProvider,
                       ClusterService clusterService, Auditor auditor, ThreadPool threadPool,
-                      Client client, UpdateJobProcessNotifier updateJobProcessNotifier) {
+                      Client client, UpdateJobProcessNotifier updateJobProcessNotifier, NamedXContentRegistry xContentRegistry) {
         this.environment = environment;
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -109,7 +110,7 @@ public class JobManager {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.updateJobProcessNotifier = updateJobProcessNotifier;
-        this.jobConfigProvider = new JobConfigProvider(client);
+        this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
 
         maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
@@ -397,16 +398,16 @@ public class JobManager {
     }
 
     private void validate(Job job, JobUpdate jobUpdate, ActionListener<Void> handler) {
-        ChainTaskExecutor chainTaskExecutor = new ChainTaskExecutor(client.threadPool().executor(
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(client.threadPool().executor(
                 MachineLearning.UTILITY_THREAD_POOL_NAME), true);
-        validateModelSnapshotIdUpdate(job, jobUpdate.getModelSnapshotId(), chainTaskExecutor);
-        validateAnalysisLimitsUpdate(job, jobUpdate.getAnalysisLimits(), chainTaskExecutor);
-        chainTaskExecutor.execute(handler);
+        validateModelSnapshotIdUpdate(job, jobUpdate.getModelSnapshotId(), voidChainTaskExecutor);
+        validateAnalysisLimitsUpdate(job, jobUpdate.getAnalysisLimits(), voidChainTaskExecutor);
+        voidChainTaskExecutor.execute(ActionListener.wrap(aVoids -> handler.onResponse(null), handler::onFailure));
     }
 
-    private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, ChainTaskExecutor chainTaskExecutor) {
+    private void validateModelSnapshotIdUpdate(Job job, String modelSnapshotId, VoidChainTaskExecutor voidChainTaskExecutor) {
         if (modelSnapshotId != null) {
-            chainTaskExecutor.add(listener -> {
+            voidChainTaskExecutor.add(listener -> {
                 jobResultsProvider.getModelSnapshot(job.getId(), modelSnapshotId, newModelSnapshot -> {
                     if (newModelSnapshot == null) {
                         String message = Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, modelSnapshotId,
@@ -428,12 +429,12 @@ public class JobManager {
         }
     }
 
-    private void validateAnalysisLimitsUpdate(Job job, AnalysisLimits newLimits, ChainTaskExecutor chainTaskExecutor) {
+    private void validateAnalysisLimitsUpdate(Job job, AnalysisLimits newLimits, VoidChainTaskExecutor voidChainTaskExecutor) {
         if (newLimits == null || newLimits.getModelMemoryLimit() == null) {
             return;
         }
         Long newModelMemoryLimit = newLimits.getModelMemoryLimit();
-        chainTaskExecutor.add(listener -> {
+        voidChainTaskExecutor.add(listener -> {
             if (isJobOpen(clusterService.state(), job.getId())) {
                 listener.onFailure(ExceptionsHelper.badRequestException("Cannot update " + Job.ANALYSIS_LIMITS.getPreferredName()
                         + " while the job is open"));
@@ -603,8 +604,8 @@ public class JobManager {
             .setModelSnapshotId(modelSnapshot.getSnapshotId())
             .build();
 
-        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(
-            job -> {
+        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit,
+            ActionListener.wrap(job -> {
                 auditor.info(request.getJobId(),
                     Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
                 updateHandler.accept(Boolean.TRUE);

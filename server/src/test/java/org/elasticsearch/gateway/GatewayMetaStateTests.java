@@ -412,6 +412,12 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 } catch (WriteStateException e) {
                     if (e.isDirty()) {
                         possibleMetaData.add(metaData);
+                        /*
+                         * If dirty WriteStateException occurred, it's only safe to proceed if there is subsequent
+                         * successful write of metadata and Manifest. We prefer to break here, not to over complicate test logic.
+                         * See also MetaDataStateFormat#testFailRandomlyAndReadAnyState, that does not break.
+                         */
+                        break;
                     }
                 }
             }

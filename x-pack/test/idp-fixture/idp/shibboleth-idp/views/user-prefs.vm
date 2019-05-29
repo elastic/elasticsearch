@@ -1,0 +1,60 @@
+##
+## Velocity Template for user preferences view
+##
+## Velocity context will contain the following properties
+## request - HttpServletRequest
+## response - HttpServletResponse
+## environment - Spring Environment object for property resolution
+## custom - arbitrary object injected by deployer
+##
+<!DOCTYPE html>
+<html>
+    <head>
+    	<meta charset="utf-8">
+    	<meta name="viewport" content="width=device-width,initial-scale=1.0">
+    	<title>#springMessageText("idp.userprefs.title", "Web Login Service") - #springMessageText("idp.userprefs.title.suffix", "Login Preferences")</title>
+    	<link rel="stylesheet" type="text/css" href="$request.getContextPath()/css/main.css">
+    	<script language="Javascript">
+    	<!--
+    	#parse( "user-prefs.js" )
+    	// -->
+    	</script>
+    </head>
+    <body onLoad="document.getElementById('content').style.display='block'; load('spnego')">
+    <div class="wrapper">
+      <div class="container">
+        <header>
+          <img src="$request.getContextPath()#springMessage("idp.logo")" alt="#springMessageText("idp.logo.alt-text", "logo")">
+          <h3>#springMessageText("idp.title", "Web Login Service") - #springMessageText("idp.userprefs.title.suffix", "Login Preferences")</h3>
+          <p>
+          #springMessage("idp.userprefs.info")
+          </p>
+        </header>
+
+        <noscript>
+          <div id="content" class="content">
+            $springMacroRequestContext.getMessage("idp.userprefs.no-js", "This feature requires Javascript.")
+          </div>
+        </noscript>
+        
+        <div id="content" class="content" style="display:none">
+          <div class="form-element-wrapper">
+          <h4>#springMessageText("idp.userprefs.options", "The following options are available:")</h4>
+          </div>
+
+          <div class="form-element-wrapper">
+            <input type="checkbox" id="spnego" name="_idp_spnego_autologin" value="1" onClick="check(this)">
+            #springMessageText("idp.userprefs.spnego", "Automatically try desktop login when available.")
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <div class="container container-footer">
+          <p class="footer-text">#springMessageText("idp.footer", "Insert your footer text here.")</p>
+        </div>
+      </footer>
+    </div>
+    
+ 	</body>
+</html>

@@ -55,7 +55,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
                         .input(simpleInput("foo", "bar"))
-                        .addAction("_a1", indexAction("actions", "action1"))
+                        .addAction("_a1", indexAction("actions"))
                         .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
                 .get();
 
@@ -86,13 +86,13 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
         logger.info("Ensured no more watches are being executed");
         refresh();
-        long count1 = docCount(".watcher-history*", "doc", matchAllQuery());
+        long count1 = docCount(".watcher-history*", matchAllQuery());
 
         logger.info("Sleeping for 5 seconds, watch history count [{}]", count1);
         Thread.sleep(5000);
 
         refresh();
-        long count2 = docCount(".watcher-history*", "doc", matchAllQuery());
+        long count2 = docCount(".watcher-history*", matchAllQuery());
 
         assertThat(count2, is(count1));
 
@@ -110,7 +110,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         logger.info("Sleeping for another five seconds, ensuring that watch is executed");
         Thread.sleep(5000);
         refresh();
-        long count3 = docCount(".watcher-history*", "doc", matchAllQuery());
+        long count3 = docCount(".watcher-history*", matchAllQuery());
         assertThat(count3, greaterThan(count1));
     }
 
@@ -122,7 +122,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 1 ? 2050"))) // some time in 2050
                         .input(simpleInput("foo", "bar"))
-                        .addAction("_a1", indexAction("actions", "action1"))
+                        .addAction("_a1", indexAction("actions"))
                         .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
                 .get();
 
@@ -132,7 +132,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse, notNullValue());
         assertThat(getWatchResponse.getStatus().state().isActive(), is(true));
 
-        GetResponse getResponse = client().prepareGet(".watches", "doc", "_id").get();
+        GetResponse getResponse = client().prepareGet().setIndex(".watches").setId("_id").get();
         XContentSource source = new XContentSource(getResponse.getSourceAsBytesRef(), XContentType.JSON);
 
         Set<String> filters = Sets.newHashSet(
@@ -152,7 +152,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         // now that we filtered out the watch status state, lets put it back in
-        IndexResponse indexResponse = client().prepareIndex(".watches", "doc", "_id")
+        IndexResponse indexResponse = client().prepareIndex().setIndex(".watches").setId("_id")
                 .setSource(BytesReference.bytes(builder), XContentType.JSON)
                 .get();
         assertThat(indexResponse.getId(), is("_id"));

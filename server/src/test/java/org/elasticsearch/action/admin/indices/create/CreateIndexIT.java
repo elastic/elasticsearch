@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -33,22 +31,17 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -58,11 +51,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -143,7 +133,7 @@ public class CreateIndexIT extends ESIntegTestCase {
         assertFalse(metadata.sourceAsMap().isEmpty());
     }
 
-    public void testNonNestedEmptyMappings() throws Exception {
+    public void testEmptyNestedMappings() throws Exception {
         assertAcked(prepareCreate("test")
             .addMapping("_doc", XContentFactory.jsonBuilder().startObject().endObject()));
 
@@ -171,20 +161,6 @@ public class CreateIndexIT extends ESIntegTestCase {
         MappingMetaData metadata = mappings.get("_doc");
         assertNotNull(metadata);
         assertTrue(metadata.sourceAsMap().isEmpty());
-    }
-
-    public void testFlatMappingFormat() throws Exception {
-        assertAcked(prepareCreate("test")
-            .addMapping("_doc", "field", "type=keyword"));
-
-        GetMappingsResponse response = client().admin().indices().prepareGetMappings("test").get();
-
-        ImmutableOpenMap<String, MappingMetaData> mappings = response.mappings().get("test");
-        assertNotNull(mappings);
-
-        MappingMetaData metadata = mappings.get("_doc");
-        assertNotNull(metadata);
-        assertFalse(metadata.sourceAsMap().isEmpty());
     }
 
     public void testInvalidShardCountSettings() throws Exception {
@@ -402,50 +378,6 @@ public class CreateIndexIT extends ESIntegTestCase {
             .get();
 
         assertEquals("Should have index name in response", "foo", response.index());
-    }
-
-    public void testIndexWithUnknownSetting() throws Exception {
-        final int replicas = internalCluster().numDataNodes() - 1;
-        final Settings settings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", replicas).build();
-        client().admin().indices().prepareCreate("test").setSettings(settings).get();
-        ensureGreen("test");
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-
-        final Set<String> dataOrMasterNodeNames = new HashSet<>();
-        for (final ObjectCursor<DiscoveryNode> node : state.nodes().getMasterAndDataNodes().values()) {
-            assertTrue(dataOrMasterNodeNames.add(node.value.getName()));
-        }
-
-        final IndexMetaData metaData = state.getMetaData().index("test");
-        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                if (dataOrMasterNodeNames.contains(nodeName)) {
-                    final MetaStateService metaStateService = internalCluster().getInstance(MetaStateService.class, nodeName);
-                    final IndexMetaData brokenMetaData =
-                            IndexMetaData
-                                    .builder(metaData)
-                                    .settings(Settings.builder().put(metaData.getSettings()).put("index.foo", true))
-                                    .build();
-                    // so evil
-                    metaStateService.writeIndexAndUpdateManifest("broken metadata", brokenMetaData);
-                }
-                return super.onNodeStopped(nodeName);
-            }
-        });
-        ensureGreen(metaData.getIndex().getName()); // we have to wait for the index to show up in the metadata or we will fail in a race
-        final ClusterState stateAfterRestart = client().admin().cluster().prepareState().get().getState();
-
-        // the index should not be open after we restart and recover the broken index metadata
-        assertThat(stateAfterRestart.getMetaData().index(metaData.getIndex()).getState(), equalTo(IndexMetaData.State.CLOSE));
-
-        // try to open the index
-        final ElasticsearchException e =
-                expectThrows(ElasticsearchException.class, () -> client().admin().indices().prepareOpen("test").get());
-        assertThat(e, hasToString(containsString("Failed to verify index " + metaData.getIndex())));
-        assertNotNull(e.getCause());
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(e, hasToString(containsString("unknown setting [index.foo]")));
     }
 
 }

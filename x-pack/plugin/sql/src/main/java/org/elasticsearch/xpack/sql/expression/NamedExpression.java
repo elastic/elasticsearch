@@ -91,4 +91,9 @@ public abstract class NamedExpression extends Expression {
                 && Objects.equals(name, other.name)
                 && Objects.equals(children(), other.children());
     }
+
+    @Override
+    public String toString() {
+        return super.toString() + "#" + id();
+    }
 }

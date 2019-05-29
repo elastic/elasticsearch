@@ -31,7 +31,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -57,17 +56,13 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
@@ -86,19 +81,9 @@ public class QueryShardContext extends QueryRewriteContext {
     private final BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
     private final IndexReader reader;
-    private final String clusterAlias;
-    private String[] types = Strings.EMPTY_ARRAY;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
     private final Index fullyQualifiedIndex;
-
-    public void setTypes(String... types) {
-        this.types = types;
-    }
-
-    public String[] getTypes() {
-        return types;
-    }
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private boolean allowUnmappedFields;
@@ -110,6 +95,22 @@ public class QueryShardContext extends QueryRewriteContext {
                              SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
                              NamedWriteableRegistry namedWriteableRegistry, Client client, IndexReader reader, LongSupplier nowInMillis,
                              String clusterAlias) {
+        this(shardId, indexSettings, bitsetFilterCache, indexFieldDataLookup, mapperService, similarityService, scriptService,
+            xContentRegistry, namedWriteableRegistry, client, reader, nowInMillis, new Index(RemoteClusterAware.buildRemoteIndexName(
+                clusterAlias, indexSettings.getIndex().getName()), indexSettings.getIndex().getUUID()));
+    }
+
+    public QueryShardContext(QueryShardContext source) {
+        this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
+                source.similarityService, source.scriptService, source.getXContentRegistry(), source.getWriteableRegistry(),
+                source.client, source.reader, source.nowInMillis, source.fullyQualifiedIndex);
+    }
+
+    private QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
+                             BiFunction<MappedFieldType, String, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
+                             SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+                             NamedWriteableRegistry namedWriteableRegistry, Client client, IndexReader reader, LongSupplier nowInMillis,
+                             Index fullyQualifiedIndex) {
         super(xContentRegistry, namedWriteableRegistry,client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
@@ -121,16 +122,7 @@ public class QueryShardContext extends QueryRewriteContext {
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.reader = reader;
-        this.clusterAlias = clusterAlias;
-        this.fullyQualifiedIndex = new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, indexSettings.getIndex().getName()),
-            indexSettings.getIndex().getUUID());
-    }
-
-    public QueryShardContext(QueryShardContext source) {
-        this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
-                source.similarityService, source.scriptService, source.getXContentRegistry(), source.getWriteableRegistry(),
-                source.client, source.reader, source.nowInMillis, source.clusterAlias);
-        this.types = source.getTypes();
+        this.fullyQualifiedIndex = fullyQualifiedIndex;
     }
 
     private void reset() {
@@ -180,7 +172,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public Map<String, Query> copyNamedQueries() {
         // This might be a good use case for CopyOnWriteHashMap
-        return unmodifiableMap(new HashMap<>(namedQueries));
+        return Map.copyOf(namedQueries);
     }
 
     /**
@@ -251,24 +243,12 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
-    /**
-     * Returns the narrowed down explicit types, or, if not set, all types.
-     */
-    public Collection<String> queryTypes() {
-        String[] types = getTypes();
-        if (types == null || types.length == 0 || (types.length == 1 && types[0].equals("_all"))) {
-            DocumentMapper mapper = getMapperService().documentMapper();
-            return mapper == null ? Collections.emptyList() : Collections.singleton(mapper.type());
-        }
-        return Arrays.asList(types);
-    }
-
     private SearchLookup lookup = null;
 
     public SearchLookup lookup() {
         if (lookup == null) {
             lookup = new SearchLookup(getMapperService(),
-                mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndex.getName()), types);
+                    mappedFieldType -> indexFieldDataService.apply(mappedFieldType, fullyQualifiedIndex.getName()));
         }
         return lookup;
     }

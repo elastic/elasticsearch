@@ -4,15 +4,11 @@
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_search",
-      "paths": ["/_search", "/{index}/_search", "/{index}/{type}/_search"],
+      "paths": ["/_search", "/{index}/_search"],
       "parts": {
         "index": {
          "type" : "list",
          "description" : "A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
-        },
-        "type": {
-          "type" : "list",
-          "description" : "A comma-separated list of document types to search; leave empty to perform the operation on all types"
         }
       },
       "params": {
@@ -23,6 +19,11 @@
         "analyze_wildcard": {
           "type" : "boolean",
           "description" : "Specify whether wildcard and prefix queries should be analyzed (default: false)"
+        },
+        "ccs_minimize_roundtrips": {
+          "type" : "boolean",
+          "description" : "Indicates whether network round-trips should be minimized as part of cross-cluster search requests execution",
+          "default" : "true"
         },
         "default_operator": {
           "type" : "enum",
@@ -164,6 +165,10 @@
           "type" : "boolean",
           "description" : "Specify whether to return document version as part of a hit"
         },
+        "seq_no_primary_term": {
+          "type" : "boolean",
+          "description" : "Specify whether to return sequence number and primary term of the last modification of each hit"
+        },
         "request_cache": {
           "type" : "boolean",
           "description" : "Specify if request cache should be used for this request or not, defaults to index level setting"
@@ -176,7 +181,7 @@
         "max_concurrent_shard_requests" : {
           "type" : "number",
           "description" : "The number of concurrent shard requests per node this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
-          "default" : "The default is 5."
+          "default" : 5
         },
         "pre_filter_shard_size" : {
           "type" : "number",

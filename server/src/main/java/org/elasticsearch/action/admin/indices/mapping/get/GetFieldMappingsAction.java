@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.common.io.stream.Writeable;
 
 public class GetFieldMappingsAction extends Action<GetFieldMappingsResponse> {
 
@@ -32,6 +33,11 @@ public class GetFieldMappingsAction extends Action<GetFieldMappingsResponse> {
 
     @Override
     public GetFieldMappingsResponse newResponse() {
-        return new GetFieldMappingsResponse();
+        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
+    }
+
+    @Override
+    public Writeable.Reader<GetFieldMappingsResponse> getResponseReader() {
+        return GetFieldMappingsResponse::new;
     }
 }

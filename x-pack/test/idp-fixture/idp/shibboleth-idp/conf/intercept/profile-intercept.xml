@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:p="http://www.springframework.org/schema/p"
+       xmlns:c="http://www.springframework.org/schema/c"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                           http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd"
+                           
+       default-init-method="initialize"
+       default-destroy-method="destroy">
+
+    <!--
+    Intercept flows are used at various injection points to modify processing. This is the master list
+    of flows available that provide interesting features to deployers, but flows are actually enabled by
+    specifying them in various profile configuration beans via relying-party.xml 
+    
+    This list of flows is merged with a built-in set defined in a system configuration file, and may be
+    empty, but should not be removed. You must add your own custom flows to this list if you create any.
+    -->
+    
+    <bean id="shibboleth.AvailableInterceptFlows" parent="shibboleth.DefaultInterceptFlows" lazy-init="true">
+        <property name="sourceList">
+            <list merge="true">
+                <bean id="intercept/context-check" parent="shibboleth.InterceptFlow" />
+                
+                <bean id="intercept/expiring-password" parent="shibboleth.InterceptFlow" />
+        
+                <bean id="intercept/terms-of-use" parent="shibboleth.consent.TermsOfUseFlow" />
+        
+                <bean id="intercept/attribute-release" parent="shibboleth.consent.AttributeReleaseFlow" />
+                
+                <bean id="intercept/impersonate" parent="shibboleth.InterceptFlow" />
+            </list>
+        </property>
+    </bean>
+
+</beans>

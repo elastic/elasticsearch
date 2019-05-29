@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.sql.expression;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.tree.NodeInfo;
+import org.elasticsearch.xpack.sql.tree.Source;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.EsField;
 import org.elasticsearch.xpack.sql.util.StringUtils;
@@ -34,12 +34,12 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field) {
-        this(source, parent, name, field, null, true, null, false);
+        this(source, parent, name, field, null, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(Source source, FieldAttribute parent, String name, EsField field, String qualifier,
-                          boolean nullable, ExpressionId id, boolean synthetic) {
-        super(source, name, field.getDataType(), qualifier, nullable, id, synthetic);
+                          Nullability nullability, ExpressionId id, boolean synthetic) {
+        super(source, name, field.getDataType(), qualifier, nullability, id, synthetic);
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
@@ -81,13 +81,14 @@ public class FieldAttribute extends TypedAttribute {
         return nestedParent;
     }
 
-    public boolean isInexact() {
-        return field.isExact() == false;
+    public EsField.Exact getExactInfo() {
+        return field.getExactInfo();
     }
 
     public FieldAttribute exactAttribute() {
-        if (field.isExact() == false) {
-            return innerField(field.getExactField());
+        EsField exactField = field.getExactField();
+        if (exactField.equals(field) == false) {
+            return innerField(exactField);
         }
         return this;
     }
@@ -98,13 +99,14 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected Expression canonicalize() {
-        return new FieldAttribute(source(), null, "<none>", field, null, true, id(), false);
+        return new FieldAttribute(source(), null, "<none>", field, null, Nullability.TRUE, id(), false);
     }
 
     @Override
-    protected Attribute clone(Source source, String name, String qualifier, boolean nullable, ExpressionId id, boolean synthetic) {
+    protected Attribute clone(Source source, String name, String qualifier, Nullability nullability,
+                              ExpressionId id, boolean synthetic) {
         FieldAttribute qualifiedParent = parent != null ? (FieldAttribute) parent.withQualifier(qualifier) : null;
-        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullable, id, synthetic);
+        return new FieldAttribute(source, qualifiedParent, name, field, qualifier, nullability, id, synthetic);
     }
 
     @Override

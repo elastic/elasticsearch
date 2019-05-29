@@ -37,7 +37,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -57,14 +56,14 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -115,16 +114,16 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
 
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(0, nested.getDocCount());
 
-                InternalMax max = (InternalMax)
-                    ((InternalAggregation)nested).getProperty(MAX_AGG_NAME);
+                InternalMax max = (InternalMax) nested.getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), Double.MIN_VALUE);
+                assertFalse(AggregationInspectionHelper.hasValue(nested));
             }
         }
     }
@@ -162,17 +161,22 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                InternalMax max = (InternalMax)
-                    ((InternalAggregation)nested).getProperty(MAX_AGG_NAME);
+                InternalMax max = (InternalMax) nested.getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
+
+                if (expectedNestedDocs > 0) {
+                    assertTrue(AggregationInspectionHelper.hasValue(nested));
+                } else {
+                    assertFalse(AggregationInspectionHelper.hasValue(nested));
+                }
             }
         }
     }
@@ -211,17 +215,22 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
                 assertEquals(NESTED_AGG, nested.getName());
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
-                InternalMax max = (InternalMax)
-                    ((InternalAggregation)nested).getProperty(MAX_AGG_NAME);
+                InternalMax max = (InternalMax) nested.getProperty(MAX_AGG_NAME);
                 assertEquals(MAX_AGG_NAME, max.getName());
                 assertEquals(expectedMaxValue, max.getValue(), Double.MIN_VALUE);
+
+                if (expectedNestedDocs > 0) {
+                    assertTrue(AggregationInspectionHelper.hasValue(nested));
+                } else {
+                    assertFalse(AggregationInspectionHelper.hasValue(nested));
+                }
             }
         }
     }
@@ -263,7 +272,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                     NumberFieldMapper.NumberType.LONG);
                 fieldType.setName(VALUE_FIELD_NAME);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), nestedBuilder, fieldType);
                 assertEquals(expectedNestedDocs, nested.getDocCount());
 
@@ -345,16 +354,18 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 fieldType.setName(VALUE_FIELD_NAME);
 
                 BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                bq.add(Queries.newNonNestedFilter(VersionUtils.randomVersion(random())), BooleanClause.Occur.MUST);
+                bq.add(Queries.newNonNestedFilter(), BooleanClause.Occur.MUST);
                 bq.add(new TermQuery(new Term(IdFieldMapper.NAME, Uid.encodeId("2"))), BooleanClause.Occur.MUST_NOT);
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new ConstantScoreQuery(bq.build()), nestedBuilder, fieldType);
 
                 assertEquals(NESTED_AGG, nested.getName());
                 // The bug manifests if 6 docs are returned, because currentRootDoc isn't reset the previous child docs from the first
                 // segment are emitted as hits.
                 assertEquals(4L, nested.getDocCount());
+
+                assertTrue(AggregationInspectionHelper.hasValue(nested));
             }
         }
     }
@@ -625,12 +636,12 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 fieldType2.setHasDocValues(true);
 
                 Filter filter = search(newSearcher(indexReader, false, true),
-                    Queries.newNonNestedFilter(Version.CURRENT), filterAggregationBuilder, fieldType1, fieldType2);
+                    Queries.newNonNestedFilter(), filterAggregationBuilder, fieldType1, fieldType2);
 
                 assertEquals("filterAgg", filter.getName());
                 assertEquals(3L, filter.getDocCount());
 
-                Nested nested = filter.getAggregations().get(NESTED_AGG);
+                InternalNested nested = filter.getAggregations().get(NESTED_AGG);
                 assertEquals(6L, nested.getDocCount());
 
                 StringTerms keyAgg = nested.getAggregations().get("key");
@@ -687,7 +698,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
                 NestedAggregationBuilder aliasAgg = nested(NESTED_AGG, NESTED_OBJECT).subAggregation(
                     max(MAX_AGG_NAME).field(VALUE_FIELD_NAME + "-alias"));
 
-                Nested nested = search(newSearcher(indexReader, false, true),
+                InternalNested nested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), agg, fieldType);
                 Nested aliasNested = search(newSearcher(indexReader, false, true),
                     new MatchAllDocsQuery(), aliasAgg, fieldType);

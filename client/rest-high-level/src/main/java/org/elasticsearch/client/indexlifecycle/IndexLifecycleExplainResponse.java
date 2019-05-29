@@ -54,7 +54,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject {
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "index_lifecycle_explain_response",
+        "index_lifecycle_explain_response", true,
         a -> new IndexLifecycleExplainResponse(
             (String) a[0],
             (boolean) a[1],

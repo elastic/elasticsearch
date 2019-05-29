@@ -35,7 +35,8 @@ import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyM
 import org.elasticsearch.search.aggregations.bucket.composite.InternalCompositeTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFiltersTests;
-import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGridTests;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridTests;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridTests;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobalTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogramTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogramTests;
@@ -53,30 +54,30 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantStrin
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
-import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
-import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
-import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
-import org.elasticsearch.search.aggregations.metrics.InternalMinTests;
-import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
-import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
-import org.elasticsearch.search.aggregations.metrics.InternalSumTests;
 import org.elasticsearch.search.aggregations.metrics.InternalAvgTests;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinalityTests;
+import org.elasticsearch.search.aggregations.metrics.InternalExtendedStatsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBoundsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroidTests;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesRanksTests;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentilesTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMaxTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviationTests;
+import org.elasticsearch.search.aggregations.metrics.InternalMinTests;
+import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests;
+import org.elasticsearch.search.aggregations.metrics.InternalStatsBucketTests;
+import org.elasticsearch.search.aggregations.metrics.InternalStatsTests;
+import org.elasticsearch.search.aggregations.metrics.InternalSumTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentilesRanksTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentilesTests;
-import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetricTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHitsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCountTests;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvgTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalBucketMetricValueTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
-import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivativeTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalExtendedStatsBucketTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalPercentilesBucketTests;
+import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValueTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -86,7 +87,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -102,58 +102,54 @@ import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
  */
 public class AggregationsTests extends ESTestCase {
 
-    private static final List<InternalAggregationTestCase<?>> aggsTests = getAggsTests();
-
-    private static List<InternalAggregationTestCase<?>> getAggsTests() {
-        List<InternalAggregationTestCase<?>> aggsTests = new ArrayList<>();
-        aggsTests.add(new InternalCardinalityTests());
-        aggsTests.add(new InternalTDigestPercentilesTests());
-        aggsTests.add(new InternalTDigestPercentilesRanksTests());
-        aggsTests.add(new InternalHDRPercentilesTests());
-        aggsTests.add(new InternalHDRPercentilesRanksTests());
-        aggsTests.add(new InternalPercentilesBucketTests());
-        aggsTests.add(new InternalMinTests());
-        aggsTests.add(new InternalMaxTests());
-        aggsTests.add(new InternalAvgTests());
-        aggsTests.add(new InternalWeightedAvgTests());
-        aggsTests.add(new InternalSumTests());
-        aggsTests.add(new InternalValueCountTests());
-        aggsTests.add(new InternalSimpleValueTests());
-        aggsTests.add(new InternalDerivativeTests());
-        aggsTests.add(new InternalBucketMetricValueTests());
-        aggsTests.add(new InternalStatsTests());
-        aggsTests.add(new InternalStatsBucketTests());
-        aggsTests.add(new InternalExtendedStatsTests());
-        aggsTests.add(new InternalExtendedStatsBucketTests());
-        aggsTests.add(new InternalGeoBoundsTests());
-        aggsTests.add(new InternalGeoCentroidTests());
-        aggsTests.add(new InternalHistogramTests());
-        aggsTests.add(new InternalDateHistogramTests());
-        aggsTests.add(new InternalAutoDateHistogramTests());
-        aggsTests.add(new LongTermsTests());
-        aggsTests.add(new DoubleTermsTests());
-        aggsTests.add(new StringTermsTests());
-        aggsTests.add(new InternalMissingTests());
-        aggsTests.add(new InternalNestedTests());
-        aggsTests.add(new InternalReverseNestedTests());
-        aggsTests.add(new InternalGlobalTests());
-        aggsTests.add(new InternalFilterTests());
-        aggsTests.add(new InternalSamplerTests());
-        aggsTests.add(new InternalGeoHashGridTests());
-        aggsTests.add(new InternalRangeTests());
-        aggsTests.add(new InternalDateRangeTests());
-        aggsTests.add(new InternalGeoDistanceTests());
-        aggsTests.add(new InternalFiltersTests());
-        aggsTests.add(new InternalAdjacencyMatrixTests());
-        aggsTests.add(new SignificantLongTermsTests());
-        aggsTests.add(new SignificantStringTermsTests());
-        aggsTests.add(new InternalScriptedMetricTests());
-        aggsTests.add(new InternalBinaryRangeTests());
-        aggsTests.add(new InternalTopHitsTests());
-        aggsTests.add(new InternalCompositeTests());
-        aggsTests.add(new InternalMedianAbsoluteDeviationTests());
-        return Collections.unmodifiableList(aggsTests);
-    }
+    private static final List<InternalAggregationTestCase<?>> aggsTests = List.of(
+            new InternalCardinalityTests(),
+            new InternalTDigestPercentilesTests(),
+            new InternalTDigestPercentilesRanksTests(),
+            new InternalHDRPercentilesTests(),
+            new InternalHDRPercentilesRanksTests(),
+            new InternalPercentilesBucketTests(),
+            new InternalMinTests(),
+            new InternalMaxTests(),
+            new InternalAvgTests(),
+            new InternalWeightedAvgTests(),
+            new InternalSumTests(),
+            new InternalValueCountTests(),
+            new InternalSimpleValueTests(),
+            new InternalDerivativeTests(),
+            new InternalBucketMetricValueTests(),
+            new InternalStatsTests(),
+            new InternalStatsBucketTests(),
+            new InternalExtendedStatsTests(),
+            new InternalExtendedStatsBucketTests(),
+            new InternalGeoBoundsTests(),
+            new InternalGeoCentroidTests(),
+            new InternalHistogramTests(),
+            new InternalDateHistogramTests(),
+            new InternalAutoDateHistogramTests(),
+            new LongTermsTests(),
+            new DoubleTermsTests(),
+            new StringTermsTests(),
+            new InternalMissingTests(),
+            new InternalNestedTests(),
+            new InternalReverseNestedTests(),
+            new InternalGlobalTests(),
+            new InternalFilterTests(),
+            new InternalSamplerTests(),
+            new GeoHashGridTests(),
+            new GeoTileGridTests(),
+            new InternalRangeTests(),
+            new InternalDateRangeTests(),
+            new InternalGeoDistanceTests(),
+            new InternalFiltersTests(),
+            new InternalAdjacencyMatrixTests(),
+            new SignificantLongTermsTests(),
+            new SignificantStringTermsTests(),
+            new InternalScriptedMetricTests(),
+            new InternalBinaryRangeTests(),
+            new InternalTopHitsTests(),
+            new InternalCompositeTests(),
+            new InternalMedianAbsoluteDeviationTests());
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {

@@ -20,20 +20,22 @@ package org.elasticsearch.gradle.testfixtures;
 
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
+import com.avast.gradle.dockercompose.tasks.ComposeUp;
+import org.elasticsearch.gradle.OS;
+import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.precommit.JarHellTask;
+import org.elasticsearch.gradle.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask;
+import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
-import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.TaskContainer;
-import org.gradle.internal.os.OperatingSystem;
+import org.gradle.api.tasks.testing.Test;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.function.BiConsumer;
 
@@ -53,22 +55,25 @@ public class TestFixturesPlugin implements Plugin<Project> {
             // convenience boilerplate with build plugin
             // Can't reference tasks that are implemented in Groovy, use reflection  instead
             disableTaskByType(tasks, getTaskClass("org.elasticsearch.gradle.precommit.LicenseHeadersTask"));
-            disableTaskByType(tasks, getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"));
             disableTaskByType(tasks, ThirdPartyAuditTask.class);
             disableTaskByType(tasks, JarHellTask.class);
 
             Task buildFixture = project.getTasks().create("buildFixture");
+            Task pullFixture = project.getTasks().create("pullFixture");
             Task preProcessFixture = project.getTasks().create("preProcessFixture");
             buildFixture.dependsOn(preProcessFixture);
+            pullFixture.dependsOn(preProcessFixture);
             Task postProcessFixture = project.getTasks().create("postProcessFixture");
-            buildFixture.dependsOn(postProcessFixture);
 
             if (dockerComposeSupported(project) == false) {
                 preProcessFixture.setEnabled(false);
                 postProcessFixture.setEnabled(false);
                 buildFixture.setEnabled(false);
+                pullFixture.setEnabled(false);
                 return;
             }
+            preProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
+            postProcessFixture.onlyIf(spec -> buildFixture.getEnabled());
 
             project.apply(spec -> spec.plugin(BasePlugin.class));
             project.apply(spec -> spec.plugin(DockerComposePlugin.class));
@@ -81,8 +86,10 @@ public class TestFixturesPlugin implements Plugin<Project> {
             );
 
             buildFixture.dependsOn(tasks.getByName("composeUp"));
+            pullFixture.dependsOn(tasks.getByName("composePull"));
             tasks.getByName("composeUp").mustRunAfter(preProcessFixture);
-            postProcessFixture.dependsOn("composeUp");
+            tasks.getByName("composePull").mustRunAfter(preProcessFixture);
+            postProcessFixture.dependsOn(buildFixture);
 
             configureServiceInfoForTask(
                 postProcessFixture,
@@ -90,82 +97,91 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 (name, port) -> postProcessFixture.getExtensions()
                     .getByType(ExtraPropertiesExtension.class).set(name, port)
             );
-        } else {
-            extension.fixtures.all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
-            if (dockerComposeSupported(project) == false) {
-                project.getLogger().warn(
-                    "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
-                        "but none could not be found so these will be skipped", project.getPath()
-                );
-                tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
-                    task.setEnabled(false)
-                );
-                return;
-            }
-            tasks.withType(getTaskClass("com.carrotsearch.gradle.junit4.RandomizedTestingTask"), task ->
-                extension.fixtures.all(fixtureProject -> {
-                    fixtureProject.getTasks().matching(it->it.getName().equals("buildFixture")).all(buildFixture ->
-                        task.dependsOn(buildFixture)
-                    );
-                    fixtureProject.getTasks().matching(it->it.getName().equals("composeDown")).all(composeDown ->
-                        task.finalizedBy(composeDown)
-                    );
-                    configureServiceInfoForTask(
-                        task,
-                        fixtureProject,
-                        (name, port) -> setSystemProperty(task, name, port)
-                    );
-                })
-            );
+            extension.fixtures.add(project);
         }
+
+        extension.fixtures
+            .matching(fixtureProject -> fixtureProject.equals(project) == false)
+            .all(fixtureProject ->  project.evaluationDependsOn(fixtureProject.getPath()));
+
+        conditionTaskByType(tasks, extension, Test.class);
+        conditionTaskByType(tasks, extension, getTaskClass("org.elasticsearch.gradle.test.RestIntegTestTask"));
+        conditionTaskByType(tasks, extension, TestingConventionsTasks.class);
+        conditionTaskByType(tasks, extension, ComposeUp.class);
+
+        if (dockerComposeSupported(project) == false) {
+            project.getLogger().warn(
+                "Tests for {} require docker-compose at /usr/local/bin/docker-compose or /usr/bin/docker-compose " +
+                    "but none could be found so these will be skipped", project.getPath()
+            );
+            return;
+        }
+
+        tasks.withType(Test.class, task ->
+            extension.fixtures.all(fixtureProject -> {
+                fixtureProject.getTasks().matching(it -> it.getName().equals("buildFixture")).all(task::dependsOn);
+                fixtureProject.getTasks().matching(it -> it.getName().equals("composeDown")).all(task::finalizedBy);
+                configureServiceInfoForTask(
+                    task,
+                    fixtureProject,
+                    (name, host) ->
+                        task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
+                );
+                task.dependsOn(fixtureProject.getTasks().getByName("postProcessFixture"));
+            })
+        );
+
+    }
+
+    private void conditionTaskByType(TaskContainer tasks, TestFixtureExtension extension, Class<? extends DefaultTask> taskClass) {
+        tasks.withType(
+            taskClass,
+            task -> task.onlyIf(spec ->
+                extension.fixtures.stream()
+                    .anyMatch(fixtureProject -> fixtureProject.getTasks().getByName("buildFixture").getEnabled() == false) == false
+            )
+        );
     }
 
     private void configureServiceInfoForTask(Task task, Project fixtureProject, BiConsumer<String, Integer> consumer) {
         // Configure ports for the tests as system properties.
         // We only know these at execution time so we need to do it in doFirst
-        task.doFirst(theTask ->
-            fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
-                .forEach((service, infos) -> {
-                    theTask.getLogger().info(
-                        "Port maps for {}\nTCP:{}\nUDP:{}\nexposed to {}",
-                        fixtureProject.getPath(),
-                        infos.getTcpPorts(),
-                        infos.getUdpPorts(),
-                        theTask.getPath()
-                    );
-                    infos.getTcpPorts()
-                        .forEach((container, host) -> consumer.accept(
-                            "test.fixtures." + service + ".tcp." + container,
-                            host
-                        ));
-                    infos.getUdpPorts()
-                        .forEach((container, host) -> consumer.accept(
-                            "test.fixtures." + service + ".udp." + container,
-                            host
-                        ));
-                })
+        task.doFirst(new Action<Task>() {
+                         @Override
+                         public void execute(Task theTask) {
+                             fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos()
+                                 .forEach((service, infos) -> {
+                                     infos.getTcpPorts()
+                                         .forEach((container, host) -> {
+                                             String name = "test.fixtures." + service + ".tcp." + container;
+                                             theTask.getLogger().info("port mapping property: {}={}", name, host);
+                                             consumer.accept(
+                                                 name,
+                                                 host
+                                             );
+                                         });
+                                     infos.getUdpPorts()
+                                         .forEach((container, host) -> {
+                                             String name = "test.fixtures." + service + ".udp." + container;
+                                             theTask.getLogger().info("port mapping property: {}={}", name, host);
+                                             consumer.accept(
+                                                 name,
+                                                 host
+                                             );
+                                         });
+                                 });
+                         }
+                     }
         );
     }
 
-    @Input
     public boolean dockerComposeSupported(Project project) {
-        if (OperatingSystem.current().isWindows()) {
+        if (OS.current().equals(OS.WINDOWS)) {
             return false;
         }
         final boolean hasDockerCompose = project.file("/usr/local/bin/docker-compose").exists() ||
             project.file("/usr/bin/docker-compose").exists();
         return hasDockerCompose && Boolean.parseBoolean(System.getProperty("tests.fixture.enabled", "true"));
-    }
-
-    private void setSystemProperty(Task task, String name, Object value) {
-        try {
-            Method systemProperty = task.getClass().getMethod("systemProperty", String.class, Object.class);
-            systemProperty.invoke(task, name, value);
-        } catch (NoSuchMethodException e) {
-            throw new IllegalArgumentException("Could not find systemProperty method on RandomizedTestingTask", e);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new IllegalArgumentException("Could not call systemProperty method on RandomizedTestingTask", e);
-        }
     }
 
     private void disableTaskByType(TaskContainer tasks, Class<? extends Task> type) {

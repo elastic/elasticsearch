@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TestTranslog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -56,6 +57,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -74,6 +76,9 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     private Path translogPath;
     private Path indexPath;
 
+    private static final Pattern NUM_CORRUPT_DOCS_PATTERN =
+        Pattern.compile("Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost.");
+
     @Before
     public void setup() throws IOException {
         shardId = new ShardId("index0", "_na_", 0);
@@ -89,8 +94,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 .putList(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath().toString()).build());
 
         // create same directory structure as prod does
-        final Path path = NodeEnvironment.resolveNodePath(dataDir, 0);
-        Files.createDirectories(path);
+        Files.createDirectories(dataDir);
         settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -98,7 +102,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
 
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(path);
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataDir);
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
         final IndexMetaData.Builder metaData = IndexMetaData.builder(routing.getIndexName())
             .settings(settings)
@@ -106,11 +110,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .putMapping("_doc", "{ \"properties\": {} }");
         indexMetaData = metaData.build();
 
-        indexShard = newStartedShard(p ->
-                newShard(routing, shardPath, indexMetaData, null, null,
-                    new InternalEngineFactory(), () -> {
-                    }, EMPTY_EVENT_LISTENER),
-            true);
+        indexShard = newStartedShard(p -> newShard(routing, shardPath, indexMetaData, null, null,
+            new InternalEngineFactory(), () -> { }, RetentionLeaseSyncer.EMPTY, EMPTY_EVENT_LISTENER), true);
 
         translogPath = shardPath.resolveTranslog();
         indexPath = shardPath.resolveIndex();
@@ -155,11 +156,13 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final boolean corruptSegments = randomBoolean();
         CorruptionUtils.corruptIndex(random(), indexPath, corruptSegments);
 
-        // test corrupted shard
-        final IndexShard corruptedShard = reopenIndexShard(true);
-        allowShardFailures();
-        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
-        closeShards(corruptedShard);
+        if (randomBoolean()) {
+            // test corrupted shard and add corruption marker
+            final IndexShard corruptedShard = reopenIndexShard(true);
+            allowShardFailures();
+            expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
+            closeShards(corruptedShard);
+        }
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal t = new MockTerminal();
@@ -174,7 +177,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             fail();
         } catch (ElasticsearchException e) {
             if (corruptSegments) {
-                assertThat(e.getMessage(), is("Index is unrecoverable"));
+                assertThat(e.getMessage(), either(is("Index is unrecoverable")).or(startsWith("unable to list commits")));
             } else {
                 assertThat(e.getMessage(), containsString("aborted by user"));
             }
@@ -197,8 +200,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
             final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
 
-            final Pattern pattern = Pattern.compile("Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost.");
-            final Matcher matcher = pattern.matcher(output);
+            final Matcher matcher = NUM_CORRUPT_DOCS_PATTERN.matcher(output);
             assertThat(matcher.find(), equalTo(true));
             final int expectedNumDocs = numDocs - Integer.parseInt(matcher.group("docs"));
 
@@ -273,12 +275,13 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         CorruptionUtils.corruptIndex(random(), indexPath, false);
 
-        // test corrupted shard
-        final IndexShard corruptedShard = reopenIndexShard(true);
-        allowShardFailures();
-        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
-        closeShards(corruptedShard);
-
+        if (randomBoolean()) {
+            // test corrupted shard and add corruption marker
+            final IndexShard corruptedShard = reopenIndexShard(true);
+            allowShardFailures();
+            expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
+            closeShards(corruptedShard);
+        }
         TestTranslog.corruptRandomTranslogFile(logger, random(), Arrays.asList(translogPath));
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
@@ -314,8 +317,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
 
-        final Pattern pattern = Pattern.compile("Corrupted Lucene index segments found -\\s+(?<docs>\\d+) documents will be lost.");
-        final Matcher matcher = pattern.matcher(output);
+        final Matcher matcher = NUM_CORRUPT_DOCS_PATTERN.matcher(output);
         assertThat(matcher.find(), equalTo(true));
         final int expectedNumDocs = numDocsToKeep - Integer.parseInt(matcher.group("docs"));
 
@@ -348,6 +350,62 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
     }
 
+    public void testCleanWithCorruptionMarker() throws Exception {
+        // index some docs in several segments
+        final int numDocs = indexDocs(indexShard, true);
+
+        indexShard.store().markStoreCorrupted(null);
+
+        closeShards(indexShard);
+
+        allowShardFailures();
+        final IndexShard corruptedShard = reopenIndexShard(true);
+        expectThrows(IndexShardRecoveryException.class, () -> newStartedShard(p -> corruptedShard, true));
+        closeShards(corruptedShard);
+
+        final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
+        final MockTerminal t = new MockTerminal();
+        final OptionParser parser = command.getParser();
+
+        final OptionSet options = parser.parse("-d", translogPath.toString());
+        // run command with dry-run
+        t.addTextInput("n"); // mean dry run
+        t.addTextInput("n"); // mean dry run
+        t.setVerbosity(Terminal.Verbosity.VERBOSE);
+        try {
+            command.execute(t, options, environment);
+            fail();
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), containsString("aborted by user"));
+            assertThat(t.getOutput(), containsString("Continue and remove corrupted data from the shard ?"));
+            assertThat(t.getOutput(), containsString("Lucene index is marked corrupted, but no corruption detected"));
+        }
+
+        logger.info("--> output:\n{}", t.getOutput());
+
+        // run command without dry-run
+        t.reset();
+        t.addTextInput("y");
+        t.addTextInput("y");
+        command.execute(t, options, environment);
+
+        final String output = t.getOutput();
+        logger.info("--> output:\n{}", output);
+
+        failOnShardFailures();
+        final IndexShard newShard = newStartedShard(p -> reopenIndexShard(false), true);
+
+        final Set<String> shardDocUIDs = getShardDocUIDs(newShard);
+        assertEquals(numDocs, shardDocUIDs.size());
+
+        assertThat(t.getOutput(), containsString("This shard has been marked as corrupted but no corruption can now be detected."));
+
+        final Matcher matcher = NUM_CORRUPT_DOCS_PATTERN.matcher(output);
+        assertFalse(matcher.find());
+
+        closeShards(newShard);
+    }
+
     private IndexShard reopenIndexShard(boolean corrupted) throws IOException {
         // open shard with the same location
         final ShardRouting shardRouting = ShardRoutingHelper.initWithSameId(indexShard.routingEntry(),
@@ -370,8 +428,8 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                     return new Store(shardId, indexSettings, baseDirectoryWrapper, new DummyShardLock(shardId));
         };
 
-        return newShard(shardRouting, shardPath, metaData, storeProvider, null,
-            indexShard.engineFactory, indexShard.getGlobalCheckpointSyncer(), EMPTY_EVENT_LISTENER);
+        return newShard(shardRouting, shardPath, metaData, storeProvider, null, indexShard.engineFactory,
+            indexShard.getGlobalCheckpointSyncer(), indexShard.getRetentionLeaseSyncer(), EMPTY_EVENT_LISTENER);
     }
 
     private int indexDocs(IndexShard indexShard, boolean flushLast) throws IOException {

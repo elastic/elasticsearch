@@ -181,7 +181,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         this.documentSupplier = null;
     }
 
-    private PercolateQueryBuilder(String field, String documentType, Supplier<BytesReference> documentSupplier) {
+    protected PercolateQueryBuilder(String field, String documentType, Supplier<BytesReference> documentSupplier) {
         if (field == null) {
             throw new IllegalArgumentException("[field] is a required argument");
         }
@@ -519,8 +519,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (source == null) {
                 return this; // not executed yet
             } else {
-                return new PercolateQueryBuilder(field, documentType, Collections.singletonList(source),
-                    XContentHelper.xContentType(source));
+                PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, documentType,
+                    Collections.singletonList(source), XContentHelper.xContentType(source));
+                if (name != null) {
+                    rewritten.setName(name);
+                }
+                return rewritten;
             }
         }
         GetRequest getRequest;
@@ -555,7 +559,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 listener.onResponse(null);
             }, listener::onFailure));
         });
-        return new PercolateQueryBuilder(field, documentType, documentSupplier::get);
+
+        PercolateQueryBuilder rewritten = new PercolateQueryBuilder(field, documentType, documentSupplier::get);
+        if (name != null) {
+            rewritten.setName(name);
+        }
+        return rewritten;
     }
 
     @Override
@@ -652,6 +661,10 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     //pkg-private for testing
     XContentType getXContentType() {
         return documentXContentType;
+    }
+
+    public String getQueryName() {
+        return name;
     }
 
     static IndexSearcher createMultiDocumentSearcher(Analyzer analyzer, Collection<ParsedDocument> docs) {

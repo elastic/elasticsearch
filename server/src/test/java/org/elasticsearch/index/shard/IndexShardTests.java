@@ -125,7 +125,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
@@ -603,7 +603,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         replicaRouting.allocationId());
         indexShard.updateShardState(primaryRouting, newPrimaryTerm, (shard, listener) -> {},
                 0L, Collections.singleton(primaryRouting.allocationId().getId()),
-                new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build(), Collections.emptySet());
+                new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build());
 
         /*
          * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
@@ -656,8 +656,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     latch.countDown();
                 }, 0L,
                 Collections.singleton(indexShard.routingEntry().allocationId().getId()),
-                new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build(),
-                Collections.emptySet());
+                new IndexShardRoutingTable.Builder(indexShard.shardId()).addShard(primaryRouting).build()
+            );
             latch.await();
             assertThat(indexShard.getActiveOperationsCount(), isOneOf(0, IndexShard.OPERATIONS_BLOCKED));
             if (randomBoolean()) {
@@ -1208,8 +1208,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 (s, r) -> resyncLatch.countDown(),
                 1L,
                 Collections.singleton(newRouting.allocationId().getId()),
-                new IndexShardRoutingTable.Builder(newRouting.shardId()).addShard(newRouting).build(),
-                Collections.emptySet());
+                new IndexShardRoutingTable.Builder(newRouting.shardId()).addShard(newRouting).build());
         resyncLatch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
@@ -3827,7 +3826,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 readyToCloseLatch.await();
                 shard.close("testing", false);
                 // in integration tests, this is done as a listener on IndexService.
-                MockFSDirectoryService.checkIndex(logger, shard.store(), shard.shardId);
+                MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
             } catch (InterruptedException | IOException e) {
                 throw new AssertionError(e);
             } finally {

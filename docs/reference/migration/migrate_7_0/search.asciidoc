@@ -77,6 +77,7 @@ PUT /_cluster/settings
 // CONSOLE
 
 [float]
+[[search-api-returns-400-invalid-requests]]
 ==== Search API returns `400` for invalid requests
 
 The Search API returns `400 - Bad request` while it would previously return
@@ -91,6 +92,7 @@ The Search API returns `400 - Bad request` while it would previously return
 *   script compilation errors
 
 [float]
+[[scroll-queries-cannot-use-request-cache]]
 ==== Scroll queries cannot use the `request_cache` anymore
 
 Setting `request_cache:true` on a query that creates a scroll (`scroll=1m`)
@@ -98,6 +100,7 @@ has been deprecated in 6 and will now return a `400 - Bad request`.
 Scroll queries are not meant to be cached.
 
 [float]
+[[scroll-queries-cannot-use-rescore]]
 ==== Scroll queries cannot use `rescore`  anymore
 
 Including a rescore clause on a query that creates a scroll (`scroll=1m`) has
@@ -117,6 +120,7 @@ removed.
 * 	`jarowinkler` - replaced by `jaro_winkler`
 
 [float]
+[[popular-mode-suggesters]]
 ==== `popular` mode for Suggesters
 
 The `popular` mode for Suggesters (`term` and `phrase`) now uses the doc frequency
@@ -149,6 +153,7 @@ To safeguard against this, a hard limit of 1024 fields has been introduced for q
 using the "all fields" mode ("default_field": "*") or other fieldname expansions (e.g. "foo*").
 
 [float]
+[[invalid-search-request-body]]
 ==== Invalid `_search` request body
 
 Search requests with extra content after the main object will no longer be accepted
@@ -176,6 +181,7 @@ For geo context the value of the `path` parameter is now validated against the m
 and the context is only accepted if `path` points to a field with `geo_point` type.
 
 [float]
+[[semantics-changed-max-concurrent-shared-requests]]
 ==== Semantics changed for `max_concurrent_shard_requests`
 
 `max_concurrent_shard_requests` used to limit the total number of concurrent shard
@@ -183,6 +189,7 @@ requests a single high level search request can execute. In 7.0 this changed to 
 max number of concurrent shard requests per node. The default is now `5`.
 
 [float]
+[[max-score-set-to-null-when-untracked]]
 ==== `max_score` set to `null` when scores are not tracked
 
 `max_score` used to be set to `0` whenever scores are not tracked. `null` is now used
@@ -214,6 +221,7 @@ major version.
 
 //tag::notable-breaking-changes[]
 [float]
+[[hits-total-now-object-search-response]]
 ==== `hits.total` is now an object in the search response
 
 The total hits that match the search request is now returned as an object
@@ -245,6 +253,7 @@ will be removed in the next major version (8.0).
 //end::notable-breaking-changes[]
 
 [float]
+[[hits-total-omitted-if-disabled]]
 ==== `hits.total` is omitted in the response if `track_total_hits` is disabled (false)
 
 If `track_total_hits` is set to `false` in the search request the search response
@@ -254,6 +263,7 @@ to get the old format back (`"total": -1`).
 
 //tag::notable-breaking-changes[]
 [float]
+[[track-total-hits-10000-default]]
 ==== `track_total_hits` defaults to 10,000
 
 By default search request will count the total hits accurately up to `10,000`

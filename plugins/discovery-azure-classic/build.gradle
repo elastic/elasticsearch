@@ -56,7 +56,7 @@ dependencies {
 }
 
 // needed to be consistent with ssl host checking
-String host = InetAddress.getLoopbackAddress().getHostAddress();
+String host = InetAddress.getLoopbackAddress().getHostAddress()
 
 // location of keystore and files to generate it
 File keystore = new File(project.buildDir, 'keystore/test-node.jks')
@@ -67,6 +67,7 @@ task createKey(type: LoggedExec) {
     project.delete(keystore.parentFile)
     keystore.parentFile.mkdirs()
   }
+  outputs.file(keystore).withPropertyName('keystoreFile')
   executable = new File(project.runtimeJavaHome, 'bin/keytool')
   standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
   args '-genkey',
@@ -81,8 +82,15 @@ task createKey(type: LoggedExec) {
 }
 
 // add keystore to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystore.parentFile)
-processTestResources.dependsOn(createKey)
+processTestResources {
+  from createKey
+}
+
+normalization {
+  runtimeClasspath {
+    ignore 'test-node.jks'
+  }
+}
 
 dependencyLicenses {
   mapping from: /azure-.*/, to: 'azure'

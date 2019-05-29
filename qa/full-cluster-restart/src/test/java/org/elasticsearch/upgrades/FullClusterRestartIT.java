@@ -1031,7 +1031,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * This test creates an index in the old cluster and then closes it. When the cluster is fully restarted in a newer version,
      * it verifies that the index exists and is replicated if the old version supports replication.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39576")
     public void testClosedIndices() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createIndex(index, Settings.builder()
@@ -1043,7 +1042,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (randomBoolean()) {
                 numDocs = between(1, 100);
                 for (int i = 0; i < numDocs; i++) {
-                    final Request request = new Request("POST", "/" + index + "/_doc/" + i);
+                    final Request request = new Request("POST", "/" + index + "/" + type + "/" + i);
                     request.setJsonEntity(Strings.toString(JsonXContent.contentBuilder().startObject().field("field", "v1").endObject()));
                     assertOK(client().performRequest(request));
                     if (rarely()) {

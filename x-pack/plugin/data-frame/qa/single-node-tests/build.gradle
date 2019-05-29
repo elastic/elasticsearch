@@ -5,6 +5,7 @@ dependencies {
   testCompile project(path: xpackModule('core'), configuration: 'default')
   testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
   testCompile project(path: xpackModule('data-frame'), configuration: 'runtime')
+  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${versions.elasticsearch}"
 }
 
 integTestCluster {

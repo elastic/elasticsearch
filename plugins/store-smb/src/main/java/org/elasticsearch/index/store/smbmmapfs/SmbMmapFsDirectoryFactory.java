@@ -19,19 +19,20 @@
 
 package org.elasticsearch.index.store.smbmmapfs;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.MMapDirectory;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.DirectoryService;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.FsDirectoryFactory;
+import org.elasticsearch.index.store.SmbDirectoryWrapper;
 
-public class SmbMmapFsIndexStore extends IndexStore {
+import java.io.IOException;
+import java.nio.file.Path;
 
-    public SmbMmapFsIndexStore(IndexSettings indexSettings) {
-        super(indexSettings);
-    }
+public final class SmbMmapFsDirectoryFactory extends FsDirectoryFactory {
 
     @Override
-    public DirectoryService newDirectoryService(ShardPath path) {
-        return new SmbMmapFsDirectoryService(indexSettings, path);
+    protected Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        return new SmbDirectoryWrapper(new MMapDirectory(location, lockFactory));
     }
 }

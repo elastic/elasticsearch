@@ -50,11 +50,11 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -89,11 +89,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     @Override
     public BlobContainer blobContainer(BlobPath path) {
         return new GoogleCloudStorageBlobContainer(path, this);
-    }
-
-    @Override
-    public void delete(BlobPath path) throws IOException {
-        deleteBlobsByPrefix(path.buildAsString());
     }
 
     @Override
@@ -292,15 +287,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     /**
-     * Deletes multiple blobs from the specific bucket all of which have prefixed names
-     *
-     * @param prefix prefix of the blobs to delete
-     */
-    private void deleteBlobsByPrefix(String prefix) throws IOException {
-        deleteBlobsIgnoringIfNotExists(listBlobsByPrefix("", prefix).keySet());
-    }
-
-    /**
      * Deletes multiple blobs from the specific bucket using a batch request
      *
      * @param blobNames names of the blobs to delete
@@ -343,6 +329,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         if (e != null) {
             throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
         }
+        assert failedBlobs.isEmpty();
     }
 
     private static String buildKey(String keyPath, String s) {

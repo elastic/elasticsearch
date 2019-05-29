@@ -77,7 +77,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                         final int revision = Integer.valueOf(fields[3]) * 100;
                         final int expectedId = major + minor + revision + 99;
                         assert version.id == expectedId :
-                                "expected version [" + version + "] to have id [" + expectedId + "] but was [" + version.id + "]";
+                                "expected version [" + declaredField.getName() + "] to have id [" + expectedId + "] but was [" + version.id + "]";
                     }
                     final Version maybePrevious = builder.put(version.id, version);
                     assert maybePrevious == null :

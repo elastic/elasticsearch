@@ -44,7 +44,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -558,12 +557,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.indexShard().getSearchOperationListener().onNewContext(context);
             putContext(context);
             // ensure that if index is deleted concurrently, we free the context immediately, either here or in afterIndexRemoved
-            try {
-                indicesService.indexServiceSafe(request.shardId().getIndex());
-            } catch (IndexNotFoundException e) {
-                freeContext(context.id());
-                throw e;
-            }
+            indicesService.indexServiceSafe(request.shardId().getIndex());
             success = true;
             return context;
         } finally {

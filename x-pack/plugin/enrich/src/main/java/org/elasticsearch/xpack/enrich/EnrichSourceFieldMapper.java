@@ -17,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -230,6 +232,12 @@ public final class EnrichSourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public EnrichSourceFieldMapper build(BuilderContext context) {
+            if (enabled) {
+                String indexName = context.indexSettings().get(IndexMetaData.SETTING_INDEX_PROVIDED_NAME);
+                if (indexName.startsWith(EnrichPolicy.ENRICH_INDEX_NAME_BASE) == false) {
+                    throw new IllegalArgumentException("only enrich indices can use the [" + NAME + "] meta field");
+                }
+            }
             setupFieldType(context);
             return new EnrichSourceFieldMapper(context.indexSettings(), fieldType, defaultFieldType, enabled);
         }

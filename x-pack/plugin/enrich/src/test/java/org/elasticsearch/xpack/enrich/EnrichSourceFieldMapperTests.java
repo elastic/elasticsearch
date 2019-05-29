@@ -23,12 +23,14 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,8 +43,9 @@ public class EnrichSourceFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testEnrichFieldMapper() throws Exception {
+        String indexName = EnrichPolicy.getBaseName("1");
         String mapping = "{\"_source\": {\"enabled\": false},\"_enrich_source\": {\"enabled\": true}, \"dynamic\": false}";
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("enrich");
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
         createIndexRequest.mapping("_doc", mapping, XContentType.JSON);
         client().admin().indices().create(createIndexRequest).actionGet();
 
@@ -52,12 +55,12 @@ public class EnrichSourceFieldMapperTests extends ESSingleNodeTestCase {
         sourceBuilder.field("tldRank", 7);
         sourceBuilder.field("tld", "co");
         sourceBuilder.endObject();
-        IndexRequest indexRequest = new IndexRequest("enrich");
+        IndexRequest indexRequest = new IndexRequest(indexName);
         indexRequest.source(sourceBuilder);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client().index(indexRequest).actionGet();
 
-        Index index = getInstanceFromNode(ClusterService.class).state().metaData().index("enrich").getIndex();
+        Index index = getInstanceFromNode(ClusterService.class).state().metaData().index(indexName).getIndex();
         IndicesService indicesServices = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesServices.indexService(index);
         IndexShard indexShard = indexService.getShard(0);
@@ -76,7 +79,8 @@ public class EnrichSourceFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDisabled() throws Exception {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("enrich");
+        String indexName = EnrichPolicy.getBaseName("1");
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
         if (randomBoolean()) {
             String mapping = "{\"_source\": {\"enabled\": false},\"_enrich_source\": {\"enabled\": false}, \"dynamic\": false}";
             createIndexRequest.mapping("_doc", mapping, XContentType.JSON);
@@ -89,12 +93,12 @@ public class EnrichSourceFieldMapperTests extends ESSingleNodeTestCase {
         sourceBuilder.field("tldRank", 7);
         sourceBuilder.field("tld", "co");
         sourceBuilder.endObject();
-        IndexRequest indexRequest = new IndexRequest("enrich");
+        IndexRequest indexRequest = new IndexRequest(indexName);
         indexRequest.source(sourceBuilder);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client().index(indexRequest).actionGet();
 
-        Index index = getInstanceFromNode(ClusterService.class).state().metaData().index("enrich").getIndex();
+        Index index = getInstanceFromNode(ClusterService.class).state().metaData().index(indexName).getIndex();
         IndicesService indicesServices = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesServices.indexService(index);
         IndexShard indexShard = indexService.getShard(0);
@@ -106,17 +110,29 @@ public class EnrichSourceFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testSupportedContentType() {
+        String indexName = EnrichPolicy.getBaseName("1");
         String mapping = "{\"_source\": {\"enabled\": false},\"_enrich_source\": {\"enabled\": true}, \"dynamic\": false}";
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest("enrich");
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
         createIndexRequest.mapping("_doc", mapping, XContentType.JSON);
         client().admin().indices().create(createIndexRequest).actionGet();
 
-        IndexRequest indexRequest = new IndexRequest("enrich");
+        IndexRequest indexRequest = new IndexRequest(indexName);
         indexRequest.source("{\"globalRank\": 25, \"tldRank\": 7, \"tld\": \"co\"}", XContentType.JSON);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         Exception e = expectThrows(MapperParsingException.class, () -> client().index(indexRequest).actionGet());
         IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         assertThat(cause.getMessage(), equalTo("unsupported xcontent type [JSON], only SMILE is supported"));
+    }
+
+    public void testEnrichSourceFieldMapperIsInternal() {
+        String indexName = "my-index";
+        String mapping = "{\"_enrich_source\": {\"enabled\": true}}";
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+        createIndexRequest.mapping("_doc", mapping, XContentType.JSON);
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> client().admin().indices().create(createIndexRequest).actionGet());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), equalTo("only enrich indices can use the [_enrich_source] meta field"));
     }
 
 }

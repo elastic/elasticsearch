@@ -88,10 +88,11 @@ public class EnrichIT extends ESRestTestCase {
     }
 
     public void testEnrichSourceMapping() throws Exception {
+        String indexName = ".enrich-1";
         String mapping = "\"dynamic\": false,\"_source\": {\"enabled\": false},\"_enrich_source\": {\"enabled\": true}";
-        createIndex("enrich", Settings.EMPTY, mapping);
+        createIndex(indexName, Settings.EMPTY, mapping);
 
-        Request indexRequest = new Request("PUT", "/enrich/_doc/elastic.co");
+        Request indexRequest = new Request("PUT", "/" + indexName + "/_doc/elastic.co");
         XContentBuilder document = XContentBuilder.builder(XContentType.SMILE.xContent());
         document.startObject();
         document.field("globalRank", 25);
@@ -103,10 +104,10 @@ public class EnrichIT extends ESRestTestCase {
         indexRequest.setEntity(new ByteArrayEntity(out.toByteArray(), ContentType.create("application/smile")));
         assertOK(client().performRequest(indexRequest));
 
-        Request refreshRequest = new Request("POST", "/enrich/_refresh");
+        Request refreshRequest = new Request("POST", "/" + indexName +"/_refresh");
         assertOK(client().performRequest(refreshRequest));
 
-        Request searchRequest = new Request("GET", "/enrich/_search");
+        Request searchRequest = new Request("GET", "/" + indexName +"/_search");
         searchRequest.setJsonEntity("{\"docvalue_fields\": [{\"field\": \"_enrich_source\"}]}");
         Map<String, ?> response = toMap(client().performRequest(searchRequest));
         logger.info("RSP={}", response);

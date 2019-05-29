@@ -29,7 +29,7 @@ import java.util.Objects;
  */
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
-    private static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
+    public static final String ENRICH_INDEX_NAME_BASE = ".enrich-";
 
     public static final String EXACT_MATCH_TYPE = "exact_match";
     public static final String[] SUPPORTED_POLICY_TYPES = new String[]{EXACT_MATCH_TYPE};

@@ -19,11 +19,13 @@ To learn about monitoring in general, see
 
 //NOTE: The tagged regions are re-used in the Stack Overview.
 
-. Enable the collection of monitoring data. Set 
-`xpack.monitoring.collection.enabled` to `true` on each node in the production 
-cluster. By default, it is is disabled (`false`). 
-+ 
+. Enable the collection of monitoring data. +
++
 --
+// tag::enable-collection[]
+Set `xpack.monitoring.collection.enabled` to `true` on each node in the
+production cluster. By default, it is is disabled (`false`). 
+
 NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
 node or across the cluster as a dynamic cluster setting. If {es} 
 {security-features} are enabled, you must have `monitor` cluster privileges to 
@@ -43,15 +45,17 @@ PUT _cluster/settings
 }
 ----------------------------------
 // CONSOLE 
-
+// end::enable-collection[]
 For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
 
-. Disable the default collection of {es} monitoring metrics. Set 
-`xpack.monitoring.elasticsearch.collection.enabled` to `false` on each node in 
-the production cluster.
-+ 
+. Disable the default collection of {es} monitoring metrics. +
++
 --
+// tag::disable-default-collection[]
+Set `xpack.monitoring.elasticsearch.collection.enabled` to `false` on each node
+in the production cluster.
+
 NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
 node or across the cluster as a dynamic cluster setting. If {es} 
 {security-features} are enabled, you must have `monitor` cluster privileges to 
@@ -70,7 +74,8 @@ PUT _cluster/settings
 ----------------------------------
 // CONSOLE
 
-Leave `xpack.monitoring.enabled` set to its default value (`true`). 
+Leave `xpack.monitoring.enabled` set to its default value (`true`).
+// end::disable-default-collection[]
 --
 
 . {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}] on each

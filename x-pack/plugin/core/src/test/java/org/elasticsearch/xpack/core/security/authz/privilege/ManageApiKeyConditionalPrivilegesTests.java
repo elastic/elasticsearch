@@ -6,15 +6,20 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.privilege.ManageApiKeyConditionalPrivileges.Fields;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -209,6 +214,42 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
         accessAllowed = checkAccess(condPrivilege, INVALIDATE_ACTION, InvalidateApiKeyRequest.usingApiKeyName("api-key-name"),
                 authentication);
         assertThat(accessAllowed, is(false));
+    }
+
+    public void testParsingThrowsErrorWhenUsersAndRealmsFieldValuesAreInvalid() throws IOException {
+        {
+            String json = "{" +
+                    "\"manage\": {" +
+                    "    \"action\": [ \"cluster:admin/xpack/security/api_key/create\" ], " +
+                    "    \"realms\": [ \"_self\" ], " +
+                    "    \"users\": [ \"some-user\" ] " +
+                    "}" +
+                    "}";
+            final XContentParser parser = createParser(XContentType.JSON.xContent(), json);
+            parser.nextToken();
+            parser.nextToken();
+            ElasticsearchParseException epe = expectThrows(ElasticsearchParseException.class,
+                    () -> ManageApiKeyConditionalPrivileges.parse(parser));
+            assertThat(epe.getMessage(), is("could not parse, both fields [" + Fields.USERS.getPreferredName() + "], ["
+                    + Fields.REALMS.getPreferredName() + "] must contain only `_self` when restricting access of API keys to owner"));
+        }
+
+        {
+            String json = "{" +
+                    "\"manage\": {" +
+                    "    \"action\": [ \"cluster:admin/xpack/security/api_key/create\" ], " +
+                    "    \"realms\": [ \"_self\" ], " +
+                    "    \"users\": [ \"_self\", \"some-user\" ] " +
+                    "}" +
+                    "}";
+            final XContentParser parser = createParser(XContentType.JSON.xContent(), json);
+            parser.nextToken();
+            parser.nextToken();
+            ElasticsearchParseException epe = expectThrows(ElasticsearchParseException.class,
+                    () -> ManageApiKeyConditionalPrivileges.parse(parser));
+            assertThat(epe.getMessage(), is("could not parse, both fields [" + Fields.USERS.getPreferredName() + "], ["
+                    + Fields.REALMS.getPreferredName() + "] must contain only `_self` when restricting access of API keys to owner"));
+        }
     }
 
     private boolean checkAccess(ManageApiKeyConditionalPrivileges privilege, String action, TransportRequest request,

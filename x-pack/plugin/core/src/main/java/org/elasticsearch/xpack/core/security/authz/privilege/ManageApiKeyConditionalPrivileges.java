@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -73,9 +74,9 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
         this.usersPredicate = Automatons.predicate(this.users);
 
         this.requestPredicate = (request, authentication) -> {
-            if (request instanceof CreateApiKeyRequest && privilege.predicate().test(CREATE_API_KEY_PATTERN)) {
+            if (request instanceof CreateApiKeyRequest) {
                 return true;
-            } else if (request instanceof GetApiKeyRequest && privilege.predicate().test(GET_API_KEY_PATTERN)) {
+            } else if (request instanceof GetApiKeyRequest) {
                 final GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
                 if (this.realms.contains("_self") && this.users.contains("_self")) {
                     return checkIfUserIsOwnerOfApiKeys(authentication, getApiKeyRequest.getApiKeyId(), getApiKeyRequest.getUserName(),
@@ -84,7 +85,7 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
                     return checkIfAccessAllowed(realms, getApiKeyRequest.getRealmName(), realmsPredicate)
                             && checkIfAccessAllowed(users, getApiKeyRequest.getUserName(), usersPredicate);
                 }
-            } else if (request instanceof InvalidateApiKeyRequest && privilege.predicate().test(INVALIDATE_API_KEY_PATTERN)) {
+            } else if (request instanceof InvalidateApiKeyRequest) {
                 final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
                 if (this.realms.contains("_self") && this.users.contains("_self")) {
                     return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
@@ -200,6 +201,21 @@ public final class ManageApiKeyConditionalPrivileges implements ConditionalClust
             } else if (Fields.REALMS.match(fieldName, parser.getDeprecationHandler())) {
                 expectedToken(parser.nextToken(), parser, XContentParser.Token.START_ARRAY);
                 users = XContentUtils.readStringArray(parser, false);
+            }
+        }
+        final Set<String> realmNames = Set.of(realms);
+        final Set<String> userNames = Set.of(users);
+        if (realmNames.contains("_self") && userNames.contains("_self") == false
+                || userNames.contains("_self") && realmNames.contains("_self") == false) {
+            throw new ElasticsearchParseException(
+                    "could not parse, both fields [{}], [{}] must contain only `_self` when restricting access of API keys to owner",
+                    Fields.USERS.getPreferredName(), Fields.REALMS.getPreferredName());
+        }
+        if (realmNames.contains("_self") && userNames.contains("_self")) {
+            if (realmNames.size() > 1 || userNames.size() > 1) {
+                throw new ElasticsearchParseException(
+                        "could not parse, both fields [{}], [{}] must contain only `_self` when restricting access of API keys to owner",
+                        Fields.USERS.getPreferredName(), Fields.REALMS.getPreferredName());
             }
         }
 

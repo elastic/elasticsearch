@@ -34,6 +34,13 @@ public class DateTests extends ScriptTestCase {
 
     public void testStringToZonedDateTime() {
         assertEquals(ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of("Z")), exec(
+                "String milliSinceEpochString = '434931330000';" +
+                "long milliSinceEpoch = Long.parseLong(milliSinceEpochString);" +
+                "Instant instant = Instant.ofEpochMilli(milliSinceEpoch);" +
+                "return ZonedDateTime.ofInstant(instant, ZoneId.of('Z'));"
+        ));
+
+        assertEquals(ZonedDateTime.of(1983, 10, 13, 22, 15, 30, 0, ZoneId.of("Z")), exec(
                 "String datetime = '1983-10-13T22:15:30Z';" +
                 "return ZonedDateTime.parse(datetime);"
         ));

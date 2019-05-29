@@ -81,23 +81,6 @@ Leave `xpack.monitoring.enabled` set to its default value (`true`).
 . {metricbeat-ref}/metricbeat-installation.html[Install {metricbeat}] on each
 {es} node in the production cluster.
 
-.. Optional: Disable the system module in {metricbeat}.
-+
---
-// tag::disable-system-module[]
-Run the following command:
-
-["source","sh",subs="attributes,callouts"]
-----------------------------------------------------------------------
-metricbeat modules disable system
-----------------------------------------------------------------------
-
-For more information, see 
-{metricbeat-ref}/configuration-metricbeat.html[Specify which modules to run] and
-{metricbeat-ref}/metricbeat-module-system.html[System module].
-// end::disable-system-module[] 
---
-
 . Enable the {es} {xpack} module in {metricbeat} on each {es} node. +
 +
 --
@@ -161,6 +144,23 @@ Alternatively, use the
 .. Add the `username` and `password` settings to the {es} module configuration
 file. 
 // end::remote-monitoring-user[]
+--
+
+. Optional: Disable the system module in {metricbeat}.
++
+--
+// tag::disable-system-module[]
+By default, the {metricbeat-ref}/metricbeat-module-system.html[system module] is
+enabled. The information it collects, however, does not get used on the
+*Monitoring* page in {kib}. Unless you want to use that information for other
+purposes, run the following command:
+
+["source","sh",subs="attributes,callouts"]
+----------------------------------------------------------------------
+metricbeat modules disable system
+----------------------------------------------------------------------
+
+// end::disable-system-module[] 
 --
 
 . Identify where to send the monitoring data. +

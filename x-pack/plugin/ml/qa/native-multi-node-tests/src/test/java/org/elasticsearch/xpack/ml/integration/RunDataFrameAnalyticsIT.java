@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -178,6 +179,11 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         assertThat(stopAnalytics(id).isStopped(), is(true));
         assertState(id, DataFrameAnalyticsState.STOPPED);
+
+        if (client().admin().indices().exists(new IndicesExistsRequest(config.getDest().getIndex())).actionGet().isExists() == false) {
+            // We stopped before we even created the destination index
+            return;
+        }
 
         SearchResponse searchResponse = client().prepareSearch(config.getDest().getIndex()).setTrackTotalHits(true).get();
         if (searchResponse.getHits().getTotalHits().value == docCount) {

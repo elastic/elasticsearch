@@ -200,13 +200,16 @@ public class AnalyticsProcessManager {
         public synchronized void stop() {
             LOGGER.debug("[{}] Stopping process", id);
             processKilled = true;
-            dataExtractor.cancel();
-            try {
-                process.kill();
-            } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Failed to kill process", id), e);
+            if (dataExtractor != null) {
+                dataExtractor.cancel();
             }
-
+            if (process != null) {
+                try {
+                    process.kill();
+                } catch (IOException e) {
+                    LOGGER.error(new ParameterizedMessage("[{}] Failed to kill process", id), e);
+                }
+            }
         }
 
         /**

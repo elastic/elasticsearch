@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -317,7 +318,9 @@ public class TransportStartDataFrameAnalyticsAction
             if (cancelReindexResponse.getTaskFailures().isEmpty() == false) {
                 firstError = cancelReindexResponse.getTaskFailures().get(0).getCause();
             }
-            if (firstError != null) {
+            // There is a chance that the task is finished by the time we cancel it in which case we'll get
+            // a ResourceNotFoundException which we can ignore.
+            if (firstError != null && firstError instanceof ResourceNotFoundException == false) {
                 throw ExceptionsHelper.serverError("[" + taskParams.getId() + "] Error cancelling reindex task", firstError);
             } else {
                 LOGGER.debug("[{}] Reindex task was successfully cancelled", taskParams.getId());

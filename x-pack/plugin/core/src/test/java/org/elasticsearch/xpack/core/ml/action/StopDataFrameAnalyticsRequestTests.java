@@ -10,6 +10,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction.Request;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class StopDataFrameAnalyticsRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
@@ -21,6 +24,12 @@ public class StopDataFrameAnalyticsRequestTests extends AbstractWireSerializingT
         if (randomBoolean()) {
             request.setAllowNoMatch(randomBoolean());
         }
+        int expandedIdsCount = randomIntBetween(0, 10);
+        Set<String> expandedIds = new HashSet<>();
+        for (int i = 0; i < expandedIdsCount; i++) {
+            expandedIds.add(randomAlphaOfLength(20));
+        }
+        request.setExpandedIds(expandedIds);
         return request;
     }
 

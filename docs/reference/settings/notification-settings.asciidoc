@@ -85,6 +85,7 @@ corresponding endpoints are whitelisted as well.
 :component:              {watcher}
 :verifies:
 :server!:
+:ssl-context:            watcher
 
 include::ssl-settings.asciidoc[]
 

@@ -125,7 +125,7 @@ public class TransportForecastJobAction extends TransportJobTaskAction<ForecastJ
     }
 
     static void validate(Job job, ForecastJobAction.Request request) {
-        if (job.getJobVersion() == null || job.getJobVersion().before(Version.V_6_1_0)) {
+        if (job.getJobVersion() == null || job.getJobVersion().before(Version.fromString("6.1.0"))) {
             throw ExceptionsHelper.badRequestException(
                     "Cannot run forecast because jobs created prior to version 6.1 are not supported");
         }

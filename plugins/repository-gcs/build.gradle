@@ -1,3 +1,5 @@
+import java.nio.file.Files
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -121,4 +123,23 @@ thirdPartyAudit {
 check {
   // also execute the QA tests when testing the plugin
   dependsOn 'qa:google-cloud-storage:check'
+}
+
+String gcsServiceAccount = System.getenv("google_storage_service_account")
+String gcsBucket = System.getenv("google_storage_bucket")
+String gcsBasePath = System.getenv("google_storage_base_path")
+
+test {
+  exclude '**/GoogleCloudStorageThirdPartyTests.class'
+}
+
+task thirdPartyTest(type: Test) {
+  include '**/GoogleCloudStorageThirdPartyTests.class'
+  systemProperty 'test.google.account', gcsServiceAccount ? Base64.encoder.encodeToString(Files.readAllBytes(file(gcsServiceAccount).toPath())) : ""
+  systemProperty 'test.google.bucket', gcsBucket ? gcsBucket : ""
+  systemProperty 'test.google.base', gcsBasePath ? gcsBasePath : "/"
+}
+
+if (gcsServiceAccount || gcsBucket || gcsBasePath) {
+  check.dependsOn(thirdPartyTest)
 }

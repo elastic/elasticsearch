@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -329,7 +330,12 @@ public class NativeRoleMappingStore implements UserRoleMapper {
     }
 
     private <Result> void refreshRealms(ActionListener<Result> listener, Result result) {
-        String[] realmNames = this.realmsToRefresh.toArray(new String[realmsToRefresh.size()]);
+        if (realmsToRefresh.isEmpty()) {
+            listener.onResponse(result);
+            return;
+        }
+
+        final String[] realmNames = this.realmsToRefresh.toArray(Strings.EMPTY_ARRAY);
         final SecurityClient securityClient = new SecurityClient(client);
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN,
                 securityClient.prepareClearRealmCache().realms(realmNames).request(),
@@ -340,7 +346,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
                             listener.onResponse(result);
                         },
                         ex -> {
-                            logger.warn("Failed to clear cache for realms [{}]", Arrays.toString(realmNames));
+                            logger.warn(new ParameterizedMessage("Failed to clear cache for realms [{}]", Arrays.toString(realmNames)), ex);
                             listener.onFailure(ex);
                         }),
                 securityClient::clearRealmCache);

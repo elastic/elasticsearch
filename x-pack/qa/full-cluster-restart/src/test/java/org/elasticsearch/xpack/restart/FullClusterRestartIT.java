@@ -203,7 +203,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
      * Tests that a RollUp job created on a old cluster is correctly restarted after the upgrade.
      */
     public void testRollupAfterRestart() throws Exception {
-        assumeTrue("Rollup can be tested with 6.3.0 and onwards", getOldClusterVersion().onOrAfter(Version.V_6_3_0));
         if (isRunningAgainstOldCluster()) {
             final int numDocs = 59;
             final int year = randomIntBetween(1970, 2018);
@@ -229,7 +228,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Request createRollupJobRequest = new Request("PUT", getRollupEndpoint() + "/job/rollup-job-test");
 
             String intervalType;
-            if (getOldClusterVersion().onOrAfter(Version.V_8_0_0)) { // TODO change this after backport
+            if (getOldClusterVersion().onOrAfter(Version.V_7_2_0)) {
                 intervalType = "fixed_interval";
             } else {
                 intervalType = "interval";
@@ -266,9 +265,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Request clusterHealthRequest = new Request("GET", "/_cluster/health");
             clusterHealthRequest.addParameter("wait_for_status", "yellow");
             clusterHealthRequest.addParameter("wait_for_no_relocating_shards", "true");
-            if (getOldClusterVersion().onOrAfter(Version.V_6_2_0)) {
-                clusterHealthRequest.addParameter("wait_for_no_initializing_shards", "true");
-            }
+            clusterHealthRequest.addParameter("wait_for_no_initializing_shards", "true");
             Map<String, Object> clusterHealthResponse = entityAsMap(client().performRequest(clusterHealthRequest));
             assertThat(clusterHealthResponse.get("timed_out"), equalTo(Boolean.FALSE));
 
@@ -280,7 +277,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         return StreamsUtils.copyToStringFromClasspath("/org/elasticsearch/xpack/restart/" + watch);
     }
 
-    @SuppressWarnings("unchecked")
     private void assertOldTemplatesAreDeleted() throws IOException {
         Map<String, Object> templates = entityAsMap(client().performRequest(new Request("GET", "/_template")));
         assertThat(templates.keySet(), not(hasItems(is("watches"), startsWith("watch-history"), is("triggered_watches"))));
@@ -384,9 +380,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         request.addParameter("wait_for_status", "yellow");
         request.addParameter("timeout", "30s");
         request.addParameter("wait_for_no_relocating_shards", "true");
-        if (getOldClusterVersion().onOrAfter(Version.V_6_2_0)) {
-            request.addParameter("wait_for_no_initializing_shards", "true");
-        }
+        request.addParameter("wait_for_no_initializing_shards", "true");
         Map<String, Object> response = entityAsMap(client().performRequest(request));
         assertThat(response.get("timed_out"), equalTo(Boolean.FALSE));
     }

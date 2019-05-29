@@ -65,19 +65,17 @@ public class RejectionActionIT extends ESIntegTestCase {
             client().prepareSearch("test")
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setQuery(QueryBuilders.matchQuery("field", "1"))
-                    .execute(new ActionListener<SearchResponse>() {
+                    .execute(new LatchedActionListener<>(new ActionListener<SearchResponse>() {
                         @Override
                         public void onResponse(SearchResponse searchResponse) {
                             responses.add(searchResponse);
-                            latch.countDown();
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             responses.add(e);
-                            latch.countDown();
                         }
-                    });
+                    }, latch));
         }
         latch.await();
 

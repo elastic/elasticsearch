@@ -48,11 +48,6 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         return Collections.singleton(MustachePlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
-    }
-
     public void testBasic() throws Exception {
         createIndex("msearch");
         final int numDocs = randomIntBetween(10, 100);

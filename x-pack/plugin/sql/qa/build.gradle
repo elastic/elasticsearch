@@ -16,7 +16,12 @@ dependencies {
 
   // CLI testing dependencies
   compile project(path: xpackModule('sql:sql-cli'), configuration: 'nodeps')
- 
+  
+  // H2GIS testing dependencies
+  compile ("org.orbisgis:h2gis:${h2gisVersion}") {
+    exclude group: "org.locationtech.jts"
+  }
+
   // select just the parts of JLine that are needed
   compile("org.jline:jline-terminal-jna:${jlineVersion}") {
     exclude group: "net.java.dev.jna"
@@ -40,6 +45,9 @@ forbiddenApisMain {
   replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
 }
 
+// just a test fixture: we aren't using this jars in releases and H2GIS requires disabling a lot of checks
+thirdPartyAudit.enabled = false
+
 subprojects {
   apply plugin: 'elasticsearch.standalone-rest-test'
   dependencies {
@@ -56,9 +64,14 @@ subprojects {
     // JDBC testing dependencies
     testRuntime "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
     testRuntime "com.h2database:h2:${h2Version}"
+
+    // H2GIS testing dependencies
+    testRuntime ("org.orbisgis:h2gis:${h2gisVersion}") {
+        exclude group: "org.locationtech.jts"
+    }
+  
     testRuntime project(path: xpackModule('sql:jdbc'), configuration: 'nodeps')
     testRuntime xpackProject('plugin:sql:sql-client')
-
 
     // TODO check if needed
     testRuntime("org.antlr:antlr4-runtime:${antlrVersion}") {

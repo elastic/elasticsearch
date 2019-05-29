@@ -46,7 +46,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
 
         if (getCurrentClusterScope() == Scope.SUITE) {
             // Clear the realm cache for all realms since we use a SUITE scoped cluster
-            SecurityClient client = securityClient(internalCluster().transportClient());
+            SecurityClient client = securityClient(client());
             client.prepareClearRealmCache().get();
         }
     }

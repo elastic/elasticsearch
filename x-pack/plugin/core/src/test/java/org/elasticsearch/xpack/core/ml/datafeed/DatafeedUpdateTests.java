@@ -321,10 +321,10 @@ public class DatafeedUpdateTests extends AbstractSerializingTestCase<DatafeedUpd
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.V_6_0_0);
+            output.setVersion(Version.CURRENT);
             datafeedUpdate.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.V_6_0_0);
+                in.setVersion(Version.CURRENT);
                 DatafeedUpdate streamedDatafeedUpdate = new DatafeedUpdate(in);
                 assertEquals(datafeedUpdate, streamedDatafeedUpdate);
 

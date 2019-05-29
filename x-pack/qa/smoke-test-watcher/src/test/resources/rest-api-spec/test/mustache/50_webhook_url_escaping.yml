@@ -80,7 +80,6 @@
   - do:
       count:
           index: <date-index-{now/d}>
-          type: log
 
   - match: {count : 2}
 

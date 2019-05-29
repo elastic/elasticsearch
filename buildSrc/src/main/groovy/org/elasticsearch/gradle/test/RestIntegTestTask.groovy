@@ -79,7 +79,10 @@ class RestIntegTestTask extends DefaultTask {
 
         // disable the build cache for rest test tasks
         // there are a number of inputs we aren't properly tracking here so we'll just not cache these for now
-        runner.outputs.doNotCacheIf('Caching is disabled for REST integration tests') { true }
+        runner.getOutputs().doNotCacheIf(
+                "Caching is disabled for REST integration tests",
+                { false }
+        );
 
         // override/add more for rest tests
         runner.maxParallelForks = 1
@@ -285,4 +288,5 @@ class RestIntegTestTask extends DefaultTask {
         }
         return copyRestSpec
     }
+
 }

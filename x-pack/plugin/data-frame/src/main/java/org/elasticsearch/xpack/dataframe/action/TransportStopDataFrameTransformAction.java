@@ -124,8 +124,8 @@ public class TransportStopDataFrameTransformAction extends
         }
 
         // if tasks is empty allMatch is 'vacuously satisfied'
-        boolean allStopped = tasks.stream().allMatch(StopDataFrameTransformAction.Response::isStopped);
-        return new StopDataFrameTransformAction.Response(allStopped);
+        boolean allAcknowledged = tasks.stream().allMatch(StopDataFrameTransformAction.Response::isAcknowledged);
+        return new StopDataFrameTransformAction.Response(allAcknowledged);
     }
 
     private ActionListener<StopDataFrameTransformAction.Response>

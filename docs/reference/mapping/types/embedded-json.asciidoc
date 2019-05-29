@@ -1,8 +1,6 @@
 [[embedded-json]]
 === Embedded JSON datatype
 
-experimental[The `embedded_json` field type is experimental and may be changed in a breaking way in future releases.]
-
 By default, each subfield in an object is mapped and indexed separately. If
 the names or types of the subfields are not known in advance, then they are
 <<dynamic-mapping, mapped dynamically>>.

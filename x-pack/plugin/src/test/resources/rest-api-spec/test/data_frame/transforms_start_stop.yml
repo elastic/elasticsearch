@@ -190,6 +190,7 @@ teardown:
   - do:
       data_frame.stop_data_frame_transform:
         transform_id: "airline-transform-start-stop"
+        wait_for_completion: true
   - match: { stopped: true }
 
   - do:

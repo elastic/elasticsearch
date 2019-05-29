@@ -533,6 +533,12 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                 next.run();
                 return;
             }
+            // If we are `STOPPED` on a `doSaveState` call, that indicates we transitioned to `STOPPED` from `STOPPING`
+            // OR we called `doSaveState` manually as the indexer was not actively running.
+            // Since we save the state to an index, we should make sure that our task state is in parity with the indexer state
+            if (indexerState.equals(IndexerState.STOPPED)) {
+                transformTask.setTaskStateStopped();
+            }
 
             final DataFrameTransformState state = new DataFrameTransformState(
                 transformTask.taskState.get(),
@@ -595,7 +601,6 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
         protected void onStop() {
             auditor.info(transformConfig.getId(), "Indexer has stopped");
             logger.info("Data frame transform [{}] indexer has stopped", transformConfig.getId());
-            transformTask.setTaskStateStopped();
             transformTask.shutdown();
         }
 

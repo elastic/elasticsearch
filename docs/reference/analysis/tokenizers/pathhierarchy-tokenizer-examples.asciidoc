@@ -42,19 +42,17 @@ PUT file-path-test
     }
   },
   "mappings": {
-    "_doc": {
-      "properties": {
-        "file_path": {
-          "type": "text",
-          "fields": {
-            "tree": {
-              "type": "text",
-              "analyzer": "custom_path_tree"
-            },
-            "tree_reversed": {
-              "type": "text",
-              "analyzer": "custom_path_tree_reversed"
-            }
+    "properties": {
+      "file_path": {
+        "type": "text",
+        "fields": {
+          "tree": {
+            "type": "text",
+            "analyzer": "custom_path_tree"
+          },
+          "tree_reversed": {
+            "type": "text",
+            "analyzer": "custom_path_tree_reversed"
           }
         }
       }

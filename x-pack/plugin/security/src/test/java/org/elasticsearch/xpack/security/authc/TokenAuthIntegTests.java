@@ -150,7 +150,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
-            restClient.indices().refresh(new RefreshRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
             SearchResponse searchResponse = restClient.search(new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS)
                     .source(SearchSourceBuilder.searchSource()
                         .size(1)
@@ -318,7 +317,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         Instant refreshed = Instant.now();
         Instant aWhileAgo = refreshed.minus(50L, ChronoUnit.SECONDS);
         assertTrue(Instant.now().isAfter(aWhileAgo));
-        restClient.indices().refresh(new RefreshRequest(), SECURITY_REQUEST_OPTIONS);
         UpdateResponse updateResponse = restClient.update(new UpdateRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, docId.get())
             .doc("refresh_token", Collections.singletonMap("refresh_time", aWhileAgo.toEpochMilli()))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)

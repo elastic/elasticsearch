@@ -12,7 +12,7 @@ methods to collect metrics about {es}:
 * <<collecting-monitoring-data>>
 * <<configuring-metricbeat>>
 
-You can also <<configuring-filebeat,collect {es} logs>>. 
+You can also <<configuring-filebeat,use {filebeat} to collect {es} logs>>. 
 
 To learn about monitoring in general, see 
 {stack-ov}/xpack-monitoring.html[Monitoring the {stack}]. 

@@ -1566,6 +1566,7 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 :client-auth-default:    none
 :verifies!:
 :server:
+:ssl-context:            security-http
 
 include::ssl-settings.asciidoc[]
 
@@ -1575,6 +1576,7 @@ include::ssl-settings.asciidoc[]
 :client-auth-default!:
 :verifies:
 :server:
+:ssl-context:            security-transport
 
 include::ssl-settings.asciidoc[]
 

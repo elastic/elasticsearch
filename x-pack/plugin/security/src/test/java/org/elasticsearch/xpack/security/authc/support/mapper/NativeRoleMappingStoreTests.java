@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -138,7 +139,12 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
     }
 
     private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, indexStatus);
+        return indexState(true, indexStatus);
+    }
+
+    private SecurityIndexManager.State indexState(boolean isUpToDate, ClusterHealthStatus healthStatus) {
+        return new SecurityIndexManager.State(
+            Instant.now(), isUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetaData.State.OPEN);
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -172,7 +178,7 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
         // green to yellow or yellow to green
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        currentState = dummyState(previousState.indexStatus == ClusterHealthStatus.GREEN ?
+        currentState = dummyState(previousState.indexHealth == ClusterHealthStatus.GREEN ?
             ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN);
         store.onSecurityIndexStateChange(previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
@@ -182,14 +188,10 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final AtomicInteger numInvalidation = new AtomicInteger(0);
         final NativeRoleMappingStore store = buildRoleMappingStoreForInvalidationTesting(numInvalidation, true);
 
-        store.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(Instant.now(), false, true, true, null, concreteSecurityIndexName, null),
-            new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, null));
+        store.onSecurityIndexStateChange(indexState(false, null), indexState(true, null));
         assertEquals(1, numInvalidation.get());
 
-        store.onSecurityIndexStateChange(
-            new SecurityIndexManager.State(Instant.now(), true, true, true, null, concreteSecurityIndexName, null),
-            new SecurityIndexManager.State(Instant.now(), false, true, true, null, concreteSecurityIndexName, null));
+        store.onSecurityIndexStateChange(indexState(true, null), indexState(false, null));
         assertEquals(2, numInvalidation.get());
     }
 

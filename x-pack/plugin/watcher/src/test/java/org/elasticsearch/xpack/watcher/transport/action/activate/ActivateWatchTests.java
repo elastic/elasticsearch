@@ -40,7 +40,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
+@TestLogging("org.elasticsearch.xpack.watcher:DEBUG,org.elasticsearch.xpack.core.watcher:DEBUG," +
+    "org.elasticsearch.xpack.watcher.WatcherIndexingListener:TRACE")
 public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
@@ -48,7 +49,6 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/30699")
     public void testDeactivateAndActivate() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch()
                 .setId("_id")
@@ -88,13 +88,9 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         refresh();
         long count1 = docCount(".watcher-history*", matchAllQuery());
 
-        logger.info("Sleeping for 5 seconds, watch history count [{}]", count1);
-        Thread.sleep(5000);
-
         refresh();
-        long count2 = docCount(".watcher-history*", matchAllQuery());
-
-        assertThat(count2, is(count1));
+        //ensure no new watch history
+        awaitBusy(() -> count1 != docCount(".watcher-history*", matchAllQuery()), 5, TimeUnit.SECONDS);
 
         // lets activate it again
         logger.info("Activating watch again");
@@ -107,11 +103,11 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getWatchResponse, notNullValue());
         assertThat(getWatchResponse.getStatus().state().isActive(), is(true));
 
-        logger.info("Sleeping for another five seconds, ensuring that watch is executed");
-        Thread.sleep(5000);
         refresh();
-        long count3 = docCount(".watcher-history*", matchAllQuery());
-        assertThat(count3, greaterThan(count1));
+        assertBusy(() -> {
+            long count2 = docCount(".watcher-history*", matchAllQuery());
+            assertThat(count2, greaterThan(count1));
+        });
     }
 
     public void testLoadWatchWithoutAState() throws Exception {

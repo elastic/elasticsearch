@@ -60,7 +60,10 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import javax.crypto.SecretKey;
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
 import java.time.Instant;
@@ -69,8 +72,6 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-
-import javax.crypto.SecretKey;
 
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.repositories.ESBlobStoreTestCase.randomBytes;
@@ -720,6 +721,11 @@ public class TokenServiceTests extends ESTestCase {
         tokenService.getAndValidateToken(threadContext, authFuture);
         UserToken authToken = authFuture.actionGet();
         assertThat(authToken, Matchers.nullValue());
+    }
+
+    public void testHashedTokenIsUrlSafe() throws Exception {
+        final String hashedId = TokenService.hashTokenString(UUIDs.randomBase64UUID());
+        assertEquals(hashedId, URLEncoder.encode(hashedId, StandardCharsets.UTF_8.name()));
     }
 
     private TokenService createTokenService(Settings settings, Clock clock) throws GeneralSecurityException {

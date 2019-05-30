@@ -95,7 +95,7 @@ public class TransportStopDataFrameAnalyticsAction
                 sortAnalyticsByTaskState(expandedIds, tasks, startedAnalytics, stoppingAnalytics);
 
                 request.setExpandedIds(startedAnalytics);
-                request.setNodes(findAllocatedNodes(startedAnalytics, tasks));
+                request.setNodes(findAllocatedNodesAndRemoveUnassignedTasks(startedAnalytics, tasks));
 
                 ActionListener<StopDataFrameAnalyticsAction.Response> finalListener = ActionListener.wrap(
                     r -> waitForTaskRemoved(expandedIds, request, r, listener),
@@ -149,7 +149,7 @@ public class TransportStopDataFrameAnalyticsAction
         configProvider.getMultiple(request.getId(), request.allowNoMatch(), configsListener);
     }
 
-    private String[] findAllocatedNodes(Set<String> analyticsIds, PersistentTasksCustomMetaData tasks) {
+    private String[] findAllocatedNodesAndRemoveUnassignedTasks(Set<String> analyticsIds, PersistentTasksCustomMetaData tasks) {
         List<String> nodes = new ArrayList<>();
         for (String analyticsId : analyticsIds) {
             PersistentTasksCustomMetaData.PersistentTask<?> task = MlTasks.getDataFrameAnalyticsTask(analyticsId, tasks);
@@ -160,7 +160,7 @@ public class TransportStopDataFrameAnalyticsAction
             } else if (task.isAssigned()) {
                 nodes.add(task.getExecutorNode());
             } else {
-                // This means the task is has not been assigned to a node yet so
+                // This means the task has not been assigned to a node yet so
                 // we can stop it by removing its persistent task.
                 // The listener is a no-op as we're already going to wait for the task to be removed.
                 persistentTasksService.sendRemoveRequest(task.getId(), ActionListener.wrap(r -> {}, e -> {}));

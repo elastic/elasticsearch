@@ -38,7 +38,7 @@ public class SecurityStatusChangeListener implements LicenseStateListener {
         final boolean newState = licenseState.isSecurityAvailable() && licenseState.isSecurityDisabledByLicenseDefaults() == false;
         // old state might be null (undefined) so do Object comparison
         if (Objects.equals(newState, securityEnabled) == false) {
-            logger.info("{} security for license [{}]", newState ? "enabling" : "disabling", licenseState.getOperationMode());
+            logger.info("Active license is now [{}]; Security is {}", licenseState.getOperationMode(), newState ? "enabled" : "disabled");
             this.securityEnabled = newState;
         }
     }

@@ -68,6 +68,7 @@ public class ClusterAlertsUtil {
         "logstash_version_mismatch",
         "xpack_license_expiration",
         "elasticsearch_nodes",
+        "elasticsearch_cluster_oversharding",
     };
 
     /**

@@ -113,7 +113,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         // Test request without any fields
         Version remoteVersion = Version.fromId(between(2000099, Version.CURRENT.id));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(),
-                not(either(hasKey("stored_fields")).or(hasKey("fields"))));
+            not(either(hasKey("stored_fields")).or(hasKey("fields"))));
 
         // Test stored_fields for versions that support it
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
@@ -134,14 +134,14 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().storedField("_source").storedField("_id");
         remoteVersion = Version.fromId(between(0, 2000099 - 1));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(),
-                hasEntry("fields", "_source,_id,_parent,_routing,_ttl"));
+            hasEntry("fields", "_source,_id,_parent,_routing,_ttl"));
 
         // But only versions before 1.0 force _source to be in the list
         searchRequest = new SearchRequest().source(new SearchSourceBuilder());
         searchRequest.source().storedField("_id");
         remoteVersion = Version.fromId(between(1000099, 2000099 - 1));
         assertThat(initialSearch(searchRequest, query, remoteVersion).getParameters(),
-                hasEntry("fields", "_id,_parent,_routing,_ttl"));
+            hasEntry("fields", "_id,_parent,_routing,_ttl"));
     }
 
     public void testInitialSearchParamsMisc() {
@@ -161,7 +161,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
             fetchVersion = randomBoolean();
             searchRequest.source().version(fetchVersion);
         }
-        
+
         Map<String, String> params = initialSearch(searchRequest, query, remoteVersion).getParameters();
 
         if (scroll == null) {
@@ -170,7 +170,12 @@ public class RemoteRequestBuildersTests extends ESTestCase {
             assertScroll(remoteVersion, params, scroll);
         }
         assertThat(params, hasEntry("size", Integer.toString(size)));
-        assertThat(params, fetchVersion == null || fetchVersion == true ? hasEntry("version", null) : not(hasEntry("version", null)));
+        if (fetchVersion != null) {
+            assertThat(params, fetchVersion ? hasEntry("version", Boolean.TRUE.toString()) :
+                hasEntry("version", Boolean.FALSE.toString()));
+        } else {
+            assertThat(params, hasEntry("version", Boolean.FALSE.toString()));
+        }
     }
 
     private void assertScroll(Version remoteVersion, Map<String, String> params, TimeValue requested) {
@@ -197,22 +202,22 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         if (remoteVersion.onOrAfter(Version.fromId(1000099))) {
             assertEquals("{\"query\":" + query + ",\"_source\":true}",
-                    Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
         } else {
             assertEquals("{\"query\":" + query + "}",
-                    Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
         }
 
         // Source filtering is included if set up
-        searchRequest.source().fetchSource(new String[] {"in1", "in2"}, new String[] {"out"});
+        searchRequest.source().fetchSource(new String[]{"in1", "in2"}, new String[]{"out"});
         entity = initialSearch(searchRequest, new BytesArray(query), remoteVersion).getEntity();
         assertEquals(ContentType.APPLICATION_JSON.toString(), entity.getContentType().getValue());
         assertEquals("{\"query\":" + query + ",\"_source\":{\"includes\":[\"in1\",\"in2\"],\"excludes\":[\"out\"]}}",
-                Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
+            Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8)));
 
         // Invalid XContent fails
         RuntimeException e = expectThrows(RuntimeException.class,
-                () -> initialSearch(searchRequest, new BytesArray("{}, \"trailing\": {}"), remoteVersion));
+            () -> initialSearch(searchRequest, new BytesArray("{}, \"trailing\": {}"), remoteVersion));
         assertThat(e.getCause().getMessage(), containsString("Unexpected character (',' (code 44))"));
         e = expectThrows(RuntimeException.class, () -> initialSearch(searchRequest, new BytesArray("{"), remoteVersion));
         assertThat(e.getCause().getMessage(), containsString("Unexpected end-of-input"));

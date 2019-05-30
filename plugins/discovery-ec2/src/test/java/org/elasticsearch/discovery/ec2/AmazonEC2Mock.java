@@ -160,6 +160,8 @@ import com.amazonaws.services.ec2.model.CreateSecurityGroupRequest;
 import com.amazonaws.services.ec2.model.CreateSecurityGroupResult;
 import com.amazonaws.services.ec2.model.CreateSnapshotRequest;
 import com.amazonaws.services.ec2.model.CreateSnapshotResult;
+import com.amazonaws.services.ec2.model.CreateSnapshotsRequest;
+import com.amazonaws.services.ec2.model.CreateSnapshotsResult;
 import com.amazonaws.services.ec2.model.CreateSpotDatafeedSubscriptionRequest;
 import com.amazonaws.services.ec2.model.CreateSpotDatafeedSubscriptionResult;
 import com.amazonaws.services.ec2.model.CreateSubnetRequest;
@@ -472,6 +474,8 @@ import com.amazonaws.services.ec2.model.DetachVolumeRequest;
 import com.amazonaws.services.ec2.model.DetachVolumeResult;
 import com.amazonaws.services.ec2.model.DetachVpnGatewayRequest;
 import com.amazonaws.services.ec2.model.DetachVpnGatewayResult;
+import com.amazonaws.services.ec2.model.DisableEbsEncryptionByDefaultRequest;
+import com.amazonaws.services.ec2.model.DisableEbsEncryptionByDefaultResult;
 import com.amazonaws.services.ec2.model.DisableTransitGatewayRouteTablePropagationRequest;
 import com.amazonaws.services.ec2.model.DisableTransitGatewayRouteTablePropagationResult;
 import com.amazonaws.services.ec2.model.DisableVgwRoutePropagationRequest;
@@ -496,6 +500,8 @@ import com.amazonaws.services.ec2.model.DisassociateVpcCidrBlockRequest;
 import com.amazonaws.services.ec2.model.DisassociateVpcCidrBlockResult;
 import com.amazonaws.services.ec2.model.DryRunResult;
 import com.amazonaws.services.ec2.model.DryRunSupportedRequest;
+import com.amazonaws.services.ec2.model.EnableEbsEncryptionByDefaultRequest;
+import com.amazonaws.services.ec2.model.EnableEbsEncryptionByDefaultResult;
 import com.amazonaws.services.ec2.model.EnableTransitGatewayRouteTablePropagationRequest;
 import com.amazonaws.services.ec2.model.EnableTransitGatewayRouteTablePropagationResult;
 import com.amazonaws.services.ec2.model.EnableVgwRoutePropagationRequest;
@@ -517,6 +523,10 @@ import com.amazonaws.services.ec2.model.GetConsoleOutputRequest;
 import com.amazonaws.services.ec2.model.GetConsoleOutputResult;
 import com.amazonaws.services.ec2.model.GetConsoleScreenshotRequest;
 import com.amazonaws.services.ec2.model.GetConsoleScreenshotResult;
+import com.amazonaws.services.ec2.model.GetEbsDefaultKmsKeyIdRequest;
+import com.amazonaws.services.ec2.model.GetEbsDefaultKmsKeyIdResult;
+import com.amazonaws.services.ec2.model.GetEbsEncryptionByDefaultRequest;
+import com.amazonaws.services.ec2.model.GetEbsEncryptionByDefaultResult;
 import com.amazonaws.services.ec2.model.GetHostReservationPurchasePreviewRequest;
 import com.amazonaws.services.ec2.model.GetHostReservationPurchasePreviewResult;
 import com.amazonaws.services.ec2.model.GetLaunchTemplateDataRequest;
@@ -550,6 +560,8 @@ import com.amazonaws.services.ec2.model.ModifyCapacityReservationRequest;
 import com.amazonaws.services.ec2.model.ModifyCapacityReservationResult;
 import com.amazonaws.services.ec2.model.ModifyClientVpnEndpointRequest;
 import com.amazonaws.services.ec2.model.ModifyClientVpnEndpointResult;
+import com.amazonaws.services.ec2.model.ModifyEbsDefaultKmsKeyIdRequest;
+import com.amazonaws.services.ec2.model.ModifyEbsDefaultKmsKeyIdResult;
 import com.amazonaws.services.ec2.model.ModifyFleetRequest;
 import com.amazonaws.services.ec2.model.ModifyFleetResult;
 import com.amazonaws.services.ec2.model.ModifyFpgaImageAttributeRequest;
@@ -568,6 +580,8 @@ import com.amazonaws.services.ec2.model.ModifyInstanceCapacityReservationAttribu
 import com.amazonaws.services.ec2.model.ModifyInstanceCapacityReservationAttributesResult;
 import com.amazonaws.services.ec2.model.ModifyInstanceCreditSpecificationRequest;
 import com.amazonaws.services.ec2.model.ModifyInstanceCreditSpecificationResult;
+import com.amazonaws.services.ec2.model.ModifyInstanceEventStartTimeRequest;
+import com.amazonaws.services.ec2.model.ModifyInstanceEventStartTimeResult;
 import com.amazonaws.services.ec2.model.ModifyInstancePlacementRequest;
 import com.amazonaws.services.ec2.model.ModifyInstancePlacementResult;
 import com.amazonaws.services.ec2.model.ModifyLaunchTemplateRequest;
@@ -602,6 +616,8 @@ import com.amazonaws.services.ec2.model.ModifyVpcPeeringConnectionOptionsRequest
 import com.amazonaws.services.ec2.model.ModifyVpcPeeringConnectionOptionsResult;
 import com.amazonaws.services.ec2.model.ModifyVpcTenancyRequest;
 import com.amazonaws.services.ec2.model.ModifyVpcTenancyResult;
+import com.amazonaws.services.ec2.model.ModifyVpnConnectionRequest;
+import com.amazonaws.services.ec2.model.ModifyVpnConnectionResult;
 import com.amazonaws.services.ec2.model.MonitorInstancesRequest;
 import com.amazonaws.services.ec2.model.MonitorInstancesResult;
 import com.amazonaws.services.ec2.model.MoveAddressToVpcRequest;
@@ -647,6 +663,8 @@ import com.amazonaws.services.ec2.model.RequestSpotFleetResult;
 import com.amazonaws.services.ec2.model.RequestSpotInstancesRequest;
 import com.amazonaws.services.ec2.model.RequestSpotInstancesResult;
 import com.amazonaws.services.ec2.model.Reservation;
+import com.amazonaws.services.ec2.model.ResetEbsDefaultKmsKeyIdRequest;
+import com.amazonaws.services.ec2.model.ResetEbsDefaultKmsKeyIdResult;
 import com.amazonaws.services.ec2.model.ResetFpgaImageAttributeRequest;
 import com.amazonaws.services.ec2.model.ResetFpgaImageAttributeResult;
 import com.amazonaws.services.ec2.model.ResetImageAttributeRequest;
@@ -1145,6 +1163,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public ModifyEbsDefaultKmsKeyIdResult modifyEbsDefaultKmsKeyId(ModifyEbsDefaultKmsKeyIdRequest modifyEbsDefaultKmsKeyIdRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public ModifyFleetResult modifyFleet(ModifyFleetRequest modifyFleetRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
@@ -1204,6 +1227,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public ModifyVpnConnectionResult modifyVpnConnection(ModifyVpnConnectionRequest modifyVpnConnectionRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public DeleteFlowLogsResult deleteFlowLogs(DeleteFlowLogsRequest deleteFlowLogsRequest)
             throws AmazonClientException {
         throw new UnsupportedOperationException("Not supported in mock");
@@ -1217,6 +1245,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
     @Override
     public DetachVpnGatewayResult detachVpnGateway(DetachVpnGatewayRequest detachVpnGatewayRequest)
             throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public DisableEbsEncryptionByDefaultResult disableEbsEncryptionByDefault(
+            DisableEbsEncryptionByDefaultRequest disableEbsEncryptionByDefaultRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1374,6 +1408,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
     @Override
     public CreateSnapshotResult createSnapshot(CreateSnapshotRequest createSnapshotRequest)
             throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public CreateSnapshotsResult createSnapshots(CreateSnapshotsRequest createSnapshotsRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -1637,6 +1676,16 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public GetEbsDefaultKmsKeyIdResult getEbsDefaultKmsKeyId(GetEbsDefaultKmsKeyIdRequest getEbsDefaultKmsKeyIdRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public GetEbsEncryptionByDefaultResult getEbsEncryptionByDefault(GetEbsEncryptionByDefaultRequest getEbsEncryptionByDefaultRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public GetHostReservationPurchasePreviewResult getHostReservationPurchasePreview(
             GetHostReservationPurchasePreviewRequest getHostReservationPurchasePreviewRequest)
             throws AmazonClientException {
@@ -1870,6 +1919,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
     }
 
     @Override
+    public ModifyInstanceEventStartTimeResult modifyInstanceEventStartTime(
+            ModifyInstanceEventStartTimeRequest modifyInstanceEventStartTimeRequest) {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
     public ModifyInstancePlacementResult modifyInstancePlacement(ModifyInstancePlacementRequest modifyInstancePlacementRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
@@ -2009,6 +2064,11 @@ public class AmazonEC2Mock implements AmazonEC2 {
     @Override
     public RequestSpotInstancesResult requestSpotInstances(RequestSpotInstancesRequest requestSpotInstancesRequest)
             throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public ResetEbsDefaultKmsKeyIdResult resetEbsDefaultKmsKeyId(ResetEbsDefaultKmsKeyIdRequest resetEbsDefaultKmsKeyIdRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 
@@ -2238,6 +2298,12 @@ public class AmazonEC2Mock implements AmazonEC2 {
     @Override
     public DisassociateVpcCidrBlockResult disassociateVpcCidrBlock(DisassociateVpcCidrBlockRequest disassociateVpcCidrBlockRequest)
             throws AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock");
+    }
+
+    @Override
+    public EnableEbsEncryptionByDefaultResult enableEbsEncryptionByDefault(
+            EnableEbsEncryptionByDefaultRequest enableEbsEncryptionByDefaultRequest) {
         throw new UnsupportedOperationException("Not supported in mock");
     }
 

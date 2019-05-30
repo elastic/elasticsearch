@@ -12,7 +12,6 @@ integTestCluster {
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
-  setting 'logger.org.elasticsearch.xpack.core.watcher', 'DEBUG'
 }
 
 integTestRunner {

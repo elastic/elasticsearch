@@ -68,11 +68,12 @@ final class RollupRequestConverters {
             .build();
 
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params parameters = new RequestConverters.Params(request);
+        RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(stopRollupJobRequest.timeout());
         if (stopRollupJobRequest.waitForCompletion() != null) {
             parameters.withWaitForCompletion(stopRollupJobRequest.waitForCompletion());
         }
+        request.addParameters(parameters.asMap());
         return request;
     }
 
@@ -95,16 +96,6 @@ final class RollupRequestConverters {
     }
 
     static Request search(final SearchRequest request) throws IOException {
-        if (request.types().length > 0) {
-            /*
-             * Ideally we'd check this with the standard validation framework
-             * but we don't have a special request for rollup search so that'd
-             * be difficult. 
-             */
-            ValidationException ve = new ValidationException();
-            ve.addValidationError("types are not allowed in rollup search");
-            throw ve;
-        }
         return RequestConverters.search(request, "_rollup_search");
     }
 

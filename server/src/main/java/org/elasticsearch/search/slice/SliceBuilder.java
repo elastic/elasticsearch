@@ -217,19 +217,15 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
         int shardId = request.shardId().id();
         int numShards = context.getIndexSettings().getNumberOfShards();
-        if (minNodeVersion.onOrAfter(Version.V_6_4_0) &&
-                (request.preference() != null || request.indexRoutings().length > 0)) {
+        if (request.preference() != null || request.indexRoutings().length > 0) {
             GroupShardsIterator<ShardIterator> group = buildShardIterator(clusterService, request);
             assert group.size() <= numShards : "index routing shards: " + group.size() +
                 " cannot be greater than total number of shards: " + numShards;
             if (group.size() < numShards) {
-                /**
+                /*
                  * The routing of this request targets a subset of the shards of this index so we need to we retrieve
                  * the original {@link GroupShardsIterator} and compute the request shard id and number of
                  * shards from it.
-                 * This behavior has been added in {@link Version#V_6_4_0} so if there is another node in the cluster
-                 * with an older version we use the original shard id and number of shards in order to ensure that all
-                 * slices use the same numbers.
                  */
                 numShards = group.size();
                 int ord = 0;

@@ -14,6 +14,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PipedInputStream;
@@ -25,6 +26,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.ml.filestructurefinder.FileStructureOverrides.EMPTY_OVERRIDES;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
@@ -54,7 +56,7 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
         }
     }
 
-    public void testFindCharsetGivenBinary() throws Exception {
+    public void testFindCharsetGivenRandomBinary() throws Exception {
 
         // This input should never match a single byte character set.  ICU4J will sometimes decide
         // that it matches a double byte character set, hence the two assertion branches.
@@ -71,6 +73,31 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
         } catch (IllegalArgumentException e) {
             assertEquals("Could not determine a usable character encoding for the input - could it be binary data?", e.getMessage());
         }
+    }
+
+    public void testFindCharsetGivenBinaryNearUtf16() throws Exception {
+
+        // This input should never match a single byte character set.  ICU4J will probably decide
+        // that it matches both UTF-16BE and UTF-16LE, but we should reject these as there's no
+        // clear winner.
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        if (randomBoolean()) {
+            stream.write(randomAlphaOfLengthBetween(3, 4).getBytes(StandardCharsets.UTF_16LE));
+        }
+        for (int i = 0; i < 50; ++i) {
+            stream.write(randomAlphaOfLengthBetween(5, 6).getBytes(StandardCharsets.UTF_16BE));
+            stream.write(randomAlphaOfLengthBetween(5, 6).getBytes(StandardCharsets.UTF_16LE));
+        }
+        if (randomBoolean()) {
+            stream.write(randomAlphaOfLengthBetween(3, 4).getBytes(StandardCharsets.UTF_16BE));
+        }
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> structureFinderManager.findCharset(explanation, new ByteArrayInputStream(stream.toByteArray()), NOOP_TIMEOUT_CHECKER));
+
+        assertEquals("Could not determine a usable character encoding for the input - could it be binary data?", e.getMessage());
+        assertThat(explanation.toString(),
+            containsString("but was rejected as the distribution of zero bytes between odd and even positions in the file is very close"));
     }
 
     public void testMakeBestStructureGivenNdJson() throws Exception {

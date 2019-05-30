@@ -373,7 +373,8 @@ public final class FileStructureFinderManager {
 
         // Determine some extra characteristics of the input to compensate for some deficiencies of ICU4J
         boolean pureAscii = true;
-        boolean containsZeroBytes = false;
+        int evenPosZeroCount = 0;
+        int oddPosZeroCount = 0;
         inputStream.mark(BUFFER_SIZE);
         byte[] workspace = new byte[BUFFER_SIZE];
         int remainingLength = BUFFER_SIZE;
@@ -382,17 +383,22 @@ public final class FileStructureFinderManager {
             if (bytesRead <= 0) {
                 break;
             }
-            for (int i = 0; i < bytesRead && containsZeroBytes == false; ++i) {
+            for (int i = 0; i < bytesRead; ++i) {
                 if (workspace[i] == 0) {
-                    containsZeroBytes = true;
                     pureAscii = false;
+                    if (i % 2 == 0) {
+                        ++evenPosZeroCount;
+                    } else {
+                        ++oddPosZeroCount;
+                    }
                 } else {
                     pureAscii = pureAscii && workspace[i] > 0 && workspace[i] < 128;
                 }
             }
             remainingLength -= bytesRead;
-        } while (containsZeroBytes == false && remainingLength > 0);
+        } while (remainingLength > 0);
         inputStream.reset();
+        boolean containsZeroBytes = evenPosZeroCount > 0 || oddPosZeroCount > 0;
         timeoutChecker.check("character set detection");
 
         if (pureAscii) {
@@ -433,6 +439,11 @@ public final class FileStructureFinderManager {
                 if (containsZeroBytes && spaceEncodingContainsZeroByte == false) {
                     explanation.add("Character encoding [" + name + "] matched the input with [" + charsetMatch.getConfidence() +
                         "%] confidence but was rejected as the input contains zero bytes and the [" + name + "] encoding does not");
+                } else if (containsZeroBytes && 3 * oddPosZeroCount > 2 * evenPosZeroCount && 3 * evenPosZeroCount > 2 * oddPosZeroCount) {
+                    explanation.add("Character encoding [" + name + "] matched the input with [" + charsetMatch.getConfidence() +
+                        "%] confidence but was rejected as the distribution of zero bytes between odd and even positions in the " +
+                        "file is very close - [" + evenPosZeroCount + "] and [" + oddPosZeroCount + "] in the first [" +
+                        (BUFFER_SIZE / 1024) + "kB] of input");
                 } else {
                     explanation.add("Using character encoding [" + name + "], which matched the input with [" +
                         charsetMatch.getConfidence() + "%] confidence");

@@ -167,7 +167,10 @@ class S3BlobContainer extends AbstractBlobContainer {
                         outstanding.addAll(
                             e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getKey).collect(Collectors.toSet()));
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
-                        logger.warn(() -> new ParameterizedMessage("Exceptions during bulk delete [{}]", e.getErrors()), e);
+                        logger.warn(() -> new ParameterizedMessage("Exceptions during bulk delete {}.",
+                                e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getMessage)
+                                    .collect(Collectors.toList())),
+                            e);
                     } catch (AmazonClientException e) {
                         // The AWS client threw any unexpected exception and did not execute the request at all so we do not
                         // remove any keys from the outstanding deletes set.

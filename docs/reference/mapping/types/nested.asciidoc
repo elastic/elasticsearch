@@ -207,7 +207,7 @@ settings in place to guard against performance problems:
     The `nested` type should only be used in special cases, when arrays of objects need to be
     queried independently of each other. To safeguard against poorly designed mappings, this setting
     limits the number of unique `nested` types per index. In our example, the `user` mapping would
-    count as only 1 towards this limit.
+    count as only 1 towards this limit. Defaults to 50.
 
 `index.mapping.nested_objects.limit`::
 
@@ -215,7 +215,7 @@ settings in place to guard against performance problems:
     `nested` types, in order to prevent out of memory errors when a document contains too many nested
     objects. To illustrate how the setting works, say we added another `nested` type called `comments`
     to our example mapping above. Then for each document, the combined number of `user` and `comment`
-    objects it contains must be below the limit.
+    objects it contains must be below the limit. Defaults to 10000.
 
 Additional background on these settings, including information on their default values, can be found
 in <<mapping-limit-settings>>.

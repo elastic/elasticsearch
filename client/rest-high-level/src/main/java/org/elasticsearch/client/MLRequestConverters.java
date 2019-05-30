@@ -602,7 +602,7 @@ final class MLRequestConverters {
             .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getIds()))
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getRequest.getPageParams() != null) {
             PageParams pageParams = getRequest.getPageParams();
             if (pageParams.getFrom() != null) {
@@ -622,7 +622,7 @@ final class MLRequestConverters {
             .addPathPartAsIs("_stats")
             .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (getStatsRequest.getPageParams() != null) {
             PageParams pageParams = getStatsRequest.getPageParams();
             if (pageParams.getFrom() != null) {
@@ -642,7 +642,7 @@ final class MLRequestConverters {
             .addPathPartAsIs("_start")
             .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (startRequest.getTimeout() != null) {
             params.withTimeout(startRequest.getTimeout());
         }

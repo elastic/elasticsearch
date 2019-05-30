@@ -70,7 +70,12 @@ public class OsProbe {
             return -1;
         }
         try {
-            return (long) getFreePhysicalMemorySize.invoke(osMxBean);
+            final long freeMem = (long) getFreePhysicalMemorySize.invoke(osMxBean);
+            if (freeMem < 0) {
+                logger.warn("OS reported a negative free memory value [{}]", freeMem);
+                return 0;
+            }
+            return freeMem;
         } catch (Exception e) {
             return -1;
         }
@@ -84,7 +89,12 @@ public class OsProbe {
             return -1;
         }
         try {
-            return (long) getTotalPhysicalMemorySize.invoke(osMxBean);
+            final long totalMem = (long) getTotalPhysicalMemorySize.invoke(osMxBean);
+            if (totalMem < 0) {
+                logger.warn("OS reported a negative total memory value [{}]", totalMem);
+                return 0;
+            }
+            return totalMem;
         } catch (Exception e) {
             return -1;
         }

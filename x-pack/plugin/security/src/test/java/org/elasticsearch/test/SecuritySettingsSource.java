@@ -7,6 +7,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -28,11 +29,13 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Consumer;
@@ -41,6 +44,7 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
 import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
 /**
@@ -53,9 +57,13 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     public static final String TEST_USER_NAME = "test_user";
     public static final String TEST_PASSWORD_HASHED =
         new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")).
-            hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+            hash(new SecureString(TEST_PASSWORD.toCharArray())));
     public static final String TEST_ROLE = "user";
     public static final String TEST_SUPERUSER = "test_superuser";
+    public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .addHeader("Authorization",
+            "Basic " + Base64.getEncoder().encodeToString((TEST_USER_NAME + ":" + TEST_PASSWORD).getBytes(StandardCharsets.UTF_8)))
+        .build();
 
     public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "transport_client";
     public static final String DEFAULT_TRANSPORT_CLIENT_USER_NAME = "test_trans_client_user";
@@ -175,9 +183,9 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     }
 
     protected SecureString nodeClientPassword() {
-        return new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray());
+        return new SecureString(TEST_PASSWORD.toCharArray());
     }
-
+    
     public static void addSSLSettingsForNodePEMFiles(Settings.Builder builder, String prefix, boolean hostnameVerificationEnabled) {
         addSSLSettingsForPEMFiles(builder, prefix,
             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",

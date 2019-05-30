@@ -54,6 +54,8 @@ import static org.elasticsearch.xpack.sql.jdbc.JdbcDateUtils.timeAsTime;
  */
 final class TypeConverter {
 
+    private static WellKnownText WKT = new WellKnownText();
+
     private TypeConverter() {}
 
     /**
@@ -246,7 +248,7 @@ final class TypeConverter {
             case GEO_POINT:
             case GEO_SHAPE:
                 try {
-                    return WellKnownText.fromWKT(v.toString());
+                    return WKT.fromWKT(v.toString());
                 } catch (IOException | ParseException ex) {
                     throw new SQLException("Cannot parse geo_shape", ex);
                 }

@@ -2,6 +2,8 @@
 "Get the indexed token and use if to authenticate":
   - skip:
       features: headers
+      version: " - 7.99.99"
+      reason: "Need to backport PR #42651"
 
   - do:
       cluster.health:
@@ -59,6 +61,8 @@
 "Get the indexed refreshed access token and use if to authenticate":
   - skip:
       features: headers
+      version: " - 7.99.99"
+      reason: "Need to backport PR #42651"
 
   - do:
       get:
@@ -111,6 +115,8 @@
 "Get the indexed refresh token and use it to get another access token and authenticate":
   - skip:
       features: headers
+      version: " - 7.99.99"
+      reason: "Need to backport PR #42651"
 
   - do:
       get:

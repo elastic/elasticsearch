@@ -21,7 +21,6 @@ apply plugin: "nebula.maven-scm"
 esplugin {
     description 'The nio transport.'
     classname 'org.elasticsearch.transport.nio.NioTransportPlugin'
-    hasClientJar = true
 }
 
 dependencies {

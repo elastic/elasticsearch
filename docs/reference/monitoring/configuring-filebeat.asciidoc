@@ -8,8 +8,9 @@
 <titleabbrev>Collecting log data with {filebeat}</titleabbrev>
 ++++
 
-In 7.2 and later, you can use {filebeat} to monitor the {es} log files, collect
-log events, and ship them to the monitoring cluster.
+You can use {filebeat} to monitor the {es} log files, collect log events, and
+ship them to the monitoring cluster. In 7.2 and later, your recent logs are
+visible on the *Monitoring* page in {kib}.
 
 //NOTE: The tagged regions are re-used in the Stack Overview.
 
@@ -29,8 +30,29 @@ from impacting the performance of your production cluster. See
 . Enable the collection of monitoring data on your cluster.
 +
 --
-include::configuring-metricbeat.asciidoc[tag=enable-collection]
+//include::configuring-metricbeat.asciidoc[tag=enable-collection]
+Set `xpack.monitoring.collection.enabled` to `true` on each node in the
+production cluster. By default, it is is disabled (`false`). 
 
+NOTE: You can specify this setting in either the `elasticsearch.yml` on each 
+node or across the cluster as a dynamic cluster setting. If {es} 
+{security-features} are enabled, you must have `monitor` cluster privileges to 
+view the cluster settings and `manage` cluster privileges to change them.
+
+For example, you can use the following APIs to review and change this setting:
+
+[source,js]
+----------------------------------
+GET _cluster/settings
+
+PUT _cluster/settings
+{
+  "persistent": {
+    "xpack.monitoring.collection.enabled": true
+  }
+}
+----------------------------------
+// CONSOLE 
 For more information, see <<monitoring-settings>> and <<cluster-update-settings>>.
 --
 

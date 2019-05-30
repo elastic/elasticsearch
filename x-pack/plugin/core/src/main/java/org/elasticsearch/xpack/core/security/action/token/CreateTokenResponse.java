@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,9 +58,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         out.writeString(tokenString);
         out.writeTimeValue(expiresIn);
         out.writeOptionalString(scope);
-        if (out.getVersion().onOrAfter(Version.V_6_5_0)) {
-            out.writeOptionalString(refreshToken);
-        }
+        out.writeOptionalString(refreshToken);
     }
 
     @Override
@@ -70,9 +67,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         tokenString = in.readString();
         expiresIn = in.readTimeValue();
         scope = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_6_5_0)) {
-            refreshToken = in.readOptionalString();
-        }
+        refreshToken = in.readOptionalString();
     }
 
     @Override

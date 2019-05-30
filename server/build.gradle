@@ -56,8 +56,10 @@ if (!isEclipse && !isIdea) {
   }
 
   forbiddenApisJava9 {
-    if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
-      targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
+    doFirst {
+      if (project.runtimeJavaVersion < JavaVersion.VERSION_1_9) {
+        targetCompatibility = JavaVersion.VERSION_1_9.getMajorVersion()
+      }
     }
   }
 
@@ -314,8 +316,10 @@ thirdPartyAudit.ignoreMissingClasses (
   'com.google.common.geometry.S2LatLng'
 )
 
-if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
-  thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
+rootProject.globalInfo.ready {
+  if (project.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
+    thirdPartyAudit.ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
+  }
 }
 
 dependencyLicenses {

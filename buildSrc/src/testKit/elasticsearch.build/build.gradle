@@ -29,6 +29,7 @@ forbiddenApisTest.enabled = false
 jarHell.enabled = false
 // we don't have tests for now
 test.enabled = false
+thirdPartyAudit.enabled = false
 
 task hello {
     doFirst {

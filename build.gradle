@@ -552,31 +552,6 @@ gradle.projectsEvaluated {
   }
 }
 
-if (System.properties.get("build.compare") != null) {
-  apply plugin: 'compare-gradle-builds'
-  compareGradleBuilds {
-    ext.referenceProject = System.properties.get("build.compare")
-    doFirst {
-      if (file(referenceProject).exists() == false) {
-        throw new GradleException(
-                "Use git worktree to check out a version to compare against to ../elasticsearch_build_reference"
-        )
-      }
-    }
-    sourceBuild {
-      gradleVersion = gradle.getGradleVersion()
-      projectDir = referenceProject
-      tasks = ["clean", "assemble"]
-      arguments = ["-Dbuild.compare_friendly=true"]
-    }
-    targetBuild {
-      tasks = ["clean", "assemble"]
-      // use -Dorg.gradle.java.home= to alter jdk versions
-      arguments = ["-Dbuild.compare_friendly=true"]
-    }
-  }
-}
-
 allprojects {
   task resolveAllDependencies {
       dependsOn tasks.matching { it.name == "pullFixture"}

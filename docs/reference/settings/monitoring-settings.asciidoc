@@ -283,5 +283,6 @@ For example: `["elasticsearch_version_mismatch","xpack_license_expiration"]`.
 :component:              {monitoring}
 :verifies:
 :server!:
+:ssl-context:            monitoring
 
 include::ssl-settings.asciidoc[]

@@ -383,7 +383,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setTypes("type1")
+
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC).setNestedPath("nested1"))
                 .get();
@@ -397,7 +397,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("4"));
 
         searchResponse = client().prepareSearch("test")
-                .setTypes("type1")
+
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.DESC).setNestedPath("nested1"))
                 .get();
@@ -474,7 +474,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                 .endObject()).get();
         refresh();
 
-        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setTypes("type1")
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .addSort(SortBuilders.fieldSort("nested1.field1").setNestedPath("nested1")
                         .setNestedFilter(termQuery("nested1.field2", true)).missing(10).order(SortOrder.ASC));
@@ -493,7 +493,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("10"));
 
-        searchRequestBuilder = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery())
+        searchRequestBuilder = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .addSort(SortBuilders.fieldSort("nested1.field1").setNestedPath("nested1")
                         .setNestedFilter(termQuery("nested1.field2", true)).missing(10).order(SortOrder.DESC));
 

@@ -168,7 +168,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                             e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getKey).collect(Collectors.toSet()));
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
                         logger.warn(() -> new ParameterizedMessage("Exceptions during bulk delete {}.",
-                                e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getMessage)
+                                e.getErrors().stream().map(MultiObjectDeleteException.DeleteError::getKey)
                                     .collect(Collectors.toList())),
                             e);
                     } catch (AmazonClientException e) {

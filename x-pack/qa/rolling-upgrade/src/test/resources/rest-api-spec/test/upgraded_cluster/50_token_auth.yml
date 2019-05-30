@@ -2,7 +2,7 @@
 "Get the indexed token and use if to authenticate":
   - skip:
       features: headers
-      version: " - 7.99.99"
+      version: " - 8.0.0"
       reason: "Need to backport PR #42651"
 
   - do:
@@ -51,7 +51,7 @@
 "Get the indexed refresh token and use if to get another access token and authenticate":
   - skip:
       features: headers
-      version: " - 7.99.99"
+      version: " - 8.0.0"
       reason: "Need to backport PR #42651"
 
   - do:

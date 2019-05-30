@@ -530,9 +530,8 @@ public class TokenServiceTests extends ESTestCase {
         }
 
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
-            // move to expiry
-            clock.fastForwardSeconds(Math.toIntExact(defaultExpiration.getSeconds()) - fastForwardAmount);
-            clock.rewind(TimeValue.timeValueNanos(clock.instant().getNano())); // trim off nanoseconds since don't store them in the index
+            // move to expiry, stripping nanoseconds, as we don't store them in the security-tokens index
+            clock.setTime(userToken.getExpirationTime().truncatedTo(ChronoUnit.MILLIS).atZone(clock.getZone()));
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             tokenService.getAndValidateToken(requestContext, future);
             assertAuthentication(authentication, future.get().getAuthentication());

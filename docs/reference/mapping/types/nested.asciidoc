@@ -193,20 +193,32 @@ phase.  Instead, highlighting needs to be performed via
 
 =============================================
 
-[[limit-number-nested-fields]]
-==== Limiting the number of `nested` fields
+[float]
+=== Limits on `nested` mappings and objects
 
-Indexing a document with 100 nested fields actually indexes 101 documents as each nested
-document is indexed as a separate document. To safeguard against ill-defined mappings
-the number of nested fields that can be defined per index has been limited to 50. See
-<<mapping-limit-settings>>.
+As described earlier, each nested object is indexed as a separate document under the hood.
+Continuing with the example above, if we indexed a single document containing 100 `user` objects,
+then 101 Lucene documents would be created -- one for the parent document, and one for each
+nested object. Because of the expense associated with `nested` mappings, Elasticsearch puts
+settings in place to guard against performance problems:
 
-[[limit-nested-json-objects-number]]
-==== Limiting the number of `nested` json objects
-Indexing a document with an array of 100 objects within a nested field, will actually
-create 101 documents, as each nested object will be indexed as a separate document.
-To prevent out of memory errors when a single document contains too many nested json
-objects, the number of nested json objects that a single document may contain across all fields
-has been limited to 10000. See <<mapping-limit-settings>>.
+`index.mapping.nested_fields.limit`::
+
+    The `nested` type should only be used in special cases, when arrays of objects need to be
+    queried independently of each other. To safeguard against poorly designed mappings, this setting
+    limits the number of unique `nested` types per index. In our example, the `user` mapping would
+    count as only 1 towards this limit. Defaults to 50.
+
+`index.mapping.nested_objects.limit`::
+
+    This setting limits the number of nested objects that a single document may contain across all
+    `nested` types, in order to prevent out of memory errors when a document contains too many nested
+    objects. To illustrate how the setting works, say we added another `nested` type called `comments`
+    to our example mapping above. Then for each document, the combined number of `user` and `comment`
+    objects it contains must be below the limit. Defaults to 10000.
+
+Additional background on these settings, including information on their default values, can be found
+in <<mapping-limit-settings>>.
+
 
 

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
@@ -170,13 +170,6 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("-1");
             }
             sb.append("], ");
-            if (context.getQueryShardContext().getTypes() == null) {
-                sb.append("types[], ");
-            } else {
-                sb.append("types[");
-                Strings.arrayToDelimitedString(context.getQueryShardContext().getTypes(), ",", sb);
-                sb.append("], ");
-            }
             if (context.groupStats() == null) {
                 sb.append("stats[], ");
             } else {

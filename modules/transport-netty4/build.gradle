@@ -76,6 +76,10 @@ thirdPartyAudit {
         'org.apache.commons.logging.Log',
         'org.apache.commons.logging.LogFactory',
 
+        // from Log4j (deliberate, Netty will fallback to Log4j 2)
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
+
         // from io.netty.handler.ssl.OpenSslEngine (netty)
         'io.netty.internal.tcnative.Buffer',
         'io.netty.internal.tcnative.Library',

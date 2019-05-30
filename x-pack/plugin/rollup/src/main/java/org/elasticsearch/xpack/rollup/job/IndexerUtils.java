@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * They are extracted out as static classes mainly to make testing easier.
  */
 class IndexerUtils {
-    private static final Logger logger = LogManager.getLogger(IndexerUtils.class.getName());
+    private static final Logger logger = LogManager.getLogger(IndexerUtils.class);
 
     /**
      * The only entry point in this class.  You hand this method an aggregation and an index

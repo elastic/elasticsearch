@@ -103,6 +103,7 @@ For more information, see
 . Configure the {es} module in {metricbeat}. +
 +
 --
+// tag::configure-es-module[]
 For example, specify the following settings in the `modules.d/elasticsearch.yml`
 file:
 

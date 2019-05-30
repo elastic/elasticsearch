@@ -2881,17 +2881,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    private static final DataFrameAnalyticsConfig DF_ANALYTICS_CONFIG =
-        DataFrameAnalyticsConfig.builder("my-analytics-config")
-            .setSource(DataFrameAnalyticsSource.builder()
-                .setIndex("put-test-source-index")
-                .build())
-            .setDest(DataFrameAnalyticsDest.builder()
-                .setIndex("put-test-dest-index")
-                .build())
-            .setAnalysis(OutlierDetection.createDefault())
-            .build();
-
     public void testPutDataFrameAnalytics() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
@@ -3068,15 +3057,6 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         assertBusy(
             () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
             30, TimeUnit.SECONDS);
-    }
-
-    private DataFrameAnalyticsState getAnalyticsState(String configId) throws IOException {
-        GetDataFrameAnalyticsStatsResponse statsResponse =
-            highLevelClient().machineLearning().getDataFrameAnalyticsStats(
-                new GetDataFrameAnalyticsStatsRequest(configId), RequestOptions.DEFAULT);
-        assertThat(statsResponse.getAnalyticsStats(), hasSize(1));
-        DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
-        return stats.getState();
     }
 
     public void testCreateFilter() throws Exception {
@@ -3431,4 +3411,24 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         .endObject());
         highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
     }
+
+    private DataFrameAnalyticsState getAnalyticsState(String configId) throws IOException {
+        GetDataFrameAnalyticsStatsResponse statsResponse =
+            highLevelClient().machineLearning().getDataFrameAnalyticsStats(
+                new GetDataFrameAnalyticsStatsRequest(configId), RequestOptions.DEFAULT);
+        assertThat(statsResponse.getAnalyticsStats(), hasSize(1));
+        DataFrameAnalyticsStats stats = statsResponse.getAnalyticsStats().get(0);
+        return stats.getState();
+    }
+
+    private static final DataFrameAnalyticsConfig DF_ANALYTICS_CONFIG =
+        DataFrameAnalyticsConfig.builder("my-analytics-config")
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex("put-test-source-index")
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex("put-test-dest-index")
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
 }

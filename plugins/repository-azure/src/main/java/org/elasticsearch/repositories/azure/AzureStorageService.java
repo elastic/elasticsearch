@@ -214,10 +214,12 @@ public class AzureStorageService {
                 // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
                 // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
                 final String blobPath = uri.getPath().substring(1 + container.length() + 1);
-                final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
-                final String name = blobPath.substring(keyPath.length());
-                logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
-                blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
+                if (blobItem instanceof CloudBlockBlob) {
+                    final BlobProperties properties = ((CloudBlockBlob) blobItem).getProperties();
+                    final String name = blobPath.substring(keyPath.length());
+                    logger.trace(() -> new ParameterizedMessage("blob url [{}], name [{}], size [{}]", uri, name, properties.getLength()));
+                    blobsBuilder.put(name, new PlainBlobMetaData(name, properties.getLength()));
+                }
             }
         });
         return Map.copyOf(blobsBuilder);

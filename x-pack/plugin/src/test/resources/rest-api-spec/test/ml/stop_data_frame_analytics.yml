@@ -5,10 +5,10 @@ setup:
         body: >
           {
             "source": {
-              "index": "stop_test_source_index"
+              "index": "index-source"
             },
             "dest": {
-              "index": "stop_test_dest_index"
+              "index": "index-dest"
             },
             "analysis": {"outlier_detection":{}}
           }

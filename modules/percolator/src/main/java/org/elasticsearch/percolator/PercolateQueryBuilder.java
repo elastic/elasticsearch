@@ -30,8 +30,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
@@ -56,7 +54,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -634,13 +631,19 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             }
         };
         final IndexSearcher docSearcher;
+        final boolean excludeNestedDocuments;
         if (docs.size() > 1 || docs.get(0).docs().size() > 1) {
             assert docs.size() != 1 || docMapper.hasNestedObjects();
             docSearcher = createMultiDocumentSearcher(analyzer, docs);
+            excludeNestedDocuments = docMapper.hasNestedObjects() && docs.stream()
+                    .map(ParsedDocument::docs)
+                    .mapToInt(List::size)
+                    .anyMatch(size -> size > 1);
         } else {
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(docs.get(0).rootDoc(), analyzer, true, false);
             docSearcher = memoryIndex.createSearcher();
             docSearcher.setQueryCache(null);
+            excludeNestedDocuments = false;
         }
 
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
@@ -650,7 +653,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             percolateShardContext,
             pft.mapUnmappedFieldsAsText);
 
-        return pft.percolateQuery(name, queryStore, documents, docSearcher, context.indexVersionCreated());
+        return pft.percolateQuery(name, queryStore, documents, docSearcher, excludeNestedDocuments, context.indexVersionCreated());
     }
 
     public String getField() {
@@ -686,17 +689,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
             assert directoryReader.leaves().size() == 1 : "Expected single leaf, but got [" + directoryReader.leaves().size() + "]";
-            final IndexSearcher slowSearcher = new IndexSearcher(directoryReader) {
-
-                @Override
-                public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
-                    BooleanQuery.Builder bq = new BooleanQuery.Builder();
-                    bq.add(query, BooleanClause.Occur.MUST);
-                    bq.add(Queries.newNestedFilter(), BooleanClause.Occur.MUST_NOT);
-                    return super.createNormalizedWeight(bq.build(), needsScores);
-                }
-
-            };
+            final IndexSearcher slowSearcher = new IndexSearcher(directoryReader);
             slowSearcher.setQueryCache(null);
             return slowSearcher;
         } catch (IOException e) {

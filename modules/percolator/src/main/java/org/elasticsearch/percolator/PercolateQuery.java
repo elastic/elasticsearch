@@ -31,6 +31,8 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedFunction;
@@ -53,14 +55,17 @@ final class PercolateQuery extends Query implements Accountable {
     private final Query candidateMatchesQuery;
     private final Query verifiedMatchesQuery;
     private final IndexSearcher percolatorIndexSearcher;
+    private final Query nonNestedDocsFilter;
 
     PercolateQuery(String name, QueryStore queryStore, List<BytesReference> documents,
-                   Query candidateMatchesQuery, IndexSearcher percolatorIndexSearcher, Query verifiedMatchesQuery) {
+                   Query candidateMatchesQuery, IndexSearcher percolatorIndexSearcher,
+                   Query nonNestedDocsFilter, Query verifiedMatchesQuery) {
         this.name = name;
         this.documents = Objects.requireNonNull(documents);
         this.candidateMatchesQuery = Objects.requireNonNull(candidateMatchesQuery);
         this.queryStore = Objects.requireNonNull(queryStore);
         this.percolatorIndexSearcher = Objects.requireNonNull(percolatorIndexSearcher);
+        this.nonNestedDocsFilter = nonNestedDocsFilter;
         this.verifiedMatchesQuery = Objects.requireNonNull(verifiedMatchesQuery);
     }
 
@@ -68,7 +73,8 @@ final class PercolateQuery extends Query implements Accountable {
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = candidateMatchesQuery.rewrite(reader);
         if (rewritten != candidateMatchesQuery) {
-            return new PercolateQuery(name, queryStore, documents, rewritten, percolatorIndexSearcher, verifiedMatchesQuery);
+            return new PercolateQuery(name, queryStore, documents, rewritten, percolatorIndexSearcher,
+                    nonNestedDocsFilter, verifiedMatchesQuery);
         } else {
             return this;
         }
@@ -122,6 +128,12 @@ final class PercolateQuery extends Query implements Accountable {
                         boolean matchDocId(int docId) throws IOException {
                             Query query = percolatorQueries.apply(docId);
                             if (query != null) {
+                                if (nonNestedDocsFilter != null) {
+                                    query = new BooleanQuery.Builder()
+                                            .add(query, Occur.MUST)
+                                            .add(nonNestedDocsFilter, Occur.FILTER)
+                                            .build();
+                                }
                                 TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
                                 if (topDocs.totalHits > 0) {
                                     score = topDocs.scoreDocs[0].score;
@@ -159,7 +171,16 @@ final class PercolateQuery extends Query implements Accountable {
                                 return true;
                             }
                             Query query = percolatorQueries.apply(docId);
-                            return query != null && Lucene.exists(percolatorIndexSearcher, query);
+                            if (query == null) {
+                                return false;
+                            }
+                            if (nonNestedDocsFilter != null) {
+                                query = new BooleanQuery.Builder()
+                                        .add(query, Occur.MUST)
+                                        .add(nonNestedDocsFilter, Occur.FILTER)
+                                        .build();
+                            }
+                            return Lucene.exists(percolatorIndexSearcher, query);
                         }
                     };
                 }
@@ -180,6 +201,10 @@ final class PercolateQuery extends Query implements Accountable {
 
     IndexSearcher getPercolatorIndexSearcher() {
         return percolatorIndexSearcher;
+    }
+
+    boolean excludesNestedDocs() {
+        return nonNestedDocsFilter != null;
     }
 
     List<BytesReference> getDocuments() {

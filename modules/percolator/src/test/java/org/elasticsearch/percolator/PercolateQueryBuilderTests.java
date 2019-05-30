@@ -19,12 +19,6 @@
 
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -42,8 +36,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -68,7 +60,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQueryBuilder> {
 
@@ -77,8 +68,8 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         PercolateQueryBuilder.DOCUMENTS_FIELD.getPreferredName()
     };
 
-    private static String queryField = "field";
-    private static String aliasField = "alias";
+    protected static String queryField = "field";
+    protected static String aliasField = "alias";
     private static String docType;
 
     private String indexedDocumentIndex;
@@ -270,48 +261,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     public void testBothDocumentAndDocumentsSpecified() throws IOException {
         expectThrows(IllegalArgumentException.class,
             () -> parseQuery("{\"percolate\" : { \"document\": {}, \"documents\": [{}, {}], \"field\":\"" + queryField + "\"}}"));
-    }
-
-    public void testCreateNestedDocumentSearcher() throws Exception {
-        int numNestedDocs = randomIntBetween(2, 8);
-        List<ParseContext.Document> docs = new ArrayList<>(numNestedDocs);
-        for (int i = 0; i < numNestedDocs; i++) {
-            docs.add(new ParseContext.Document());
-        }
-
-        Collection<ParsedDocument> parsedDocument = Collections.singleton(
-            new ParsedDocument(null, null, "_id", "_type", null, docs, null, null, null));
-        Analyzer analyzer = new WhitespaceAnalyzer();
-        IndexSearcher indexSearcher = PercolateQueryBuilder.createMultiDocumentSearcher(analyzer, parsedDocument);
-        assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(numNestedDocs));
-
-        // ensure that any query get modified so that the nested docs are never included as hits:
-        Query query = new MatchAllDocsQuery();
-        BooleanQuery result = (BooleanQuery) indexSearcher.createNormalizedWeight(query, true).getQuery();
-        assertThat(result.clauses().size(), equalTo(2));
-        assertThat(result.clauses().get(0).getQuery(), sameInstance(query));
-        assertThat(result.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(result.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
-    }
-
-    public void testCreateMultiDocumentSearcher() throws Exception {
-        int numDocs = randomIntBetween(2, 8);
-        List<ParsedDocument> docs = new ArrayList<>();
-        for (int i = 0; i < numDocs; i++) {
-            docs.add(new ParsedDocument(null, null, "_id", "_type", null,
-                Collections.singletonList(new ParseContext.Document()), null, null, null));
-        }
-        Analyzer analyzer = new WhitespaceAnalyzer();
-        IndexSearcher indexSearcher = PercolateQueryBuilder.createMultiDocumentSearcher(analyzer, docs);
-        assertThat(indexSearcher.getIndexReader().numDocs(), equalTo(numDocs));
-
-        // ensure that any query get modified so that the nested docs are never included as hits:
-        Query query = new MatchAllDocsQuery();
-        BooleanQuery result = (BooleanQuery) indexSearcher.createNormalizedWeight(query, true).getQuery();
-        assertThat(result.clauses().size(), equalTo(2));
-        assertThat(result.clauses().get(0).getQuery(), sameInstance(query));
-        assertThat(result.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(result.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
     }
 
     public void testSerializationBwc() throws IOException {

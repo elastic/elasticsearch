@@ -980,7 +980,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } catch (IOException e) {
                     logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete blobs during finalization",
                         snapshotId, shardId), e);
-                    throw e;
                 }
             } catch (IOException e) {
                 String message =

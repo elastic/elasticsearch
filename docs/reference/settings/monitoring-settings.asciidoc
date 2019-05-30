@@ -274,6 +274,7 @@ You can add any of the following watch identifiers to the blacklist:
 * `kibana_version_mismatch`
 * `logstash_version_mismatch`
 * `xpack_license_expiration`
+* `elasticsearch_cluster_oversharding`
 
 For example: `["elasticsearch_version_mismatch","xpack_license_expiration"]`.
 --

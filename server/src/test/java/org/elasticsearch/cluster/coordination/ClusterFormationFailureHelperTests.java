@@ -163,28 +163,28 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId())).build();
 
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), emptyList(), 1L).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
+            is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "[cluster.initial_master_nodes] is empty on this node: have discovered []; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 1, last-accepted version 7 in term 4"));
 
         final TransportAddress otherAddress = buildNewFakeTransportAddress();
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, singletonList(otherAddress), emptyList(), 2L).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
+            is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "[cluster.initial_master_nodes] is empty on this node: have discovered []; " +
                 "discovery will continue using [" + otherAddress + "] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 2, last-accepted version 7 in term 4"));
 
         final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
         assertThat(new ClusterFormationState(Settings.EMPTY, clusterState, emptyList(), singletonList(otherNode), 3L).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
+            is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "[cluster.initial_master_nodes] is empty on this node: have discovered [" + otherNode + "]; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 3, last-accepted version 7 in term 4"));
 
         assertThat(new ClusterFormationState(Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), "other").build(),
                 clusterState, emptyList(), emptyList(), 4L).getDescription(),
-            is("master not discovered yet, this node has not previously joined a bootstrapped (v7+) cluster, and " +
+            is("master not discovered yet, this node has not previously joined a bootstrapped cluster, and " +
                 "this node must discover master-eligible nodes [other] to bootstrap a cluster: have discovered []; " +
                 "discovery will continue using [] from hosts providers and [" + localNode +
                 "] from last-known cluster state; node term 4, last-accepted version 7 in term 4"));

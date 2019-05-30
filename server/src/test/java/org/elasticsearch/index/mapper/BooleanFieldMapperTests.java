@@ -147,6 +147,36 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
             "Preview of field's value: '" + randomValue + "'", ex.getMessage());
     }
 
+
+    public void testParsesBooleansNestedStrict() throws IOException {
+        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "boolean")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject());
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+        // omit "false"/"true" here as they should still be parsed correctly
+        String randomValue = "no";
+        BytesReference source = BytesReference.bytes(XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("field")
+                    .field("inner_field", randomValue)
+                .endObject()
+            .endObject());
+        MapperParsingException ex = expectThrows(MapperParsingException.class,
+                () -> defaultMapper.parse(new SourceToParse("test", "type", "1", source, XContentType.JSON)));
+        assertEquals("failed to parse field [field] of type [boolean] in document with id '1'. " +
+            "Preview of field's value: '{inner_field=" + randomValue + "}'", ex.getMessage());
+    }
+
+
+
+
     public void testMultiFields() throws IOException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")

@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -47,6 +48,7 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
 
@@ -303,7 +305,12 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                     valuePreview = "null";
                 } else {
-                    valuePreview = readComplexJsonElement(parser);
+                    Object complexValue = AbstractXContentParser.readValue(parser,
+                        ()-> new HashMap<String, Object>(),
+                        parser.currentToken());
+                    valuePreview = complexValue.toString();
+
+
                     if (valuePreview == null) {
                         // @reviewers: need some better handling here, but not sure in which case (if any) it may occur
                         valuePreview = "unexpected value";

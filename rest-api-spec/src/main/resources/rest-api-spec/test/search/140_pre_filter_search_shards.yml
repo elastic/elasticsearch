@@ -9,7 +9,7 @@ setup:
               properties:
                 created_at:
                    type: date
-                   format: "yyyy-MM-dd"
+                   format: "strict_date"
   - do:
       indices.create:
           index: index_2
@@ -20,7 +20,7 @@ setup:
               properties:
                 created_at:
                    type: date
-                   format: "yyyy-MM-dd"
+                   format: "strict_date"
   - do:
       indices.create:
           index: index_3
@@ -31,7 +31,7 @@ setup:
               properties:
                 created_at:
                    type: date
-                   format: "yyyy-MM-dd"
+                   format: "strict_date"
 
 
 ---

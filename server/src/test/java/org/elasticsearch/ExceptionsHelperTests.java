@@ -35,6 +35,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.io.IOException;
 import java.util.Optional;
 
 import static org.elasticsearch.ExceptionsHelper.MAX_ITERATIONS;
@@ -210,5 +211,21 @@ public class ExceptionsHelperTests extends ESTestCase {
         final Throwable withSuppressedException = new RuntimeException();
         withSuppressedException.addSuppressed(new RuntimeException());
         assertThat(ExceptionsHelper.unwrapCorruption(withSuppressedException), nullValue());
+    }
+
+    public void testSuppressedCycle() {
+        RuntimeException e1 = new RuntimeException();
+        RuntimeException e2 = new RuntimeException();
+        e1.addSuppressed(e2);
+        e2.addSuppressed(e1);
+        ExceptionsHelper.unwrapCorruption(e1);
+    }
+
+    public void testCauseCycle() {
+        RuntimeException e1 = new RuntimeException();
+        RuntimeException e2 = new RuntimeException(e1);
+        e1.initCause(e2);
+        ExceptionsHelper.unwrap(e1, IOException.class);
+        ExceptionsHelper.unwrapCorruption(e1);
     }
 }

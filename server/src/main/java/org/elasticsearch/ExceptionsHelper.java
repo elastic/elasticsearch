@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -185,21 +186,26 @@ public final class ExceptionsHelper {
      * @return Corruption indicating exception if one is found, otherwise {@code null}
      */
     public static IOException unwrapCorruption(Throwable t) {
-        if (t != null) {
-            do {
-                for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
-                    if (clazz.isInstance(t)) {
-                        return (IOException) t;
-                    }
+        return t == null ? null : doUnwrapCorruption(t, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    private static IOException doUnwrapCorruption(Throwable t, Set<Throwable> seen) {
+        do {
+            if (seen.add(t) == false) {
+                return null;
+            }
+            for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
+                if (clazz.isInstance(t)) {
+                    return (IOException) t;
                 }
-                for (Throwable suppressed : t.getSuppressed()) {
-                    IOException corruptionException = unwrapCorruption(suppressed);
-                    if (corruptionException != null) {
-                        return corruptionException;
-                    }
+            }
+            for (Throwable suppressed : t.getSuppressed()) {
+                IOException corruptionException = doUnwrapCorruption(suppressed, seen);
+                if (corruptionException != null) {
+                    return corruptionException;
                 }
-            } while ((t = t.getCause()) != null);
-        }
+            }
+        } while ((t = t.getCause()) != null);
         return null;
     }
 
@@ -213,7 +219,11 @@ public final class ExceptionsHelper {
      */
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {
         if (t != null) {
+            final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
             do {
+                if (seen.add(t) == false) {
+                    return null;
+                }
                 for (Class<?> clazz : clazzes) {
                     if (clazz.isInstance(t)) {
                         return t;

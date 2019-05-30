@@ -96,10 +96,6 @@ import static org.elasticsearch.http.netty4.cors.Netty4CorsHandler.ANY_ORIGIN;
 public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private static final Logger logger = LogManager.getLogger(Netty4HttpServerTransport.class);
 
-    static {
-        Netty4Utils.setup();
-    }
-
     /*
      * Size in bytes of an individual message received by io.netty.handler.codec.MessageAggregator which accumulates the content for an
      * HTTP request. This number is used for estimating the maximum number of allowed buffers before the MessageAggregator's internal

@@ -6,7 +6,8 @@
 
 package org.elasticsearch.xpack.core.indexing;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -35,7 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @param <JobPosition> Type that defines a job position to be defined by the implementation.
  */
 public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends IndexerJobStats> {
-    private static final Logger logger = Logger.getLogger(AsyncTwoPhaseIndexer.class.getName());
+    private static final Logger logger = LogManager.getLogger(AsyncTwoPhaseIndexer.class.getName());
 
     private final JobStats stats;
 

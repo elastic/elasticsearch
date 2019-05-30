@@ -86,7 +86,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     private final Runnable recoveryRunnable;
 
-    private final AtomicBoolean recovered = new AtomicBoolean();
+    private final AtomicBoolean recoveryInProgress = new AtomicBoolean();
     private final AtomicBoolean scheduledRecovery = new AtomicBoolean();
 
     @Inject
@@ -214,7 +214,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
                     @Override
                     protected void doRun() {
-                        if (recovered.compareAndSet(false, true)) {
+                        if (recoveryInProgress.compareAndSet(false, true)) {
                             logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
                             recoveryRunnable.run();
                         }
@@ -222,7 +222,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 }, recoverAfterTime, ThreadPool.Names.GENERIC);
             }
         } else {
-            if (recovered.compareAndSet(false, true)) {
+            if (recoveryInProgress.compareAndSet(false, true)) {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(final Exception e) {
@@ -240,7 +240,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     }
 
     private void resetRecoveredFlags() {
-        recovered.set(false);
+        recoveryInProgress.set(false);
         scheduledRecovery.set(false);
     }
 
@@ -259,6 +259,9 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         @Override
         public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
             logger.info("recovered [{}] indices into cluster_state", newState.metaData().indices().size());
+            // reset flag even though state recovery completed, to ensure that if we subsequently become leader again based on a
+            // not-recovered state, that we again do another state recovery.
+            resetRecoveredFlags();
         }
 
         @Override

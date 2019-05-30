@@ -981,28 +981,15 @@ public abstract class TransportReplicationAction<
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                localCheckpoint = in.readZLong();
-            } else {
-                // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
-                localCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
-            }
-            if (in.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-                globalCheckpoint = in.readZLong();
-            } else {
-                globalCheckpoint = SequenceNumbers.PRE_60_NODE_CHECKPOINT;
-            }
+            localCheckpoint = in.readZLong();
+            globalCheckpoint = in.readZLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
-                out.writeZLong(localCheckpoint);
-            }
-            if (out.getVersion().onOrAfter(Version.V_6_0_0_rc1)) {
-                out.writeZLong(globalCheckpoint);
-            }
+            out.writeZLong(localCheckpoint);
+            out.writeZLong(globalCheckpoint);
         }
 
         @Override

@@ -677,4 +677,76 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         assertEquals("[move_allocation] can't move [test][0] from " + node2 + " to " + node1 +
             ": source [" + node2.getName() + "] is not a data node.", e.getMessage());
     }
+
+    public void testConflictingCommandsInSingleRequest() {
+        AllocationService allocation = createAllocationService(Settings.builder()
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+            .build());
+
+        final String index1 = "test1";
+        final String index2 = "test2";
+        final String index3 = "test3";
+        logger.info("--> building initial routing table");
+        MetaData metaData = MetaData.builder()
+            .put(IndexMetaData.builder(index1).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)
+                .putInSyncAllocationIds(0, Collections.singleton("randomAllocID"))
+                .putInSyncAllocationIds(1, Collections.singleton("randomAllocID2")))
+            .put(IndexMetaData.builder(index2).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)
+                .putInSyncAllocationIds(0, Collections.singleton("randomAllocID"))
+                .putInSyncAllocationIds(1, Collections.singleton("randomAllocID2")))
+            .put(IndexMetaData.builder(index3).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)
+                .putInSyncAllocationIds(0, Collections.singleton("randomAllocID"))
+                .putInSyncAllocationIds(1, Collections.singleton("randomAllocID2")))
+            .build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsRecovery(metaData.index(index1))
+            .addAsRecovery(metaData.index(index2))
+            .addAsRecovery(metaData.index(index3))
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metaData(metaData).routingTable(routingTable).build();
+
+        final String node1 = "node1";
+        final String node2 = "node2";
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+            .add(newNode(node1))
+            .add(newNode(node2))
+        ).build();
+        final ClusterState finalClusterState = allocation.reroute(clusterState, "reroute");
+
+        logger.info("--> allocating same index primary in multiple commands should fail");
+        assertThat(expectThrows(IllegalArgumentException.class, () -> {
+            allocation.reroute(finalClusterState,
+                new AllocationCommands(
+                    new AllocateStalePrimaryAllocationCommand(index1, 0, node1, true),
+                    new AllocateStalePrimaryAllocationCommand(index1, 0, node2, true)
+                ), false, false);
+        }).getMessage(), containsString("primary [" + index1 + "][0] is already assigned"));
+
+        assertThat(expectThrows(IllegalArgumentException.class, () -> {
+            allocation.reroute(finalClusterState,
+                new AllocationCommands(
+                    new AllocateEmptyPrimaryAllocationCommand(index2, 0, node1, true),
+                    new AllocateEmptyPrimaryAllocationCommand(index2, 0, node2, true)
+                ), false, false);
+        }).getMessage(), containsString("primary [" + index2 + "][0] is already assigned"));
+
+
+        clusterState = allocation.reroute(clusterState,
+            new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand(index3, 0, node1, true)), false, false).getClusterState();
+        clusterState = allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+
+        final ClusterState updatedClusterState = clusterState;
+        assertThat(updatedClusterState.getRoutingNodes().node(node1).shardsWithState(STARTED).size(), equalTo(1));
+
+        logger.info("--> subsequent replica allocation fails as all configured replicas have been allocated");
+        assertThat(expectThrows(IllegalArgumentException.class, () -> {
+            allocation.reroute(updatedClusterState,
+                new AllocationCommands(
+                    new AllocateReplicaAllocationCommand(index3, 0, node2),
+                    new AllocateReplicaAllocationCommand(index3, 0, node2)
+                ), false, false);
+        }).getMessage(), containsString("all copies of [" + index3 + "][0] are already assigned. Use the move allocation command instead"));
+    }
 }

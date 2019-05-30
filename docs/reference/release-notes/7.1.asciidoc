@@ -1,8 +1,6 @@
 [[release-notes-7.1.1]]
 == {es} version 7.1.1
 
-coming[7.1.1]
-
 Also see <<breaking-changes-7.1,Breaking changes in 7.1>>.
 
 [[bug-7.1.1]]

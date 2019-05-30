@@ -246,7 +246,7 @@ public class SearchModuleTests extends ESTestCase {
         assertSame(highlighters.get("custom"), customHighlighter);
     }
 
-    public void testRegisteredQueries() throws IOException {
+    public void testRegisteredQueries() {
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
@@ -254,6 +254,7 @@ public class SearchModuleTests extends ESTestCase {
 
         Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
                 .filter(e -> e.categoryClass.equals(QueryBuilder.class))
+                .filter(e -> e.name.getDeprecatedNames().length == 0)
                 .map(e -> e.name.getPreferredName())
                 .collect(toSet());
         Set<String> registeredAll = module.getNamedXContents().stream()
@@ -316,7 +317,6 @@ public class SearchModuleTests extends ESTestCase {
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {
             "bool",
             "boosting",
-            "common",
             "constant_score",
             "dis_max",
             "exists",
@@ -364,7 +364,7 @@ public class SearchModuleTests extends ESTestCase {
     };
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
-    private static final String[] DEPRECATED_QUERIES = new String[] {};
+    private static final String[] DEPRECATED_QUERIES = new String[] {"common"};
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.

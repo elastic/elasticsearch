@@ -135,24 +135,27 @@ abstract class DataFrameIntegTestCase extends ESRestTestCase {
             TimeUnit.MILLISECONDS);
     }
 
-    protected DateHistogramGroupSource createDateHistogramGroupSource(String field, long interval, ZoneId zone, String format) {
+    protected DateHistogramGroupSource createDateHistogramGroupSourceWithFixedInterval(String field,
+                                                                                       DateHistogramInterval interval,
+                                                                                       ZoneId zone,
+                                                                                       String format) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
-            .setFormat(format)
-            .setInterval(interval)
-            .setTimeZone(zone);
+            .setInterval(new DateHistogramGroupSource.FixedInterval(interval))
+            .setTimeZone(zone)
+            .setFormat(format);
         return builder.build();
     }
 
-    protected DateHistogramGroupSource createDateHistogramGroupSource(String field,
-                                                                      DateHistogramInterval interval,
-                                                                      ZoneId zone,
-                                                                      String format) {
+    protected DateHistogramGroupSource createDateHistogramGroupSourceWithCalendarInterval(String field,
+                                                                                          DateHistogramInterval interval,
+                                                                                          ZoneId zone,
+                                                                                          String format) {
         DateHistogramGroupSource.Builder builder = DateHistogramGroupSource.builder()
             .setField(field)
-            .setFormat(format)
-            .setDateHistgramInterval(interval)
-            .setTimeZone(zone);
+            .setInterval(new DateHistogramGroupSource.CalendarInterval(interval))
+            .setTimeZone(zone)
+            .setFormat(format);
         return builder.build();
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.common.CharArrays;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.Reader;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -74,37 +75,54 @@ public class PemUtils {
      */
     public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) {
         try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
-            String line = bReader.readLine();
-            while (null != line && line.startsWith(HEADER) == false){
-                line = bReader.readLine();
-            }
-            if (null == line) {
-                throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString() + ". File is empty");
-            }
-            if (PKCS8_ENCRYPTED_HEADER.equals(line.trim())) {
-                char[] password = passwordSupplier.get();
-                if (password == null) {
-                    throw new IllegalArgumentException("cannot read encrypted key without a password");
-                }
-                return parsePKCS8Encrypted(bReader, password);
-            } else if (PKCS8_HEADER.equals(line.trim())) {
-                return parsePKCS8(bReader);
-            } else if (PKCS1_HEADER.equals(line.trim())) {
-                return parsePKCS1Rsa(bReader, passwordSupplier);
-            } else if (OPENSSL_DSA_HEADER.equals(line.trim())) {
-                return parseOpenSslDsa(bReader, passwordSupplier);
-            } else if (OPENSSL_DSA_PARAMS_HEADER.equals(line.trim())) {
-                return parseOpenSslDsa(removeDsaHeaders(bReader), passwordSupplier);
-            } else if (OPENSSL_EC_HEADER.equals(line.trim())) {
-                return parseOpenSslEC(bReader, passwordSupplier);
-            } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
-                return parseOpenSslEC(removeECHeaders(bReader), passwordSupplier);
-            } else {
-                throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString() + ". File did not contain a " +
-                        "supported key format");
-            }
+            return readPrivateKey(bReader, keyPath.toString(), passwordSupplier);
         } catch (IOException | GeneralSecurityException e) {
             throw new IllegalStateException("Error parsing Private Key from: " + keyPath.toString(), e);
+        }
+    }
+
+    /**
+     * Creates a {@link PrivateKey} from the contents of an input stream. Supports the same formats as
+     * {@link #readPrivateKey(Path, Supplier)}
+     */
+    public static PrivateKey readPrivateKey(Reader reader, String fileName, Supplier<char[]> passwordSupplier) {
+        try (BufferedReader bReader = new BufferedReader(reader)) {
+            return readPrivateKey(bReader, fileName, passwordSupplier);
+        } catch (IOException | GeneralSecurityException e) {
+            throw new IllegalStateException("Error parsing Private Key from: " + fileName, e);
+        }
+    }
+
+    private static PrivateKey readPrivateKey(BufferedReader reader, String fileName,
+                                             Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
+        String line = reader.readLine();
+        while (null != line && line.startsWith(HEADER) == false){
+            line = reader.readLine();
+        }
+        if (null == line) {
+            throw new IllegalStateException("Error parsing Private Key from: " + fileName + ". File is empty");
+        }
+        if (PKCS8_ENCRYPTED_HEADER.equals(line.trim())) {
+            char[] password = passwordSupplier.get();
+            if (password == null) {
+                throw new IllegalArgumentException("cannot read encrypted key without a password");
+            }
+            return parsePKCS8Encrypted(reader, password);
+        } else if (PKCS8_HEADER.equals(line.trim())) {
+            return parsePKCS8(reader);
+        } else if (PKCS1_HEADER.equals(line.trim())) {
+            return parsePKCS1Rsa(reader, passwordSupplier);
+        } else if (OPENSSL_DSA_HEADER.equals(line.trim())) {
+            return parseOpenSslDsa(reader, passwordSupplier);
+        } else if (OPENSSL_DSA_PARAMS_HEADER.equals(line.trim())) {
+            return parseOpenSslDsa(removeDsaHeaders(reader), passwordSupplier);
+        } else if (OPENSSL_EC_HEADER.equals(line.trim())) {
+            return parseOpenSslEC(reader, passwordSupplier);
+        } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
+            return parseOpenSslEC(removeECHeaders(reader), passwordSupplier);
+        } else {
+            throw new IllegalStateException("Error parsing Private Key from: " + fileName + ". File did not contain a " +
+                    "supported key format");
         }
     }
 

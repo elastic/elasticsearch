@@ -77,7 +77,7 @@ import static org.hamcrest.core.CombinableMatcher.both;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.nullValue;
 
-@ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
+@ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     private Settings settings;
     private LifecyclePolicy lifecyclePolicy;

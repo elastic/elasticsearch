@@ -278,6 +278,11 @@ public abstract class BlendedTermQuery extends Query {
         return Objects.hash(classHash(), Arrays.hashCode(equalsTerms()));
     }
 
+    /**
+     * @deprecated Since max_score optimization landed in 7.0, normal MultiMatchQuery
+     *             will achieve the same result without any configuration.
+     */
+    @Deprecated
     public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final float maxTermFrequency) {
         return new BlendedTermQuery(terms, boosts) {
             @Override

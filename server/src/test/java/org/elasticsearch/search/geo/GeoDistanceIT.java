@@ -185,7 +185,6 @@ public class GeoDistanceIT extends ESIntegTestCase {
         String name = "TestPosition";
 
         search.setQuery(QueryBuilders.matchAllQuery())
-            .setTypes("type1")
             .addAggregation(AggregationBuilders.geoDistance(name, new GeoPoint(tgt_lat, tgt_lon))
             .field("location")
             .unit(DistanceUnit.MILES)

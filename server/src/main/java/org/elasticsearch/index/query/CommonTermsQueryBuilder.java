@@ -47,8 +47,15 @@ import java.util.Objects;
  * and high-frequency terms are added to an optional boolean clause. The
  * optional clause is only executed if the required "low-frequency' clause
  * matches.
+ *
+ * @deprecated Since max_optimization optimization landed in 7.0, normal MatchQuery
+ *             will achieve the same result without any configuration.
  */
+@Deprecated
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
+
+    public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "[match] query which can efficiently " +
+        "skip blocks of documents if the total number of hits is not tracked";
 
     public static final String NAME = "common";
 
@@ -85,7 +92,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     /**
      * Constructs a new common terms query.
+     * @deprecated See {@link CommonTermsQueryBuilder} for more details.
      */
+    @Deprecated
     public CommonTermsQueryBuilder(String fieldName, Object text) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
@@ -99,7 +108,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     /**
      * Read from a stream.
+     * @deprecated See {@link CommonTermsQueryBuilder} for more details.
      */
+    @Deprecated
     public CommonTermsQueryBuilder(StreamInput in) throws IOException {
         super(in);
         fieldName = in.readString();

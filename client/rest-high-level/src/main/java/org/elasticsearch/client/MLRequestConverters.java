@@ -612,6 +612,7 @@ final class MLRequestConverters {
                 params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
             }
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -632,6 +633,7 @@ final class MLRequestConverters {
                 params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
             }
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -646,6 +648,7 @@ final class MLRequestConverters {
         if (startRequest.getTimeout() != null) {
             params.withTimeout(startRequest.getTimeout());
         }
+        request.addParameters(params.asMap());
         return request;
     }
 

@@ -697,13 +697,14 @@ public class MLRequestConvertersTests extends ESTestCase {
         String configId1 = randomAlphaOfLength(10);
         String configId2 = randomAlphaOfLength(10);
         String configId3 = randomAlphaOfLength(10);
-        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(configId1, configId2, configId3)
-            .setPageParams(new PageParams(100, 300));
+        GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(configId1, configId2, configId3);
+        getRequest.setAllowNoMatch(false);
+        getRequest.setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getDataFrameAnalytics(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + configId1 + "," + configId2 + "," + configId3, request.getEndpoint());
-        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300")));
+        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300"), hasEntry("allow_no_match", "false")));
         assertNull(request.getEntity());
     }
 
@@ -711,13 +712,14 @@ public class MLRequestConvertersTests extends ESTestCase {
         String configId1 = randomAlphaOfLength(10);
         String configId2 = randomAlphaOfLength(10);
         String configId3 = randomAlphaOfLength(10);
-        GetDataFrameAnalyticsStatsRequest getStatsRequest = new GetDataFrameAnalyticsStatsRequest(configId1, configId2, configId3)
-            .setPageParams(new PageParams(100, 300));
+        GetDataFrameAnalyticsStatsRequest getStatsRequest = new GetDataFrameAnalyticsStatsRequest(configId1, configId2, configId3);
+        getStatsRequest.setAllowNoMatch(false);
+        getStatsRequest.setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getDataFrameAnalyticsStats(getStatsRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + configId1 + "," + configId2 + "," + configId3 + "/_stats", request.getEndpoint());
-        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300")));
+        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300"), hasEntry("allow_no_match", "false")));
         assertNull(request.getEntity());
     }
 

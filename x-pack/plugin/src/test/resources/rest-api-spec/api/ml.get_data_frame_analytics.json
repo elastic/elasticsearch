@@ -14,6 +14,11 @@
         }
       },
       "params": {
+        "allow_no_match": {
+          "type": "boolean",
+          "required": false,
+          "description": "Whether to ignore if a wildcard expression matches no data frame analytics. (This includes `_all` string or when no data frame analytics have been specified)"
+        },
         "from": {
           "type": "int",
           "description": "skips a number of analytics"

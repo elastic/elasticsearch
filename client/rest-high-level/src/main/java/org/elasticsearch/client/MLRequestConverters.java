@@ -612,6 +612,9 @@ final class MLRequestConverters {
                 params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
             }
         }
+        if (getRequest.getAllowNoMatch() != null) {
+            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(getRequest.getAllowNoMatch()));
+        }
         request.addParameters(params.asMap());
         return request;
     }
@@ -632,6 +635,10 @@ final class MLRequestConverters {
             if (pageParams.getSize() != null) {
                 params.putParam(PageParams.SIZE.getPreferredName(), pageParams.getSize().toString());
             }
+        }
+        if (getStatsRequest.getAllowNoMatch() != null) {
+            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(),
+                Boolean.toString(getStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;

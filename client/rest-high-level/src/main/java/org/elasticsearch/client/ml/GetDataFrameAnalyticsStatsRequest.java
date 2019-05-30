@@ -23,6 +23,7 @@ import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 
 import java.util.Arrays;
 import java.util.List;
@@ -34,7 +35,10 @@ import java.util.Optional;
  */
 public class GetDataFrameAnalyticsStatsRequest implements Validatable {
 
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+
     private final List<String> ids;
+    private Boolean allowNoMatch;
     private PageParams pageParams;
 
     public GetDataFrameAnalyticsStatsRequest(String... ids) {
@@ -43,6 +47,14 @@ public class GetDataFrameAnalyticsStatsRequest implements Validatable {
 
     public List<String> getIds() {
         return ids;
+    }
+
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
+    }
+
+    public void setAllowNoMatch(Boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     public PageParams getPageParams() {
@@ -69,11 +81,12 @@ public class GetDataFrameAnalyticsStatsRequest implements Validatable {
 
         GetDataFrameAnalyticsStatsRequest other = (GetDataFrameAnalyticsStatsRequest) o;
         return Objects.equals(ids, other.ids)
+            && Objects.equals(allowNoMatch, other.allowNoMatch)
             && Objects.equals(pageParams, other.pageParams);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(ids, pageParams);
+        return Objects.hash(ids, allowNoMatch, pageParams);
     }
 }

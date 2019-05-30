@@ -148,6 +148,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
 
         GetDataFrameAnalyticsAction.Request getRequest = new GetDataFrameAnalyticsAction.Request();
         getRequest.setResourceId(request.getId());
+        getRequest.setAllowNoResources(request.isAllowNoMatch());
         getRequest.setPageParams(request.getPageParams());
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, getRequest, getResponseListener);
     }

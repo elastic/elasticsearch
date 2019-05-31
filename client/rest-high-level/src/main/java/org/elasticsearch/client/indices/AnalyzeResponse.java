@@ -158,8 +158,7 @@ public class AnalyzeResponse {
         true, args -> new AnalyzeResponse((List<AnalyzeResponse.AnalyzeToken>) args[0], (DetailAnalyzeResponse) args[1]));
 
     static {
-        PARSER.declareObjectArray(optionalConstructorArg(),
-            (p, c) -> AnalyzeResponse.AnalyzeToken.fromXContent(p), new ParseField(TOKENS));
+        PARSER.declareObjectArray(optionalConstructorArg(), AnalyzeToken.PARSER, new ParseField(TOKENS));
         PARSER.declareObject(optionalConstructorArg(), DetailAnalyzeResponse.PARSER, new ParseField(DETAIL));
     }
 

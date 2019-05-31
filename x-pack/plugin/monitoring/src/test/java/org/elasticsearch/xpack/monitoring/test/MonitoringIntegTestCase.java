@@ -19,7 +19,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
@@ -72,10 +71,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateMonitoring.class, MockPainlessScriptEngine.TestPlugin.class,
                 MockIngestPlugin.class, CommonAnalysisPlugin.class);
-    }
-
-    protected MonitoringClient monitoringClient() {
-        return new MonitoringClient(client());
     }
 
     @Override

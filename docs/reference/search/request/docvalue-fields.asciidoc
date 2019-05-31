@@ -67,3 +67,7 @@ on their mappings: `long`, `double` and other numeric fields are formatted as
 numbers, `keyword` fields are formatted as strings, `date` fields are formatted
 with the configured `date` format, etc.
 
+NOTE: On its own, `docvalue_fields` cannot be used to load fields in nested
+objects -- if a field contains a nested object in its path, then no data will
+be returned for that docvalue field. To access nested fields, `docvalue_fields`
+must be used within an <<search-request-inner-hits, `inner_hits`>> block.

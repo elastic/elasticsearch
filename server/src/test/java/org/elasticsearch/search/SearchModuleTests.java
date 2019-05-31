@@ -354,7 +354,7 @@ public class SearchModuleTests extends ESTestCase {
     };
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
-    private static final String[] DEPRECATED_QUERIES = new String[] {"common"};
+    private static final String[] DEPRECATED_QUERIES = new String[] {};
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.

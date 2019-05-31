@@ -22,8 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -69,6 +69,10 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             return createAggregator((ValuesSource.Numeric) valuesSource, parent, pipelineAggregators, metaData);
         }
         else if (valuesSource instanceof ValuesSource.Bytes.FieldData.RangeFieldData) {
+            ValuesSource.Bytes.FieldData.RangeFieldData rangeValueSource = (ValuesSource.Bytes.FieldData.RangeFieldData) valuesSource;
+            if (rangeValueSource.rangeType().isNumeric() == false) {
+                throw new IllegalArgumentException("Found non-numeric range [" + rangeValueSource.rangeType().name + "]");
+            }
             return createAggregator((ValuesSource.Bytes.FieldData.RangeFieldData) valuesSource, parent, pipelineAggregators, metaData);
         }
         else {

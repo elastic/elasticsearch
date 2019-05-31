@@ -663,6 +663,10 @@ public enum RangeType {
      */
     public abstract Double doubleValue(Object endpointValue);
 
+    public boolean isNumeric() {
+        return numberType != null;
+    }
+
     public abstract Query dvRangeQuery(String field, BinaryDocValuesRangeQuery.QueryType queryType, Object from, Object to,
                                        boolean includeFrom, boolean includeTo);
 

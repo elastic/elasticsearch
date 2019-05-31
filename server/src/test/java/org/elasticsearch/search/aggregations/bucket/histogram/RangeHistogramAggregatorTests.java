@@ -27,16 +27,23 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.junit.Rule;
+import org.junit.rules.ExpectedException;
 
 import java.util.Collections;
 
 public class RangeHistogramAggregatorTests extends AggregatorTestCase {
-        public void testDoubleRanges() throws Exception {
+
+    @Rule
+    public final ExpectedException expectedException = ExpectedException.none();
+
+    public void testDoubleRanges() throws Exception {
 
         RangeType rangeType = RangeType.DOUBLE;
         try (Directory dir = newDirectory();
@@ -58,8 +65,33 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 InternalHistogram histogram = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertEquals(1, histogram.getBuckets().size());
             }
-
         }
+    }
+
+    public void testIpRangesUnsupported() throws Exception {
+        RangeType rangeType = RangeType.IP;
+        try (Directory dir = newDirectory();
+             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            Document doc = new Document();
+            BytesRef encodedRange =
+                rangeType.encodeRanges(Collections.singleton(new RangeFieldMapper.Range(rangeType, InetAddresses.forString("10.0.0.1"),
+                    InetAddresses.forString("10.0.0.10"), true, true)));
+            doc.add(new BinaryDocValuesField("field", encodedRange));
+            w.addDocument(doc);
+
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.RANGE)
+                .field("field")
+                .interval(5);
+            MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
+            fieldType.setName("field");
+
+            try (IndexReader reader = w.getReader()) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                expectedException.expect(IllegalArgumentException.class);
+                search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+            }
+        }
+
     }
 
 }

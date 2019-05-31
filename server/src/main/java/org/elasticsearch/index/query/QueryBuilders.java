@@ -66,7 +66,10 @@ public final class QueryBuilders {
      *
      * @param fieldName The field name.
      * @param text The query text (to be analyzed).
+     *
+     * @deprecated See {@link CommonTermsQueryBuilder}
      */
+    @Deprecated
     public static CommonTermsQueryBuilder commonTermsQuery(String fieldName, Object text) {
         return new CommonTermsQueryBuilder(fieldName, text);
     }

@@ -156,7 +156,7 @@ then configure the `.watches` index like this:
 ------------------------
 PUT .watches/_settings
 {
-  "index.routing.allocation.include": "watcher"
+  "index.routing.allocation.include.watcher": true
 }
 ------------------------
 // CONSOLE

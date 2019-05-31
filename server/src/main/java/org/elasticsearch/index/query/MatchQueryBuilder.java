@@ -120,7 +120,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         minimumShouldMatch = in.readOptionalString();
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
-        if (in.getVersion().onOrBefore(Version.V_7_3_0)) {
+        // cutoff_frequency has been removed
+        if (in.getVersion().onOrBefore(Version.V_8_0_0)) {
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
@@ -141,7 +142,8 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
-        if (out.getVersion().onOrBefore(Version.V_7_3_0)) {
+        // cutoff_frequency has been removed
+        if (out.getVersion().onOrBefore(Version.V_8_0_0)) {
             out.writeOptionalFloat(null);
         }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);

@@ -27,12 +27,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.util.Objects;
 import java.util.Optional;
 
-public class StartDataFrameAnalyticsRequest implements Validatable {
+public class StopDataFrameAnalyticsRequest implements Validatable {
+
+    public static final String ALLOW_NO_MATCH = "allow_no_match";
 
     private final String id;
     private TimeValue timeout;
+    private Boolean allowNoMatch;
 
-    public StartDataFrameAnalyticsRequest(String id) {
+    public StopDataFrameAnalyticsRequest(String id) {
         this.id = id;
     }
 
@@ -44,8 +47,17 @@ public class StartDataFrameAnalyticsRequest implements Validatable {
         return timeout;
     }
 
-    public StartDataFrameAnalyticsRequest setTimeout(@Nullable TimeValue timeout) {
+    public StopDataFrameAnalyticsRequest setTimeout(@Nullable TimeValue timeout) {
         this.timeout = timeout;
+        return this;
+    }
+
+    public Boolean getAllowNoMatch() {
+        return allowNoMatch;
+    }
+
+    public StopDataFrameAnalyticsRequest setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
         return this;
     }
 
@@ -62,13 +74,14 @@ public class StartDataFrameAnalyticsRequest implements Validatable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        StartDataFrameAnalyticsRequest other = (StartDataFrameAnalyticsRequest) o;
+        StopDataFrameAnalyticsRequest other = (StopDataFrameAnalyticsRequest) o;
         return Objects.equals(id, other.id)
-            && Objects.equals(timeout, other.timeout);
+            && Objects.equals(timeout, other.timeout)
+            && allowNoMatch == other.allowNoMatch;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, timeout);
+        return Objects.hash(id, timeout, allowNoMatch);
     }
 }

@@ -70,6 +70,7 @@ import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequestTests;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
@@ -736,6 +737,25 @@ public class MLRequestConvertersTests extends ESTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + startRequest.getId() + "/_start", request.getEndpoint());
         assertThat(request.getParameters(), hasEntry("timeout", "1m"));
+        assertNull(request.getEntity());
+    }
+
+    public void testStopDataFrameAnalytics() {
+        StopDataFrameAnalyticsRequest stopRequest = new StopDataFrameAnalyticsRequest(randomAlphaOfLength(10));
+        Request request = MLRequestConverters.stopDataFrameAnalytics(stopRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + stopRequest.getId() + "/_stop", request.getEndpoint());
+        assertNull(request.getEntity());
+    }
+
+    public void testStopDataFrameAnalytics_WithParams() {
+        StopDataFrameAnalyticsRequest stopRequest = new StopDataFrameAnalyticsRequest(randomAlphaOfLength(10))
+            .setTimeout(TimeValue.timeValueMinutes(1))
+            .setAllowNoMatch(false);
+        Request request = MLRequestConverters.stopDataFrameAnalytics(stopRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/data_frame/analytics/" + stopRequest.getId() + "/_stop", request.getEndpoint());
+        assertThat(request.getParameters(), allOf(hasEntry("timeout", "1m"), hasEntry("allow_no_match", "false")));
         assertNull(request.getEntity());
     }
 

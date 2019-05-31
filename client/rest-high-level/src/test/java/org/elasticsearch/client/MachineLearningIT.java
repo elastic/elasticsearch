@@ -97,6 +97,8 @@ import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -1386,6 +1388,45 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // Verify that the destination index got created.
         assertTrue(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
+    }
+
+    public void testStopDataFrameAnalyticsConfig() throws Exception {
+        String sourceIndex = "stop-test-source-index";
+        String destIndex = "stop-test-dest-index";
+        createIndex(sourceIndex);
+        highLevelClient().index(new IndexRequest(sourceIndex).source(XContentType.JSON, "total", 10000), RequestOptions.DEFAULT);
+
+        // Verify that the destination index does not exist. Otherwise, analytics' reindexing step would fail.
+        assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
+
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        String configId = "start-test-config";
+        DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
+            .setSource(DataFrameAnalyticsSource.builder()
+                .setIndex(sourceIndex)
+                .build())
+            .setDest(DataFrameAnalyticsDest.builder()
+                .setIndex(destIndex)
+                .build())
+            .setAnalysis(OutlierDetection.createDefault())
+            .build();
+
+        execute(
+            new PutDataFrameAnalyticsRequest(config),
+            machineLearningClient::putDataFrameAnalytics, machineLearningClient::putDataFrameAnalyticsAsync);
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED));
+
+        AcknowledgedResponse startDataFrameAnalyticsResponse = execute(
+            new StartDataFrameAnalyticsRequest(configId),
+            machineLearningClient::startDataFrameAnalytics, machineLearningClient::startDataFrameAnalyticsAsync);
+        assertTrue(startDataFrameAnalyticsResponse.isAcknowledged());
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STARTED));
+
+        StopDataFrameAnalyticsResponse stopDataFrameAnalyticsResponse = execute(
+            new StopDataFrameAnalyticsRequest(configId),
+            machineLearningClient::stopDataFrameAnalytics, machineLearningClient::stopDataFrameAnalyticsAsync);
+        assertTrue(stopDataFrameAnalyticsResponse.isStopped());
+        assertThat(getAnalyticsState(configId), equalTo(DataFrameAnalyticsState.STOPPED));
     }
 
     private DataFrameAnalyticsState getAnalyticsState(String configId) throws IOException {

@@ -132,13 +132,11 @@ public class StopDataFrameAnalyticsAction extends Action<StopDataFrameAnalyticsA
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (id != null) {
-                builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
-            }
-            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
-            builder.endObject();
-            return builder;
+            return builder
+                .startObject()
+                .field(DataFrameAnalyticsConfig.ID.getPreferredName(), id)
+                .field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch)
+                .endObject();
         }
 
         @Override

@@ -2427,12 +2427,12 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::analyze-custom-request
             Map<String, Object> stopFilter = new HashMap<>();
             stopFilter.put("type", "stop");
-            stopFilter.put("stopwords", new String[]{ "to" });  // <4>
-            AnalyzeRequest request = AnalyzeRequest.buildCustomAnalyzer("standard")  // <1>
-                .addCharFilter("html_strip")    // <2>
-                .addTokenFilter("lowercase")    // <3>
-                .addTokenFilter(stopFilter)     // <4>
-                .build("<b>Some text to analyze</b>");  // <5>
+            stopFilter.put("stopwords", new String[]{ "to" });  // <1>
+            AnalyzeRequest request = AnalyzeRequest.buildCustomAnalyzer("standard")  // <2>
+                .addCharFilter("html_strip")    // <3>
+                .addTokenFilter("lowercase")    // <4>
+                .addTokenFilter(stopFilter)     // <5>
+                .build("<b>Some text to analyze</b>");
             // end::analyze-custom-request
         }
 

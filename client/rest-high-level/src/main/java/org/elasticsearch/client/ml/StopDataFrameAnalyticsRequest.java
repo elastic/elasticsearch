@@ -22,6 +22,7 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Objects;
@@ -29,7 +30,7 @@ import java.util.Optional;
 
 public class StopDataFrameAnalyticsRequest implements Validatable {
 
-    public static final String ALLOW_NO_MATCH = "allow_no_match";
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
     private final String id;
     private TimeValue timeout;
@@ -77,7 +78,7 @@ public class StopDataFrameAnalyticsRequest implements Validatable {
         StopDataFrameAnalyticsRequest other = (StopDataFrameAnalyticsRequest) o;
         return Objects.equals(id, other.id)
             && Objects.equals(timeout, other.timeout)
-            && allowNoMatch == other.allowNoMatch;
+            && Objects.equals(allowNoMatch, other.allowNoMatch);
     }
 
     @Override

@@ -665,7 +665,8 @@ final class MLRequestConverters {
             params.withTimeout(stopRequest.getTimeout());
         }
         if (stopRequest.getAllowNoMatch() != null) {
-            params.putParam(StopDataFrameAnalyticsRequest.ALLOW_NO_MATCH, stopRequest.getAllowNoMatch().toString());
+            params.putParam(
+                StopDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(stopRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;

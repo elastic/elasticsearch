@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -135,7 +136,7 @@ public class EnrichPolicyRunner implements Runnable {
     }
 
     private void validateField(Map<?, ?> properties, String fieldName, boolean fieldRequired) {
-        assert fieldName != null && !fieldName.isEmpty() : "Field name cannot be null or empty";
+        assert Strings.isEmpty(fieldName) == false: "Field name cannot be null or empty";
         String[] fieldParts = fieldName.split("\\.");
         StringBuilder parent = new StringBuilder();
         Map<?, ?> currentField = properties;
@@ -143,7 +144,7 @@ public class EnrichPolicyRunner implements Runnable {
         for (String fieldPart : fieldParts) {
             // Ensure that the current field is of object type only (not a nested type or a non compound field)
             Object type = currentField.get("type");
-            if (type != null && !"object".equals(type)) {
+            if (type != null && "object".equals(type) == false) {
                 throw new ElasticsearchException(
                     "Could not traverse mapping to field [{}]. The [{}] field must be regular object but was [{}].",
                     fieldName,

@@ -471,7 +471,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
-        logger.info(mapping);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -591,7 +590,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
-        logger.info(mapping);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -719,7 +717,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
-        logger.info(mapping);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);
@@ -838,7 +835,6 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
         // Validate Mapping
         Map<String, Object> mapping = enrichIndex.getMappings().get(createdEnrichIndex).get("_doc").sourceAsMap();
-        logger.info(mapping);
         assertThat(mapping.get("dynamic"), is("false"));
         Map<?, ?> properties = (Map<?, ?>) mapping.get("properties");
         assertNotNull(properties);

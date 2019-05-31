@@ -172,6 +172,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.hamcrest.CoreMatchers;
 import org.junit.After;
 
 import java.io.IOException;
@@ -3074,14 +3075,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             new CreateIndexRequest(indexName)
                 .mapping(XContentFactory.jsonBuilder().startObject()
                     .startObject("properties")
-                    .startObject("label")
-                    .field("type", "keyword")
+                        .startObject("label")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("p")
+                            .field("type", "double")
+                        .endObject()
                     .endObject()
-                    .startObject("p")
-                    .field("type", "double")
-                    .endObject()
-                    .endObject()
-                    .endObject());
+                .endObject());
         BulkRequest bulkRequest =
             new BulkRequest(indexName)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -3130,15 +3131,10 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 metrics.stream().map(m -> m.getMetricName()).collect(Collectors.toList()),
                 containsInAnyOrder(PrecisionMetric.NAME, RecallMetric.NAME, ConfusionMatrixMetric.NAME, AucRocMetric.NAME));
             assertThat(precision, closeTo(0.6, 1e-9));
-            assertThat(
-                confusionMatrix,
-                equalTo(
-                    ConfusionMatrix.builder()
-                        .setTruePositives(2)  // docs #8 and #9
-                        .setFalsePositives(1)  // doc #4
-                        .setTrueNegatives(4)  // docs #0, #1, #2 and #3
-                        .setFalseNegatives(3)  // docs #5, #6 and #7
-                        .build()));
+            assertThat(confusionMatrix.getTruePositives(), CoreMatchers.equalTo(2L));  // docs #8 and #9
+            assertThat(confusionMatrix.getFalsePositives(), CoreMatchers.equalTo(1L));  // doc #4
+            assertThat(confusionMatrix.getTrueNegatives(), CoreMatchers.equalTo(4L));  // docs #0, #1, #2 and #3
+            assertThat(confusionMatrix.getFalseNegatives(), CoreMatchers.equalTo(3L));  // docs #5, #6 and #7
         }
         {
             EvaluateDataFrameRequest request = new EvaluateDataFrameRequest(
@@ -3155,15 +3151,29 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             ActionListener<EvaluateDataFrameResponse> listener = new ActionListener<>() {
                 @Override
                 public void onResponse(EvaluateDataFrameResponse response) {
-                    // end::evaluate-data-frame-execute-listener
-                    // tag::evaluate-data-frame-execute-async
-                    client.machineLearning().evaluateDataFrameAsync(request, RequestOptions.DEFAULT, listener); // <1>
-                    // end::evaluate-data-frame-execute-async
+                    // <1>
                 }
-            }
-        }
 
-        public void testCreateFilter() throws Exception {
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::evaluate-data-frame-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::evaluate-data-frame-execute-async
+            client.machineLearning().evaluateDataFrameAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::evaluate-data-frame-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testCreateFilter() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::put-filter-config

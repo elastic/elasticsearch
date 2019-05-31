@@ -23,10 +23,14 @@ import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
+import org.elasticsearch.xpack.watcher.actions.logging.ExecutableLoggingAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
+import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
+import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.mockito.Mock;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -76,8 +80,11 @@ public class ActionWrapperTests extends ESTestCase {
     }
 
     public void testThatMultipleResultsCanBeReturned() throws Exception {
+        final LoggingAction loggingAction = new LoggingAction(new TextTemplate("foo"), null, null);
+        ExecutableAction executableAction = new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine());
         ActionWrapper wrapper = new ActionWrapper("_action", null, InternalAlwaysCondition.INSTANCE, null, executableAction,
             "ctx.payload.my_path");
+
         WatchExecutionContext ctx = mockExecutionContent(watch);
         Payload.Simple payload = new Payload.Simple(Map.of("my_path",
             List.of(
@@ -86,19 +93,19 @@ public class ActionWrapperTests extends ESTestCase {
                 Map.of("key", "third")
             )));
         when(ctx.payload()).thenReturn(payload);
-        when(executableAction.logger()).thenReturn(logger);
+//        when(executableAction.logger()).thenReturn(logger);
 
         final Action.Result firstResult = new Action.Result.Failure("MY_TYPE", "first reason");
         final Payload firstPayload = new Payload.Simple(Map.of("key", "first"));
-        when(executableAction.execute(eq("_action"), eq(ctx), eq(firstPayload))).thenReturn(firstResult);
+//        when(executableAction.execute(eq("_action"), eq(ctx), eq(firstPayload))).thenReturn(firstResult);
 
         final Action.Result secondResult = new Action.Result.Failure("MY_TYPE", "second reason");
         final Payload secondPayload = new Payload.Simple(Map.of("key", "second"));
-        when(executableAction.execute(eq("_action"), eq(ctx), eq(secondPayload))).thenReturn(secondResult);
+//        when(executableAction.execute(eq("_action"), eq(ctx), eq(secondPayload))).thenReturn(secondResult);
 
         final Action.Result thirdResult = new Action.Result.Failure("MY_TYPE", "third reason");
         final Payload thirdPayload = new Payload.Simple(Map.of("key", "third"));
-        when(executableAction.execute(eq("_action"), eq(ctx), eq(thirdPayload))).thenReturn(thirdResult);
+//        when(executableAction.execute(eq("_action"), eq(ctx), eq(thirdPayload))).thenReturn(thirdResult);
 
         ActionWrapperResult result = wrapper.execute(ctx);
         assertThat(result.action().status(), is(Action.Result.Status.FAILURE));

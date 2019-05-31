@@ -14,6 +14,15 @@ teardown:
 ---
 "Test execute watch api with foreach action":
   - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "my_test_index", "_id": "first"}}'
+          - '{ "title" : "first" }'
+          - '{"index": {"_index": "my_test_index", "_id": "second"}}'
+          - '{ "title" : "second" }'
+
+  - do:
       watcher.execute_watch:
         body:  >
           {
@@ -22,17 +31,23 @@ teardown:
                 "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
               },
               "input": {
-                "simple": {
-                  "my_array" : [
-                    { "_doc" : { "_index" : "my_test_index", "_id" : "first", "key" : "first" } },
-                    { "_doc" : { "_index" : "my_test_index", "_id" : "second", "key" : "second" } }
-                  ]
+                "search" : {
+                  "request" : {
+                    "indices" : [ "my_test_index" ],
+                    "body" : {
+                      "query": {
+                        "match_all" : {}
+                      }
+                    }
+                  }
                 }
               },
               "actions": {
-                "indexme" : {
-                  "foreach" : "ctx.payload.my_array",
-                  "index" : {}
+                "log_hits" : {
+                  "foreach" : "ctx.payload.hits.hits",
+                  "logging" : {
+                    "text" : "Found error in document {{_id}} with timestamp {{_source.timestamp}}"
+                  }
                 }
               }
             }
@@ -46,10 +61,10 @@ teardown:
       mget:
         body:
           docs:
-            - { _index: my_test_index, _id: "first"}
-            - { _index: my_test_index, _id: "second"}
+            - { _index: my_test_index_2, _id: "first"}
+            - { _index: my_test_index_2, _id: "second"}
 
   - is_true:  docs.0.found
-  - match:  { docs.0._source: { "key": "first" }}
+  - match:  { docs.0._source: { "title": "first" }}
   - is_true:  docs.1.found
-  - match:  { docs.1._source: { "key": "second" }}
+  - match:  { docs.1._source: { "title": "second" }}

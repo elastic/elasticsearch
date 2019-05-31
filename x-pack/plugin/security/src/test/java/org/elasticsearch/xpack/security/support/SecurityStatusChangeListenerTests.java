@@ -54,7 +54,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "initial change",
             listener.getClass().getName(),
             Level.INFO,
-            "enabling security for license [GOLD]"
+            "Active license is now [GOLD]; Security is enabled"
         ));
         listener.licenseStateChanged();
 
@@ -63,7 +63,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "no-op change",
             listener.getClass().getName(),
             Level.INFO,
-            "enabling security for license [PLATINUM]"
+            "Active license is now [PLATINUM]; Security is enabled"
         ));
 
         when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(true);
@@ -72,7 +72,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "change to basic",
             listener.getClass().getName(),
             Level.INFO,
-            "disabling security for license [BASIC]"
+            "Active license is now [BASIC]; Security is disabled"
         ));
         listener.licenseStateChanged();
 
@@ -87,7 +87,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "initial change",
             listener.getClass().getName(),
             Level.INFO,
-            "disabling security for license [TRIAL]"
+            "Active license is now [TRIAL]; Security is disabled"
         ));
         listener.licenseStateChanged();
 
@@ -96,7 +96,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "no-op change",
             listener.getClass().getName(),
             Level.INFO,
-            "disabling security for license [BASIC]"
+            "Active license is now [BASIC]; Security is disabled"
         ));
 
         when(licenseState.isSecurityDisabledByLicenseDefaults()).thenReturn(false);
@@ -105,7 +105,7 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "change to platinum",
             listener.getClass().getName(),
             Level.INFO,
-            "enabling security for license [PLATINUM]"
+            "Active license is now [PLATINUM]; Security is enabled"
         ));
         listener.licenseStateChanged();
 

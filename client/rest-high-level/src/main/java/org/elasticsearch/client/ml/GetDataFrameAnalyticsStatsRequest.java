@@ -53,8 +53,15 @@ public class GetDataFrameAnalyticsStatsRequest implements Validatable {
         return allowNoMatch;
     }
 
-    public void setAllowNoMatch(Boolean allowNoMatch) {
+    /**
+     * Whether to ignore if a wildcard expression matches no data frame analytics.
+     *
+     * @param allowNoMatch If this is {@code false}, then an error is returned when a wildcard (or {@code _all})
+     *                        does not match any data frame analytics
+     */
+    public GetDataFrameAnalyticsStatsRequest setAllowNoMatch(boolean allowNoMatch) {
         this.allowNoMatch = allowNoMatch;
+        return this;
     }
 
     public PageParams getPageParams() {

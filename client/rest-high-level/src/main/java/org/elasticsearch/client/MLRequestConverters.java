@@ -637,7 +637,7 @@ final class MLRequestConverters {
             }
         }
         if (getStatsRequest.getAllowNoMatch() != null) {
-            params.putParam(GetDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(),
+            params.putParam(GetDataFrameAnalyticsStatsRequest.ALLOW_NO_MATCH.getPreferredName(),
                 Boolean.toString(getStatsRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());

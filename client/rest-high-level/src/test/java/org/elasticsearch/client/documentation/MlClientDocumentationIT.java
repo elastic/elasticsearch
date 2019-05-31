@@ -2899,15 +2899,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::put-data-frame-analytics-query-config
 
             // tag::put-data-frame-analytics-source-config
-            DataFrameAnalyticsSource sourceConfig = DataFrameAnalyticsSource.builder()
-                .setIndex("put-test-source-index")
-                .setQueryConfig(queryConfig)
+            DataFrameAnalyticsSource sourceConfig = DataFrameAnalyticsSource.builder() // <1>
+                .setIndex("put-test-source-index") // <2>
+                .setQueryConfig(queryConfig) // <3>
                 .build();
             // end::put-data-frame-analytics-source-config
 
             // tag::put-data-frame-analytics-dest-config
-            DataFrameAnalyticsDest destConfig = DataFrameAnalyticsDest.builder()
-                .setIndex("put-test-dest-index")
+            DataFrameAnalyticsDest destConfig = DataFrameAnalyticsDest.builder() // <1>
+                .setIndex("put-test-dest-index") // <2>
                 .build();
             // end::put-data-frame-analytics-dest-config
 
@@ -3068,6 +3068,64 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
             30, TimeUnit.SECONDS);
     }
+
+/*
+    public void testStopDataFrameAnalytics() throws Exception {
+        createIndex(DF_ANALYTICS_CONFIG.getSource().getIndex());
+        highLevelClient().index(
+            new IndexRequest(DF_ANALYTICS_CONFIG.getSource().getIndex()).source(XContentType.JSON, "total", 10000), RequestOptions.DEFAULT);
+        RestHighLevelClient client = highLevelClient();
+        client.machineLearning().putDataFrameAnalytics(new PutDataFrameAnalyticsRequest(DF_ANALYTICS_CONFIG), RequestOptions.DEFAULT);
+        {
+            // tag::stop-data-frame-analytics-request
+            StopDataFrameAnalyticsRequest request = new StopDataFrameAnalyticsRequest("my-analytics-config"); // <1>
+            // end::stop-data-frame-analytics-request
+
+            // tag::stop-data-frame-analytics-execute
+            AcknowledgedResponse response = client.machineLearning().stopDataFrameAnalytics(request, RequestOptions.DEFAULT);
+            // end::stop-data-frame-analytics-execute
+
+            // tag::stop-data-frame-analytics-response
+            boolean acknowledged = response.isAcknowledged();
+            // end::stop-data-frame-analytics-response
+
+            assertThat(acknowledged, is(true));
+        }
+        assertBusy(
+            () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
+            30, TimeUnit.SECONDS);
+        {
+            StopDataFrameAnalyticsRequest request = new StopDataFrameAnalyticsRequest("my-analytics-config");
+
+            // tag::stop-data-frame-analytics-execute-listener
+            ActionListener<AcknowledgedResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::stop-data-frame-analytics-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::stop-data-frame-analytics-execute-async
+            client.machineLearning().stopDataFrameAnalyticsAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::stop-data-frame-analytics-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+        assertBusy(
+            () -> assertThat(getAnalyticsState(DF_ANALYTICS_CONFIG.getId()), equalTo(DataFrameAnalyticsState.STOPPED)),
+            30, TimeUnit.SECONDS);
+    }
+*/
 
     public void testEvaluateDataFrame() throws Exception {
         String indexName = "evaluate-test-index";

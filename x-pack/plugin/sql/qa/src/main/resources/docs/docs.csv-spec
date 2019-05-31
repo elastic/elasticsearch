@@ -1001,12 +1001,13 @@ Frank Herbert  |God Emperor of Dune|7.0029488
 
 optionalParamsForMatch
 // tag::optionalParamsForMatch
-SELECT author, name, SCORE() FROM library WHERE MATCH(name, 'to the star', 'operator=or;cutoff_frequency=0.2');
+SELECT author, name, SCORE() FROM library WHERE MATCH(name, 'to the star', 'operator=OR;fuzziness=AUTO:1,5;minimum_should_match=1')
+ORDER BY SCORE() DESC LIMIT 2;
 
      author      |                name                |    SCORE()
 -----------------+------------------------------------+---------------
-Peter F. Hamilton|Pandora's Star                      |3.0997515
 Douglas Adams    |The Hitchhiker's Guide to the Galaxy|3.1756816
+Peter F. Hamilton|Pandora's Star                      |3.0997515
 
 // end::optionalParamsForMatch
 ;

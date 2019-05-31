@@ -30,7 +30,6 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
         cleanUp();
     }
 
-    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/42344")
     public void testDataFrameTransformCrud() throws Exception {
         createReviewsIndex();
 
@@ -50,7 +49,7 @@ public class DataFrameTransformIT extends DataFrameIntegTestCase {
             REVIEWS_INDEX_NAME);
 
         assertTrue(putDataFrameTransform(config, RequestOptions.DEFAULT).isAcknowledged());
-        assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isStarted());
+        assertTrue(startDataFrameTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());
 
         waitUntilCheckpoint(config.getId(), 1L);
 

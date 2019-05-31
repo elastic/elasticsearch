@@ -85,12 +85,12 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> ignoreUnknown() {
-      return (n, f, p, x, v, c) -> x.skipChildren();
+      return (n, f, l, p, v, c) -> p.skipChildren();
     }
 
     private static <Value, Context> UnknownFieldParser<Value, Context> errorOnUnknown() {
-        return (n, f, p, x, v, c) -> {
-            throw new XContentParseException(p, "[" + n + "] unknown field [" + f + "], parser not found");
+        return (n, f, l, p, v, c) -> {
+            throw new XContentParseException(l, "[" + n + "] unknown field [" + f + "], parser not found");
         };
     }
 

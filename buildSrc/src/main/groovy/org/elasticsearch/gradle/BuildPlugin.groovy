@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowExtension
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import groovy.transform.CompileDynamic
@@ -77,7 +78,6 @@ import org.gradle.authentication.http.HttpHeaderAuthentication
 import org.gradle.external.javadoc.CoreJavadocOptions
 import org.gradle.internal.jvm.Jvm
 import org.gradle.language.base.plugins.LifecycleBasePlugin
-import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.process.ExecResult
 import org.gradle.process.ExecSpec
 import org.gradle.util.GradleVersion
@@ -530,39 +530,43 @@ class BuildPlugin implements Plugin<Project> {
     static void configurePomGeneration(Project project) {
         // Only works with  `enableFeaturePreview('STABLE_PUBLISHING')`
         // https://github.com/gradle/gradle/issues/5696#issuecomment-396965185
-        project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom generatePOMTask ->
-            // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
-            // just make a copy.
-            ExtraPropertiesExtension ext = generatePOMTask.extensions.getByType(ExtraPropertiesExtension)
-            ext.set('pomFileName', null)
-            generatePOMTask.doLast {
-                project.copy { CopySpec spec ->
-                    spec.from generatePOMTask.destination
-                    spec.into "${project.buildDir}/distributions"
-                    spec.rename {
-                        ext.has('pomFileName') && ext.get('pomFileName') == null ?
-                            "${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" :
-                            ext.get('pomFileName')
+        // dummy task to depend on the real pom generation
+        project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+            Task generatePomTask = project.tasks.create("generatePom")
+            Task assemble = project.tasks.findByName('assemble')
+            if (assemble) {
+                assemble.dependsOn(generatePomTask)
+            }
+            project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom pomTask ->
+                // The GenerateMavenPom task is aggressive about setting the destination, instead of fighting it,
+                // just make a copy.
+                ExtraPropertiesExtension ext = pomTask.extensions.getByType(ExtraPropertiesExtension)
+                ext.set('pomFileName', null)
+                pomTask.doLast {
+                    project.copy { CopySpec spec ->
+                        spec.from pomTask.destination
+                        spec.into "${project.buildDir}/distributions"
+                        spec.rename {
+                            ext.has('pomFileName') && ext.get('pomFileName') == null ?
+                                    "${project.convention.getPlugin(BasePluginConvention).archivesBaseName}-${project.version}.pom" :
+                                    ext.get('pomFileName')
+                        }
                     }
                 }
             }
-            // build poms with assemble (if the assemble task exists)
-            Task assemble = project.tasks.findByName('assemble')
-            if (assemble && assemble.enabled) {
-                assemble.dependsOn(generatePOMTask)
-            }
-        }
-        project.plugins.withType(MavenPublishPlugin).whenPluginAdded {
+            generatePomTask.dependsOn = ['generatePomFileForNebulaPublication']
             PublishingExtension publishing = project.extensions.getByType(PublishingExtension)
             publishing.publications.all { MavenPublication publication -> // we only deal with maven
                 // add exclusions to the pom directly, for each of the transitive deps of this project's deps
                 publication.pom.withXml(fixupDependencies(project))
             }
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                MavenPublication publication = publishing.publications.maybeCreate('nebula', MavenPublication)
+                MavenPublication publication = publishing.publications.maybeCreate('shadow', MavenPublication)
                 publication.with {
-                    artifacts = [ project.tasks.getByName('shadowJar') ]
+                    ShadowExtension shadow = project.extensions.getByType(ShadowExtension)
+                    shadow.component(publication)
                 }
+                generatePomTask.dependsOn = ['generatePomFileForShadowPublication']
             }
         }
     }
@@ -690,6 +694,12 @@ class BuildPlugin implements Plugin<Project> {
         project.tasks.withType(Jar) { Jar jarTask ->
             // we put all our distributable files under distributions
             jarTask.destinationDir = new File(project.buildDir, 'distributions')
+            project.plugins.withType(ShadowPlugin).whenPluginAdded {
+                // ensure the original jar task places its output in 'libs' so we don't overwrite it with the shadowjar
+                if (jarTask instanceof ShadowJar == false) {
+                    jarTask.destinationDir = new File(project.buildDir, 'libs')
+                }
+            }
             // fixup the jar manifest
             jarTask.doFirst {
                 // this doFirst is added before the info plugin, therefore it will run
@@ -740,12 +750,6 @@ class BuildPlugin implements Plugin<Project> {
             }
         }
         project.plugins.withType(ShadowPlugin).whenPluginAdded {
-            /*
-             * When we use the shadow plugin we entirely replace the
-             * normal jar with the shadow jar so we no longer want to run
-             * the jar task.
-             */
-            project.tasks.getByName(JavaPlugin.JAR_TASK_NAME).enabled = false
             project.tasks.getByName('shadowJar').configure { ShadowJar shadowJar ->
                 /*
                  * Replace the default "shadow" classifier with null
@@ -764,7 +768,6 @@ class BuildPlugin implements Plugin<Project> {
             }
             // Make sure we assemble the shadow jar
             project.tasks.getByName(BasePlugin.ASSEMBLE_TASK_NAME).dependsOn project.tasks.getByName('shadowJar')
-            project.artifacts.add('apiElements', project.tasks.getByName('shadowJar'))
         }
     }
 
@@ -878,6 +881,7 @@ class BuildPlugin implements Plugin<Project> {
 
                 project.plugins.withType(ShadowPlugin).whenPluginAdded {
                     // Test against a shadow jar if we made one
+                    test.classpath -= project.configurations.getByName('bundle')
                     test.classpath -= project.tasks.getByName('compileJava').outputs.files
                     test.classpath += project.tasks.getByName('shadowJar').outputs.files
 

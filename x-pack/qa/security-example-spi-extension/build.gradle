@@ -9,7 +9,7 @@ esplugin {
 
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${version}"
-  testCompile project(path: xpackProject('transport-client').path, configuration: 'runtime')
+  testCompile "org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}"
 }
 
 

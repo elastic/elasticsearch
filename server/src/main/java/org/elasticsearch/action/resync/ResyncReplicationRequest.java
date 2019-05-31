@@ -38,8 +38,6 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
     private final long maxSeenAutoIdTimestampOnPrimary;
 
     ResyncReplicationRequest(StreamInput in) throws IOException {
-        //  TODO: https://github.com/elastic/elasticsearch/issues/38556
-        //assert Version.CURRENT.major <= 7;
         super(in);
         trimAboveSeqNo = in.readZLong();
         maxSeenAutoIdTimestampOnPrimary = in.readZLong();

@@ -49,6 +49,11 @@ Script fields can also be automatically detected and used as fields, so
 things like `_source.obj1.field1` can be used, though not recommended, as
 `obj1.field1` will work as well.
 
+NOTE: On its own, `stored_fields` cannot be used to load fields in nested
+objects -- if a field contains a nested object in its path, then no data will
+be returned for that stored field. To access nested fields, `stored_fields`
+must be used within an <<search-request-inner-hits, `inner_hits`>> block.
+
 ==== Disable stored fields entirely
 
 To disable the stored fields (and metadata fields) entirely use: `_none_`:

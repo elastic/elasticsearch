@@ -73,6 +73,7 @@ import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
 import org.elasticsearch.client.ml.UpdateFilterRequest;
@@ -655,6 +656,25 @@ final class MLRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         if (startRequest.getTimeout() != null) {
             params.withTimeout(startRequest.getTimeout());
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request stopDataFrameAnalytics(StopDataFrameAnalyticsRequest stopRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml", "data_frame", "analytics")
+            .addPathPart(stopRequest.getId())
+            .addPathPartAsIs("_stop")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (stopRequest.getTimeout() != null) {
+            params.withTimeout(stopRequest.getTimeout());
+        }
+        if (stopRequest.getAllowNoMatch() != null) {
+            params.putParam(
+                StopDataFrameAnalyticsRequest.ALLOW_NO_MATCH.getPreferredName(), Boolean.toString(stopRequest.getAllowNoMatch()));
         }
         request.addParameters(params.asMap());
         return request;

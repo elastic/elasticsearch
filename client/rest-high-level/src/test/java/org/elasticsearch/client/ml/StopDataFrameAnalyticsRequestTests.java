@@ -26,18 +26,18 @@ import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class StartDataFrameAnalyticsRequestTests extends ESTestCase {
+public class StopDataFrameAnalyticsRequestTests extends ESTestCase {
 
     public void testValidate_Ok() {
-        assertEquals(Optional.empty(), new StartDataFrameAnalyticsRequest("foo").validate());
-        assertEquals(Optional.empty(), new StartDataFrameAnalyticsRequest("foo").setTimeout(null).validate());
-        assertEquals(Optional.empty(), new StartDataFrameAnalyticsRequest("foo").setTimeout(TimeValue.ZERO).validate());
+        assertEquals(Optional.empty(), new StopDataFrameAnalyticsRequest("foo").validate());
+        assertEquals(Optional.empty(), new StopDataFrameAnalyticsRequest("foo").setTimeout(null).validate());
+        assertEquals(Optional.empty(), new StopDataFrameAnalyticsRequest("foo").setTimeout(TimeValue.ZERO).validate());
     }
 
     public void testValidate_Failure() {
-        assertThat(new StartDataFrameAnalyticsRequest(null).validate().get().getMessage(),
+        assertThat(new StopDataFrameAnalyticsRequest(null).validate().get().getMessage(),
             containsString("data frame analytics id must not be null"));
-        assertThat(new StartDataFrameAnalyticsRequest(null).setTimeout(TimeValue.ZERO).validate().get().getMessage(),
+        assertThat(new StopDataFrameAnalyticsRequest(null).setTimeout(TimeValue.ZERO).validate().get().getMessage(),
             containsString("data frame analytics id must not be null"));
     }
 }

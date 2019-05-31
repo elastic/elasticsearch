@@ -99,6 +99,8 @@ import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.StartDatafeedRequest;
 import org.elasticsearch.client.ml.StartDatafeedResponse;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.StopDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.StopDatafeedRequest;
 import org.elasticsearch.client.ml.StopDatafeedResponse;
 import org.elasticsearch.client.ml.UpdateDatafeedRequest;
@@ -2030,7 +2032,7 @@ public final class MachineLearningClient {
             Collections.emptySet());
     }
 
-     /**
+    /**
      * Starts Data Frame Analytics asynchronously and notifies listener upon completion
      * <p>
      * For additional info
@@ -2046,6 +2048,46 @@ public final class MachineLearningClient {
             MLRequestConverters::startDataFrameAnalytics,
             options,
             AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Stops Data Frame Analytics
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Stop Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link StopDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link StopDataFrameAnalyticsResponse}
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public StopDataFrameAnalyticsResponse stopDataFrameAnalytics(StopDataFrameAnalyticsRequest request,
+                                                                 RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::stopDataFrameAnalytics,
+            options,
+            StopDataFrameAnalyticsResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Stops Data Frame Analytics asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Stop Data Frame Analytics documentation</a>
+     *
+     * @param request The {@link StopDataFrameAnalyticsRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void stopDataFrameAnalyticsAsync(StopDataFrameAnalyticsRequest request, RequestOptions options,
+                                            ActionListener<StopDataFrameAnalyticsResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::stopDataFrameAnalytics,
+            options,
+            StopDataFrameAnalyticsResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

@@ -33,7 +33,7 @@ and <<query-dsl-multi-match-query,multi_match>> {es} queries.
 
 The first parameter is the field or fields to match against. In case it receives one value only, {es-sql} will use a `match` query to perform the search:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[simpleMatch]
 ----
@@ -41,7 +41,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[simpleMatch]
 However, it can also receive a list of fields and their corresponding optional `boost` value. In this case, {es-sql} will use a
 `multi_match` query to match the documents:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[multiFieldsMatch]
 ----
@@ -53,7 +53,7 @@ the final score than the `author` field when searching for `frank dune` text in 
 Both options above can be used in combination with the optional third parameter of the `MATCH()` predicate, where one can specify
 additional configuration parameters (separated by semicolon `;`) for either `match` or `multi_match` queries. For example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[optionalParamsForMatch]
 ----
@@ -90,14 +90,14 @@ Just like `MATCH`, `QUERY` is a full-text search predicate that gives the user c
 The first parameter is basically the input that will be passed as is to the `query_string` query, which means that anything that `query_string`
 accepts in its `query` field can be used here as well:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[simpleQueryQuery]
 ----
 
 A more advanced example, showing more of the features that `query_string` supports, of course possible with {es-sql}:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[advancedQueryQuery]
 ----
@@ -108,7 +108,7 @@ regex and fuzziness queries for the `name` field.
 If one needs to customize various configuration options that `query_string` exposes, this can be done using the second _optional_ parameter.
 Multiple settings can be specified separated by a semicolon `;`:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[optionalParameterQuery]
 ----
@@ -144,14 +144,14 @@ combined using the same rules as {es}'s
 
 Typically `SCORE` is used for ordering the results of a query based on their relevance:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[orderByScore]
 ----
 
 However, it is perfectly fine to return the score without sorting by it:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs/docs.csv-spec[scoreWithMatch]
 ----

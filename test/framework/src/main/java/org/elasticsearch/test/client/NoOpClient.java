@@ -57,10 +57,15 @@ public class NoOpClient extends AbstractClient {
 
     @Override
     public void close() {
+        boolean terminated = false;
         try {
-            ThreadPool.terminate(threadPool(), 10, TimeUnit.SECONDS);
+            terminated = ThreadPool.terminate(threadPool(), 10, TimeUnit.SECONDS);
         } catch (Exception e) {
             throw new ElasticsearchException(e.getMessage(), e);
+        }
+
+        if (terminated == false) {
+            throw new IllegalStateException("threadpool was not terminated after waiting for 10 seconds");
         }
     }
 }

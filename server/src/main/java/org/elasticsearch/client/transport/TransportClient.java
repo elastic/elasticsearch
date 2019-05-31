@@ -374,7 +374,14 @@ public abstract class TransportClient extends AbstractClient {
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             closeables.add(plugin);
         }
-        closeables.add(() -> ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS));
+        closeables.add(() -> {
+            final ThreadPool pool = injector.getInstance(ThreadPool.class);
+            final boolean terminated = ThreadPool.terminate(pool, 10, TimeUnit.SECONDS);
+            if (terminated == false) {
+                // the pool is only closed if termination succeeds, just close even if termination failed
+                pool.close();
+            }
+        });
         IOUtils.closeWhileHandlingException(closeables);
     }
 

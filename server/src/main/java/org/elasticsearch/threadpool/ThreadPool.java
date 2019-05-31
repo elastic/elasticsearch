@@ -412,6 +412,7 @@ public class ThreadPool implements Scheduler, Closeable {
             }
         }
         cachedTimeThread.join(unit.toMillis(timeout));
+        result &= cachedTimeThread.isAlive() == false;
         return result;
     }
 
@@ -699,22 +700,28 @@ public class ThreadPool implements Scheduler, Closeable {
 
     /**
      * Returns <code>true</code> if the given pool was terminated successfully. If the termination timed out,
-     * the service is <code>null</code> this method will return <code>false</code>.
+     * the service is <code>null</code> this method will return <code>false</code>. The pool is only closed if
+     * the termination was successful.
      */
     public static boolean terminate(ThreadPool pool, long timeout, TimeUnit timeUnit) {
+        boolean terminated = false;
         if (pool != null) {
-            // Leverage try-with-resources to close the threadpool
-            try (ThreadPool c = pool) {
+            try {
                 pool.shutdown();
                 if (awaitTermination(pool, timeout, timeUnit)) {
-                    return true;
+                    terminated = true;
+                } else {
+                    // last resort
+                    pool.shutdownNow();
+                    terminated = awaitTermination(pool, timeout, timeUnit);
                 }
-                // last resort
-                pool.shutdownNow();
-                return awaitTermination(pool, timeout, timeUnit);
+            } finally {
+                if (terminated) {
+                    pool.close();
+                }
             }
         }
-        return false;
+        return terminated;
     }
 
     private static boolean awaitTermination(

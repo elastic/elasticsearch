@@ -50,7 +50,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42577")
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
 
@@ -154,9 +153,12 @@ public class NodeTests extends ESTestCase {
         node.start();
         ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
         AtomicBoolean shouldRun = new AtomicBoolean(true);
+        CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            threadRunning.countDown();
             while (shouldRun.get());
         });
+        threadRunning.await();
         node.close();
         shouldRun.set(false);
         assertTrue(node.awaitClose(1, TimeUnit.DAYS));
@@ -167,12 +169,17 @@ public class NodeTests extends ESTestCase {
         node.start();
         ThreadPool threadpool = node.injector().getInstance(ThreadPool.class);
         AtomicBoolean shouldRun = new AtomicBoolean(true);
+        CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
+            threadRunning.countDown();
             while (shouldRun.get());
         });
+        threadRunning.await();
         node.close();
         assertFalse(node.awaitClose(0, TimeUnit.MILLISECONDS));
         shouldRun.set(false);
+        // call this again to ensure we terminate and close the threadpool
+        assertTrue(node.awaitClose(1, TimeUnit.DAYS));
     }
 
     public void testCloseOnInterruptibleTask() throws Exception {

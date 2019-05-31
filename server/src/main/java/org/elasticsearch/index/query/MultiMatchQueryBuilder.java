@@ -230,7 +230,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         fuzzyRewrite = in.readOptionalString();
         tieBreaker = in.readOptionalFloat();
         lenient = in.readOptionalBoolean();
-        if (in.getVersion().onOrBefore(Version.V_7_3_0)) {
+        if (in.getVersion().before(Version.V_8_0_0)) {
             in.readOptionalFloat();
         }
         zeroTermsQuery = MatchQuery.ZeroTermsQuery.readFromStream(in);
@@ -257,7 +257,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalFloat(tieBreaker);
         out.writeOptionalBoolean(lenient);
-        if (out.getVersion().onOrBefore(Version.V_7_3_0)) {
+        if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeOptionalFloat(null);
         }
         zeroTermsQuery.writeTo(out);

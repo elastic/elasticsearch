@@ -121,7 +121,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
         // cutoff_frequency has been removed
-        if (in.getVersion().onOrBefore(Version.V_8_0_0)) {
+        if (in.getVersion().before(Version.V_8_0_0)) {
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
@@ -143,7 +143,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
         // cutoff_frequency has been removed
-        if (out.getVersion().onOrBefore(Version.V_8_0_0)) {
+        if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeOptionalFloat(null);
         }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);

@@ -48,9 +48,10 @@ final class IndexLifecycleRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_ilm/policy")
                 .addCommaSeparatedPathParts(getLifecyclePolicyRequest.getPolicyNames()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(getLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(getLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -60,9 +61,10 @@ final class IndexLifecycleRequestConverters {
             .addPathPartAsIs(putLifecycleRequest.getName())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(putLifecycleRequest.masterNodeTimeout());
         params.withTimeout(putLifecycleRequest.timeout());
+        request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(putLifecycleRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -73,9 +75,10 @@ final class IndexLifecycleRequestConverters {
                 .addPathPartAsIs("_ilm/policy")
                 .addPathPartAsIs(deleteLifecyclePolicyRequest.getLifecyclePolicy())
                 .build());
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(deleteLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(deleteLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -87,9 +90,10 @@ final class IndexLifecycleRequestConverters {
                         .addCommaSeparatedPathParts(indices)
                         .addPathPartAsIs("_ilm", "remove")
                         .build());
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withIndicesOptions(removePolicyRequest.indicesOptions());
         params.withMasterTimeout(removePolicyRequest.masterNodeTimeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -99,9 +103,10 @@ final class IndexLifecycleRequestConverters {
                 .addPathPartAsIs("_ilm")
                 .addPathPartAsIs("start")
             .build());
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(startILMRequest.masterNodeTimeout());
         params.withTimeout(startILMRequest.timeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -111,9 +116,10 @@ final class IndexLifecycleRequestConverters {
                 .addPathPartAsIs("_ilm")
                 .addPathPartAsIs("stop")
             .build());
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(stopILMRequest.masterNodeTimeout());
         params.withTimeout(stopILMRequest.timeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -123,9 +129,10 @@ final class IndexLifecycleRequestConverters {
                 .addPathPartAsIs("_ilm")
                 .addPathPartAsIs("status")
             .build());
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(lifecycleManagementStatusRequest.masterNodeTimeout());
         params.withTimeout(lifecycleManagementStatusRequest.timeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -136,9 +143,10 @@ final class IndexLifecycleRequestConverters {
                 .addPathPartAsIs("_ilm")
                 .addPathPartAsIs("explain")
             .build());
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withIndicesOptions(explainLifecycleRequest.indicesOptions());
         params.withMasterTimeout(explainLifecycleRequest.masterNodeTimeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -149,9 +157,10 @@ final class IndexLifecycleRequestConverters {
                 .addPathPartAsIs("_ilm")
                 .addPathPartAsIs("retry")
                 .build());
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(retryLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(retryLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -159,9 +168,10 @@ final class IndexLifecycleRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_slm/policy")
             .addCommaSeparatedPathParts(getSnapshotLifecyclePolicyRequest.getPolicyIds()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(getSnapshotLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(getSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -171,9 +181,10 @@ final class IndexLifecycleRequestConverters {
             .addPathPartAsIs(putSnapshotLifecyclePolicyRequest.getPolicy().getId())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(putSnapshotLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(putSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(putSnapshotLifecyclePolicyRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -184,9 +195,10 @@ final class IndexLifecycleRequestConverters {
                 .addPathPartAsIs("_slm/policy")
                 .addPathPartAsIs(deleteSnapshotLifecyclePolicyRequest.getPolicyId())
                 .build());
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(deleteSnapshotLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(deleteSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -197,9 +209,10 @@ final class IndexLifecycleRequestConverters {
                 .addPathPartAsIs(executeSnapshotLifecyclePolicyRequest.getPolicyId())
                 .addPathPartAsIs("_execute")
                 .build());
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(executeSnapshotLifecyclePolicyRequest.masterNodeTimeout());
         params.withTimeout(executeSnapshotLifecyclePolicyRequest.timeout());
+        request.addParameters(params.asMap());
         return request;
     }
 }

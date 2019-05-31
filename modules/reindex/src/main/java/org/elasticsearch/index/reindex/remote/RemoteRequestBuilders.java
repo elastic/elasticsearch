@@ -74,14 +74,13 @@ final class RemoteRequestBuilders {
             request.addParameter("scroll", keepAlive.getStringRep());
         }
         request.addParameter("size", Integer.toString(searchRequest.source().size()));
-        if (searchRequest.source().version() == null || searchRequest.source().version() == true) {
-            /*
-             * Passing `null` here just add the `version` request parameter
-             * without any value. This way of requesting the version works
-             * for all supported versions of Elasticsearch.
-             */
-            request.addParameter("version", null);
+
+        if (searchRequest.source().version() == null || searchRequest.source().version() == false) {
+            request.addParameter("version", Boolean.FALSE.toString());
+        } else {
+            request.addParameter("version", Boolean.TRUE.toString());
         }
+
         if (searchRequest.source().sorts() != null) {
             boolean useScan = false;
             // Detect if we should use search_type=scan rather than a sort

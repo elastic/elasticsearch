@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.NodeAndClusterIdConverter;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -131,7 +132,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         protected abstract String expectedMessage();
     }
-
+    private static String nodeId ;
+    private static String clusterId ;
     private static PatternLayout patternLayout;
     private Settings settings;
     private DiscoveryNode localNode;
@@ -160,6 +162,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
         assertThat(patternLayoutFormat, is(notNullValue()));
         patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
+        nodeId = randomAlphaOfLength(16);
+        clusterId = randomAlphaOfLength(16);
+        NodeAndClusterIdConverter.setNodeIdAndClusterId(nodeId, clusterId);
+
     }
 
     @AfterClass
@@ -178,10 +184,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put("xpack.security.audit.logfile.events.emit_request_body", includeRequestBody)
                 .build();
         localNode = mock(DiscoveryNode.class);
-        when(localNode.getId()).thenReturn(randomAlphaOfLength(16));
+
+        when(localNode.getId()).thenReturn(nodeId);
         when(localNode.getAddress()).thenReturn(buildNewFakeTransportAddress());
         clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(localNode);
+
         Mockito.doAnswer((Answer) invocation -> {
             final LoggingAuditTrail arg0 = (LoggingAuditTrail) invocation.getArguments()[0];
             arg0.updateLocalNodeInfo(localNode);
@@ -278,6 +286,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         auditTrail.authenticationFailed(requestId, mockToken, "_action", message);
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
         final MapBuilder<String, String> checkedFields = new MapBuilder<>(commonFields);
+
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
                      .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "authentication_failed")
                      .put(LoggingAuditTrail.ACTION_FIELD_NAME, "_action")
@@ -1050,7 +1059,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             } else {
                 final String quotedValue = "\"" + checkField.getValue().replaceAll("\"", "\\\\\"") + "\"";
                 final Pattern logEntryFieldPattern = Pattern.compile(Pattern.quote("\"" + checkField.getKey() + "\":" + quotedValue));
-                assertThat("Field " + checkField.getKey() + " value mismatch. Expected " + quotedValue,
+                assertThat("Field " + checkField.getKey() + " value mismatch. Expected " + quotedValue +" line: "+logLine,
                         logEntryFieldPattern.matcher(logLine).find(), is(true));
                 // remove checked field
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
@@ -1075,7 +1084,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 logLine = logEntryFieldPattern.matcher(logLine).replaceFirst("");
             }
         }
-        logLine = logLine.replaceFirst("\"@timestamp\":\"[^\"]*\"", "").replaceAll("[{},]", "");
+        logLine = logLine.replaceFirst("\""+LoggingAuditTrail.LOG_TYPE+"\":\"audit\", ", "")
+                         .replaceFirst("\""+LoggingAuditTrail.TIMESTAMP+"\":\"[^\"]*\"", "")
+                         .replaceAll("[{},]", "");
         // check no extra fields
         assertThat("Log event has extra unexpected content: " + logLine, Strings.hasText(logLine), is(false));
     }

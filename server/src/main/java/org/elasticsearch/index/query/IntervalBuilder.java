@@ -95,7 +95,7 @@ public class IntervalBuilder {
         // formulate a single term, boolean, or phrase.
 
         if (numTokens == 0) {
-            return null;
+            return NO_INTERVALS;
         } else if (numTokens == 1) {
             // single term
             return analyzeTerm(stream);
@@ -230,7 +230,7 @@ public class IntervalBuilder {
         return clauses;
     }
 
-    private static final IntervalsSource NO_INTERVALS = new IntervalsSource() {
+    static final IntervalsSource NO_INTERVALS = new IntervalsSource() {
 
         @Override
         public IntervalIterator intervals(String field, LeafReaderContext ctx) {

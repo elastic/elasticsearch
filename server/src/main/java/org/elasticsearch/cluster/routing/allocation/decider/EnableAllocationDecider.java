@@ -147,17 +147,29 @@ public class EnableAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "allocation is explicitly ignoring any disabling of rebalancing");
         }
 
-        if (enableRebalance == Rebalance.NONE) {
-            for (IndexMetaData indexMetaData : allocation.metaData()) {
-                if (INDEX_ROUTING_REBALANCE_ENABLE_SETTING.exists(indexMetaData.getSettings())
-                    && INDEX_ROUTING_REBALANCE_ENABLE_SETTING.get(indexMetaData.getSettings()) != Rebalance.NONE) {
-                    return allocation.decision(Decision.YES, NAME, "rebalancing is permitted on one or more indices");
+        Rebalance enable = this.enableRebalance;
+        switch (enable) {
+            case ALL:
+                return allocation.decision(Decision.YES, NAME, "all rebalance are allowed");
+            case NONE:
+                return allocation.decision(Decision.NO, NAME, "none rebalance are not allowed");
+            case PRIMARIES:
+                if (allocation.routingNodes().hasInactivePrimaries()) {
+                    return allocation.decision(Decision.NO, NAME,
+                            "the cluster has inactive primary shards and cluster setting [%s] is set to [%s]",
+                            CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING, enable);
                 }
-            }
-            return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to %s", setting(enableRebalance, false));
+                return allocation.decision(Decision.YES, NAME, "all primary shards is active and rebalance are allowed");
+            case REPLICAS:
+                if (allocation.routingNodes().hasInactiveShards()) {
+                    return allocation.decision(Decision.NO, NAME,
+                            "the cluster has inactive shards and cluster setting [%s] is set to [%s]",
+                            CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING, enable);
+                }
+                return allocation.decision(Decision.YES, NAME, "all shards is active and rebalance are allowed");
+            default:
+                throw new IllegalStateException("Unknown rebalance option");
         }
-
-        return allocation.decision(Decision.YES, NAME, "rebalancing is not globally disabled");
     }
 
     @Override

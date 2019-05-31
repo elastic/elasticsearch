@@ -85,7 +85,14 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     waitCondition = { fixture, ant ->
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
-      return fixture.portsFile.exists()
+
+      if (fixture.portsFile.exists()) {
+        println "hdfs.MiniHDFS fixture " + fixtureName + " is ready!";
+        return true;
+      } else {
+        println "hdfs.MiniHDFS fixture " + fixtureName + " is not yet ready, keep waiting!";
+        return false;
+      }
     }    
 
     final List<String> miniHDFSArgs = []

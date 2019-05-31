@@ -44,7 +44,8 @@ public class RestGetDataFrameAnalyticsAction extends BaseRestHandler {
             request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                     restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
         }
-
+        request.setAllowNoResources(restRequest.paramAsBoolean(GetDataFrameAnalyticsAction.Request.ALLOW_NO_MATCH.getPreferredName(),
+                request.isAllowNoResources()));
         return channel -> client.execute(GetDataFrameAnalyticsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

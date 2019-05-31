@@ -703,12 +703,13 @@ public class MLRequestConvertersTests extends ESTestCase {
         String configId2 = randomAlphaOfLength(10);
         String configId3 = randomAlphaOfLength(10);
         GetDataFrameAnalyticsRequest getRequest = new GetDataFrameAnalyticsRequest(configId1, configId2, configId3)
+            .setAllowNoMatch(false)
             .setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getDataFrameAnalytics(getRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + configId1 + "," + configId2 + "," + configId3, request.getEndpoint());
-        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300")));
+        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300"), hasEntry("allow_no_match", "false")));
         assertNull(request.getEntity());
     }
 
@@ -717,12 +718,13 @@ public class MLRequestConvertersTests extends ESTestCase {
         String configId2 = randomAlphaOfLength(10);
         String configId3 = randomAlphaOfLength(10);
         GetDataFrameAnalyticsStatsRequest getStatsRequest = new GetDataFrameAnalyticsStatsRequest(configId1, configId2, configId3)
+            .setAllowNoMatch(false)
             .setPageParams(new PageParams(100, 300));
 
         Request request = MLRequestConverters.getDataFrameAnalyticsStats(getStatsRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals("/_ml/data_frame/analytics/" + configId1 + "," + configId2 + "," + configId3 + "/_stats", request.getEndpoint());
-        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300")));
+        assertThat(request.getParameters(), allOf(hasEntry("from", "100"), hasEntry("size", "300"), hasEntry("allow_no_match", "false")));
         assertNull(request.getEntity());
     }
 

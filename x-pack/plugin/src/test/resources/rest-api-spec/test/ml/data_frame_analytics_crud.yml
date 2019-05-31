@@ -428,6 +428,70 @@
         id: "missing-analytics"
 
 ---
+"Test get given missing analytics and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics:
+        id: "missing-analytics"
+        allow_no_match: false
+
+---
+"Test get given expression without matches and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics:
+        id: "missing-analytics*"
+        allow_no_match: false
+
+---
+"Test get given expression without matches and allow_no_match is true":
+
+  - do:
+      ml.get_data_frame_analytics:
+        id: "missing-analytics*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+---
+"Test get stats given missing analytics":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics_stats:
+        id: "missing-analytics"
+
+---
+"Test get stats given missing analytics and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics_stats:
+        id: "missing-analytics"
+        allow_no_match: false
+
+---
+"Test get stats given expression without matches and allow_no_match is false":
+
+  - do:
+      catch: missing
+      ml.get_data_frame_analytics_stats:
+        id: "missing-analytics*"
+        allow_no_match: false
+
+---
+"Test get stats given expression without matches and allow_no_match is true":
+
+  - do:
+      ml.get_data_frame_analytics_stats:
+        id: "missing-analytics*"
+        allow_no_match: true
+  - match: { count: 0 }
+  - match: { data_frame_analytics: [] }
+
+---
 "Test get stats given multiple analytics":
 
   - do:

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,7 +56,10 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
 
     public static class Request extends BaseTasksRequest<Request> {
 
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+
         private String id;
+        private boolean allowNoMatch = true;
         private PageParams pageParams = PageParams.defaultParams();
 
         // Used internally to store the expanded IDs
@@ -71,6 +75,7 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
+            allowNoMatch = in.readBoolean();
             pageParams = in.readOptionalWriteable(PageParams::new);
             expandedIds = in.readStringList();
         }
@@ -87,6 +92,7 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
+            out.writeBoolean(allowNoMatch);
             out.writeOptionalWriteable(pageParams);
             out.writeStringCollection(expandedIds);
         }
@@ -97,6 +103,14 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
 
         public String getId() {
             return id;
+        }
+
+        public boolean isAllowNoMatch() {
+            return allowNoMatch;
+        }
+
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         public void setPageParams(PageParams pageParams) {
@@ -119,7 +133,7 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, pageParams);
+            return Objects.hash(id, allowNoMatch, pageParams);
         }
 
         @Override
@@ -131,7 +145,7 @@ public class GetDataFrameAnalyticsStatsAction extends Action<GetDataFrameAnalyti
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams);
+            return Objects.equals(id, other.id) && allowNoMatch == other.allowNoMatch && Objects.equals(pageParams, other.pageParams);
         }
     }
 

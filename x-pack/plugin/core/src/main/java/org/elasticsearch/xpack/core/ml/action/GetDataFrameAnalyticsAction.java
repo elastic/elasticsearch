@@ -34,6 +34,8 @@ public class GetDataFrameAnalyticsAction extends Action<GetDataFrameAnalyticsAct
 
     public static class Request extends AbstractGetResourcesRequest {
 
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
+
         public Request() {
             setAllowNoResources(true);
         }

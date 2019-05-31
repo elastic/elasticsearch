@@ -11,13 +11,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,12 +26,11 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class EnrichPolicyExecutorTests extends ESTestCase {
 
     private static ThreadPool testThreadPool;
-    private static ActionListener<PolicyExecutionResult> noOpListener = new ActionListener<>() {
+    private static final ActionListener<PolicyExecutionResult> noOpListener = new ActionListener<>() {
         @Override
         public void onResponse(PolicyExecutionResult policyExecutionResult) { }
 
@@ -47,9 +46,11 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
     @AfterClass
     public static void afterClass() {
         ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);
-        testThreadPool = null;
     }
 
+    /**
+     * A policy runner drop-in replacement that just waits on a given countdown latch, and reports success after the latch is counted down.
+     */
     private static class BlockingTestPolicyRunner implements Runnable {
         private final CountDownLatch latch;
         private final ActionListener<PolicyExecutionResult> listener;
@@ -70,6 +71,10 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         }
     }
 
+    /**
+     * A mocked policy executor that accepts policy execution requests which block until the returned latch is decremented. Allows for
+     * controlling the timing for "in flight" policy executions to test for correct locking logic.
+     */
     private static class EnrichPolicyTestExecutor extends EnrichPolicyExecutor {
 
         EnrichPolicyTestExecutor(Settings settings, ClusterService clusterService, Client client, ThreadPool threadPool,
@@ -97,37 +102,32 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
         String testPolicyName = "test_policy";
         EnrichPolicy testPolicy = new EnrichPolicy(EnrichPolicy.EXACT_MATCH_TYPE, null, List.of("some_index"), "keyfield",
             List.of("valuefield"));
-        EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(Settings.EMPTY, null, null, testThreadPool,
+        final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(Settings.EMPTY, null, null, testThreadPool,
             new IndexNameExpressionResolver(), ESTestCase::randomNonNegativeLong);
 
         // Launch a fake policy run that will block until firstTaskBlock is counted down.
-        CountDownLatch firstTaskComplete = new CountDownLatch(1);
-        CountDownLatch firstTaskBlock = testExecutor.testRunPolicy(testPolicyName, testPolicy,
+        final CountDownLatch firstTaskComplete = new CountDownLatch(1);
+        final CountDownLatch firstTaskBlock = testExecutor.testRunPolicy(testPolicyName, testPolicy,
             new LatchedActionListener<>(noOpListener, firstTaskComplete));
 
         // Launch a second fake run that should fail immediately because the lock is obtained.
-        Exception expected = null;
-        try {
+        EsRejectedExecutionException expected = expectThrows(EsRejectedExecutionException.class,
+            "Expected exception but nothing was thrown", () -> {
             CountDownLatch countDownLatch = testExecutor.testRunPolicy(testPolicyName, testPolicy, noOpListener);
             // Should throw exception on the previous statement, but if it doesn't, be a
-            // good citizen and conclude the fake run.
+            // good citizen and conclude the fake runs to keep the logs clean from interrupted exceptions
             countDownLatch.countDown();
-        } catch (Exception e) {
-            expected = e;
-        }
+            firstTaskBlock.countDown();
+            firstTaskComplete.await();
+        });
 
         // Conclude the first mock run
         firstTaskBlock.countDown();
         firstTaskComplete.await();
 
         // Validate exception from second run
-        if (expected != null) {
-            assertThat(expected, instanceOf(ElasticsearchException.class));
-            assertThat(expected.getMessage(), containsString("Policy execution failed. Policy execution for [" + testPolicyName +
-                "] is already in progress."));
-        } else {
-            fail("Expected exception but nothing was thrown");
-        }
+        assertThat(expected.getMessage(), containsString("Policy execution failed. Policy execution for [" + testPolicyName +
+            "] is already in progress."));
 
         // Ensure that the lock from the previous run has been cleared
         CountDownLatch secondTaskComplete = new CountDownLatch(1);

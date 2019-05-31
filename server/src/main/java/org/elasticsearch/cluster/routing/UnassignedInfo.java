@@ -364,13 +364,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Returns the number of shards that are unassigned and currently being delayed.
      */
     public static int getNumberOfDelayedUnassigned(ClusterState state) {
-        int count = 0;
-        for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
-            if (shard.unassignedInfo().isDelayed()) {
-                count++;
-            }
-        }
-        return count;
+        return state.getRoutingNodes().unassigned().size();
     }
 
     /**
@@ -380,9 +374,11 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      */
     public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
         MetaData metaData = state.metaData();
-        RoutingTable routingTable = state.routingTable();
+        final RoutingNodes routingNodes = state.getRoutingNodes();
+        final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
         long nextDelayNanos = Long.MAX_VALUE;
-        for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
+        while (unassignedIterator.hasNext()) {
+            final ShardRouting shard = unassignedIterator.next();
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.isDelayed()) {
                 Settings indexSettings = metaData.index(shard.index()).getSettings();

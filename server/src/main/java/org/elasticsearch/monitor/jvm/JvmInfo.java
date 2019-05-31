@@ -57,11 +57,14 @@ public class JvmInfo implements Writeable, ToXContentFragment {
         long nonHeapInit = memoryMXBean.getNonHeapMemoryUsage().getInit() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getInit();
         long nonHeapMax = memoryMXBean.getNonHeapMemoryUsage().getMax() < 0 ? 0 : memoryMXBean.getNonHeapMemoryUsage().getMax();
         long directMemoryMax = 0;
-        try {
-            Class<?> vmClass = Class.forName("sun.misc.VM");
-            directMemoryMax = (Long) vmClass.getMethod("maxDirectMemory").invoke(null);
-        } catch (Exception t) {
-            // ignore
+        for (String vmClassName : new String[] { "sun.misc.VM", "jdk.internal.misc.VM" }) {
+            try {
+                Class<?> vmClass = Class.forName(vmClassName);
+                directMemoryMax = (Long) vmClass.getMethod("maxDirectMemory").invoke(null);
+                break;
+            } catch (Exception t) {
+                // ignore
+            }
         }
         String[] inputArguments = runtimeMXBean.getInputArguments().toArray(new String[runtimeMXBean.getInputArguments().size()]);
         Mem mem = new Mem(heapInit, heapMax, nonHeapInit, nonHeapMax, directMemoryMax);

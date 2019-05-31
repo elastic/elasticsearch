@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -119,6 +120,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         minimumShouldMatch = in.readOptionalString();
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
+        if (in.getVersion().onOrBefore(Version.V_7_3_0)) {
+            in.readOptionalFloat();
+        }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
     }
 
@@ -137,6 +141,9 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
+        if (out.getVersion().onOrBefore(Version.V_7_3_0)) {
+            out.writeOptionalFloat(null);
+        }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
     }
 

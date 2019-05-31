@@ -12,6 +12,7 @@ import com.nimbusds.jose.jwk.JWKSelector;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.BadJOSEException;
+import com.nimbusds.jose.proc.BadJWSException;
 import com.nimbusds.jose.proc.JWSVerificationKeySelector;
 import com.nimbusds.jose.proc.SecurityContext;
 import com.nimbusds.jose.util.IOUtils;
@@ -240,7 +241,7 @@ public class OpenIdConnectAuthenticator {
                 }
                 claimsListener.onResponse(enrichedVerifiedIdTokenClaims);
             }
-        } catch (BadJOSEException e) {
+        } catch (BadJWSException e) {
             // We only try to update the cached JWK set once if a remote source is used and
             // RSA or ECDSA is used for signatures
             if (shouldRetry
@@ -256,7 +257,7 @@ public class OpenIdConnectAuthenticator {
             } else {
                 claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
             }
-        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | JOSEException e) {
+        } catch (com.nimbusds.oauth2.sdk.ParseException | ParseException | BadJOSEException | JOSEException e) {
             claimsListener.onFailure(new ElasticsearchSecurityException("Failed to parse or validate the ID Token", e));
         }
     }
@@ -777,6 +778,7 @@ public class OpenIdConnectAuthenticator {
                                     StandardCharsets.UTF_8));
                                 reloadFutureRef.set(null);
                                 LOGGER.trace("Successfully refreshed and cached remote JWKSet");
+                                future.onResponse(null);
                             } catch (IOException | ParseException e) {
                                 failed(e);
                             }

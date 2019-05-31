@@ -163,7 +163,7 @@ public class MetaDataIndexStateService {
                                                 closeRoutingTable(currentState, blockedIndices, verifyResults);
                                             assert verifyResults.size() == closingResult.v2().size();
                                             indices.addAll(closingResult.v2());
-                                            return allocationService.reroute(closingResult.v1(), "indices closed");
+                                            return allocationService.noReroute(closingResult.v1(), "indices closed");
                                         }
 
                                         @Override

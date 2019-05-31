@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
@@ -39,8 +40,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayAllocator;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,10 +72,23 @@ public class AllocationService {
 
     private static final Logger logger = LogManager.getLogger(AllocationService.class);
 
+    public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REBALANCE_REROUTE_INTERVAL_SETTING =
+            Setting.positiveTimeSetting("cluster.routing.allocation.rebalance.reroute_interval", TimeValue.timeValueHours(2),
+                    Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REBALANCE_SCHEDULE_INTERVAL_SETTING =
+            Setting.positiveTimeSetting("cluster.routing.allocation.rebalance.schedule_interval", TimeValue.timeValueMinutes(5),
+                    Setting.Property.Dynamic, Setting.Property.NodeScope);
+
     private final AllocationDeciders allocationDeciders;
     private GatewayAllocator gatewayAllocator;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
+    private ThreadPool threadPool;
+    private ClusterService clusterService;
+    private volatile long lastRunNS;
+    private volatile TimeValue rerouteInterval;
+    private volatile TimeValue scheduleInterval;
+    private volatile ThreadPool.Cancellable cancellable;
 
     public AllocationService(AllocationDeciders allocationDeciders,
                              GatewayAllocator gatewayAllocator,
@@ -78,11 +97,55 @@ public class AllocationService {
         setGatewayAllocator(gatewayAllocator);
     }
 
+    public AllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationDeciders allocationDeciders,
+                             ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
+        this(allocationDeciders, shardsAllocator, clusterInfoService);
+        this.threadPool = threadPool;
+        this.clusterService = clusterService;
+        this.lastRunNS = System.nanoTime();
+        this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REBALANCE_REROUTE_INTERVAL_SETTING.get(settings);
+        this.scheduleInterval = CLUSTER_ROUTING_ALLOCATION_REBALANCE_SCHEDULE_INTERVAL_SETTING.get(settings);
+        this.cancellable = createCancellable(threadPool, clusterService, scheduleInterval);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REBALANCE_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REBALANCE_SCHEDULE_INTERVAL_SETTING, this::setScheduleInterval);
+    }
+
     public AllocationService(AllocationDeciders allocationDeciders,
                              ShardsAllocator shardsAllocator, ClusterInfoService clusterInfoService) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
+    }
+
+    private ThreadPool.Cancellable createCancellable(ThreadPool threadPool, ClusterService clusterService, TimeValue timeValue) {
+        return threadPool.scheduleWithFixedDelay(() -> {
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                if ((System.nanoTime() - lastRunNS) > rerouteInterval.nanos()) {
+                    clusterService.submitStateUpdateTask("async-rebalance", new ClusterStateUpdateTask() {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) throws Exception {
+                            ClusterState newClusterState = balance(currentState, "async-rebalance");
+                            lastRunNS = System.nanoTime();
+                            return newClusterState;
+                        }
+
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            logger.error("[source: {}] throws exception: {}", source, e);
+                        }
+                    });
+                }
+            }
+        }, timeValue, ThreadPool.Names.MANAGEMENT);
+    }
+
+    private void setRerouteInterval(TimeValue rerouteInterval) {
+        this.rerouteInterval = rerouteInterval;
+    }
+
+    private void setScheduleInterval(TimeValue scheduleInterval) {
+        this.cancellable.cancel();
+        this.cancellable = createCancellable(threadPool, clusterService, scheduleInterval);
     }
 
     public void setGatewayAllocator(GatewayAllocator gatewayAllocator) {
@@ -361,6 +424,54 @@ public class AllocationService {
         return reroute(clusterState, reason, false);
     }
 
+    /** no need handle */
+    public ClusterState noReroute(ClusterState clusterState, String reason) {
+        return clusterState;
+    }
+
+    /** move shards by update settings */
+    public ClusterState moveShards(ClusterState clusterState, String reason) {
+        RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
+        // shuffle the unassigned nodes, just so we won't have things like poison failed shards
+        routingNodes.unassigned().shuffle();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
+                clusterInfoService.getClusterInfo(), currentNanoTime());
+        allocation.debugDecision(false);
+
+        assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See deassociateDeadNodes";
+
+        shardsAllocator.moveShards(allocation);
+        assert RoutingNodes.assertShardStats(allocation.routingNodes());
+
+        if (allocation.routingNodesChanged() == false) {
+            return clusterState;
+        }
+        return buildResultAndLogHealthChange(clusterState, allocation, reason);
+    }
+
+    /** async rebalance */
+    public ClusterState balance(ClusterState clusterState, String reason) {
+        if (clusterState.getRoutingNodes().unassigned().size() > 0) {
+            return clusterState;
+        }
+        RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
+        // shuffle the unassigned nodes, just so we won't have things like poison failed shards
+        routingNodes.unassigned().shuffle();
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState,
+                clusterInfoService.getClusterInfo(), currentNanoTime());
+        allocation.debugDecision(false);
+
+        assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See deassociateDeadNodes";
+
+        shardsAllocator.balance(allocation);
+        assert RoutingNodes.assertShardStats(allocation.routingNodes());
+
+        if (allocation.routingNodesChanged() == false) {
+            return clusterState;
+        }
+        return buildResultAndLogHealthChange(clusterState, allocation, reason);
+    }
+
     /**
      * Reroutes the routing table based on the live nodes.
      * <p>
@@ -410,7 +521,7 @@ public class AllocationService {
             gatewayAllocator.allocateUnassigned(allocation);
         }
 
-        shardsAllocator.allocate(allocation);
+        shardsAllocator.allocateUnassigned(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 

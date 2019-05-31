@@ -127,7 +127,7 @@ public class MetaDataDeleteIndexService {
             }
         }
 
-        return allocationService.reroute(
+        return allocationService.noReroute(
                 ClusterState.builder(currentState)
                     .routingTable(routingTableBuilder.build())
                     .metaData(newMetaData)

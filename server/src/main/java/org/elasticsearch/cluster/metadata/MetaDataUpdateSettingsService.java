@@ -227,7 +227,7 @@ public class MetaDataUpdateSettingsService {
                     .routingTable(routingTableBuilder.build()).blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
-                updatedState = allocationService.reroute(updatedState, "settings update");
+                updatedState = allocationService.moveShards(updatedState, "settings update");
                 try {
                     for (Index index : openIndices) {
                         final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);

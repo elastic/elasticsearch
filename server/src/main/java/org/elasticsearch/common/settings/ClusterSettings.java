@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -230,6 +231,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_TIME_SETTING,
+            AllocationService.CLUSTER_ROUTING_ALLOCATION_REBALANCE_REROUTE_INTERVAL_SETTING,
+            AllocationService.CLUSTER_ROUTING_ALLOCATION_REBALANCE_SCHEDULE_INTERVAL_SETTING,
             NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
             NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING,
             NetworkModule.HTTP_TYPE_SETTING,

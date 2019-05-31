@@ -113,14 +113,32 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public void allocate(RoutingAllocation allocation) {
+    public void allocateUnassigned(RoutingAllocation allocation) {
         if (allocation.routingNodes().size() == 0) {
             /* with no nodes this is pointless */
             return;
         }
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
         balancer.allocateUnassigned();
+    }
+
+    @Override
+    public void moveShards(RoutingAllocation allocation) {
+        if (allocation.routingNodes().size() == 0) {
+            /* with no nodes this is pointless */
+            return;
+        }
+        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
         balancer.moveShards();
+    }
+
+    @Override
+    public void balance(RoutingAllocation allocation) {
+        if (allocation.routingNodes().size() == 0) {
+            /* with no nodes this is pointless */
+            return;
+        }
+        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
         balancer.balance();
     }
 
@@ -309,6 +327,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private void balance() {
             if (logger.isTraceEnabled()) {
                 logger.trace("Start balancing cluster");
+            }
+            if (allocation.routingNodes().hasUnassignedShards()) {
+                logger.trace("skipping rebalance as has unassigned shards");
+                return;
             }
             if (allocation.hasPendingAsyncFetch()) {
                 /*

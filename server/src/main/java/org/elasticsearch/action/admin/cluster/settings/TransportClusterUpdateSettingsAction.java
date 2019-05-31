@@ -165,7 +165,7 @@ public class TransportClusterUpdateSettingsAction extends
                     @Override
                     public ClusterState execute(final ClusterState currentState) {
                         // now, reroute in case things that require it changed (e.g. number of replicas)
-                        return allocationService.reroute(currentState, "reroute after cluster update settings");
+                        return allocationService.moveShards(currentState, "reroute after cluster update settings");
                     }
                 });
             }

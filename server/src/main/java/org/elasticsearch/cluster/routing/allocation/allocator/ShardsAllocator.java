@@ -42,7 +42,13 @@ public interface ShardsAllocator {
      *
      * @param allocation current node allocation
      */
-    void allocate(RoutingAllocation allocation);
+    void allocateUnassigned(RoutingAllocation allocation);
+
+    /** move shards by update settings */
+    void moveShards(RoutingAllocation allocation);
+
+    /** timing balance */
+    void balance(RoutingAllocation allocation);
 
     /**
      * Returns the decision for where a shard should reside in the cluster.  If the shard is unassigned,
@@ -50,7 +56,7 @@ public interface ShardsAllocator {
      * state, then the {@link MoveDecision} will be non-null.
      *
      * This method is primarily used by the cluster allocation explain API to provide detailed explanations
-     * for the allocation of a single shard.  Implementations of the {@link #allocate(RoutingAllocation)} method
+     * for the allocation of a single shard.  Implementations of the {@link #allocateUnassigned(RoutingAllocation)} method
      * may use the results of this method implementation to decide on allocating shards in the routing table
      * to the cluster.
      *

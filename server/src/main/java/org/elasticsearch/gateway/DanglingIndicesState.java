@@ -23,16 +23,20 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,23 +55,75 @@ import static java.util.Collections.emptyMap;
  * their state written on disk, but don't exists in the metadata of the cluster), and importing
  * them into the cluster.
  */
-public class DanglingIndicesState implements ClusterStateListener {
+public class DanglingIndicesState {
 
     private static final Logger logger = LogManager.getLogger(DanglingIndicesState.class);
+
+    public static final Setting<Boolean> DANGLING_INDICES_ENABLED_SETTING =
+            Setting.boolSetting("cluster.routing.allocation.dangling_indices.enabled", true, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> DANGLING_INDICES_INTERVAL_SETTING =
+            Setting.positiveTimeSetting("cluster.routing.allocation.dangling_indices.interval", TimeValue.timeValueHours(2), Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
     private final LocalAllocateDangledIndices allocateDangledIndices;
+    private final ThreadPool threadPool;
+    private final ClusterService clusterService;
+    private volatile boolean enabled;
+    private volatile TimeValue interval;
+    private volatile ThreadPool.Cancellable cancellable;
 
     private final Map<Index, IndexMetaData> danglingIndices = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public DanglingIndicesState(NodeEnvironment nodeEnv, MetaStateService metaStateService,
+    public DanglingIndicesState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv, MetaStateService metaStateService,
                                 LocalAllocateDangledIndices allocateDangledIndices, ClusterService clusterService) {
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.allocateDangledIndices = allocateDangledIndices;
-        clusterService.addListener(this);
+        this.threadPool = threadPool;
+        this.clusterService = clusterService;
+        this.enabled = DANGLING_INDICES_ENABLED_SETTING.get(settings);
+        this.interval = DANGLING_INDICES_INTERVAL_SETTING.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DANGLING_INDICES_ENABLED_SETTING, this::setEnabled);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DANGLING_INDICES_INTERVAL_SETTING, this::setInterval);
+        this.cancellable = createCancellable(threadPool, clusterService, interval);
+    }
+
+    private void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    private void setInterval(TimeValue interval) {
+        this.cancellable.cancel();
+        this.cancellable = createCancellable(threadPool, clusterService, interval);
+    }
+
+    private boolean isEnabled() {
+        return enabled;
+    }
+
+    private ThreadPool.Cancellable createCancellable(ThreadPool threadPool, ClusterService clusterService, TimeValue timeValue) {
+        return threadPool.scheduleWithFixedDelay(() -> {
+            if (!isEnabled()) {
+                return;
+            }
+            clusterService.submitStateUpdateTask("dangling-indices", new ClusterStateUpdateTask() {
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    if (currentState.blocks().disableStatePersistence() == false) {
+                        processDanglingIndices(currentState.metaData());
+                    }
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error("[source: {}] throws exception: {}", source, e);
+                }
+            });
+        }, timeValue, ThreadPool.Names.MANAGEMENT);
     }
 
     /**
@@ -177,13 +233,6 @@ public class DanglingIndicesState implements ClusterStateListener {
             );
         } catch (Exception e) {
             logger.warn("failed to send allocate dangled", e);
-        }
-    }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().disableStatePersistence() == false) {
-            processDanglingIndices(event.state().metaData());
         }
     }
 }

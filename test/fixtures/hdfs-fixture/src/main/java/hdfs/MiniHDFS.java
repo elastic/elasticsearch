@@ -55,6 +55,7 @@ public class MiniHDFS {
     private static String PID_FILE_NAME = "pid";
 
     public static void main(String[] args) throws Exception {
+        try {
         if (args.length != 1 && args.length != 3) {
             throw new IllegalArgumentException("Expected: MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>], " +
                 "got: " + Arrays.toString(args));
@@ -174,5 +175,8 @@ public class MiniHDFS {
         tmp = Files.createTempFile(baseDir, null, null);
         Files.write(tmp, portFileContent.getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve(PORT_FILE_NAME), StandardCopyOption.ATOMIC_MOVE);
-    }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        }
 }

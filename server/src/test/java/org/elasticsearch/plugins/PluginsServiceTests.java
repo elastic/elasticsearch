@@ -171,7 +171,7 @@ public class PluginsServiceTests extends ESTestCase {
             if (Constants.WINDOWS) {
                 assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
             } else {
-                assertThat(e.getCause(), hasToString(containsString("Not a directory")));
+                assertThat(e.getCause().getMessage(), containsString("Not a directory"));
             }
         }
     }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Nullable;
@@ -186,11 +185,6 @@ public final class CreateTokenRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_6_5_0) && GrantType.CLIENT_CREDENTIALS.getValue().equals(grantType)) {
-            throw new IllegalArgumentException("a request with the client_credentials grant_type cannot be sent to version [" +
-                out.getVersion() + "]");
-        }
-
         out.writeString(grantType);
         out.writeOptionalString(username);
         if (password == null) {

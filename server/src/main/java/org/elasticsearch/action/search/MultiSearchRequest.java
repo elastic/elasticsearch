@@ -170,7 +170,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                            CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
                                            String[] indices,
                                            IndicesOptions indicesOptions,
-                                           String[] types,
                                            String routing,
                                            String searchType,
                                            Boolean ccsMinimizeRoundtrips,
@@ -189,9 +188,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
             if (indicesOptions != null) {
                 searchRequest.indicesOptions(indicesOptions);
-            }
-            if (types != null && types.length > 0) {
-                searchRequest.types(types);
             }
             if (routing != null) {
                 searchRequest.routing(routing);
@@ -219,8 +215,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                 throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
                             searchRequest.indices(nodeStringArrayValue(value));
-                        } else if ("type".equals(entry.getKey()) || "types".equals(entry.getKey())) {
-                            searchRequest.types(nodeStringArrayValue(value));
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
@@ -319,9 +313,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
             xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
             xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
-        }
-        if (request.types() != null) {
-            xContentBuilder.field("types", request.types());
         }
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));

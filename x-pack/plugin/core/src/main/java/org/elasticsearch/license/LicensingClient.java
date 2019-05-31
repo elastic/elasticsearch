@@ -65,6 +65,6 @@ public class LicensingClient {
     }
 
     public GetBasicStatusRequestBuilder prepareGetStartBasic() {
-        return new GetBasicStatusRequestBuilder(client, GetBasicStatusAction.INSTANCE);
+        return new GetBasicStatusRequestBuilder(client);
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -191,11 +193,11 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     public void testDoubleFreeze() throws ExecutionException, InterruptedException {
         createIndex("test-idx", Settings.builder().put("index.number_of_shards", 2).build());
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new TransportFreezeIndexAction.FreezeRequest("test-idx")).actionGet());
-        ExecutionException executionException = expectThrows(ExecutionException.class,
+        ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class,
             () -> client().execute(FreezeIndexAction.INSTANCE, new TransportFreezeIndexAction.FreezeRequest("test-idx")
                 .indicesOptions(new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class),
                 EnumSet.of(IndicesOptions.WildcardStates.OPEN)))).actionGet());
-        assertEquals("no index found to freeze", executionException.getCause().getMessage());
+        assertEquals("no index found to freeze", exception.getMessage());
     }
 
     public void testUnfreezeClosedIndices() throws ExecutionException, InterruptedException {
@@ -318,7 +320,7 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareClose("idx"));
         assertEquals(IndexMetaData.State.CLOSE,
             client().admin().cluster().prepareState().get().getState().metaData().index("idx").getState());
-        expectThrows(ExecutionException.class,
+        expectThrows(IndexNotFoundException.class,
             () -> client().execute(FreezeIndexAction.INSTANCE, new TransportFreezeIndexAction.FreezeRequest("id*").setFreeze(false)
                 .indicesOptions(new IndicesOptions(EnumSet.noneOf(IndicesOptions.Option.class),
                     EnumSet.of(IndicesOptions.WildcardStates.OPEN)))).actionGet());

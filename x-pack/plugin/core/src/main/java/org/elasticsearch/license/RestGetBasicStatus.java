@@ -31,7 +31,7 @@ public class RestGetBasicStatus extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel -> new PostStartBasicRequestBuilder(client).execute(new RestToXContentListener<>(channel));
+        return channel -> new GetBasicStatusRequestBuilder(client).execute(new RestToXContentListener<>(channel));
     }
 
     @Override

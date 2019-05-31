@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -24,11 +25,9 @@ import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -36,11 +35,8 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.AfterClass;
@@ -50,7 +46,6 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
-import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
@@ -406,25 +401,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
     }
 
-    protected SecurityClient securityClient() {
-        return securityClient(client());
-    }
-
-    public static SecurityClient securityClient(Client client) {
-        return randomBoolean() ? new XPackClient(client).security() : new SecurityClient(client);
-    }
-
-    protected String getHttpURL() {
-        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
-        final List<NodeInfo> nodes = nodeInfos.getNodes();
-        assertTrue("there is at least one node", nodes.size() > 0);
-        NodeInfo ni = randomFrom(nodes);
-        boolean useSSL = XPackSettings.HTTP_SSL_ENABLED.get(ni.getSettings());
-        TransportAddress publishAddress = ni.getHttp().address().publishAddress();
-        InetSocketAddress address = publishAddress.address();
-        return (useSSL ? "https://" : "http://") + NetworkAddress.format(address.getAddress()) + ":" + address.getPort();
-    }
-
     public void assertSecurityIndexActive() throws Exception {
         assertSecurityIndexActive(cluster());
     }
@@ -479,5 +455,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     protected static Hasher getFastStoredHashAlgoForTests() {
         return Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+    }
+
+    protected class TestRestHighLevelClient extends RestHighLevelClient {
+        public TestRestHighLevelClient() {
+            super(getRestClient(), client -> {}, List.of());
+        }
     }
 }

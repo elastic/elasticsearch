@@ -55,7 +55,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
     }
 
     private ShardRouting getPrimary() {
-        for (ShardRouting shard: clusterState.getRoutingTable().allShards()) {
+        for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
             if (shard.getIndexName().equals(INDEX_NAME) && shard.primary()) {
                 return shard;
             }
@@ -64,7 +64,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
     }
 
     private ShardRouting getReplica() {
-        for (ShardRouting shard: clusterState.getRoutingTable().allShards()) {
+        for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
             if (shard.getIndexName().equals(INDEX_NAME) && !shard.primary()) {
                 return shard;
             }

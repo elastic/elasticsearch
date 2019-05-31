@@ -21,28 +21,26 @@ package org.elasticsearch.transport;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class MemoryStats {
 
-    private final List<PoolStats> pools;
+    private final Map<String, PoolStats> poolStats;
 
-    public MemoryStats(List<PoolStats> pools) {
-        this.pools = Collections.unmodifiableList(pools);
+    public MemoryStats(Map<String, PoolStats> poolStats) {
+        this.poolStats = Collections.unmodifiableMap(poolStats);
     }
 
-    public List<PoolStats> getPools() {
-        return pools;
+    public Map<String, PoolStats> getPoolStats() {
+        return poolStats;
     }
-
 
     public static class PoolStats {
 
-        private final String name;
         private final long poolSizeBytes;
         private final long bytesAllocated;
 
-        public PoolStats(String name, long poolSizeBytes, long bytesAllocated) {
-            this.name = name;
+        public PoolStats(long poolSizeBytes, long bytesAllocated) {
             this.poolSizeBytes = poolSizeBytes;
             this.bytesAllocated = bytesAllocated;
         }

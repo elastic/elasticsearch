@@ -21,8 +21,11 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.ByteBufAllocatorMetric;
+import io.netty.buffer.ByteBufAllocatorMetricProvider;
 import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.buffer.PooledByteBufAllocatorMetric;
+import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -63,7 +66,7 @@ import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -248,15 +251,32 @@ public class Netty4Transport extends TcpTransport {
         return esChannel;
     }
 
-    private MemoryStats moreStats() {
-        PooledByteBufAllocator pooledAllocator = PooledByteBufAllocator.DEFAULT;
-        PooledByteBufAllocatorMetric metric = pooledAllocator.metric();
+    protected MemoryStats memoryStats() {
+        ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
+        ByteBufAllocatorMetric metric;
+
+        String nettyHeapName;
+        String nettyDirectName;
+        if (allocator instanceof PooledByteBufAllocator) {
+            nettyHeapName = "netty_pooled_heap";
+            nettyDirectName = "netty_pooled_direct";
+            metric = ((ByteBufAllocatorMetricProvider) allocator).metric();
+        } else if (allocator instanceof UnpooledByteBufAllocator) {
+            nettyHeapName = "netty_unpooled_heap";
+            nettyDirectName = "netty_unpooled_direct";
+            metric = ((ByteBufAllocatorMetricProvider) allocator).metric();
+        } else {
+            throw new AssertionError("Unknown allocator type: " + allocator.getClass());
+        }
         long heapBytes = metric.usedHeapMemory();
         long directBytes = metric.usedDirectMemory();
 
-        MemoryStats.PoolStats heap = new MemoryStats.PoolStats("netty_pooled_heap", heapBytes, 0L);
-        MemoryStats.PoolStats direct = new MemoryStats.PoolStats("netty_pooled_direct", directBytes, 0L);
-        return new MemoryStats(Arrays.asList(heap, direct));
+        MemoryStats.PoolStats heap = new MemoryStats.PoolStats(heapBytes, -1L);
+        MemoryStats.PoolStats direct = new MemoryStats.PoolStats(directBytes, -1L);
+        HashMap<String, MemoryStats.PoolStats> poolStats = new HashMap<>();
+        poolStats.put(nettyHeapName, heap);
+        poolStats.put(nettyDirectName, direct);
+        return new MemoryStats(poolStats);
     }
 
     @Override

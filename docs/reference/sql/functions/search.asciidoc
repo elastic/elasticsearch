@@ -34,14 +34,14 @@ combined using the same rules as {es}'s
 
 Typically `SCORE` is used for ordering the results of a query based on their relevance:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[orderByScore]
 ----
 
 However, it is perfectly fine to return the score without sorting by it:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[scoreWithMatch]
 ----

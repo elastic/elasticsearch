@@ -14,7 +14,7 @@ is supported _as long_ as it is quoted or escaped as a table identifier.
 
 For example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showTablesEsMultiIndex]
 ----
@@ -28,7 +28,7 @@ The same kind of patterns can also be used to query multiple indices or tables.
 
 For example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[fromTablePatternQuoted]
 ----
@@ -42,7 +42,7 @@ or multiple `%` characters.
 
 Using `SHOW TABLES` command again:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeWildcard]
 ----
@@ -51,7 +51,7 @@ The pattern matches all tables that start with `emp`.
 
 This command supports _escaping_ as well, for example:
 
-["source","sql",subs="attributes,callouts,macros"]
+[source, sql]
 ----
 include-tagged::{sql-specs}/docs.csv-spec[showTablesLikeEscape]
 ----

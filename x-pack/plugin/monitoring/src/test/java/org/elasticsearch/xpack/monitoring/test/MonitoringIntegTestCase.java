@@ -19,7 +19,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.monitoring.test.MockPainlessScriptEngine;
@@ -76,7 +75,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected MonitoringClient monitoringClient() {
-        return randomBoolean() ? new XPackClient(client()).monitoring() : new MonitoringClient(client());
+        return new MonitoringClient(client());
     }
 
     @Override

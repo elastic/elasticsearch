@@ -169,6 +169,11 @@ This parameter was undocumented and silently ignored before for these types of `
 
 * For `geo_distance` query, aggregation, and sort the `sloppy_arc` option for the `distance_type` parameter has been deprecated.
 
+* In `query_string` query, the behaviour of `analyze_wildcard` parameter when 
+  set to `true` has been changed. Now only parts of the analysis chain that 
+  operate at the character level will be applied. This means that tokenizers 
+  and some filters will be ignored. 
+
 [[_top_level_literal_filter_literal_parameter]]
 ==== Top level `filter` parameter
 

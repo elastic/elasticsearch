@@ -42,7 +42,7 @@ public class AnalyzeResponse {
         private int startOffset;
         private int endOffset;
         private int position;
-        private int positionLength;
+        private int positionLength = 1;
         private String type;
         private final Map<String, Object> attributes = new HashMap<>();
 

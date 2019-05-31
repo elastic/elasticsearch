@@ -55,21 +55,11 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
     }
 
     private ShardRouting getPrimary() {
-        for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
-            if (shard.getIndexName().equals(INDEX_NAME) && shard.primary()) {
-                return shard;
-            }
-        }
-        throw new IllegalArgumentException("No primary found for index: " + INDEX_NAME);
+        return clusterState.getRoutingTable().index(INDEX_NAME).shard(0).primaryShard();
     }
 
     private ShardRouting getReplica() {
-        for (ShardRouting shard : clusterState.getRoutingTable().allShards()) {
-            if (shard.getIndexName().equals(INDEX_NAME) && !shard.primary()) {
-                return shard;
-            }
-        }
-        throw new IllegalArgumentException("No replica found for index: " + INDEX_NAME);
+        return clusterState.getRoutingTable().index(INDEX_NAME).shard(0).replicaShards().get(0);
     }
 
     public void testRetryFailedResetForAllocationCommands() {

@@ -693,12 +693,12 @@ class BuildPlugin implements Plugin<Project> {
         ext.set('noticeFile', null)
         project.tasks.withType(Jar) { Jar jarTask ->
             // we put all our distributable files under distributions
-            if (jarTask instanceof ShadowJar == false) {
-                jarTask.destinationDir = new File(project.buildDir, 'distributions')
-            }
+            jarTask.destinationDir = new File(project.buildDir, 'distributions')
             project.plugins.withType(ShadowPlugin).whenPluginAdded {
-                // set back to libs, so the shadow jar becomes the real distribution
-                jarTask.destinationDir = new File(project.buildDir, 'libs')
+                // ensure the original jar task places its output in 'libs' so we don't overwrite it with the shadowjar
+                if (jarTask instanceof ShadowJar == false) {
+                    jarTask.destinationDir = new File(project.buildDir, 'libs')
+                }
             }
             // fixup the jar manifest
             jarTask.doFirst {

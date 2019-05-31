@@ -34,6 +34,8 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
+import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.FindFileStructureRequest;
 import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
@@ -2084,6 +2086,46 @@ public final class MachineLearningClient {
             MLRequestConverters::deleteDataFrameAnalytics,
             options,
             AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet());
+    }
+
+    /**
+     * Evaluates the given Data Frame
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Evaluate Data Frame documentation</a>
+     *
+     * @param request The {@link EvaluateDataFrameRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return {@link EvaluateDataFrameResponse} response object
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public EvaluateDataFrameResponse evaluateDataFrame(EvaluateDataFrameRequest request,
+                                                       RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::evaluateDataFrame,
+            options,
+            EvaluateDataFrameResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Evaluates the given Data Frame asynchronously and notifies listener upon completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.TODO.com">Evaluate Data Frame documentation</a>
+     *
+     * @param request The {@link EvaluateDataFrameRequest}
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     */
+    public void evaluateDataFrameAsync(EvaluateDataFrameRequest request, RequestOptions options,
+                                       ActionListener<EvaluateDataFrameResponse> listener) {
+        restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::evaluateDataFrame,
+            options,
+            EvaluateDataFrameResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

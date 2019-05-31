@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
@@ -62,8 +63,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
     }
 
     public void testUsage() throws Exception {
-        // anything prior to 6.3 does not include collection_enabled (so defaults it to null)
-        final Version serializedVersion = randomFrom(Version.CURRENT, Version.V_6_3_0, Version.V_6_2_2);
+        final Version serializedVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         final boolean collectionEnabled = randomBoolean();
         int localCount = randomIntBetween(0, 5);
         List<Exporter> exporterList = new ArrayList<>();
@@ -115,11 +115,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
                 usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 source = ObjectPath.createFromXContent(builder.contentType().xContent(), BytesReference.bytes(builder));
             }
-            if (usage == monitoringUsage || serializedVersion.onOrAfter(Version.V_6_3_0)) {
-                assertThat(source.evaluate("collection_enabled"), is(collectionEnabled));
-            } else {
-                assertThat(source.evaluate("collection_enabled"), is(nullValue()));
-            }
+            assertThat(source.evaluate("collection_enabled"), is(collectionEnabled));
             assertThat(source.evaluate("enabled_exporters"), is(notNullValue()));
             if (localCount > 0) {
                 assertThat(source.evaluate("enabled_exporters.local"), is(localCount));

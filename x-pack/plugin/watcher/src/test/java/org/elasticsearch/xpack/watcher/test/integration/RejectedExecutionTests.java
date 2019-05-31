@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateReque
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 
-import java.util.concurrent.TimeUnit;
-
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
@@ -25,7 +23,6 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
@@ -36,8 +33,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41734")
-    public void testHistoryAndTriggeredOnRejection() throws Exception {
+    public void testHistoryOnRejection() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");
         client().prepareIndex("idx", "_doc").setSource("field", "a").get();
@@ -56,11 +52,7 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
             flushAndRefresh(".watcher-history-*");
             SearchResponse searchResponse = client().prepareSearch(".watcher-history-*").get();
             assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(2L));
-        }, 10, TimeUnit.SECONDS);
-
-        flushAndRefresh(".triggered_watches");
-        SearchResponse searchResponse = client().prepareSearch(".triggered_watches").get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        });
     }
 
     @Override

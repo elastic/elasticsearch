@@ -45,21 +45,17 @@ if (project == rootProject) {
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-File propsFile = project.file('version.properties')
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(propsFile)
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('version.properties'))
 version = props.getProperty("elasticsearch")
+
+task generateVersionProperties(type: WriteProperties) {
+  outputFile = "${buildDir}/version.properties"
+  comment = 'Generated version properties'
+  properties(props)
+}
+
 processResources {
-  inputs.file(propsFile)
-  // We need to be explicit with the version because we add snapshot and qualifier to it based on properties
-  inputs.property("dynamic_elasticsearch_version", props.getProperty("elasticsearch"))
-  doLast {
-    Writer writer = file("$destinationDir/version.properties").newWriter()
-    try {
-      props.store(writer, "Generated version properties")
-    } finally {
-      writer.close()
-    }
-  }
+  from(generateVersionProperties)
 }
 
 /*****************************************************************************
@@ -69,37 +65,10 @@ processResources {
 if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
-// Gradle 4.10 does not support setting this to 11 yet
-targetCompatibility = "10"
-sourceCompatibility = "10"
 
-// We have a few classes that need to be compiled for older java versions because these are used to run checks against
-// those
-sourceSets {
-  minimumRuntime {
-    // We only want Java here, but the Groovy doesn't configure javadoc correctly if we don't define this as groovy
-    groovy {
-      srcDirs = ['src/main/minimumRuntime']
-    }
-  }
-}
-compileMinimumRuntimeGroovy {
-  targetCompatibility = 8
-  sourceCompatibility = 8
-}
-dependencies {
-  if (project.ext.has("isEclipse") == false || project.ext.isEclipse == false) {
-      // eclipse is confused if this is set explicitly
-    compile sourceSets.minimumRuntime.output
-  }
-  minimumRuntimeCompile "junit:junit:${props.getProperty('junit')}"
-  minimumRuntimeCompile localGroovy()
-  minimumRuntimeCompile gradleApi()
-}
-jar {
-  from sourceSets.minimumRuntime.output
-}
-
+// Keep compatibility with Java 8 for external users of build-tools that haven't migrated to Java 11
+targetCompatibility = '8'
+sourceCompatibility = '8'
 
 /*****************************************************************************
  *                    Dependencies used by the entire build                  *
@@ -164,7 +133,6 @@ if (project != rootProject) {
   dependenciesInfo.enabled = false
   forbiddenApisMain.enabled = false
   forbiddenApisTest.enabled = false
-  forbiddenApisMinimumRuntime.enabled = false
   jarHell.enabled = false
   thirdPartyAudit.enabled = false
 
@@ -209,7 +177,7 @@ if (project != rootProject) {
     if (isLuceneSnapshot) {
       systemProperty 'test.lucene-snapshot-revision', isLuceneSnapshot[0][1]
     }
-    maxParallelForks System.getProperty('tests.jvms', project.rootProject.ext.defaultParallel.toString()) as Integer
+    maxParallelForks System.getProperty('tI', project.rootProject.ext.defaultParallel.toString()) as Integer
   }
   check.dependsOn(integTest)
 

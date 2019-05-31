@@ -26,7 +26,6 @@ apply plugin: 'elasticsearch.test-with-dependencies'
 esplugin {
   description 'The Reindex module adds APIs to reindex from one index to another or update documents in place.'
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
-  hasClientJar = true
 }
 
 testClusters.integTest {
@@ -77,7 +76,7 @@ forbiddenPatterns {
     exclude '**/*.p12'
 }
 
-// Support for testing reindex-from-remote against old Elaticsearch versions
+// Support for testing reindex-from-remote against old Elasticsearch versions
 configurations {
   oldesFixture
   es2
@@ -125,7 +124,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       dependsOn unzip
       executable = new File(project.runtimeJavaHome, 'bin/java')
       env 'CLASSPATH', "${ -> project.configurations.oldesFixture.asPath }"
-      env 'JAVA_HOME', getJavaHome(it, 8)
+      env 'JAVA_HOME', "${ -> getJavaHome(it, 8)}"
       args 'oldes.OldElasticsearch',
            baseDir,
            unzip.temporaryDir,

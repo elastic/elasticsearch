@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -92,7 +91,6 @@ import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsLookupQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wrapperQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -481,20 +479,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
-    public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test"));
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "value1"));
-
-        assertHitCount(client().prepareSearch().setQuery(typeQuery("type1")).get(), 2L);
-        assertHitCount(client().prepareSearch().setQuery(typeQuery("type2")).get(), 0L);
-
-        assertHitCount(client().prepareSearch().setTypes("type1").setQuery(matchAllQuery()).get(), 2L);
-        assertHitCount(client().prepareSearch().setTypes("type2").setQuery(matchAllQuery()).get(), 0L);
-
-        assertHitCount(client().prepareSearch().setTypes("type1", "type2").setQuery(matchAllQuery()).get(), 2L);
-    }
-
     public void testIdsQueryTestsIdIndexed() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test"));
 
@@ -502,29 +486,19 @@ public class SearchQueryIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
                 client().prepareIndex("test", "type1", "3").setSource("field1", "value3"));
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery("type1").addIds("1", "3"))).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().addIds("1", "3"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
-        // no type
-        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(idsQuery().addIds("1", "3"))).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "3");
-
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("1", "3")).get();
-        assertHitCount(searchResponse, 2L);
-        assertSearchHits(searchResponse, "1", "3");
-
-        // no type
         searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "3")).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1").addIds("7", "10")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("7", "10")).get();
         assertHitCount(searchResponse, 0L);
 
         // repeat..., with terms
-        searchResponse = client().prepareSearch().setTypes("type1").setQuery(constantScoreQuery(termsQuery("_id", "1", "3"))).get();
+        searchResponse = client().prepareSearch().setQuery(constantScoreQuery(termsQuery("_id", "1", "3"))).get();
         assertHitCount(searchResponse, 2L);
         assertSearchHits(searchResponse, "1", "3");
     }
@@ -1156,7 +1130,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         client().prepareIndex("test", "_doc", "3").setSource("field1", "value3").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("_doc").addIds("1", "2")).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2")).get();
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
 
@@ -1168,11 +1142,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery(Strings.EMPTY_ARRAY).addIds("1")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1")).get();
         assertHitCount(searchResponse, 1L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
 
-        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "_doc").addIds("1", "2", "3", "4")).get();
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2", "3", "4")).get();
         assertHitCount(searchResponse, 3L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(3));
     }

@@ -14,6 +14,9 @@ integTest.enabled = false
 dependencies {
     testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
     testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+    if (isEclipse) {
+      testCompile project(path: xpackModule('core-tests'), configuration: 'testArtifacts')
+    }
     testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
 }
 
@@ -74,4 +77,3 @@ task copyKeytabToGeneratedResources(type: Copy) {
     dependsOn project(':test:fixtures:krb5kdc-fixture').postProcessFixture
 }
 project.sourceSets.test.output.dir(generatedResources, builtBy:copyKeytabToGeneratedResources)
-

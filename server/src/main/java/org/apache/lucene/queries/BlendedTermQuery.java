@@ -118,7 +118,9 @@ public abstract class BlendedTermQuery extends Query {
                 // otherwise the statistics don't match
                 minSumTTF = Math.min(minSumTTF, reader.getSumTotalTermFreq(terms[i].field()));
             }
-
+        }
+        if (maxDoc > minSumTTF) {
+            maxDoc = (int)minSumTTF;
         }
         if (max == 0) {
             return; // we are done that term doesn't exist at all
@@ -276,6 +278,11 @@ public abstract class BlendedTermQuery extends Query {
         return Objects.hash(classHash(), Arrays.hashCode(equalsTerms()));
     }
 
+    /**
+     * @deprecated Since max_score optimization landed in 7.0, normal MultiMatchQuery
+     *             will achieve the same result without any configuration.
+     */
+    @Deprecated
     public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final float maxTermFrequency) {
         return new BlendedTermQuery(terms, boosts) {
             @Override

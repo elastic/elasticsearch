@@ -67,8 +67,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Note for other type of integration tests you should use the external test cluster created by the Gradle integTest task.
  * For example tests extending this base class test with the non native autodetect process.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0,
-        transportClientRatio = 0, supportsDedicatedMasters = false)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     @Override
@@ -90,25 +89,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings transportClientSettings() {
-        Settings.Builder settings = Settings.builder().put(super.transportClientSettings());
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        return settings.build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(LocalStateMachineLearning.class, CommonAnalysisPlugin.class,
                 ReindexPlugin.class);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return nodePlugins();
     }
 
     @Override

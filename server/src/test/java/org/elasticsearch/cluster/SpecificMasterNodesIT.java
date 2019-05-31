@@ -65,6 +65,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(masterNodeName));
 
         logger.info("--> stop master node");
+        Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
         internalCluster().stopCurrentMasterNode();
 
         try {
@@ -75,16 +76,16 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             // all is well, no master elected
         }
 
-        logger.info("--> start master node");
+        logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster()
-            .startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true));
+            .startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true)
+                .put(masterDataPathSettings));
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligibleNodeName));
         assertThat(internalCluster().masterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligibleNodeName));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/38331")
     public void testElectOnlyBetweenMasterNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");

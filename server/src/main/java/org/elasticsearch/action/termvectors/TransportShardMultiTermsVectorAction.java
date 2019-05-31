@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -58,8 +59,8 @@ public class TransportShardMultiTermsVectorAction extends
     }
 
     @Override
-    protected MultiTermVectorsShardResponse newResponse() {
-        return new MultiTermVectorsShardResponse();
+    protected Writeable.Reader<MultiTermVectorsShardResponse> getResponseReader() {
+        return MultiTermVectorsShardResponse::new;
     }
 
     @Override

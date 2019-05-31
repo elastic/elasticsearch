@@ -31,7 +31,7 @@ Discovery and cluster formation are also affected by the following
 _expert-level_ settings, although it is not recommended to change any of these
 from their default values.
 
-[WARNING] If you adjust these settings then your cluster may not form correctly
+WARNING: If you adjust these settings then your cluster may not form correctly
 or may become unstable or intolerant of certain failures.
 
 `discovery.cluster_formation_warning_timeout`::

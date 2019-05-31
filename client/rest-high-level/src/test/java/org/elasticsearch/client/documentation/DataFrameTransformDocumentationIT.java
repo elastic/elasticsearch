@@ -76,7 +76,8 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
     @After
     public void cleanUpTransforms() throws IOException {
         for (String transformId : transformsToClean) {
-            highLevelClient().dataFrame().stopDataFrameTransform(new StopDataFrameTransformRequest(transformId), RequestOptions.DEFAULT);
+            highLevelClient().dataFrame().stopDataFrameTransform(
+                    new StopDataFrameTransformRequest(transformId, Boolean.TRUE, TimeValue.timeValueSeconds(20)), RequestOptions.DEFAULT);
         }
 
         for (String transformId : transformsToClean) {
@@ -137,8 +138,9 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
         // end::put-data-frame-transform-agg-config
         // tag::put-data-frame-transform-pivot-config
         PivotConfig pivotConfig = PivotConfig.builder()
-            .setGroups(groupConfig)
-            .setAggregationConfig(aggConfig)
+            .setGroups(groupConfig) // <1>
+            .setAggregationConfig(aggConfig) // <2>
+            .setMaxPageSearchSize(1000) // <3>
             .build();
         // end::put-data-frame-transform-pivot-config
         // tag::put-data-frame-transform-config
@@ -242,7 +244,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                             request, RequestOptions.DEFAULT);
             // end::start-data-frame-transform-execute
 
-            assertTrue(response.isStarted());
+            assertTrue(response.isAcknowledged());
         }
         {
             // tag::stop-data-frame-transform-request
@@ -261,7 +263,7 @@ public class DataFrameTransformDocumentationIT extends ESRestHighLevelClientTest
                             request, RequestOptions.DEFAULT);
             // end::stop-data-frame-transform-execute
 
-            assertTrue(response.isStopped());
+            assertTrue(response.isAcknowledged());
         }
         {
             // tag::start-data-frame-transform-execute-listener

@@ -8,9 +8,8 @@ then you have a cluster of one node.
 
 Every node in the cluster can handle <<modules-http,HTTP>> and
 <<modules-transport,Transport>> traffic by default. The transport layer
-is used exclusively for communication between nodes and the
-{javaclient}/transport-client.html[Java `TransportClient`]; the HTTP layer is
-used only by external REST clients.
+is used exclusively for communication between nodes; the HTTP layer is
+used by REST clients.
 
 All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node. Besides that, each node serves one or more
@@ -276,21 +275,6 @@ should be configured to locate the data directory outside the Elasticsearch
 home directory, so that the home directory can be deleted without deleting
 your data! The RPM and Debian distributions do this for you already.
 
-
-[float]
-[[max-local-storage-nodes]]
-=== `node.max_local_storage_nodes`
-
-The <<data-path,data path>> can be shared by multiple nodes, even by nodes from different
-clusters. This is very useful for testing failover and different configurations on your development
-machine. In production, however, it is recommended to run only one node of Elasticsearch per server.
-
-By default, Elasticsearch is configured to prevent more than one node from sharing the same data
-path. To allow for more than one node (e.g., on your development machine), use the setting
-`node.max_local_storage_nodes` and set this to a positive integer larger than one.
-
-WARNING: Never run different node types (i.e. master, data) from the same data directory. This can
-lead to unexpected data loss.
 
 [float]
 == Other node settings

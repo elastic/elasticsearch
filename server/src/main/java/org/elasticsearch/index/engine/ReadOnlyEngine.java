@@ -131,7 +131,7 @@ public class ReadOnlyEngine extends Engine {
         // that guarantee that all operations have been flushed to Lucene.
         final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
         if (indexVersionCreated.onOrAfter(Version.V_7_2_0) ||
-            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(Version.V_6_7_0))) {
+            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
             if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
                 throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
                     + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
@@ -157,11 +157,11 @@ public class ReadOnlyEngine extends Engine {
 
     protected final DirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
-        reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         }
-        return readerWrapperFunction.apply(reader);
+        reader = readerWrapperFunction.apply(reader);
+        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
@@ -457,8 +457,8 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    protected void processReaders(IndexReader reader, IndexReader previousReader) {
-        searcherFactory.processReaders(reader, previousReader);
+    protected void processReader(IndexReader reader) {
+        searcherFactory.processReaders(reader, null);
     }
 
     @Override

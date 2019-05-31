@@ -42,8 +42,18 @@ import java.util.Objects;
  * result of the analysis.
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
+
+    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "you can omit this option, " +
+        "the [match] query can skip block of documents efficiently if the total number of hits is not tracked";
+
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
-    public static final ParseField CUTOFF_FREQUENCY_FIELD = new ParseField("cutoff_frequency");
+    /**
+     * @deprecated Since max_optimization optimization landed in 7.0, normal MatchQuery
+     *             will achieve the same result without any configuration.
+     */
+    @Deprecated
+    public static final ParseField CUTOFF_FREQUENCY_FIELD =
+        new ParseField("cutoff_frequency").withAllDeprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
     public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
@@ -235,7 +245,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      * Set a cutoff value in [0..1] (or absolute number &gt;=1) representing the
      * maximum threshold of a terms document frequency to be considered a low
      * frequency term.
+     *
+     * @deprecated see {@link MatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
      */
+    @Deprecated
     public MatchQueryBuilder cutoffFrequency(float cutoff) {
         this.cutoffFrequency = cutoff;
         return this;

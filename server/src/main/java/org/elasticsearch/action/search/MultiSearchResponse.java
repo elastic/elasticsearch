@@ -70,8 +70,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
 
         Item(StreamInput in) throws IOException{
             if (in.readBoolean()) {
-                this.response = new SearchResponse();
-                this.response.readFrom(in);
+                this.response = new SearchResponse(in);
                 this.exception = null;
             } else {
                 this.exception = in.readException();

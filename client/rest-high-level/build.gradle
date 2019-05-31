@@ -63,9 +63,13 @@ dependencies {
   testCompile "junit:junit:${versions.junit}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
   testCompile "org.elasticsearch:rest-api-spec:${version}"
-  // Needed for serialization tests: 
+  // Needed for serialization tests:
   // (In order to serialize a server side class to a client side class or the other way around)
-  testCompile "org.elasticsearch.plugin:x-pack-core:${version}"
+  if (isEclipse == false || project.path == ":client:rest-high-level-tests") {
+    testCompile("org.elasticsearch.plugin:x-pack-core:${version}") {
+        exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
+    }
+  }
 
   restSpec "org.elasticsearch:rest-api-spec:${version}"
 }
@@ -92,6 +96,20 @@ forbiddenApisMain {
   addSignatureFiles 'http-signatures'
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
+
+if (isEclipse) {
+    // in eclipse the project is under a fake root, we need to change around the source sets
+    sourceSets {
+        if (project.path == ":client:rest-high-level") {
+            main.java.srcDirs = ['java']
+            main.resources.srcDirs = ['resources']
+        } else {
+            test.java.srcDirs = ['java']
+            test.resources.srcDirs = ['resources']
+        }
+    }
+}
+
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 

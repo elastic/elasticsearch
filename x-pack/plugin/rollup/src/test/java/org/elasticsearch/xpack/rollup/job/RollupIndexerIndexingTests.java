@@ -326,6 +326,58 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         });
     }
 
+    public void testSimpleDateHistoWithOverlappingDelay() throws Exception {
+        String rollupIndex = randomAlphaOfLengthBetween(5, 10);
+        String field = "the_histo";
+        DateHistogramGroupConfig dateHistoConfig =
+            new FixedInterval(field, new DateHistogramInterval("1h"), new DateHistogramInterval("15m"), null);
+        RollupJobConfig job = createJob(rollupIndex, new GroupConfig(dateHistoConfig), Collections.emptyList());
+        final List<Map<String, Object>> dataset = new ArrayList<>();
+        long now = asLong("2015-04-01T10:30:00.000Z");
+        dataset.addAll(
+            Arrays.asList(
+                asMap("the_histo", now - TimeValue.timeValueMinutes(135).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(120).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(105).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(90).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(75).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueHours(1).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(45).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(30).getMillis()),
+                asMap("the_histo", now - TimeValue.timeValueMinutes(15).getMillis()),
+                asMap("the_histo", now)
+            )
+        );
+        final Rounding rounding = dateHistoConfig.createRounding();
+        executeTestCase(dataset, job, now, (resp) -> {
+            assertThat(resp.size(), equalTo(2));
+            IndexRequest request = resp.get(0);
+            assertThat(request.index(), equalTo(rollupIndex));
+            assertThat(request.sourceAsMap(), equalTo(
+                asMap(
+                    "_rollup.version", 2,
+                    "the_histo.date_histogram.timestamp", rounding.round(now - TimeValue.timeValueHours(2).getMillis()),
+                    "the_histo.date_histogram.interval", "1h",
+                    "the_histo.date_histogram._count", 3,
+                    "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                    "_rollup.id", job.getId()
+                )
+            ));
+            request = resp.get(1);
+            assertThat(request.index(), equalTo(rollupIndex));
+            assertThat(request.sourceAsMap(), equalTo(
+                asMap(
+                    "_rollup.version", 2,
+                    "the_histo.date_histogram.timestamp", rounding.round(now - TimeValue.timeValueHours(1).getMillis()),
+                    "the_histo.date_histogram.interval", "1h",
+                    "the_histo.date_histogram._count", 4,
+                    "the_histo.date_histogram.time_zone", DateTimeZone.UTC.toString(),
+                    "_rollup.id", job.getId()
+                )
+            ));
+        });
+    }
+
     public void testSimpleDateHistoWithTimeZone() throws Exception {
         final List<Map<String, Object>> dataset = new ArrayList<>();
         long now = asLong("2015-04-01T10:00:00.000Z");

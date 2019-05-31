@@ -460,9 +460,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         } else {
             b.append("[all indices]");
         }
-        if (searchRequest.types() != null && searchRequest.types().length != 0) {
-            b.append(Arrays.toString(searchRequest.types()));
-        }
     }
 
     @Override

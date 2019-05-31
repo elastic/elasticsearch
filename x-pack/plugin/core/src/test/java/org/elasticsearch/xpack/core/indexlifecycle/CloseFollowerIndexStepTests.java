@@ -44,7 +44,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
             assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
             @SuppressWarnings("unchecked")
             ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
-            listener.onResponse(new CloseIndexResponse(true, true));
+            listener.onResponse(new CloseIndexResponse(true, true, Collections.emptyList()));
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 

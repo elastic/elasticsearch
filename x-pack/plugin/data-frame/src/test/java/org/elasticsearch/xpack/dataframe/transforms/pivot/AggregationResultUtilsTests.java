@@ -66,6 +66,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class AggregationResultUtilsTests extends ESTestCase {
 
@@ -735,6 +736,51 @@ public class AggregationResultUtilsTests extends ESTestCase {
         assertEquals(4, documentIdsSecondRun.size());
         assertEquals(documentIdsFirstRun, documentIdsSecondRun);
     }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateDocument() {
+        Map<String, Object> document = new HashMap<>();
+
+        AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
+        AggregationResultUtils.updateDocument(document, "foo.bar.baz2", 2000L);
+        AggregationResultUtils.updateDocument(document, "bar.field1", 1L);
+        AggregationResultUtils.updateDocument(document, "metric", 10L);
+
+        assertThat(document.get("metric"), equalTo(10L));
+
+        Map<String, Object> bar = (Map<String, Object>)document.get("bar");
+
+        assertThat(bar.get("field1"), equalTo(1L));
+
+        Map<String, Object> foo = (Map<String, Object>)document.get("foo");
+        Map<String, Object> foobar = (Map<String, Object>)foo.get("bar");
+
+        assertThat(foobar.get("baz"), equalTo(1000L));
+        assertThat(foobar.get("baz2"), equalTo(2000L));
+    }
+
+    public void testUpdateDocumentWithDuplicate() {
+        Map<String, Object> document = new HashMap<>();
+
+        AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
+        AggregationResultUtils.AggregationExtractionException exception =
+            expectThrows(AggregationResultUtils.AggregationExtractionException.class,
+                () -> AggregationResultUtils.updateDocument(document, "foo.bar.baz", 2000L));
+        assertThat(exception.getMessage(),
+            equalTo("duplicate key value pairs key [foo.bar.baz] old value [1000] duplicate value [2000]"));
+    }
+
+    public void testUpdateDocumentWithObjectAndNotObject() {
+        Map<String, Object> document = new HashMap<>();
+
+        AggregationResultUtils.updateDocument(document, "foo.bar.baz", 1000L);
+        AggregationResultUtils.AggregationExtractionException exception =
+            expectThrows(AggregationResultUtils.AggregationExtractionException.class,
+                () -> AggregationResultUtils.updateDocument(document, "foo.bar", 2000L));
+        assertThat(exception.getMessage(),
+            equalTo("mixed object types of nested and non-nested fields [foo.bar]"));
+    }
+
 
     private void executeTest(GroupConfig groups,
                              Collection<AggregationBuilder> aggregationBuilders,

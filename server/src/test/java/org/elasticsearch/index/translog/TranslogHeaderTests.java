@@ -34,6 +34,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -67,7 +69,17 @@ public class TranslogHeaderTests extends ESTestCase {
         }
         expectThrows(TranslogCorruptedException.class, () -> {
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
-                TranslogHeader.read(outHeader.getTranslogUUID(), translogFile, channel);
+                final TranslogHeader translogHeader = TranslogHeader.read(outHeader.getTranslogUUID(), translogFile, channel);
+                // succeeds if the corruption corrupted the version byte making this look like a v2 translog, because we don't check the
+                // checksum on this version
+                assertThat("version " + TranslogHeader.VERSION_CHECKPOINTS + " translog",
+                    translogHeader.getPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+                throw new TranslogCorruptedException(translogFile.toString(), "adjusted translog version");
+            } catch (IllegalStateException e) {
+                // corruption corrupted the version byte making this look like a v1 or v0 translog
+                assertThat("version " + TranslogHeader.VERSION_CHECKSUMS + "-or-earlier translog",
+                    e.getMessage(), anyOf(containsString("pre-2.0 translog found"), containsString("pre-1.4 translog found")));
+                throw new TranslogCorruptedException(translogFile.toString(), "adjusted translog version", e);
             }
         });
     }

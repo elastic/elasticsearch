@@ -56,13 +56,17 @@ public class WellKnownText {
     private static final String EOF = "END-OF-STREAM";
     private static final String EOL = "END-OF-LINE";
 
-    public static String toWKT(Geometry geometry) {
+    public WellKnownText() {
+
+    }
+
+    public String toWKT(Geometry geometry) {
         StringBuilder builder = new StringBuilder();
         toWKT(geometry, builder);
         return builder.toString();
     }
 
-    public static void toWKT(Geometry geometry, StringBuilder sb) {
+    public void toWKT(Geometry geometry, StringBuilder sb) {
         sb.append(getWKTName(geometry));
         sb.append(SPACE);
         if (geometry.isEmpty()) {
@@ -216,7 +220,7 @@ public class WellKnownText {
         }
     }
 
-    public static Geometry fromWKT(String wkt) throws IOException, ParseException {
+    public Geometry fromWKT(String wkt) throws IOException, ParseException {
         StringReader reader = new StringReader(wkt);
         try {
             // setup the tokenizer; configured to read words w/o numbers

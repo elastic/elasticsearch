@@ -84,7 +84,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         mergeResults = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             includeUnmapped = in.readBoolean();
         } else {
             includeUnmapped = false;
@@ -98,7 +98,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(mergeResults);
-        if (out.getVersion().onOrAfter(Version.V_7_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeBoolean(includeUnmapped);
         }
     }

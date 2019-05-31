@@ -374,6 +374,7 @@ These are the linux flavors supported, all of which we provide images for
 * debian-9 aka stretch, the current debian stable distribution
 * centos-6
 * centos-7
+* rhel-8
 * fedora-28
 * fedora-29
 * oel-6 aka Oracle Enterprise Linux 6

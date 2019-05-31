@@ -45,8 +45,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -62,7 +62,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.IntStream;
@@ -75,7 +74,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SplitIndexIT extends ESIntegTestCase {
 
@@ -184,9 +182,6 @@ public class SplitIndexIT extends ESIntegTestCase {
             }
         }
 
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
-            .getDataNodes();
-        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
         ensureYellow();
         client().admin().indices().prepareUpdateSettings("source")
             .setSettings(Settings.builder()
@@ -287,19 +282,13 @@ public class SplitIndexIT extends ESIntegTestCase {
     }
 
     public void testSplitIndexPrimaryTerm() throws Exception {
-        final List<Integer> factors = Arrays.asList(1, 2, 4, 8);
-        final List<Integer> numberOfShardsFactors = randomSubsetOf(scaledRandomIntBetween(1, factors.size()), factors);
-        final int numberOfShards = randomSubsetOf(numberOfShardsFactors).stream().reduce(1, (x, y) -> x * y);
-        final int numberOfTargetShards = numberOfShardsFactors.stream().reduce(2, (x, y) -> x * y);
+        int numberOfTargetShards = randomIntBetween(2, 20);
+        int numberOfShards = randomValueOtherThanMany(n -> numberOfTargetShards % n != 0, () -> between(1, numberOfTargetShards - 1));
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
             .put("number_of_shards", numberOfShards)
             .put("index.number_of_routing_shards",  numberOfTargetShards)).get();
-
-        final ImmutableOpenMap<String, DiscoveryNode> dataNodes =
-                client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
-        assertThat(dataNodes.size(), greaterThanOrEqualTo(2));
-        ensureYellow();
+        ensureGreen(TimeValue.timeValueSeconds(120)); // needs more than the default to allocate many shards
 
         // fail random primary shards to force primary terms to increase
         final Index source = resolveIndex("source");
@@ -352,7 +341,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             .setResizeType(ResizeType.SPLIT)
             .setSettings(splitSettings).get());
 
-        ensureGreen();
+        ensureGreen(TimeValue.timeValueSeconds(120)); // needs more than the default to relocate many shards
 
         final IndexMetaData aftersplitIndexMetaData = indexMetaData(client(), "target");
         for (int shardId = 0; shardId < numberOfTargetShards; shardId++) {
@@ -365,9 +354,8 @@ public class SplitIndexIT extends ESIntegTestCase {
         return clusterStateResponse.getState().metaData().index(index);
     }
 
-    public void testCreateSplitIndex() {
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_rc2, Version.CURRENT);
+    public void testCreateSplitIndex() throws Exception {
+        Version version = VersionUtils.randomIndexCompatibleVersion(random());
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings())
             .put("number_of_shards", 1)
             .put("index.version.created", version)
@@ -377,9 +365,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             client().prepareIndex("source", "type")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes =
-                client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
-        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
+        internalCluster().ensureAtLeastNumDataNodes(2);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
         // to the require._name below.
@@ -485,9 +471,6 @@ public class SplitIndexIT extends ESIntegTestCase {
             client().prepareIndex("source", "type", Integer.toString(i))
                 .setSource("{\"foo\" : \"bar\", \"id\" : " + i + "}", XContentType.JSON).get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
-            .getDataNodes();
-        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
         // ensure all shards are allocated otherwise the ensure green below might not succeed since we require the merge node
         // if we change the setting too quickly we will end up with one replica unassigned which can't be assigned anymore due
         // to the require._name below.

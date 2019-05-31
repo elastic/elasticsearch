@@ -34,6 +34,9 @@ import org.gradle.api.plugins.quality.Checkstyle
 class PrecommitTasks {
 
     /** Adds a precommit task, which depends on non-test verification tasks. */
+
+    public static final String CHECKSTYLE_VERSION = '8.20'
+
     public static Task create(Project project, boolean includeDependencyLicenses) {
         project.configurations.create("forbiddenApisCliJar")
         project.dependencies {
@@ -104,26 +107,22 @@ class PrecommitTasks {
     }
 
     private static Task configureJarHell(Project project) {
-        Task task = project.tasks.create('jarHell', JarHellTask.class)
-        task.classpath = project.sourceSets.test.runtimeClasspath
-        if (project.plugins.hasPlugin(ShadowPlugin)) {
-            task.classpath += project.configurations.bundle
+        return project.tasks.create('jarHell', JarHellTask) { task ->
+            task.classpath = project.sourceSets.test.runtimeClasspath
+            if (project.plugins.hasPlugin(ShadowPlugin)) {
+                task.classpath += project.configurations.bundle
+            }
         }
-        task.dependsOn(project.sourceSets.test.classesTaskName)
-        task.javaHome = project.runtimeJavaHome
-        return task
     }
 
     private static Task configureThirdPartyAudit(Project project) {
-        ThirdPartyAuditTask thirdPartyAuditTask = project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class)
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
-        thirdPartyAuditTask.configure {
-            dependsOn(buildResources)
-            signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
-            javaHome = project.runtimeJavaHome
-            targetCompatibility = project.runtimeJavaVersion
+        return project.tasks.create('thirdPartyAudit', ThirdPartyAuditTask.class) { task ->
+            task.dependsOn(buildResources)
+            task.signatureFile = buildResources.copy("forbidden/third-party-audit.txt")
+            task.javaHome = project.runtimeJavaHome
+            task.targetCompatibility.set(project.provider({ project.runtimeJavaVersion }))
         }
-        return thirdPartyAuditTask
     }
 
     private static Task configureForbiddenApisCli(Project project) {
@@ -131,15 +130,16 @@ class PrecommitTasks {
         ExportElasticsearchBuildResourcesTask buildResources = project.tasks.getByName('buildResources')
         project.tasks.withType(CheckForbiddenApis) {
             dependsOn(buildResources)
-            targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
-            if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
-                doLast {
+            doFirst {
+                // we need to defer this configuration since we don't know the runtime java version until execution time
+                targetCompatibility = project.runtimeJavaVersion.getMajorVersion()
+                if (project.runtimeJavaVersion > JavaVersion.VERSION_11) {
                     project.logger.info(
                             "Forbidden APIs does not support java version past 11. Will use the signatures from 11 for ",
                             project.runtimeJavaVersion
                     )
+                    targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
                 }
-                targetCompatibility = JavaVersion.VERSION_11.getMajorVersion()
             }
             bundledSignatures = [
                     "jdk-unsafe", "jdk-deprecated", "jdk-non-portable", "jdk-system-out"
@@ -213,7 +213,7 @@ class PrecommitTasks {
             configProperties = [
                 suppressions: checkstyleSuppressions
             ]
-            toolVersion = '8.10.1'
+            toolVersion = CHECKSTYLE_VERSION
         }
 
         project.tasks.withType(Checkstyle) { task ->
@@ -234,7 +234,6 @@ class PrecommitTasks {
                 "org.elasticsearch.test:logger-usage:${VersionProperties.elasticsearch}")
         return project.tasks.create('loggerUsageCheck', LoggerUsageTask.class) {
             classpath = project.configurations.loggerUsagePlugin
-            javaHome = project.runtimeJavaHome
         }
     }
 }

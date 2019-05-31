@@ -74,7 +74,4 @@ public class AggregationConfig implements ToXContentObject {
         return Objects.equals(this.aggregations, that.aggregations);
     }
 
-    public boolean isValid() {
-        return this.aggregations != null;
-    }
 }

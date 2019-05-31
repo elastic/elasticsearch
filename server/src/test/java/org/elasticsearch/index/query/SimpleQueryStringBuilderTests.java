@@ -39,12 +39,10 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.SimpleQueryStringQueryParser;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +56,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,7 +64,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
+public class SimpleQueryStringBuilderTests extends FullTextQueryTestCase<SimpleQueryStringBuilder> {
+    @Override
+    protected boolean isCacheable(SimpleQueryStringBuilder queryBuilder) {
+        return isCacheable(queryBuilder.fields().keySet(), queryBuilder.value());
+    }
 
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
@@ -106,11 +109,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             } else {
                 fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
             }
-        }
-        // special handling if query start with "now" and no field specified. This hits the "mapped_date" field which leads to the query not
-        // being cacheable and trigger later test failures (see https://github.com/elastic/elasticsearch/issues/35183)
-        if (fieldCount == 0 && queryText.length() >= 3 && queryText.substring(0,3).equalsIgnoreCase("now")) {
-            fields.put(STRING_FIELD_NAME_2, 2.0f / randomIntBetween(1, 20));
         }
 
         result.fields(fields);
@@ -241,9 +239,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        assumeTrue("5.x behaves differently, so skip on non-6.x indices",
-                indexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1));
-
         String query = randomAlphaOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +
@@ -582,24 +577,56 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testDefaultField() throws Exception {
         QueryShardContext context = createShardContext();
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
-                STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
-        );
+        // default value `*` sets leniency to true
         Query query = new SimpleQueryStringBuilder("hello")
             .toQuery(context);
-        Query expected = new DisjunctionMaxQuery(
-            Arrays.asList(
-                new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
-                new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
-            ), 1.0f
-        );
-        assertEquals(expected, query);
-        // Reset the default value
-        context.getIndexSettings().updateIndexMetaData(
-            newIndexMeta("index",
-                context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
-        );
+        assertQueryWithAllFieldsWildcard(query);
+
+        try {
+            // `*` is in the list of the default_field => leniency set to true
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                    STRING_FIELD_NAME, "*", STRING_FIELD_NAME_2).build())
+            );
+            query = new SimpleQueryStringBuilder("hello")
+                .toQuery(context);
+            assertQueryWithAllFieldsWildcard(query);
+
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index", context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field",
+                    STRING_FIELD_NAME, STRING_FIELD_NAME_2 + "^5").build())
+            );
+            query = new SimpleQueryStringBuilder("hello")
+                .toQuery(context);
+            Query expected = new DisjunctionMaxQuery(
+                Arrays.asList(
+                    new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+                    new BoostQuery(new TermQuery(new Term(STRING_FIELD_NAME_2, "hello")), 5.0f)
+                ), 1.0f
+            );
+            assertEquals(expected, query);
+        } finally {
+            // Reset to the default value
+            context.getIndexSettings().updateIndexMetaData(
+                newIndexMeta("index",
+                    context.getIndexSettings().getSettings(), Settings.builder().putList("index.query.default_field", "*").build())
+            );
+        }
+    }
+
+    public void testAllFieldsWildcard() throws Exception {
+        QueryShardContext context = createShardContext();
+        Query query = new SimpleQueryStringBuilder("hello")
+            .field("*")
+            .toQuery(context);
+        assertQueryWithAllFieldsWildcard(query);
+
+        query = new SimpleQueryStringBuilder("hello")
+            .field(STRING_FIELD_NAME)
+            .field("*")
+            .field(STRING_FIELD_NAME_2)
+            .toQuery(context);
+        assertQueryWithAllFieldsWildcard(query);
     }
 
     public void testToFuzzyQuery() throws Exception {
@@ -744,5 +771,19 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             .put(indexSettings)
             .build();
         return IndexMetaData.builder(name).settings(build).build();
+    }
+
+    private void assertQueryWithAllFieldsWildcard(Query query) {
+        assertEquals(DisjunctionMaxQuery.class, query.getClass());
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        int noMatchNoDocsQueries = 0;
+        for (Query q : disjunctionMaxQuery.getDisjuncts()) {
+            if (q.getClass() == MatchNoDocsQuery.class) {
+                noMatchNoDocsQueries++;
+            }
+        }
+        assertEquals(11, noMatchNoDocsQueries);
+        assertThat(disjunctionMaxQuery.getDisjuncts(), hasItems(new TermQuery(new Term(STRING_FIELD_NAME, "hello")),
+            new TermQuery(new Term(STRING_FIELD_NAME_2, "hello"))));
     }
 }

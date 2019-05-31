@@ -195,9 +195,9 @@ import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
-import org.elasticsearch.xpack.security.rest.action.RestCreateApiKeyAction;
-import org.elasticsearch.xpack.security.rest.action.RestGetApiKeyAction;
-import org.elasticsearch.xpack.security.rest.action.RestInvalidateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestCreateApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
@@ -226,6 +226,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityStatusChangeListener;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -258,8 +259,8 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_MAIN_TEMPLATE_7;
 
 public class Security extends Plugin implements ActionPlugin, IngestPlugin, NetworkPlugin, ClusterPlugin,
@@ -270,7 +271,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     private final Settings settings;
     private final Environment env;
     private final boolean enabled;
-    private final boolean transportClientMode;
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
      * an instance of TransportInterceptor way earlier before createComponents is called. */
@@ -293,10 +293,9 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     Security(Settings settings, final Path configPath, List<SecurityExtension> extensions) {
         this.settings = settings;
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.env = transportClientMode ? null : new Environment(settings, configPath);
+        this.env = new Environment(settings, configPath);
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
-        if (enabled && transportClientMode == false) {
+        if (enabled) {
             runStartupChecks(settings);
             // we load them all here otherwise we can't access secure settings since they are closed once the checks are
             // fetched
@@ -327,23 +326,10 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     @Override
     public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             modules.add(b -> b.bind(IPFilter.class).toProvider(Providers.of(null)));
         }
-
-        if (transportClientMode) {
-            if (enabled == false) {
-                return modules;
-            }
-            modules.add(b -> {
-                // for transport client we still must inject these ssl classes with guice
-                b.bind(SSLService.class).toInstance(getSslService());
-            });
-
-            return modules;
-        }
         modules.add(b -> XPackPlugin.bindFeatureSet(b, SecurityFeatureSet.class));
-
 
         if (enabled == false) {
             modules.add(b -> {
@@ -408,8 +394,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
         securityIndex.set(SecurityIndexManager.buildSecurityMainIndexManager(client, clusterService));
 
-        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, securityIndex.get(),
-                SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
+        final TokenService tokenService = new TokenService(settings, Clock.systemUTC(), client, getLicenseState(),
+            securityIndex.get(), SecurityIndexManager.buildSecurityTokensIndexManager(client, clusterService), clusterService);
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
@@ -450,8 +436,8 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
             rolesProviders.addAll(extension.getRolesProviders(settings, resourceWatcherService));
         }
 
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(), clusterService,
-            threadPool);
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
+            clusterService, threadPool);
         components.add(apiKeyService);
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore,
             privilegeStore, rolesProviders, threadPool.getThreadContext(), getLicenseState(), fieldPermissionsCache, apiKeyService,
@@ -461,6 +447,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
+        getLicenseState().addListener(new SecurityStatusChangeListener(getLicenseState()));
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms);
         authcService.set(new AuthenticationService(settings, realms, auditTrailService, failureHandler, threadPool,
@@ -568,12 +555,12 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public Settings additionalSettings() {
-        return additionalSettings(settings, enabled, transportClientMode);
+        return additionalSettings(settings, enabled);
     }
 
     // visible for tests
-    static Settings additionalSettings(final Settings settings, final boolean enabled, final boolean transportClientMode) {
-        if (enabled && transportClientMode == false) {
+    static Settings additionalSettings(final Settings settings, final boolean enabled) {
+        if (enabled) {
             final Settings.Builder builder = Settings.builder();
 
             builder.put(SecuritySettings.addTransportSettings(settings));
@@ -606,18 +593,14 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<Setting<?>> getSettings() {
-        return getSettings(transportClientMode, securityExtensions);
+        return getSettings(securityExtensions);
     }
 
         /**
          * Get the {@link Setting setting configuration} for all security components, including those defined in extensions.
          */
-    public static List<Setting<?>> getSettings(boolean transportClientMode, List<SecurityExtension> securityExtensions) {
+    public static List<Setting<?>> getSettings(List<SecurityExtension> securityExtensions) {
         List<Setting<?>> settingsList = new ArrayList<>();
-
-        if (transportClientMode) {
-            return settingsList;
-        }
 
         // The following just apply in node mode
         settingsList.add(XPackSettings.FIPS_MODE_ENABLED);
@@ -657,9 +640,6 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public Collection<String> getRestHeaders() {
-        if (transportClientMode) {
-            return Collections.emptyList();
-        }
         Set<String> headers = new HashSet<>();
         headers.add(UsernamePasswordToken.BASIC_AUTH_HEADER);
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
@@ -773,11 +753,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
         if (enabled == false) {
             return emptyList();
         }
-        // registering the security filter only for nodes
-        if (transportClientMode == false) {
-            return singletonList(securityActionFilter.get());
-        }
-        return emptyList();
+        return singletonList(securityActionFilter.get());
     }
 
     @Override
@@ -865,7 +841,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
-        if (transportClientMode || enabled == false) { // don't register anything if we are not enabled
+        if (enabled == false) { // don't register anything if we are not enabled
             // interceptors are not installed if we are running on the transport client
             return Collections.emptyList();
         }
@@ -890,7 +866,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
                                                           CircuitBreakerService circuitBreakerService,
                                                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        if (transportClientMode || enabled == false) { // don't register anything if we are not enabled, or in transport client mode
+        if (enabled == false) { // don't register anything if we are not enabled, or in transport client mode
             return Collections.emptyMap();
         }
 
@@ -944,7 +920,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-        if (enabled == false || transportClientMode) {
+        if (enabled == false) {
             return null;
         }
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
@@ -955,7 +931,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
-        if (enabled && transportClientMode == false) {
+        if (enabled) {
             return Collections.singletonList(
                     new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.authc.token.thread_pool"));
         }
@@ -1002,7 +978,7 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         if (enabled) {
             return new ValidateTLSOnJoin(XPackSettings.TRANSPORT_SSL_ENABLED.get(settings),
-                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))
+                    DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings), settings)
                 .andThen(new ValidateUpgradedSecurityIndex())
                 .andThen(new ValidateLicenseForFIPS(XPackSettings.FIPS_MODE_ENABLED.get(settings)));
         }
@@ -1012,18 +988,21 @@ public class Security extends Plugin implements ActionPlugin, IngestPlugin, Netw
     static final class ValidateTLSOnJoin implements BiConsumer<DiscoveryNode, ClusterState> {
         private final boolean isTLSEnabled;
         private final String discoveryType;
+        private final Settings settings;
 
-        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType) {
+        ValidateTLSOnJoin(boolean isTLSEnabled, String discoveryType, Settings settings) {
             this.isTLSEnabled = isTLSEnabled;
             this.discoveryType = discoveryType;
+            this.settings = settings;
         }
 
         @Override
         public void accept(DiscoveryNode node, ClusterState state) {
             License license = LicenseService.getLicense(state.metaData());
-            if (license != null && license.isProductionLicense() &&
-                    isTLSEnabled == false && "single-node".equals(discoveryType) == false) {
-                throw new IllegalStateException("TLS setup is required for license type [" + license.operationMode().name() + "]");
+            if (isTLSEnabled == false && "single-node".equals(discoveryType) == false
+                && XPackLicenseState.isTransportTlsRequired(license, settings)) {
+                throw new IllegalStateException("Transport TLS ([" + XPackSettings.TRANSPORT_SSL_ENABLED.getKey() +
+                    "]) is required for license type [" + license.operationMode().description() + "] when security is enabled");
             }
         }
     }

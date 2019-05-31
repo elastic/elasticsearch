@@ -31,6 +31,7 @@ import org.gradle.plugins.ide.eclipse.model.SourceFolder
 plugins {
     id 'com.gradle.build-scan' version '2.2.1'
     id 'base'
+    id 'elasticsearch.global-build-info'
 }
 if (Boolean.valueOf(project.findProperty('org.elasticsearch.acceptScanTOS') ?: "false")) {
     buildScan {
@@ -88,7 +89,7 @@ subprojects {
       }
       repositories {
         maven {
-          name = 'localTest'
+          name = 'test'
           url = "${rootProject.buildDir}/local-test-repo"
         }
       }
@@ -241,8 +242,7 @@ allprojects {
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
     "org.elasticsearch.plugin:rank-eval-client:${version}": ':modules:rank-eval',
     // for security example plugins
-    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core',
-    "org.elasticsearch.client:x-pack-transport:${version}": ':x-pack:transport-client'
+    "org.elasticsearch.plugin:x-pack-core:${version}": ':x-pack:plugin:core'
   ]
 
   /*
@@ -263,7 +263,7 @@ allprojects {
   }
 
   project.afterEvaluate {
-    configurations.all {
+    configurations.matching { it.canBeResolved }.all {
       resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
         projectSubstitutions.each { k,v ->
           subs.substitute(subs.module(k)).with(subs.project(v))
@@ -337,7 +337,7 @@ gradle.projectsEvaluated {
     if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
       integTest.mustRunAfter test
     }
-    configurations.all { Configuration configuration ->
+    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.all { Dependency dep ->
         Project upstreamProject = dependencyToProject(dep)
         if (upstreamProject != null) {
@@ -552,31 +552,6 @@ gradle.projectsEvaluated {
   }
 }
 
-if (System.properties.get("build.compare") != null) {
-  apply plugin: 'compare-gradle-builds'
-  compareGradleBuilds {
-    ext.referenceProject = System.properties.get("build.compare")
-    doFirst {
-      if (file(referenceProject).exists() == false) {
-        throw new GradleException(
-                "Use git worktree to check out a version to compare against to ../elasticsearch_build_reference"
-        )
-      }
-    }
-    sourceBuild {
-      gradleVersion = gradle.getGradleVersion()
-      projectDir = referenceProject
-      tasks = ["clean", "assemble"]
-      arguments = ["-Dbuild.compare_friendly=true"]
-    }
-    targetBuild {
-      tasks = ["clean", "assemble"]
-      // use -Dorg.gradle.java.home= to alter jdk versions
-      arguments = ["-Dbuild.compare_friendly=true"]
-    }
-  }
-}
-
 allprojects {
   task resolveAllDependencies {
       dependsOn tasks.matching { it.name == "pullFixture"}
@@ -618,22 +593,3 @@ allprojects {
     }
   } 
 }
-
-subprojects {
-    // Common config when running with a FIPS-140 runtime JVM
-    if (project.ext.has("inFipsJvm") && project.ext.inFipsJvm) {
-        tasks.withType(Test) {
-          systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-          systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-        }
-        project.pluginManager.withPlugin("elasticsearch.testclusters") {
-          project.testClusters.all {
-            systemProperty 'javax.net.ssl.trustStorePassword', 'password'
-            systemProperty 'javax.net.ssl.keyStorePassword', 'password'
-          }
-        }
-    }
-}
-
-
-

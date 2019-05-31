@@ -1,0 +1,35 @@
+import org.elasticsearch.gradle.http.WaitForHttpResource
+
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  // "org.elasticsearch.plugin:x-pack-core:${version}" doesn't work with idea because the testArtifacts are also here
+  testCompile project(path: xpackModule('core'), configuration: 'default')
+  testCompile project(path: xpackModule('security'), configuration: 'testArtifacts')
+  testCompile project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+integTestCluster {
+  numNodes=2
+
+  setting 'xpack.ilm.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'basic'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.security.http.ssl.enabled', 'false'
+  setting 'xpack.security.transport.ssl.enabled', 'false'
+  setting 'xpack.security.authc.token.enabled', 'true'
+  setting 'xpack.security.authc.api_key.enabled', 'true'
+
+  extraConfigFile 'roles.yml', project.projectDir.toPath().resolve('src/test/resources/roles.yml')
+  setupCommand 'setupUser#admin_user', 'bin/elasticsearch-users', 'useradd', 'admin_user', '-p', 'admin-password', '-r', 'superuser'
+  setupCommand 'setupUser#security_test_user', 'bin/elasticsearch-users', 'useradd', 'security_test_user', '-p', 'security-test-password', '-r', 'security_test_role'
+
+  waitCondition = { node, ant ->
+    WaitForHttpResource http = new WaitForHttpResource("http", node.httpUri(), numNodes)
+    http.setUsername("admin_user")
+    http.setPassword("admin-password")
+    return http.wait(5000)
+  }
+}

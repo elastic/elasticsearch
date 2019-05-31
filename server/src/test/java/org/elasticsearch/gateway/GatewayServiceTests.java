@@ -32,8 +32,7 @@ public class GatewayServiceTests extends ESTestCase {
         final ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 null);
-        return new GatewayService(settings.build(),
-                null, clusterService, null, null, null, null);
+        return new GatewayService(settings.build(), null, clusterService, null, null, null);
     }
 
     public void testDefaultRecoverAfterTime() {

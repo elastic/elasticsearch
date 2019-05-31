@@ -23,6 +23,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.dataframe.DeleteDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformRequest;
 import org.elasticsearch.client.dataframe.GetDataFrameTransformStatsRequest;
@@ -57,11 +58,11 @@ final class DataFrameRequestConverters {
                 .addPathPart(Strings.collectionToCommaDelimitedString(getRequest.getId()))
                 .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        if (getRequest.getFrom() != null) {
-            request.addParameter("from", getRequest.getFrom().toString());
+        if (getRequest.getPageParams() != null && getRequest.getPageParams().getFrom() != null) {
+            request.addParameter(PageParams.FROM.getPreferredName(), getRequest.getPageParams().getFrom().toString());
         }
-        if (getRequest.getSize() != null) {
-            request.addParameter("size", getRequest.getSize().toString());
+        if (getRequest.getPageParams() != null && getRequest.getPageParams().getSize() != null) {
+            request.addParameter(PageParams.SIZE.getPreferredName(), getRequest.getPageParams().getSize().toString());
         }
         return request;
     }
@@ -81,10 +82,11 @@ final class DataFrameRequestConverters {
                 .addPathPartAsIs("_start")
                 .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params(request);
+        RequestConverters.Params params = new RequestConverters.Params();
         if (startRequest.getTimeout() != null) {
             params.withTimeout(startRequest.getTimeout());
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -95,13 +97,14 @@ final class DataFrameRequestConverters {
                     .addPathPartAsIs("_stop")
                     .build();
             Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-            RequestConverters.Params params = new RequestConverters.Params(request);
+            RequestConverters.Params params = new RequestConverters.Params();
             if (stopRequest.getWaitForCompletion() != null) {
                 params.withWaitForCompletion(stopRequest.getWaitForCompletion());
             }
             if (stopRequest.getTimeout() != null) {
                 params.withTimeout(stopRequest.getTimeout());
             }
+            request.addParameters(params.asMap());
             return request;
     }
 
@@ -120,6 +123,13 @@ final class DataFrameRequestConverters {
                 .addPathPart(statsRequest.getId())
                 .addPathPartAsIs("_stats")
                 .build();
-        return new Request(HttpGet.METHOD_NAME, endpoint);
+        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getFrom() != null) {
+            request.addParameter(PageParams.FROM.getPreferredName(), statsRequest.getPageParams().getFrom().toString());
+        }
+        if (statsRequest.getPageParams() != null && statsRequest.getPageParams().getSize() != null) {
+            request.addParameter(PageParams.SIZE.getPreferredName(), statsRequest.getPageParams().getSize().toString());
+        }
+        return request;
     }
 }

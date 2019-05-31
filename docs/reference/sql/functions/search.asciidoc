@@ -58,17 +58,12 @@ additional configuration parameters (separated by semicolon `;`) for either `mat
 include-tagged::{sql-specs}/docs/docs.csv-spec[optionalParamsForMatch]
 ----
 
-In the more advanced example above, the `cutoff_frequency` parameter allows specifying an absolute or relative document frequency where
-high frequency terms are moved into an optional subquery and are only scored if one of the low frequency (below the cutoff) terms in the 
-case of an `or` operator or all of the low frequency terms in the case of an `and` operator match. More about this you can find in the
-<<query-dsl-match-query-cutoff>> page.
-
 NOTE: The allowed optional parameters for a single-field `MATCH()` variant (for the `match` {es} query) are: `analyzer`, `auto_generate_synonyms_phrase_query`,
-`cutoff_frequency`, `lenient`, `fuzziness`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
+`lenient`, `fuzziness`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
 `max_expansions`, `prefix_length`.
 
 NOTE: The allowed optional parameters for a multi-field `MATCH()` variant (for the `multi_match` {es} query) are: `analyzer`, `auto_generate_synonyms_phrase_query`,
-`cutoff_frequency`, `lenient`, `fuzziness`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
+`lenient`, `fuzziness`, `fuzzy_transpositions`, `fuzzy_rewrite`, `minimum_should_match`, `operator`,
 `max_expansions`, `prefix_length`, `slop`, `tie_breaker`, `type`.
 
 

@@ -118,13 +118,13 @@ public final class StubbableTransport implements Transport {
     }
 
     @Override
-    public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
-        return delegate.addressesFromString(address, perAddressLimit);
+    public TransportAddress[] addressesFromString(String address) throws UnknownHostException {
+        return delegate.addressesFromString(address);
     }
 
     @Override
-    public List<String> getLocalAddresses() {
-        return delegate.getLocalAddresses();
+    public List<String> getDefaultSeedAddresses() {
+        return delegate.getDefaultSeedAddresses();
     }
 
     @Override

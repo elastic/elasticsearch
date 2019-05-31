@@ -130,14 +130,14 @@ public class ReadOnlyEngine extends Engine {
         // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
         // that guarantee that all operations have been flushed to Lucene.
         final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-        if (indexVersionCreated.onOrAfter(Version.V_7_1_0) ||
-            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO && indexVersionCreated.onOrAfter(Version.V_6_7_0))) {
+        if (indexVersionCreated.onOrAfter(Version.V_7_2_0) ||
+            (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
             if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
                 throw new IllegalStateException("Maximum sequence number [" + seqNoStats.getMaxSeqNo()
                     + "] from last commit does not match global checkpoint [" + seqNoStats.getGlobalCheckpoint() + "]");
             }
         }
-        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getMaxSeqNo());
+        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
     }
 
     protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
@@ -157,11 +157,11 @@ public class ReadOnlyEngine extends Engine {
 
     protected final DirectoryReader wrapReader(DirectoryReader reader,
                                                     Function<DirectoryReader, DirectoryReader> readerWrapperFunction) throws IOException {
-        reader = ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
         if (engineConfig.getIndexSettings().isSoftDeleteEnabled()) {
             reader = new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         }
-        return readerWrapperFunction.apply(reader);
+        reader = readerWrapperFunction.apply(reader);
+        return ElasticsearchDirectoryReader.wrap(reader, engineConfig.getShardId());
     }
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
@@ -300,7 +300,8 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public boolean hasCompleteOperationHistory(String source, MapperService mapperService, long startingSeqNo) throws IOException {
-        return false;
+        // we can do operation-based recovery if we don't have to replay any operation.
+        return startingSeqNo > seqNoStats.getMaxSeqNo();
     }
 
     @Override
@@ -456,8 +457,8 @@ public class ReadOnlyEngine extends Engine {
 
     }
 
-    protected void processReaders(IndexReader reader, IndexReader previousReader) {
-        searcherFactory.processReaders(reader, previousReader);
+    protected void processReader(IndexReader reader) {
+        searcherFactory.processReaders(reader, null);
     }
 
     @Override

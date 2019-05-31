@@ -111,7 +111,7 @@ GET /my_index/_rank_eval
   ], 
   "requests": [
       {
-         "id": "amsterdam_query"
+         "id": "amsterdam_query",
          "ratings": [ ... ],
          "template_id": "match_one_field_query", <3>
          "params": { <4>
@@ -136,6 +136,7 @@ The `metric` section determines which of the available evaluation metrics is goi
 Currently, the following metrics are supported:
 
 [float]
+[[k-precision]]
 ==== Precision at K (P@k)
 
 This metric measures the number of relevant results in the top k search results. Its a form of the well known https://en.wikipedia.org/wiki/Information_retrieval#Precision[Precision] metric that only looks at the top k documents. It is the fraction of relevant documents in those first k

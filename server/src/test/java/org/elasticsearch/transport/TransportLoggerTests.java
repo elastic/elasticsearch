@@ -66,7 +66,7 @@ public class TransportLoggerTests extends ESTestCase {
                 ", action: cluster:monitor/stats]" +
                 " WRITE: \\d+B";
         final MockLogAppender.LoggingExpectation writeExpectation =
-            new MockLogAppender.PatternSeenEventExcpectation(
+            new MockLogAppender.PatternSeenEventExpectation(
                 "hot threads request", TransportLogger.class.getCanonicalName(), Level.TRACE, writePattern);
 
         final String readPattern =
@@ -78,7 +78,7 @@ public class TransportLoggerTests extends ESTestCase {
                 " READ: \\d+B";
 
         final MockLogAppender.LoggingExpectation readExpectation =
-            new MockLogAppender.PatternSeenEventExcpectation(
+            new MockLogAppender.PatternSeenEventExpectation(
                 "cluster monitor request", TransportLogger.class.getCanonicalName(), Level.TRACE, readPattern);
 
         appender.addExpectation(writeExpectation);

@@ -7,12 +7,14 @@
 [source, sql]
 ----
 SHOW TABLES
-    [table identifier | <1>
-    [LIKE pattern ]]?   <2>
+    [INCLUDE FROZEN]?   <1>
+    [table identifier | <2>
+    [LIKE pattern ]]?   <3>
 ----
 
-<1> single table identifier or double quoted es multi index
-<2> SQL LIKE pattern
+<1> Whether or not to include frozen indices
+<2> single table identifier or double quoted es multi index
+<3> SQL LIKE pattern
 
 See <<sql-index-patterns, index patterns>> for more information about
 patterns.

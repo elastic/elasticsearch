@@ -74,7 +74,4 @@ public class QueryConfig implements ToXContentObject {
         return Objects.equals(this.query, that.query);
     }
 
-    public boolean isValid() {
-        return this.query != null;
-    }
 }

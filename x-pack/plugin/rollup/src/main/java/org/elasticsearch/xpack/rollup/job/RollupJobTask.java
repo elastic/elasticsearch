@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -45,7 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Each RollupJobTask also registers itself into the Scheduler so that it can be triggered on the cron's interval.
  */
 public class RollupJobTask extends AllocatedPersistentTask implements SchedulerEngine.Listener {
-    private static final Logger logger = Logger.getLogger(RollupJobTask.class.getName());
+    private static final Logger logger = LogManager.getLogger(RollupJobTask.class.getName());
 
     static final String SCHEDULE_NAME = RollupField.TASK_NAME + "/schedule";
 

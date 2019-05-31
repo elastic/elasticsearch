@@ -75,7 +75,7 @@ public class AggregatorFactories {
             final String aggregationName = parser.currentName();
             if (!validAggMatcher.reset(aggregationName).matches()) {
                 throw new ParsingException(parser.getTokenLocation(), "Invalid aggregation name [" + aggregationName
-                        + "]. Aggregation names must be alpha-numeric and can only contain '_' and '-'");
+                        + "]. Aggregation names can contain any character except '[', ']', and '>'");
             }
 
             token = parser.nextToken();

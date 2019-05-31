@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -49,9 +50,9 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NormalizingCharFilterFactory;
 import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -96,8 +97,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     }
 
     @Override
-    protected AnalyzeResponse newResponse() {
-        return new AnalyzeResponse();
+    protected Writeable.Reader<AnalyzeResponse> getResponseReader() {
+        return AnalyzeResponse::new;
     }
 
     @Override
@@ -140,14 +141,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 }
                 MappedFieldType fieldType = indexService.mapperService().fullName(request.field());
                 if (fieldType != null) {
-                    if (fieldType.tokenized()) {
+                    if (fieldType.tokenized() || fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
                         analyzer = fieldType.indexAnalyzer();
-                    } else if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
-                        analyzer = ((KeywordFieldMapper.KeywordFieldType) fieldType).normalizer();
-                        if (analyzer == null) {
-                            // this will be KeywordAnalyzer
-                            analyzer = fieldType.indexAnalyzer();
-                        }
                     } else {
                         throw new IllegalArgumentException("Can't process field [" + request.field() +
                             "], Analysis requests are only supported on tokenized fields");

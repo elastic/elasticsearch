@@ -6,8 +6,8 @@
 
 package org.elasticsearch.xpack.dataframe.action;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -224,9 +224,7 @@ public class TransportStartDataFrameTransformAction extends
 
     private void createDestinationIndex(final DataFrameTransformConfig config, final ActionListener<Void> listener) {
 
-        final Pivot pivot = new Pivot(config.getSource().getIndex(),
-            config.getSource().getQueryConfig().getQuery(),
-            config.getPivotConfig());
+        final Pivot pivot = new Pivot(config.getPivotConfig());
 
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
             mappings -> DataframeIndex.createDestinationIndex(client,
@@ -238,7 +236,7 @@ public class TransportStartDataFrameTransformAction extends
                     deduceTargetMappingsException))
         );
 
-        pivot.deduceMappings(client, deduceMappingsListener);
+        pivot.deduceMappings(client, config.getSource(), deduceMappingsListener);
     }
 
     @Override

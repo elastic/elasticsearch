@@ -88,9 +88,8 @@ public final class TransportCreateTokenAction extends HandledTransportAction<Cre
             boolean includeRefreshToken, ActionListener<CreateTokenResponse> listener) {
         tokenService.createOAuth2Tokens(authentication, originatingAuth, Collections.emptyMap(), includeRefreshToken,
                 ActionListener.wrap(tuple -> {
-                    final String tokenStr = tokenService.getAccessTokenAsString(tuple.v1());
                     final String scope = getResponseScopeValue(request.getScope());
-                    final CreateTokenResponse response = new CreateTokenResponse(tokenStr, tokenService.getExpirationDelay(), scope,
+                    final CreateTokenResponse response = new CreateTokenResponse(tuple.v1(), tokenService.getExpirationDelay(), scope,
                             tuple.v2());
                     listener.onResponse(response);
                 }, listener::onFailure));

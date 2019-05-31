@@ -123,8 +123,7 @@ public class WaitForHttpResource {
             if (System.nanoTime() < waitUntil) {
                 Thread.sleep(sleep);
             } else {
-                logger.error("Failed to access url [{}]", url, failure);
-                return false;
+                throw failure;
             }
         }
     }

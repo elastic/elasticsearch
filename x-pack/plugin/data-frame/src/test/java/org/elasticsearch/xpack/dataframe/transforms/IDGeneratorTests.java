@@ -27,6 +27,9 @@ public class IDGeneratorTests extends ESTestCase {
         assertNotEquals(id, idGen.getID());
         idGen.add("key6", 13);
         assertNotEquals(id, idGen.getID());
+        id = idGen.getID();
+        idGen.add("key7", "");
+        assertNotEquals(id, idGen.getID());
     }
 
     public void testOrderIndependence() {

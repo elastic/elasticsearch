@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
+import java.util.function.IntFunction;
 
 /**
  * This is a channel byte buffer composed internally of 16kb pages. When an entire message has been read
@@ -37,15 +37,14 @@ import java.util.function.Supplier;
  */
 public final class InboundChannelBuffer implements AutoCloseable {
 
-    private static final int PAGE_SIZE = 1 << 14;
+    public static final int PAGE_SIZE = 1 << 14;
     private static final int PAGE_MASK = PAGE_SIZE - 1;
     private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(PAGE_SIZE);
     private static final ByteBuffer[] EMPTY_BYTE_BUFFER_ARRAY = new ByteBuffer[0];
     private static final Page[] EMPTY_BYTE_PAGE_ARRAY = new Page[0];
 
-
-    private final ArrayDeque<Page> pages;
-    private final Supplier<Page> pageSupplier;
+    private final IntFunction<Page> pageAllocator;
+    private final ArrayDeque<Page> pages = new ArrayDeque<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     private long capacity = 0;
@@ -53,14 +52,12 @@ public final class InboundChannelBuffer implements AutoCloseable {
     // The offset is an int as it is the offset of where the bytes begin in the first buffer
     private int offset = 0;
 
-    public InboundChannelBuffer(Supplier<Page> pageSupplier) {
-        this.pageSupplier = pageSupplier;
-        this.pages = new ArrayDeque<>();
-        this.capacity = PAGE_SIZE * pages.size();
+    public InboundChannelBuffer(IntFunction<Page> pageAllocator) {
+        this.pageAllocator = pageAllocator;
     }
 
     public static InboundChannelBuffer allocatingInstance() {
-        return new InboundChannelBuffer(() -> new Page(ByteBuffer.allocate(PAGE_SIZE), () -> {}));
+        return new InboundChannelBuffer((n) -> new Page(ByteBuffer.allocate(n), () -> {}));
     }
 
     @Override
@@ -87,7 +84,7 @@ public final class InboundChannelBuffer implements AutoCloseable {
             int numPages = numPages(requiredCapacity + offset);
             int pagesToAdd = numPages - pages.size();
             for (int i = 0; i < pagesToAdd; i++) {
-                Page page = pageSupplier.get();
+                Page page = pageAllocator.apply(PAGE_SIZE);
                 pages.addLast(page);
             }
             capacity += pagesToAdd * PAGE_SIZE;

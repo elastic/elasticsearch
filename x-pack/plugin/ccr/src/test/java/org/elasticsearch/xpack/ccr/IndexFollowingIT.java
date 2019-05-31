@@ -620,7 +620,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(response.getStatsResponses().get(0).status().readExceptions().size(), equalTo(1));
             ElasticsearchException exception = response.getStatsResponses().get(0).status()
                 .readExceptions().entrySet().iterator().next().getValue().v2();
-            assertThat(exception.getRootCause().getMessage(), equalTo("blocked by: [FORBIDDEN/4/index closed];"));
+            assertThat(exception.getRootCause().getMessage(), equalTo("index [index1] blocked by: [FORBIDDEN/4/index closed];"));
         });
 
         leaderClient().admin().indices().open(new OpenIndexRequest("index1")).actionGet();

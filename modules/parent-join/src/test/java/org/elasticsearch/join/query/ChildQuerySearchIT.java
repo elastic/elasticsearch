@@ -179,7 +179,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         // TEST FETCHING _parent from child
         SearchResponse searchResponse;
         searchResponse = client().prepareSearch("test")
-                .setQuery(idsQuery("doc").addIds("c1")).get();
+                .setQuery(idsQuery().addIds("c1")).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("c1"));

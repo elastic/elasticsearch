@@ -23,8 +23,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -140,17 +142,43 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             @Override
             protected void doRun() throws Exception {
                 final BlobStore blobStore = repo.blobStore();
+                blobStore.blobContainer(repo.basePath().add("foo"))
+                    .writeBlob("nested-blob", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
                 blobStore.blobContainer(repo.basePath().add("foo").add("nested"))
                     .writeBlob("bar", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
                 blobStore.blobContainer(repo.basePath().add("foo").add("nested2"))
-                    .writeBlob("bar", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
+                    .writeBlob("blub", new ByteArrayInputStream(randomByteArrayOfLength(testBlobLen)), testBlobLen, false);
                 future.onResponse(null);
             }
         });
         future.actionGet();
         assertChildren(repo.basePath(), Collections.singleton("foo"));
+        assertBlobsByPrefix(repo.basePath(), "fo", Collections.emptyMap());
         assertChildren(repo.basePath().add("foo"), List.of("nested", "nested2"));
+        assertBlobsByPrefix(repo.basePath().add("foo"), "nest",
+            Collections.singletonMap("nested-blob", new PlainBlobMetaData("nested-blob", testBlobLen)));
         assertChildren(repo.basePath().add("foo").add("nested"), Collections.emptyList());
+    }
+
+    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
+        final PlainActionFuture<Map<String, BlobMetaData>> future = PlainActionFuture.newFuture();
+        final BlobStoreRepository repository = getRepository();
+        repository.threadPool().generic().execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() throws Exception {
+                final BlobStore blobStore = repository.blobStore();
+                future.onResponse(blobStore.blobContainer(path).listBlobsByPrefix(prefix));
+            }
+        });
+        Map<String, BlobMetaData> foundBlobs = future.actionGet();
+        if (blobs.isEmpty()) {
+            assertThat(foundBlobs.keySet(), empty());
+        } else {
+            assertThat(foundBlobs.keySet(), containsInAnyOrder(blobs.keySet().toArray(Strings.EMPTY_ARRAY)));
+            for (Map.Entry<String, BlobMetaData> entry : foundBlobs.entrySet()) {
+                assertEquals(entry.getValue().length(), blobs.get(entry.getKey()).length());
+            }
+        }
     }
 
     protected void assertChildren(BlobPath path, Collection<String> children) throws Exception {

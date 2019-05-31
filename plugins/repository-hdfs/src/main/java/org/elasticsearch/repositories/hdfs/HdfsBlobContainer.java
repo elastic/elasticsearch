@@ -142,7 +142,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             path -> prefix == null || path.getName().startsWith(prefix)));
         Map<String, BlobMetaData> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
-            map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            if (file.isFile()) {
+                map.put(file.getPath().getName(), new PlainBlobMetaData(file.getPath().getName(), file.getLen()));
+            }
         }
         return Collections.unmodifiableMap(map);
     }

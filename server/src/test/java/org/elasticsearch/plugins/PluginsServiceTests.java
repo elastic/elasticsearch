@@ -171,7 +171,15 @@ public class PluginsServiceTests extends ESTestCase {
             if (Constants.WINDOWS) {
                 assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
             } else {
-                assertThat(e.getCause(), hasToString(containsString("Not a directory")));
+                // force a "Not a directory" exception to be thrown so that we can extract the locale-dependent message
+                final String expected;
+                try (InputStream ignored = Files.newInputStream(desktopServicesStore.resolve("not-a-directory"))) {
+                    throw new AssertionError();
+                } catch (final FileSystemException inner) {
+                    // locale-dependent translation of "Not a directory"
+                    expected = inner.getReason();
+                }
+                assertThat(e.getCause(), hasToString(containsString(expected)));
             }
         }
     }

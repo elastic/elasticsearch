@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,6 +37,9 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collections;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class RetryFailedAllocationTests extends ESAllocationTestCase {
 

@@ -554,7 +554,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
                                     statsExc -> {
                                         logger.error("Updating stats of transform [" + transformConfig.getId() + "] failed", statsExc);
                                         auditor.warning(getJobId(),
-                                            "Failure updating persisting stats of transform: " + statsExc.getMessage());
+                                            "Failure updating stats of transform: " + statsExc.getMessage());
                                         next.run();
                                     }
                             ));

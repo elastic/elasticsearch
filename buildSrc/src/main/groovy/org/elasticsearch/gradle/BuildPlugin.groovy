@@ -881,6 +881,7 @@ class BuildPlugin implements Plugin<Project> {
 
                 project.plugins.withType(ShadowPlugin).whenPluginAdded {
                     // Test against a shadow jar if we made one
+                    test.classpath -= project.configurations.getByName('bundle')
                     test.classpath -= project.tasks.getByName('compileJava').outputs.files
                     test.classpath += project.tasks.getByName('shadowJar').outputs.files
 

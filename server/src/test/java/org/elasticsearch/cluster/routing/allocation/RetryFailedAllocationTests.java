@@ -81,10 +81,12 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
         for (int i = 0; i < retries; i++) {
             List<FailedShard> failedShards = Collections.singletonList(
                 new FailedShard(getReplica(), "failing-shard::attempt-" + i,
-                    new UnsupportedOperationException(), randomBoolean()));
+                    new ElasticsearchException("simulated"), randomBoolean()));
             clusterState = strategy.applyFailedShards(clusterState, failedShards);
             clusterState = strategy.reroute(clusterState, "allocation retry attempt-" + i);
         }
+        assertThat("replica should not be assigned", getReplica().state(), equalTo(ShardRoutingState.UNASSIGNED));
+        assertThat("reroute should be a no-op", strategy.reroute(clusterState, "test"), sameInstance(clusterState));
 
         // Now allocate replica with retry_failed flag set
         AllocationService.CommandsResult result = strategy.reroute(clusterState,

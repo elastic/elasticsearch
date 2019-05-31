@@ -262,7 +262,7 @@ setup:
                       "date_histogram": {
                         "field": "date",
                         "interval": "1d",
-                        "format": "yyyy-MM-dd"
+                        "format": "strict_date"
                       }
                     }
                   }
@@ -292,7 +292,7 @@ setup:
                         "date_histogram": {
                           "field": "date",
                           "interval": "1d",
-                          "format": "yyyy-MM-dd"
+                          "format": "strict_date"
                         }
                       }
                     }

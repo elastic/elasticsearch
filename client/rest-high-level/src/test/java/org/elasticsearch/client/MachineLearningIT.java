@@ -1400,7 +1400,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertFalse(highLevelClient().indices().exists(new GetIndexRequest(destIndex), RequestOptions.DEFAULT));
 
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
-        String configId = "start-test-config";
+        String configId = "stop-test-config";
         DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.builder(configId)
             .setSource(DataFrameAnalyticsSource.builder()
                 .setIndex(sourceIndex)

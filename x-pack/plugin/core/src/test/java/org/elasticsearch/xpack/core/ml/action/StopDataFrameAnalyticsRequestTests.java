@@ -8,9 +8,12 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction.Request;
+import org.elasticsearch.xpack.core.ml.action.StopDataFrameAnalyticsAction.Request;
 
-public class StartDataFrameAnalyticsRequestTests extends AbstractWireSerializingTestCase<Request> {
+import java.util.HashSet;
+import java.util.Set;
+
+public class StopDataFrameAnalyticsRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -18,6 +21,15 @@ public class StartDataFrameAnalyticsRequestTests extends AbstractWireSerializing
         if (randomBoolean()) {
             request.setTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
         }
+        if (randomBoolean()) {
+            request.setAllowNoMatch(randomBoolean());
+        }
+        int expandedIdsCount = randomIntBetween(0, 10);
+        Set<String> expandedIds = new HashSet<>();
+        for (int i = 0; i < expandedIdsCount; i++) {
+            expandedIds.add(randomAlphaOfLength(20));
+        }
+        request.setExpandedIds(expandedIds);
         return request;
     }
 

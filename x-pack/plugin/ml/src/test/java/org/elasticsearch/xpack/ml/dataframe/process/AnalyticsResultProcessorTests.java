@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -22,8 +23,12 @@ import static org.mockito.Mockito.when;
 
 public class AnalyticsResultProcessorTests extends ESTestCase {
 
+    private static final String JOB_ID = "analytics-result-processor-tests";
+
     private AnalyticsProcess process;
     private DataFrameRowsJoiner dataFrameRowsJoiner;
+    private int progressPercent;
+
 
     @Before
     public void setUpMocks() {
@@ -43,7 +48,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     public void testProcess_GivenEmptyResults() {
-        givenProcessResults(Arrays.asList(new AnalyticsResult(null, null), new AnalyticsResult(null, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(null, 50), new AnalyticsResult(null, 100)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -51,12 +56,13 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
 
         verify(dataFrameRowsJoiner).close();
         Mockito.verifyNoMoreInteractions(dataFrameRowsJoiner);
+        assertThat(progressPercent, equalTo(100));
     }
 
     public void testProcess_GivenRowResults() {
         RowResults rowResults1 = mock(RowResults.class);
         RowResults rowResults2 = mock(RowResults.class);
-        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, null), new AnalyticsResult(rowResults2, null)));
+        givenProcessResults(Arrays.asList(new AnalyticsResult(rowResults1, 50), new AnalyticsResult(rowResults2, 100)));
         AnalyticsResultProcessor resultProcessor = createResultProcessor();
 
         resultProcessor.process(process);
@@ -65,6 +71,8 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
         InOrder inOrder = Mockito.inOrder(dataFrameRowsJoiner);
         inOrder.verify(dataFrameRowsJoiner).processRowResults(rowResults1);
         inOrder.verify(dataFrameRowsJoiner).processRowResults(rowResults2);
+
+        assertThat(progressPercent, equalTo(100));
     }
 
     private void givenProcessResults(List<AnalyticsResult> results) {
@@ -72,6 +80,7 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
     }
 
     private AnalyticsResultProcessor createResultProcessor() {
-        return new AnalyticsResultProcessor(new AnalyticsProcessManager.ProcessContext(), dataFrameRowsJoiner);
+        return new AnalyticsResultProcessor(JOB_ID, dataFrameRowsJoiner, () -> false,
+            progressPercent -> this.progressPercent = progressPercent);
     }
 }

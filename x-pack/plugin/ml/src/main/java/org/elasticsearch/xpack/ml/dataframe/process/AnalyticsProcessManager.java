@@ -12,12 +12,12 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 
@@ -40,27 +40,35 @@ public class AnalyticsProcessManager {
     private final AnalyticsProcessFactory processFactory;
     private final ConcurrentMap<Long, ProcessContext> processContextByAllocation = new ConcurrentHashMap<>();
 
-    public AnalyticsProcessManager(Client client, Environment environment, ThreadPool threadPool,
-                                   AnalyticsProcessFactory analyticsProcessFactory) {
+    public AnalyticsProcessManager(Client client, ThreadPool threadPool, AnalyticsProcessFactory analyticsProcessFactory) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.processFactory = Objects.requireNonNull(analyticsProcessFactory);
     }
 
-    public void runJob(long taskAllocationId, DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory,
-                       Consumer<Exception> finishHandler) {
+    public void runJob(TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config,
+                       DataFrameDataExtractorFactory dataExtractorFactory, Consumer<Exception> finishHandler) {
         threadPool.generic().execute(() -> {
-            DataFrameDataExtractor dataExtractor = dataExtractorFactory.newExtractor(false);
-            AnalyticsProcess process = createProcess(config.getId(), createProcessConfig(config, dataExtractor));
-            processContextByAllocation.putIfAbsent(taskAllocationId, new ProcessContext());
-            ExecutorService executorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
-            DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
-                dataExtractorFactory.newExtractor(true));
-            AnalyticsResultProcessor resultProcessor = new AnalyticsResultProcessor(processContextByAllocation.get(taskAllocationId),
-                dataFrameRowsJoiner);
-            executorService.execute(() -> resultProcessor.process(process));
-            executorService.execute(
-                () -> processData(taskAllocationId, config, dataExtractor, process, resultProcessor, finishHandler));
+            if (task.isStopping()) {
+                // The task was requested to stop before we created the process context
+                finishHandler.accept(null);
+                return;
+            }
+
+            ProcessContext processContext = new ProcessContext(config.getId());
+            if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
+                finishHandler.accept(ExceptionsHelper.serverError("[" + processContext.id
+                    + "] Could not create process as one already exists"));
+                return;
+            }
+            if (processContext.startProcess(dataExtractorFactory, config)) {
+                ExecutorService executorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
+                executorService.execute(() -> processContext.resultProcessor.process(processContext.process));
+                executorService.execute(() -> processData(task.getAllocationId(), config, processContext.dataExtractor,
+                    processContext.process, processContext.resultProcessor, finishHandler));
+            } else {
+                finishHandler.accept(null);
+            }
         });
     }
 
@@ -92,6 +100,8 @@ public class AnalyticsProcessManager {
                 finishHandler.accept(e);
             }
             processContextByAllocation.remove(taskAllocationId);
+            LOGGER.debug("Removed process context for task [{}]; [{}] processes still running", config.getId(),
+                processContextByAllocation.size());
         }
     }
 
@@ -141,13 +151,6 @@ public class AnalyticsProcessManager {
         return process;
     }
 
-    private AnalyticsProcessConfig createProcessConfig(DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor) {
-        DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
-        AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
-                config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), config.getAnalysis());
-        return processConfig;
-    }
-
     @Nullable
     public Integer getProgressPercent(long allocationId) {
         ProcessContext processContext = processContextByAllocation.get(allocationId);
@@ -159,12 +162,78 @@ public class AnalyticsProcessManager {
             () -> client.execute(RefreshAction.INSTANCE, new RefreshRequest(config.getDest().getIndex())).actionGet());
     }
 
-    static class ProcessContext {
+    public void stop(TransportStartDataFrameAnalyticsAction.DataFrameAnalyticsTask task) {
+        ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
+        if (processContext != null) {
+            LOGGER.debug("[{}] Stopping process", task.getParams().getId() );
+            processContext.stop();
+        } else {
+            LOGGER.debug("[{}] No process context to stop", task.getParams().getId() );
+        }
+    }
 
+    class ProcessContext {
+
+        private final String id;
+        private volatile AnalyticsProcess process;
+        private volatile DataFrameDataExtractor dataExtractor;
+        private volatile AnalyticsResultProcessor resultProcessor;
         private final AtomicInteger progressPercent = new AtomicInteger(0);
+        private volatile boolean processKilled;
+
+        ProcessContext(String id) {
+            this.id = Objects.requireNonNull(id);
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public boolean isProcessKilled() {
+            return processKilled;
+        }
 
         void setProgressPercent(int progressPercent) {
             this.progressPercent.set(progressPercent);
+        }
+
+        public synchronized void stop() {
+            LOGGER.debug("[{}] Stopping process", id);
+            processKilled = true;
+            if (dataExtractor != null) {
+                dataExtractor.cancel();
+            }
+            if (process != null) {
+                try {
+                    process.kill();
+                } catch (IOException e) {
+                    LOGGER.error(new ParameterizedMessage("[{}] Failed to kill process", id), e);
+                }
+            }
+        }
+
+        /**
+         * @return {@code true} if the process was started or {@code false} if it was not because it was stopped in the meantime
+         */
+        private synchronized boolean startProcess(DataFrameDataExtractorFactory dataExtractorFactory, DataFrameAnalyticsConfig config) {
+            if (processKilled) {
+                // The job was stopped before we started the process so no need to start it
+                return false;
+            }
+
+            dataExtractor = dataExtractorFactory.newExtractor(false);
+            process = createProcess(config.getId(), createProcessConfig(config, dataExtractor));
+            DataFrameRowsJoiner dataFrameRowsJoiner = new DataFrameRowsJoiner(config.getId(), client,
+                dataExtractorFactory.newExtractor(true));
+            resultProcessor = new AnalyticsResultProcessor(id, dataFrameRowsJoiner, this::isProcessKilled, this::setProgressPercent);
+            return true;
+        }
+
+        private AnalyticsProcessConfig createProcessConfig(DataFrameAnalyticsConfig config, DataFrameDataExtractor dataExtractor) {
+            DataFrameDataExtractor.DataSummary dataSummary = dataExtractor.collectDataSummary();
+            AnalyticsProcessConfig processConfig = new AnalyticsProcessConfig(dataSummary.rows, dataSummary.cols,
+                config.getModelMemoryLimit(), 1, config.getDest().getResultsField(), config.getAnalysis());
+            return processConfig;
         }
     }
 }

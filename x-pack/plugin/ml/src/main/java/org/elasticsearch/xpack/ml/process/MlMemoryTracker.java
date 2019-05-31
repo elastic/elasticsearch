@@ -344,7 +344,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         String startedJobIds = mlDataFrameAnalyticsJobTasks.stream()
             .map(task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId()).sorted().collect(Collectors.joining(","));
 
-        configProvider.getMultiple(startedJobIds, ActionListener.wrap(
+        configProvider.getMultiple(startedJobIds, false, ActionListener.wrap(
             analyticsConfigs -> {
                 for (DataFrameAnalyticsConfig analyticsConfig : analyticsConfigs) {
                     memoryRequirementByDataFrameAnalyticsJob.put(analyticsConfig.getId(),

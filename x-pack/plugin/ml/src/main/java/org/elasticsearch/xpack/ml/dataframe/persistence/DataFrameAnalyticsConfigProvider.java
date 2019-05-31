@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -36,6 +37,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class DataFrameAnalyticsConfigProvider {
+
+    private static final int MAX_CONFIGS_SIZE = 10000;
 
     private static final Map<String, String> TO_XCONTENT_PARAMS;
 
@@ -108,9 +111,11 @@ public class DataFrameAnalyticsConfigProvider {
     /**
      * @param ids a comma separated list of single IDs and/or wildcards
      */
-    public void getMultiple(String ids, ActionListener<List<DataFrameAnalyticsConfig>> listener) {
+    public void getMultiple(String ids, boolean allowNoMatch, ActionListener<List<DataFrameAnalyticsConfig>> listener) {
         GetDataFrameAnalyticsAction.Request request = new GetDataFrameAnalyticsAction.Request();
+        request.setPageParams(new PageParams(0, MAX_CONFIGS_SIZE));
         request.setResourceId(ids);
+        request.setAllowNoResources(allowNoMatch);
         executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsAction.INSTANCE, request, ActionListener.wrap(
             response -> listener.onResponse(response.getResources().results()), listener::onFailure));
     }

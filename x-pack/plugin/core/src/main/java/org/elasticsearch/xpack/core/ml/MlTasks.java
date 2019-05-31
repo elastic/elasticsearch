@@ -61,6 +61,10 @@ public final class MlTasks {
         return DATA_FRAME_ANALYTICS_TASK_ID_PREFIX + id;
     }
 
+    public static String dataFrameAnalyticsIdFromTaskId(String taskId) {
+        return taskId.replaceFirst(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX, "");
+    }
+
     @Nullable
     public static PersistentTasksCustomMetaData.PersistentTask<?> getJobTask(String jobId, @Nullable PersistentTasksCustomMetaData tasks) {
         return tasks == null ? null : tasks.getTask(jobTaskId(jobId));

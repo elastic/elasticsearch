@@ -177,6 +177,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
 
     @Override
     public void kill() throws IOException {
+        LOGGER.debug("[{}] Killing {} process", jobId, getName());
         processKilled = true;
         try {
             // The PID comes via the processes log stream.  We don't wait for it to arrive here,
@@ -274,7 +275,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             }
             processOutStream().close();
         } catch (IOException e) {
-            throw new RuntimeException("Error closing result parser input stream", e);
+            // Given we are closing down the process there is no point propagating IO exceptions here
         }
     }
 }

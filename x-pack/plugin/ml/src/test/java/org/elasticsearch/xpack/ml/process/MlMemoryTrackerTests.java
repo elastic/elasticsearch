@@ -118,7 +118,7 @@ public class MlMemoryTrackerTests extends ESTestCase {
                 String jobId = "job" + i;
                 verify(jobResultsProvider, times(1)).getEstablishedMemoryUsage(eq(jobId), any(), any(), any(), any());
             }
-            verify(configProvider, times(1)).getMultiple(eq(String.join(",", allIds)), any(ActionListener.class));
+            verify(configProvider, times(1)).getMultiple(eq(String.join(",", allIds)), eq(false), any(ActionListener.class));
         } else {
             verify(jobResultsProvider, never()).getEstablishedMemoryUsage(anyString(), any(), any(), any(), any());
         }

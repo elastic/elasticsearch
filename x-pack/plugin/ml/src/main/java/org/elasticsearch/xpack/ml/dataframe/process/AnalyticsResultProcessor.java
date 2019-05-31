@@ -7,34 +7,42 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 public class AnalyticsResultProcessor {
 
     private static final Logger LOGGER = LogManager.getLogger(AnalyticsResultProcessor.class);
 
-    private final AnalyticsProcessManager.ProcessContext processContext;
+    private final String dataFrameAnalyticsId;
     private final DataFrameRowsJoiner dataFrameRowsJoiner;
+    private final Supplier<Boolean> isProcessKilled;
+    private final Consumer<Integer> progressConsumer;
     private final CountDownLatch completionLatch = new CountDownLatch(1);
 
-    public AnalyticsResultProcessor(AnalyticsProcessManager.ProcessContext processContext, DataFrameRowsJoiner dataFrameRowsJoiner) {
-        this.processContext = Objects.requireNonNull(processContext);
+    public AnalyticsResultProcessor(String dataFrameAnalyticsId, DataFrameRowsJoiner dataFrameRowsJoiner, Supplier<Boolean> isProcessKilled,
+                                    Consumer<Integer> progressConsumer) {
+        this.dataFrameAnalyticsId = Objects.requireNonNull(dataFrameAnalyticsId);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
+        this.isProcessKilled = Objects.requireNonNull(isProcessKilled);
+        this.progressConsumer = Objects.requireNonNull(progressConsumer);
     }
 
     public void awaitForCompletion() {
         try {
             if (completionLatch.await(30, TimeUnit.MINUTES) == false) {
-                LOGGER.warn("Timeout waiting for results processor to complete");
+                LOGGER.warn("[{}] Timeout waiting for results processor to complete", dataFrameAnalyticsId);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOGGER.info("Interrupted waiting for results processor to complete");
+            LOGGER.info("[{}] Interrupted waiting for results processor to complete", dataFrameAnalyticsId);
         }
     }
 
@@ -47,7 +55,11 @@ public class AnalyticsResultProcessor {
                 processResult(result, resultsJoiner);
             }
         } catch (Exception e) {
-            LOGGER.error("Error parsing data frame analytics output", e);
+            if (isProcessKilled.get()) {
+                // No need to log error as it's due to stopping
+            } else {
+                LOGGER.error(new ParameterizedMessage("[{}] Error parsing data frame analytics output", dataFrameAnalyticsId), e);
+            }
         } finally {
             completionLatch.countDown();
             process.consumeAndCloseOutputStream();
@@ -61,7 +73,7 @@ public class AnalyticsResultProcessor {
         }
         Integer progressPercent = result.getProgressPercent();
         if (progressPercent != null) {
-            processContext.setProgressPercent(progressPercent);
+            progressConsumer.accept(progressPercent);
         }
     }
 }

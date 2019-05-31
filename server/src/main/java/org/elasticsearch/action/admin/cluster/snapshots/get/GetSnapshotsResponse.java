@@ -249,13 +249,15 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 ElasticsearchException error = in.readException();
                 failedResponses.put(repository, error);
             }
+            successfulResponses = Collections.unmodifiableMap(successfulResponses);
+            failedResponses = Collections.unmodifiableMap(failedResponses);
         } else {
             int size = in.readVInt();
             List<SnapshotInfo> snapshots = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 snapshots.add(new SnapshotInfo(in));
             }
-            successfulResponses.put("unknown", snapshots);
+            successfulResponses = Collections.singletonMap("unknown", snapshots);
         }
     }
 

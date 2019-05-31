@@ -393,9 +393,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testReadOnly() throws Exception {
@@ -533,9 +530,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot succeeded
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testFreezeAction() throws Exception {
@@ -591,9 +585,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         // assert that snapshot is still in progress and clean up
         assertThat(getSnapshotState("snapshot"), equalTo("SUCCESS"));
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/snapshot")));
-        ResponseException e = expectThrows(ResponseException.class,
-            () -> client().performRequest(new Request("GET", "/_snapshot/repo/snapshot")));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
     }
 
     public void testSetPriority() throws Exception {

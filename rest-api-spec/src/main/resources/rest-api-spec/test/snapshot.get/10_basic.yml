@@ -11,6 +11,9 @@ setup:
 
 ---
 "Get snapshot info":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       indices.create:
@@ -41,6 +44,9 @@ setup:
 
 ---
 "Get missing snapshot info throws an exception":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       snapshot.get:
@@ -52,6 +58,9 @@ setup:
 
 ---
 "Get missing snapshot info succeeds when ignore_unavailable is true":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       snapshot.get:
@@ -63,6 +72,10 @@ setup:
 
 ---
 "Get snapshot info when verbose is false":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
+
   - do:
       indices.create:
         index: test_index
@@ -97,6 +110,9 @@ setup:
 
 ---
 "Get snapshot info contains include_global_state":
+  - skip:
+      version: " - 7.9.99"
+      reason: "8.0 changes get snapshots response format"
 
   - do:
       indices.create:

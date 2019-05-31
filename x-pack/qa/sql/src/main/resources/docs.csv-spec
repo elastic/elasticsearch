@@ -569,6 +569,7 @@ M              |57
 
 groupByAndAggExpression
 schema::g:s|salary:i
+// tag::groupByAndAggExpression
 SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gender;
 
        g       |    salary     

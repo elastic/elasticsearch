@@ -25,11 +25,8 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
-import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
-import org.mockito.ArgumentCaptor;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,12 +34,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RestMonitoringBulkActionTests extends ESTestCase {
@@ -116,8 +108,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
     public void testNoErrors() throws Exception {
         final MonitoringBulkResponse response = new MonitoringBulkResponse(randomLong(), false);
-        final FakeRestRequest request = createRestRequest(randomSystemId(), TEMPLATE_VERSION, "10s");
-        final RestResponse restResponse = getRestBuilderListener(request).buildResponse(response);
+        final RestResponse restResponse = getRestBuilderListener().buildResponse(response);
 
         assertThat(restResponse.status(), is(RestStatus.OK));
         assertThat(restResponse.content().utf8ToString(),
@@ -126,8 +117,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
 
     public void testNoErrorsButIgnored() throws Exception {
         final MonitoringBulkResponse response = new MonitoringBulkResponse(randomLong(), true);
-        final FakeRestRequest request = createRestRequest(randomSystemId(), TEMPLATE_VERSION, "10s");
-        final RestResponse restResponse = getRestBuilderListener(request).buildResponse(response);
+        final RestResponse restResponse = getRestBuilderListener().buildResponse(response);
 
         assertThat(restResponse.status(), is(RestStatus.OK));
         assertThat(restResponse.content().utf8ToString(),
@@ -140,8 +130,7 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         final MonitoringBulkResponse response = new MonitoringBulkResponse(randomLong(), error);
         final String errorJson;
 
-        final FakeRestRequest request = createRestRequest(randomSystemId(), TEMPLATE_VERSION, "10s");
-        final RestResponse restResponse = getRestBuilderListener(request).buildResponse(response);
+        final RestResponse restResponse = getRestBuilderListener().buildResponse(response);
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             error.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -168,24 +157,18 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
     }
 
     private void prepareRequest(final RestRequest restRequest) throws Exception {
-        getRestBuilderListener(restRequest);
-    }
-
-    private RestBuilderListener<MonitoringBulkResponse> getRestBuilderListener(final RestRequest restRequest) throws Exception {
         final NodeClient client = mock(NodeClient.class);
         final CheckedConsumer<RestChannel, Exception> consumer = action.prepareRequest(restRequest, client);
         final RestChannel channel = mock(RestChannel.class);
         when(channel.newBuilder()).thenReturn(JsonXContent.contentBuilder());
-
-        final ArgumentCaptor<RestBuilderListener> captor = ArgumentCaptor.forClass(RestBuilderListener.class);
-
-        // trigger/capture execution
+        // trigger execution
         consumer.accept(channel);
-        verify(client).execute(eq(MonitoringBulkAction.INSTANCE), any(MonitoringBulkRequest.class), captor.capture());
+    }
 
-        assertThat(captor.getValue(), not(nullValue()));
-
-        return (RestBuilderListener<MonitoringBulkResponse>) captor.getValue();
+    private RestBuilderListener<MonitoringBulkResponse> getRestBuilderListener() throws Exception {
+        final RestChannel channel = mock(RestChannel.class);
+        when(channel.newBuilder()).thenReturn(JsonXContent.contentBuilder());
+        return RestMonitoringBulkAction.getRestBuilderListener(channel);
     }
 
     private static FakeRestRequest createRestRequest(final String systemId, final String systemApiVersion, final String interval) {

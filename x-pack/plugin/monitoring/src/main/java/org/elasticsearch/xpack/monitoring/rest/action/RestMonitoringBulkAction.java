@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -100,25 +101,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
         final MonitoringBulkRequestBuilder requestBuilder = new MonitoringBulkRequestBuilder(client);
         requestBuilder.add(system, request.content(), request.getXContentType(), timestamp, intervalMillis);
-        return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
-            @Override
-            public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                {
-                    builder.field("took", response.getTookInMillis());
-                    builder.field("ignored", response.isIgnored());
-
-                    final MonitoringBulkResponse.Error error = response.getError();
-                    builder.field("errors", error != null);
-
-                    if (error != null) {
-                        builder.field("error", response.getError());
-                    }
-                }
-                builder.endObject();
-                return new BytesRestResponse(response.status(), builder);
-            }
-        });
+        return channel -> requestBuilder.execute(getRestBuilderListener(channel));
     }
 
     @Override
@@ -137,5 +120,27 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     private boolean isSupportedSystemVersion(final MonitoredSystem system, final String version) {
         final List<String> monitoredSystem = supportedApiVersions.getOrDefault(system, emptyList());
         return monitoredSystem.contains(version);
+    }
+
+    static RestBuilderListener<MonitoringBulkResponse> getRestBuilderListener(RestChannel channel) {
+        return new RestBuilderListener<>(channel) {
+            @Override
+            public RestResponse buildResponse(MonitoringBulkResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                {
+                    builder.field("took", response.getTookInMillis());
+                    builder.field("ignored", response.isIgnored());
+
+                    final MonitoringBulkResponse.Error error = response.getError();
+                    builder.field("errors", error != null);
+
+                    if (error != null) {
+                        builder.field("error", response.getError());
+                    }
+                }
+                builder.endObject();
+                return new BytesRestResponse(response.status(), builder);
+            }
+        };
     }
 }

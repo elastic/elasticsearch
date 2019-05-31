@@ -134,9 +134,6 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.tieBreaker(randomFloat());
         }
-        if (randomBoolean() && query.type() != Type.BOOL_PREFIX) {
-            query.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
-        }
         if (randomBoolean()) {
             query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.NONE, MatchQuery.ZeroTermsQuery.ALL));
         }

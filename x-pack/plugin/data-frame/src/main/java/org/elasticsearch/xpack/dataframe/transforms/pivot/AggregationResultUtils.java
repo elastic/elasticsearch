@@ -61,7 +61,7 @@ public final class AggregationResultUtils {
             groups.getGroups().keySet().forEach(destinationFieldName -> {
                 Object value = bucket.getKey().get(destinationFieldName);
                 idGen.add(destinationFieldName, value);
-                document.put(destinationFieldName, value);
+                updateDocument(document, destinationFieldName, value);
             });
 
             List<String> aggNames = aggregationBuilders.stream().map(AggregationBuilder::getName).collect(Collectors.toList());

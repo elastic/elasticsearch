@@ -26,7 +26,6 @@
 esplugin {
     description 'Netty 4 based transport implementation'
     classname 'org.elasticsearch.transport.Netty4Plugin'
-    hasClientJar = true
 }
 
 compileTestJava.options.compilerArgs << "-Xlint:-cast,-rawtypes,-unchecked"
@@ -75,6 +74,10 @@ thirdPartyAudit {
         // from io.netty.logging.CommonsLoggerFactory (netty)
         'org.apache.commons.logging.Log',
         'org.apache.commons.logging.LogFactory',
+
+        // from Log4j (deliberate, Netty will fallback to Log4j 2)
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
 
         // from io.netty.handler.ssl.OpenSslEngine (netty)
         'io.netty.internal.tcnative.Buffer',

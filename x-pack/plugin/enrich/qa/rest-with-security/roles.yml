@@ -11,3 +11,16 @@ enrich:
         - read
         - write
         - create_index
+
+enrich_no_privs:
+  cluster:
+    - manage_ingest_pipelines
+    - monitor
+  indices:
+    - names: [ '.enrich-my_policy*', 'my-index', 'my-source-index' ]
+      privileges:
+        - manage
+        - monitor
+        - read
+        - write
+        - create_index

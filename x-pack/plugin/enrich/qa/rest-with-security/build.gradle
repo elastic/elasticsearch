@@ -21,6 +21,8 @@ restTestCluster {
             'bin/elasticsearch-users', 'useradd', "test_admin", '-p', 'x-pack-test-password', '-r', "superuser"
     setupCommand 'setupEnrichUser',
             'bin/elasticsearch-users', 'useradd', "test_enrich", '-p', 'x-pack-test-password', '-r', "enrich"
+    setupCommand 'setupEnrichUserNoPrivs',
+            'bin/elasticsearch-users', 'useradd', "test_enrich_no_privs", '-p', 'x-pack-test-password', '-r', "enrich_no_privs"
     waitCondition = { node, ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
         ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",

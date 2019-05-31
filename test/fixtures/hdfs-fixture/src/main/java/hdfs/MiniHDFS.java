@@ -94,6 +94,7 @@ public class MiniHDFS {
             cfg.set(DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, "true");
             cfg.set(DFSConfigKeys.IGNORE_SECURE_PORTS_FOR_TESTING_KEY, "true");
             cfg.set(DFSConfigKeys.DFS_ENCRYPT_DATA_TRANSFER_KEY, "true");
+            cfg.set(DFSConfigKeys.DFS_DATANODE_ADDRESS_KEY, "localhost:0");
         }
 
         UserGroupInformation.setConfiguration(cfg);

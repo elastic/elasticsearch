@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -26,7 +25,7 @@ import java.nio.charset.StandardCharsets;
 import static org.hamcrest.Matchers.is;
 
 // no client nodes, no transport clients, as they all get rejected on network connections
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     private static int randomClientPort;
 
@@ -59,11 +58,6 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
             trySocketConnection(socket, transportAddress.address());
             assertThat(socket.isClosed(), is(true));
         }
-    }
-
-    public void testThatIpFilteringIsNotAppliedForDefaultTransport() throws Exception {
-        Client client = internalCluster().transportClient();
-        assertGreenClusterState(client);
     }
 
     public void testThatIpFilteringIsAppliedForProfile() throws Exception {

@@ -20,7 +20,6 @@ package org.elasticsearch.cluster.coordination;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.LockObtainFailedException;
@@ -59,22 +58,15 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     static final String NO_GLOBAL_METADATA_MSG = "failed to find global metadata, metadata corrupted?";
     static final String WRITE_METADATA_EXCEPTION_MSG = "exception occurred when writing new metadata to disk";
     protected static final String ABORTED_BY_USER_MSG = "aborted by user";
-    final OptionSpec<Integer> nodeOrdinalOption;
 
     public ElasticsearchNodeCommand(String description) {
         super(description);
-        nodeOrdinalOption = parser.accepts("ordinal", "Optional node ordinal, 0 if not specified")
-                .withRequiredArg().ofType(Integer.class);
         namedXContentRegistry = new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
     }
 
-    protected void processNodePathsWithLock(Terminal terminal, OptionSet options, Environment env) throws IOException {
+    protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
-        Integer nodeOrdinal = nodeOrdinalOption.value(options);
-        if (nodeOrdinal == null) {
-            nodeOrdinal = 0;
-        }
-        try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(nodeOrdinal, logger, env, Files::exists)) {
+        try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, env, Files::exists)) {
             final Path[] dataPaths =
                     Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
             if (dataPaths.length == 0) {
@@ -118,7 +110,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected final void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         terminal.println(STOP_WARNING_MSG);
         if (validateBeforeLock(terminal, env)) {
-            processNodePathsWithLock(terminal, options, env);
+            processNodePaths(terminal, options, env);
         }
     }
 

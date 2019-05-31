@@ -42,7 +42,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         assertEquals("^\"?time\"?,\"?message\"?", structure.getExcludeLinesPattern());
-        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -77,7 +77,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         assertEquals("^\"?time\"?,\"?message\"?", structure.getExcludeLinesPattern());
-        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -147,7 +147,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             assertEquals(hasByteOrderMarker, structure.getHasByteOrderMarker());
         }
         assertEquals("^\"?message\"?,\"?time\"?,\"?count\"?", structure.getExcludeLinesPattern());
-        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -185,7 +185,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
             "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
             structure.getExcludeLinesPattern());
-        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -230,7 +230,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
             "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
             "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?,\"?\"?,\"?\"?",
             structure.getExcludeLinesPattern());
-        assertEquals("^.*?,.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^.*?,.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -270,7 +270,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
                 "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
                 "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
             structure.getExcludeLinesPattern());
-        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());
@@ -317,7 +317,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
                 "\"?RatecodeID\"?,\"?store_and_fwd_flag\"?,\"?PULocationID\"?,\"?DOLocationID\"?,\"?payment_type\"?,\"?fare_amount\"?," +
                 "\"?extra\"?,\"?mta_tax\"?,\"?tip_amount\"?,\"?tolls_amount\"?,\"?improvement_surcharge\"?,\"?total_amount\"?",
             structure.getExcludeLinesPattern());
-        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}", structure.getMultilineStartPattern());
+        assertEquals("^.*?,\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertEquals(Character.valueOf(','), structure.getDelimiter());
         assertEquals(Character.valueOf('"'), structure.getQuote());
         assertTrue(structure.getHasHeaderRow());

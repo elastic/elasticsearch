@@ -138,20 +138,14 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         }
         this.datafeeds = datafeeds;
         this.groupOrJobLookup = new GroupOrJobLookup(jobs.values());
-        if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-            this.upgradeMode = in.readBoolean();
-        } else {
-            this.upgradeMode = false;
-        }
+        this.upgradeMode = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         writeMap(jobs, out);
         writeMap(datafeeds, out);
-        if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-            out.writeBoolean(upgradeMode);
-        }
+        out.writeBoolean(upgradeMode);
     }
 
     private static <T extends Writeable> void writeMap(Map<String, T> map, StreamOutput out) throws IOException {
@@ -202,11 +196,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
                     MlMetadataDiff::readJobDiffFrom);
             this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
                     MlMetadataDiff::readDatafeedDiffFrom);
-            if (in.getVersion().onOrAfter(Version.V_6_7_0)) {
-                upgradeMode = in.readBoolean();
-            } else {
-                upgradeMode = false;
-            }
+            upgradeMode = in.readBoolean();
         }
 
         /**
@@ -225,9 +215,7 @@ public class MlMetadata implements XPackPlugin.XPackMetaDataCustom {
         public void writeTo(StreamOutput out) throws IOException {
             jobs.writeTo(out);
             datafeeds.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_6_7_0)) {
-                out.writeBoolean(upgradeMode);
-            }
+            out.writeBoolean(upgradeMode);
         }
 
         @Override

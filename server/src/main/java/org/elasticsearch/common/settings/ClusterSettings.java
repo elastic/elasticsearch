@@ -280,19 +280,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
             SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
             TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
             RemoteClusterAware.REMOTE_CLUSTERS_SEEDS,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_SEEDS,
             RemoteClusterAware.REMOTE_CLUSTERS_PROXY,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY,
             RemoteClusterService.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
-            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE,
             RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
-            RemoteClusterService.SEARCH_REMOTE_CONNECTIONS_PER_CLUSTER,
             RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
-            RemoteClusterService.SEARCH_REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING,
             RemoteClusterService.REMOTE_NODE_ATTRIBUTE,
-            RemoteClusterService.SEARCH_REMOTE_NODE_ATTRIBUTE,
             RemoteClusterService.ENABLE_REMOTE_CLUSTERS,
-            RemoteClusterService.SEARCH_ENABLE_REMOTE_CLUSTERS,
             RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
             TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
@@ -390,7 +383,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ThreadContext.DEFAULT_HEADERS_SETTING,
             Loggers.LOG_DEFAULT_LEVEL_SETTING,
             Loggers.LOG_LEVEL_SETTING,
-            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING,
             NodeEnvironment.ENABLE_LUCENE_SEGMENT_INFOS_TRACE_SETTING,
             OsService.REFRESH_INTERVAL_SETTING,
             ProcessService.REFRESH_INTERVAL_SETTING,
@@ -452,9 +444,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ClusterBootstrapService.UNCONFIGURED_BOOTSTRAP_TIMEOUT_SETTING,
             LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING);
 
-    static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = List.of(
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTER_SEEDS_UPGRADER,
-            RemoteClusterAware.SEARCH_REMOTE_CLUSTERS_PROXY_UPGRADER,
-            RemoteClusterService.SEARCH_REMOTE_CLUSTER_SKIP_UNAVAILABLE_UPGRADER);
+    static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 
 }

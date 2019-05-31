@@ -406,15 +406,13 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
                 .setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON))
                 .addSort("_id", SortOrder.ASC)
                 .get();
-        assertHitCount(response, 4);
+        assertHitCount(response, 3);
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(1).getScore(), equalTo(Float.NaN));
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(response.getHits().getAt(2).getScore(), equalTo(Float.NaN));
-        assertThat(response.getHits().getAt(3).getId(), equalTo("4"));
-        assertThat(response.getHits().getAt(3).getScore(), equalTo(Float.NaN));
     }
 
     public void testPercolatorQueryWithHighlighting() throws Exception {

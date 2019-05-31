@@ -61,7 +61,8 @@ phrase matches are required. Default value is `0`.
 
 |`analyze_wildcard` |By default, wildcards terms in a query string are
 not analyzed. By setting this value to `true`, a best effort will be
-made to analyze those as well.
+made to analyze those as well. Only parts of the analysis chain that 
+<<analysis-normalizers, operate at the character level>> will be applied.
 
 |`max_determinized_states` |Limit on how many automaton states regexp
 queries are allowed to create.  This protects against too-difficult

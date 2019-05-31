@@ -191,7 +191,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             startTransformRequest.setOptions(expectWarnings(warnings));
         }
         Map<String, Object> startTransformResponse = entityAsMap(client().performRequest(startTransformRequest));
-        assertThat(startTransformResponse.get("started"), equalTo(Boolean.TRUE));
+        assertThat(startTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected void stopDataFrameTransform(String transformId, boolean force) throws Exception {
@@ -200,7 +200,7 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
         stopTransformRequest.addParameter(DataFrameField.FORCE.getPreferredName(), Boolean.toString(force));
         stopTransformRequest.addParameter(DataFrameField.WAIT_FOR_COMPLETION.getPreferredName(), Boolean.toString(true));
         Map<String, Object> stopTransformResponse = entityAsMap(client().performRequest(stopTransformRequest));
-        assertThat(stopTransformResponse.get("stopped"), equalTo(Boolean.TRUE));
+        assertThat(stopTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected void startAndWaitForTransform(String transformId, String dataFrameIndex) throws Exception {
@@ -301,10 +301,12 @@ public abstract class DataFrameRestTestCase extends ESRestTestCase {
             request.addParameter("timeout", "10s");
             request.addParameter("ignore", "404");
             adminClient().performRequest(request);
+        }
+
+        for (Map<String, Object> transformConfig : transformConfigs) {
+            String transformId = (String) transformConfig.get("id");
             String state = getDataFrameIndexerState(transformId);
-            if (state != null) {
-                assertEquals("stopped", getDataFrameIndexerState(transformId));
-            }
+            assertEquals("Transform [" + transformId + "] indexer is not in the stopped state", "stopped", state);
         }
 
         for (Map<String, Object> transformConfig : transformConfigs) {

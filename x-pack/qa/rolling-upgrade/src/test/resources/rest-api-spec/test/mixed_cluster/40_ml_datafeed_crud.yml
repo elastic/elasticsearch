@@ -1,3 +1,8 @@
+setup:
+  - skip:
+      version: "all"
+      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/42258"
+
 ---
 "Test old cluster datafeed without aggs":
   - do:

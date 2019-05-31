@@ -94,8 +94,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
                 .putList(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath().toString()).build());
 
         // create same directory structure as prod does
-        final Path path = NodeEnvironment.resolveNodePath(dataDir);
-        Files.createDirectories(path);
+        Files.createDirectories(dataDir);
         settings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
@@ -103,7 +102,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
 
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(path);
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataDir);
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
         final IndexMetaData.Builder metaData = IndexMetaData.builder(routing.getIndexName())
             .settings(settings)

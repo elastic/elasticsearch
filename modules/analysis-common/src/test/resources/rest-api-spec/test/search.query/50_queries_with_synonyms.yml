@@ -1,5 +1,8 @@
 ---
 "Test common terms query with stacked tokens":
+  - skip:
+      features: "warnings"
+
   - do:
       indices.create:
           index: test
@@ -47,6 +50,8 @@
           refresh: true
 
   - do:
+      warnings:
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -62,6 +67,8 @@
   - match: { hits.hits.2._id: "3" }
 
   - do:
+      warnings:
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -76,6 +83,8 @@
   - match: { hits.hits.1._id: "2" }
 
   - do:
+      warnings:
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -90,6 +99,8 @@
   - match: { hits.hits.2._id: "3" }
 
   - do:
+      warnings:
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -103,6 +114,8 @@
   - match: { hits.hits.0._id: "2" }
 
   - do:
+      warnings:
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -118,6 +131,8 @@
   - match: { hits.hits.1._id: "1" }
 
   - do:
+      warnings:
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -132,6 +147,8 @@
   - match: { hits.hits.0._id: "2" }
 
   - do:
+      warnings:
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -144,6 +161,8 @@
   - match: { hits.hits.0._id: "2" }
 
   - do:
+      warnings:
+        - 'Deprecated field [common] used, replaced by [[match] query which can efficiently skip blocks of documents if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -158,6 +177,8 @@
   - match: { hits.hits.2._id: "3" }
 
   - do:
+      warnings:
+        - 'Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -172,6 +193,8 @@
   - match: { hits.hits.1._id: "2" }
 
   - do:
+      warnings:
+        - 'Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -187,6 +210,8 @@
   - match: { hits.hits.2._id: "3" }
 
   - do:
+      warnings:
+        - 'Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [match] query can skip block of documents efficiently if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:
@@ -201,6 +226,8 @@
   - match: { hits.hits.1._id: "2" }
 
   - do:
+      warnings:
+        - 'Deprecated field [cutoff_frequency] used, replaced by [you can omit this option, the [multi_match] query can skip block of documents efficiently if the total number of hits is not tracked]'
       search:
         rest_total_hits_as_int: true
         body:

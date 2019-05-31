@@ -150,8 +150,6 @@ class S3Repository extends BlobStoreRepository {
 
     private final ByteSizeValue chunkSize;
 
-    private final BlobPath basePath;
-
     private final boolean serverSideEncryption;
 
     private final String storageClass;
@@ -165,7 +163,7 @@ class S3Repository extends BlobStoreRepository {
                  final Settings settings,
                  final NamedXContentRegistry namedXContentRegistry,
                  final S3Service service, final ThreadPool threadPool) {
-        super(metadata, settings, namedXContentRegistry, threadPool);
+        super(metadata, settings, namedXContentRegistry, threadPool, buildBasePath(metadata));
         this.service = service;
 
         // Parse and validate the user's S3 Storage Class setting
@@ -181,13 +179,6 @@ class S3Repository extends BlobStoreRepository {
         if (this.chunkSize.getBytes() < bufferSize.getBytes()) {
             throw new RepositoryException(metadata.name(), CHUNK_SIZE_SETTING.getKey() + " (" + this.chunkSize +
                 ") can't be lower than " + BUFFER_SIZE_SETTING.getKey() + " (" + bufferSize + ").");
-        }
-
-        final String basePath = BASE_PATH_SETTING.get(metadata.settings());
-        if (Strings.hasLength(basePath)) {
-            this.basePath = new BlobPath().add(basePath);
-        } else {
-            this.basePath = BlobPath.cleanPath();
         }
 
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
@@ -211,6 +202,15 @@ class S3Repository extends BlobStoreRepository {
                 storageClass);
     }
 
+    private static BlobPath buildBasePath(RepositoryMetaData metadata) {
+        final String basePath = BASE_PATH_SETTING.get(metadata.settings());
+        if (Strings.hasLength(basePath)) {
+            return new BlobPath().add(basePath);
+        } else {
+            return BlobPath.cleanPath();
+        }
+    }
+
     @Override
     protected S3BlobStore createBlobStore() {
         return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass, metadata);
@@ -226,11 +226,6 @@ class S3Repository extends BlobStoreRepository {
     @Override
     protected BlobStore getBlobStore() {
         return super.getBlobStore();
-    }
-
-    @Override
-    protected BlobPath basePath() {
-        return basePath;
     }
 
     @Override

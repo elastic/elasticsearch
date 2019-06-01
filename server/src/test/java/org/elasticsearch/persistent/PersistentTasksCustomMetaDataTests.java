@@ -259,7 +259,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
     public void testMinVersionSerialization() throws IOException {
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
 
-        Version minVersion = allReleasedVersions().stream().filter(Version::isRelease).findFirst().orElseThrow(NoSuchElementException::new);
+        Version minVersion = allReleasedVersions().stream().findFirst().orElseThrow(NoSuchElementException::new);
         final Version streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(Version.CURRENT));
         tasks.addTask("test_compatible_version", TestPersistentTasksExecutor.NAME,
             new TestParams(null, randomVersionBetween(random(), minVersion, streamVersion),

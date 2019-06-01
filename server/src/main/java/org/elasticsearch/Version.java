@@ -284,7 +284,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
             for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {
                 final Version candidateVersion = DeclaredVersionsHolder.DECLARED_VERSIONS.get(i);
-                if (candidateVersion.major == major - 1 && candidateVersion.isRelease() && after(candidateVersion)) {
+                if (candidateVersion.major == major - 1 && after(candidateVersion)) {
                     if (bwcVersion != null && candidateVersion.minor < bwcVersion.minor) {
                         break;
                     }
@@ -340,27 +340,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append(major).append('.').append(minor).append('.').append(revision);
-        if (isAlpha()) {
-            sb.append("-alpha");
-            sb.append(build);
-        } else if (isBeta()) {
-            if (major >= 2) {
-                sb.append("-beta");
-            } else {
-                sb.append(".Beta");
-            }
-            sb.append(major < 5 ? build : build-25);
-        } else if (build < 99) {
-            if (major >= 2) {
-                sb.append("-rc");
-            } else {
-                sb.append(".RC");
-            }
-            sb.append(build - 50);
-        }
-        return sb.toString();
+        return major + "." + minor + "." + revision;
     }
 
     @Override
@@ -386,27 +366,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return id;
     }
 
-    public boolean isBeta() {
-        return major < 5 ? build < 50 : build >= 25 && build < 50;
-    }
-
-    /**
-     * Returns true iff this version is an alpha version
-     * Note: This has been introduced in elasticsearch version 5. Previous versions will never
-     * have an alpha version.
-     */
-    public boolean isAlpha() {
-        return major < 5 ? false :  build < 25;
-    }
-
-    public boolean isRC() {
-        return build > 50 && build < 99;
-    }
-
-    public boolean isRelease() {
-        return build == 99;
-    }
-
     /**
      * Extracts a sorted list of declared version constants from a class.
      * The argument would normally be Version.class but is exposed for
@@ -428,7 +387,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 case "V_EMPTY":
                     continue;
             }
-            assert field.getName().matches("V(_\\d+)+(_(alpha|beta|rc)\\d+)?") : field.getName();
+            assert field.getName().matches("V(_\\d+){3}?") : field.getName();
             try {
                 versions.add(((Version) field.get(null)));
             } catch (final IllegalAccessException e) {

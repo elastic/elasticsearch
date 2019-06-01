@@ -57,14 +57,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_GATEWAY;
 import static org.elasticsearch.cluster.metadata.MetaData.CONTEXT_MODE_SNAPSHOT;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
-import static org.elasticsearch.test.VersionUtils.allReleasedVersions;
 import static org.elasticsearch.test.VersionUtils.compatibleFutureVersion;
 import static org.elasticsearch.test.VersionUtils.getFirstVersion;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
@@ -258,7 +256,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
     public void testMinVersionSerialization() throws IOException {
         PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
 
-        Version minVersion = allReleasedVersions().stream().filter(Version::isRelease).findFirst().orElseThrow(NoSuchElementException::new);
+        Version minVersion = getFirstVersion();
         final Version streamVersion = randomVersionBetween(random(), minVersion, getPreviousVersion(Version.CURRENT));
         tasks.addTask("test_compatible_version", TestPersistentTasksExecutor.NAME,
             new TestParams(null, randomVersionBetween(random(), minVersion, streamVersion),
@@ -269,6 +267,7 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
                 randomBoolean() ? Optional.empty() : Optional.of("test")),
             randomAssignment());
         final BytesStreamOutput out = new BytesStreamOutput();
+
         out.setVersion(streamVersion);
         Set<String> features = new HashSet<>();
         if (randomBoolean()) {
@@ -283,29 +282,6 @@ public class PersistentTasksCustomMetaDataTests extends AbstractDiffableSerializ
             new PersistentTasksCustomMetaData(new NamedWriteableAwareStreamInput(input, getNamedWriteableRegistry()));
 
         assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible_version")));
-    }
-
-    public void testFeatureSerialization() throws IOException {
-        PersistentTasksCustomMetaData.Builder tasks = PersistentTasksCustomMetaData.builder();
-
-        Version minVersion = getFirstVersion();
-        tasks.addTask("test_compatible", TestPersistentTasksExecutor.NAME,
-            new TestParams(null, randomVersionBetween(random(), minVersion, Version.CURRENT),
-                randomBoolean() ? Optional.empty() : Optional.of("existing")),
-            randomAssignment());
-        tasks.addTask("test_incompatible", TestPersistentTasksExecutor.NAME,
-            new TestParams(null, randomVersionBetween(random(), minVersion, Version.CURRENT), Optional.of("non_existing")),
-            randomAssignment());
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(Version.CURRENT);
-        Set<String> features = new HashSet<>();
-        features.add("existing");
-        out.setFeatures(features);
-        tasks.build().writeTo(out);
-
-        PersistentTasksCustomMetaData read = new PersistentTasksCustomMetaData(
-            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), getNamedWriteableRegistry()));
-        assertThat(read.taskMap().keySet(), equalTo(Collections.singleton("test_compatible")));
     }
 
     public void testDisassociateDeadNodes_givenNoPersistentTasks() {

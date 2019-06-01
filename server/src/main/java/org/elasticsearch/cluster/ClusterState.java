@@ -113,11 +113,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
          * Tests whether or not the custom should be serialized. The criteria are:
          * <ul>
          * <li>the output stream must be at least the minimum supported version of the custom</li>
-         * <li>the output stream must have the feature required by the custom (if any)</li>
          * </ul>
          * <p>
-         * That is, we only serialize customs to clients than can understand the custom based on the version of the client and the features
-         * that the client has.
+         * That is, we only serialize customs to clients than can understand the custom based on the version of the client.
          *
          * @param out    the output stream
          * @param custom the custom to serialize
@@ -125,14 +123,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
          * @return true if the custom should be serialized and false otherwise
          */
         static <T extends VersionedNamedWriteable & FeatureAware> boolean shouldSerialize(final StreamOutput out, final T custom) {
-            if (out.getVersion().before(custom.getMinimalSupportedVersion())) {
-                return false;
-            }
-            if (custom.getRequiredFeature().isPresent()) {
-                final String requiredFeature = custom.getRequiredFeature().get();
-                return out.hasFeature(requiredFeature);
-            }
-            return true;
+            return out.getVersion().onOrAfter(custom.getMinimalSupportedVersion());
         }
 
     }

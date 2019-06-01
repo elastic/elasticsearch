@@ -28,6 +28,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -67,6 +69,13 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.PROXY_HOST_SETTING,
             AzureStorageSettings.PROXY_PORT_SETTING
         );
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return Collections.singletonList(
+            new FixedExecutorBuilder(
+                settings, RepositoryPlugin.REPOSITORY_THREAD_POOL_NAME, 32, "azure.threadpool"));
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -38,6 +40,8 @@ import java.util.concurrent.ThreadFactory;
 public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBuilder.FixedExecutorSettings> {
 
     private final Setting<Integer> sizeSetting;
+
+    @Nullable
     private final Setting<Integer> queueSizeSetting;
 
     /**
@@ -50,6 +54,26 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
      */
     FixedExecutorBuilder(final Settings settings, final String name, final int size, final int queueSize) {
         this(settings, name, size, queueSize, "thread_pool." + name);
+    }
+
+    /**
+     * Construct a fixed executor builder with an unlimited queue size.
+     *
+     * @param settings  the node-level settings
+     * @param name      the name of the executor
+     * @param size      the fixed number of threads
+     * @param prefix    the prefix for the settings keys
+     */
+    public FixedExecutorBuilder(final Settings settings, final String name, final int size, final String prefix) {
+        super(name);
+        final String sizeKey = settingsKey(prefix, "size");
+        this.sizeSetting =
+            new Setting<>(
+                sizeKey,
+                s -> Integer.toString(size),
+                s -> Setting.parseInt(s, 1, applyHardSizeLimit(settings, name), sizeKey),
+                Setting.Property.NodeScope);
+        this.queueSizeSetting = null;
     }
 
     /**
@@ -76,14 +100,19 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
 
     @Override
     public List<Setting<?>> getRegisteredSettings() {
-        return Arrays.asList(sizeSetting, queueSizeSetting);
+        return queueSizeSetting == null ? Collections.singletonList(sizeSetting) : Arrays.asList(sizeSetting, queueSizeSetting);
     }
 
     @Override
     FixedExecutorSettings getSettings(Settings settings) {
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
         final int size = sizeSetting.get(settings);
-        final int queueSize = queueSizeSetting.get(settings);
+        final int queueSize;
+        if (queueSizeSetting != null) {
+            queueSize = queueSizeSetting.get(settings);
+        } else {
+            queueSize = -1;
+        }
         return new FixedExecutorSettings(nodeName, size, queueSize);
     }
 

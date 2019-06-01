@@ -28,6 +28,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -40,15 +41,17 @@ import static java.util.Collections.emptyMap;
 public class AzureBlobStore implements BlobStore {
 
     private final AzureStorageService service;
+    private final ThreadPool threadPool;
 
     private final String clientName;
     private final String container;
     private final LocationMode locationMode;
 
-    public AzureBlobStore(RepositoryMetaData metadata, AzureStorageService service) {
+    public AzureBlobStore(RepositoryMetaData metadata, AzureStorageService service, ThreadPool threadPool) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
+        this.threadPool = threadPool;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         final Map<String, AzureStorageSettings> prevSettings = this.service.refreshAndClearCache(emptyMap());
@@ -70,7 +73,7 @@ public class AzureBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new AzureBlobContainer(path, this);
+        return new AzureBlobContainer(path, this, threadPool);
     }
 
     @Override

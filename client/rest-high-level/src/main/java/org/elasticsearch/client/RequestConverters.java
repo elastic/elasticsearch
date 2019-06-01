@@ -88,8 +88,10 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.Charset;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.StringJoiner;
 
 final class RequestConverters {
@@ -103,7 +105,7 @@ final class RequestConverters {
         String endpoint = endpoint(deleteRequest.index(), deleteRequest.type(), deleteRequest.id());
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
 
-        Params parameters = new Params(request);
+        Params parameters = new Params();
         parameters.withRouting(deleteRequest.routing());
         parameters.withTimeout(deleteRequest.timeout());
         parameters.withVersion(deleteRequest.version());
@@ -112,6 +114,7 @@ final class RequestConverters {
         parameters.withIfPrimaryTerm(deleteRequest.ifPrimaryTerm());
         parameters.withRefreshPolicy(deleteRequest.getRefreshPolicy());
         parameters.withWaitForActiveShards(deleteRequest.waitForActiveShards());
+        request.addParameters(parameters.asMap());
         return request;
     }
 
@@ -122,7 +125,7 @@ final class RequestConverters {
     static Request bulk(BulkRequest bulkRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_bulk");
 
-        Params parameters = new Params(request);
+        Params parameters = new Params();
         parameters.withTimeout(bulkRequest.timeout());
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
@@ -249,6 +252,7 @@ final class RequestConverters {
                 content.write(separator);
             }
         }
+        request.addParameters(parameters.asMap());
         request.setEntity(new NByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
         return request;
     }
@@ -264,7 +268,7 @@ final class RequestConverters {
     private static Request getStyleRequest(String method, GetRequest getRequest) {
         Request request = new Request(method, endpoint(getRequest.index(), getRequest.type(), getRequest.id()));
 
-        Params parameters = new Params(request);
+        Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
         parameters.withRefresh(getRequest.refresh());
@@ -273,7 +277,7 @@ final class RequestConverters {
         parameters.withVersion(getRequest.version());
         parameters.withVersionType(getRequest.versionType());
         parameters.withFetchSourceContext(getRequest.fetchSourceContext());
-
+        request.addParameters(parameters.asMap());
         return request;
     }
 
@@ -286,23 +290,24 @@ final class RequestConverters {
             endpoint = endpoint(getRequest.index(), optionalType, getRequest.id(), "_source");
         }
         Request request = new Request(HttpHead.METHOD_NAME, endpoint);
-        Params parameters = new Params(request);
+        Params parameters = new Params();
         parameters.withPreference(getRequest.preference());
         parameters.withRouting(getRequest.routing());
         parameters.withRefresh(getRequest.refresh());
         parameters.withRealtime(getRequest.realtime());
         // Version params are not currently supported by the source exists API so are not passed
+        request.addParameters(parameters.asMap());
         return request;
     }
 
     static Request multiGet(MultiGetRequest multiGetRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_mget");
 
-        Params parameters = new Params(request);
+        Params parameters = new Params();
         parameters.withPreference(multiGetRequest.preference());
         parameters.withRealtime(multiGetRequest.realtime());
         parameters.withRefresh(multiGetRequest.refresh());
-
+        request.addParameters(parameters.asMap());
         request.setEntity(createEntity(multiGetRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -321,7 +326,7 @@ final class RequestConverters {
 
         Request request = new Request(method, endpoint);
 
-        Params parameters = new Params(request);
+        Params parameters = new Params();
         parameters.withRouting(indexRequest.routing());
         parameters.withTimeout(indexRequest.timeout());
         parameters.withVersion(indexRequest.version());
@@ -334,6 +339,7 @@ final class RequestConverters {
 
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
+        request.addParameters(parameters.asMap());
         request.setEntity(new NByteArrayEntity(source.bytes, source.offset, source.length, contentType));
         return request;
     }
@@ -348,7 +354,7 @@ final class RequestConverters {
             : endpoint(updateRequest.index(), updateRequest.type(), updateRequest.id(), "_update");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
 
-        Params parameters = new Params(request);
+        Params parameters = new Params();
         parameters.withRouting(updateRequest.routing());
         parameters.withTimeout(updateRequest.timeout());
         parameters.withRefreshPolicy(updateRequest.getRefreshPolicy());
@@ -379,6 +385,7 @@ final class RequestConverters {
         if (xContentType == null) {
             xContentType = Requests.INDEX_CONTENT_TYPE;
         }
+        request.addParameters(parameters.asMap());
         request.setEntity(createEntity(updateRequest, xContentType));
         return request;
     }
@@ -393,12 +400,13 @@ final class RequestConverters {
     static Request search(SearchRequest searchRequest, String searchEndpoint) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(searchRequest.indices(), searchEndpoint));
 
-        Params params = new Params(request);
+        Params params = new Params();
         addSearchRequestParams(params, searchRequest);
 
         if (searchRequest.source() != null) {
             request.setEntity(createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE));
         }
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -436,7 +444,7 @@ final class RequestConverters {
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch");
 
-        Params params = new Params(request);
+        Params params = new Params();
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         if (multiSearchRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             params.putParam("max_concurrent_searches", Integer.toString(multiSearchRequest.maxConcurrentSearchRequests()));
@@ -444,6 +452,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
+        request.addParameters(params.asMap());
         request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
         return request;
     }
@@ -458,8 +467,9 @@ final class RequestConverters {
             String endpoint = endpoint(searchRequest.indices(), "_search/template");
             request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-            Params params = new Params(request);
+            Params params = new Params();
             addSearchRequestParams(params, searchRequest);
+            request.addParameters(params.asMap());
         }
 
         request.setEntity(createEntity(searchTemplateRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -469,7 +479,7 @@ final class RequestConverters {
     static Request multiSearchTemplate(MultiSearchTemplateRequest multiSearchTemplateRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch/template");
 
-        Params params = new Params(request);
+        Params params = new Params();
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         if (multiSearchTemplateRequest.maxConcurrentSearchRequests() != MultiSearchRequest.MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT) {
             params.putParam("max_concurrent_searches", Integer.toString(multiSearchTemplateRequest.maxConcurrentSearchRequests()));
@@ -483,10 +493,11 @@ final class RequestConverters {
 
     static Request count(CountRequest countRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(countRequest.indices(), countRequest.types(), "_count"));
-        Params params = new Params(request);
+        Params params = new Params();
         params.withRouting(countRequest.routing());
         params.withPreference(countRequest.preference());
         params.withIndicesOptions(countRequest.indicesOptions());
+        request.addParameters(params.asMap());
         request.setEntity(createEntity(countRequest.source(), REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -497,11 +508,12 @@ final class RequestConverters {
             : endpoint(explainRequest.index(), explainRequest.type(), explainRequest.id(), "_explain");
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
-        Params params = new Params(request);
+        Params params = new Params();
         params.withStoredFields(explainRequest.storedFields());
         params.withFetchSourceContext(explainRequest.fetchSourceContext());
         params.withRouting(explainRequest.routing());
         params.withPreference(explainRequest.preference());
+        request.addParameters(params.asMap());
         request.setEntity(createEntity(explainRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -509,18 +521,19 @@ final class RequestConverters {
     static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
 
-        Params params = new Params(request);
+        Params params = new Params();
         params.withFields(fieldCapabilitiesRequest.fields());
         params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
+        request.addParameters(params.asMap());
         return request;
     }
 
     static Request rankEval(RankEvalRequest rankEvalRequest) throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval"));
 
-        Params params = new Params(request);
+        Params params = new Params();
         params.withIndicesOptions(rankEvalRequest.indicesOptions());
-
+        request.addParameters(params.asMap());
         request.setEntity(createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -536,7 +549,7 @@ final class RequestConverters {
     private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params(request)
+        Params params = new Params()
             .withWaitForCompletion(waitForCompletion)
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
@@ -546,6 +559,7 @@ final class RequestConverters {
         if (reindexRequest.getScrollTime() != null) {
             params.putParam("scroll", reindexRequest.getScrollTime());
         }
+        request.addParameters(params.asMap());
         request.setEntity(createEntity(reindexRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -553,7 +567,7 @@ final class RequestConverters {
     static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
         String endpoint = endpoint(updateByQueryRequest.indices(), "_update_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params(request)
+        Params params = new Params()
             .withRouting(updateByQueryRequest.getRouting())
             .withPipeline(updateByQueryRequest.getPipeline())
             .withRefresh(updateByQueryRequest.isRefresh())
@@ -573,6 +587,7 @@ final class RequestConverters {
         if (updateByQueryRequest.getSize() > 0) {
             params.putParam("size", Integer.toString(updateByQueryRequest.getSize()));
         }
+        request.addParameters(params.asMap());
         request.setEntity(createEntity(updateByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -580,7 +595,7 @@ final class RequestConverters {
     static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
         String endpoint = endpoint(deleteByQueryRequest.indices(), "_delete_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params(request)
+        Params params = new Params()
             .withRouting(deleteByQueryRequest.getRouting())
             .withRefresh(deleteByQueryRequest.isRefresh())
             .withTimeout(deleteByQueryRequest.getTimeout())
@@ -599,6 +614,7 @@ final class RequestConverters {
         if (deleteByQueryRequest.getSize() > 0) {
             params.putParam("size", Integer.toString(deleteByQueryRequest.getSize()));
         }
+        request.addParameters(params.asMap());
         request.setEntity(createEntity(deleteByQueryRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -619,22 +635,24 @@ final class RequestConverters {
         String endpoint = new EndpointBuilder().addPathPart(firstPathPart).addPathPart(rethrottleRequest.getTaskId().toString())
                 .addPathPart("_rethrottle").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params(request)
+        Params params = new Params()
                 .withRequestsPerSecond(rethrottleRequest.getRequestsPerSecond());
         // we set "group_by" to "none" because this is the response format we can parse back
         params.putParam("group_by", "none");
+        request.addParameters(params.asMap());
         return request;
     }
 
     static Request putScript(PutStoredScriptRequest putStoredScriptRequest) throws IOException {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(putStoredScriptRequest.id()).build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params(request);
+        Params params = new Params();
         params.withTimeout(putStoredScriptRequest.timeout());
         params.withMasterTimeout(putStoredScriptRequest.masterNodeTimeout());
         if (Strings.hasText(putStoredScriptRequest.context())) {
             params.putParam("context", putStoredScriptRequest.context());
         }
+        request.addParameters(params.asMap());
         request.setEntity(createEntity(putStoredScriptRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -665,11 +683,12 @@ final class RequestConverters {
         }
 
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params params = new Params(request);
+        Params params = new Params();
         params.withRouting(tvrequest.getRouting());
         params.withPreference(tvrequest.getPreference());
         params.withFields(tvrequest.getFields());
         params.withRealtime(tvrequest.getRealtime());
+        request.addParameters(params.asMap());
         request.setEntity(createEntity(tvrequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -684,17 +703,19 @@ final class RequestConverters {
     static Request getScript(GetStoredScriptRequest getStoredScriptRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(getStoredScriptRequest.id()).build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
-        Params params = new Params(request);
+        Params params = new Params();
         params.withMasterTimeout(getStoredScriptRequest.masterNodeTimeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
     static Request deleteScript(DeleteStoredScriptRequest deleteStoredScriptRequest) {
         String endpoint = new EndpointBuilder().addPathPartAsIs("_scripts").addPathPart(deleteStoredScriptRequest.id()).build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
-        Params params = new Params(request);
+        Params params = new Params();
         params.withTimeout(deleteStoredScriptRequest.timeout());
         params.withMasterTimeout(deleteStoredScriptRequest.masterNodeTimeout());
+        request.addParameters(params.asMap());
         return request;
     }
 
@@ -758,15 +779,14 @@ final class RequestConverters {
      * a {@link Request} and adds the parameters to it directly.
      */
     static class Params {
-        private final Request request;
+        private final Map<String,String> parameters = new HashMap<>();
 
-        Params(Request request) {
-            this.request = request;
+        Params() {
         }
 
         Params putParam(String name, String value) {
             if (Strings.hasLength(value)) {
-                request.addParameter(name, value);
+                parameters.put(name,value);
             }
             return this;
         }
@@ -776,6 +796,10 @@ final class RequestConverters {
                 return putParam(key, value.getStringRep());
             }
             return this;
+        }
+
+        Map<String, String> asMap(){
+            return parameters;
         }
 
         Params withDocAsUpsert(boolean docAsUpsert) {

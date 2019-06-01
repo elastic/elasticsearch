@@ -19,7 +19,6 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.MockTokenizer;
@@ -81,7 +80,6 @@ import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
-import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
@@ -1440,41 +1438,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
     }
 
-    public void testCommonTermsQuery() {
-        createIndex("test");
-        ensureGreen();
-
-        client().prepareIndex("test", "type1")
-                .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-                .get();
-        refresh();
-
-        logger.info("--> highlighting and searching on field1");
-        SearchSourceBuilder source = searchSource()
-            .query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
-            .highlighter(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
-
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
-    }
-
-    public void testCommonTermsTermVector() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
-        ensureGreen();
-
-        client().prepareIndex("test", "type1").setSource(
-                "field1", "this is a test",
-                "field2", "The quick brown fox jumps over the lazy dog").get();
-        refresh();
-        logger.info("--> highlighting and searching on field1");
-        SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
-                .highlighter(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
-
-        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
-
-        assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
-    }
-
     public void testPlainHighlightDifferentFragmenter() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "tags", "type=text"));
@@ -2293,24 +2256,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         assertHighlight(searchResponse, 0, "field2", 0, 1,
             equalTo("The quick <x>brown</x> fox jumps over the lazy dog! Second sentence."));
-    }
-
-    public void testPostingsHighlighterCommonTermsQuery() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("type1", type1PostingsffsetsMapping()));
-        ensureGreen();
-
-        client().prepareIndex("test", "type1")
-            .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog! Second sentence.").get();
-        refresh();
-
-        logger.info("--> highlighting and searching on field1");
-        SearchSourceBuilder source = searchSource().query(commonTermsQuery("field2", "quick brown").cutoffFrequency(100))
-            .highlighter(highlight().field("field2").preTags("<x>").postTags("</x>"));
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
-        assertHitCount(searchResponse, 1L);
-
-        assertHighlight(searchResponse, 0, "field2", 0, 1,
-            equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog! Second sentence."));
     }
 
     private static XContentBuilder type1PostingsffsetsMapping() throws IOException {

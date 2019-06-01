@@ -7,16 +7,17 @@ package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
+import org.elasticsearch.xpack.core.action.TransportFreezeIndexAction.FreezeIndexAction;
 
-public final class RestFreezeIndexAction extends XPackRestHandler {
+public final class RestFreezeIndexAction extends BaseRestHandler {
     public RestFreezeIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_freeze", this);
@@ -24,7 +25,7 @@ public final class RestFreezeIndexAction extends XPackRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         boolean freeze = request.path().endsWith("/_freeze");
         TransportFreezeIndexAction.FreezeRequest freezeRequest =
             new TransportFreezeIndexAction.FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
@@ -36,7 +37,7 @@ public final class RestFreezeIndexAction extends XPackRestHandler {
             freezeRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         freezeRequest.setFreeze(freeze);
-        return channel -> client.freeze(freezeRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(FreezeIndexAction.INSTANCE, freezeRequest, new RestToXContentListener<>(channel));
     }
 
     @Override

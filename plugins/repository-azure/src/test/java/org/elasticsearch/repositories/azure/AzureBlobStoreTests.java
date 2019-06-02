@@ -37,7 +37,7 @@ public class AzureBlobStoreTests extends ESBlobStoreTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("AzureBlobStoreTests", new FixedExecutorBuilder(
-            Settings.EMPTY, RepositoryPlugin.REPOSITORY_THREAD_POOL_NAME, 32, -1, "azure.client.threadpool"));
+            Settings.EMPTY, RepositoryPlugin.REPOSITORY_THREAD_POOL_NAME, 32, -1, "azure.threadpool"));
     }
 
     @Override

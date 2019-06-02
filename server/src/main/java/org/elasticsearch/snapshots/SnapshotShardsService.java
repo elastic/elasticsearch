@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -304,35 +303,18 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             final IndexId indexId = indicesMap.get(shardId.getIndexName());
             assert indexId != null;
             executor.execute(new AbstractRunnable() {
-
-                private final SetOnce<Exception> failure = new SetOnce<>();
-
                 @Override
                 public void doRun() {
                     final IndexShard indexShard =
                         indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
                     snapshot(indexShard, snapshot, indexId, shardEntry.getValue());
+                    notifySuccessfulSnapshotShard(snapshot, shardId);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
                     logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
-                    failure.set(e);
-                }
-
-                @Override
-                public void onRejection(Exception e) {
-                    failure.set(e);
-                }
-
-                @Override
-                public void onAfter() {
-                    final Exception exception = failure.get();
-                    if (exception != null) {
-                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.detailedMessage(exception));
-                    } else {
-                        notifySuccessfulSnapshotShard(snapshot, shardId);
-                    }
+                    notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.detailedMessage(e));
                 }
             });
         }

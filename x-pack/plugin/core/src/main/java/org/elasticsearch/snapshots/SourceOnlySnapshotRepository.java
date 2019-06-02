@@ -14,6 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -39,6 +40,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -105,13 +107,14 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
+    public void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+                              Repository.ShardSnapshotContext context) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             throw new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
                 "or filters the source");
         }
+        final Store store = context.store();
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
             throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
@@ -129,15 +132,67 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot = new SourceOnlySnapshot(tempStore.directory(), querySupplier);
-            snapshot.syncSnapshot(snapshotIndexCommit);
+            snapshot.syncSnapshot(context.indexCommit());
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
-            try (DirectoryReader reader = DirectoryReader.open(tempStore.directory())) {
-                IndexCommit indexCommit = reader.getIndexCommit();
-                super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, snapshotStatus);
+            try {
+                super.snapshotShard(mapperService, snapshotId, indexId, new Repository.ShardSnapshotContext() {
+
+                    private final AtomicBoolean closed = new AtomicBoolean(false);
+                    private DirectoryReader reader;
+
+                    @Override
+                    public void close() throws IOException {
+                        if (closed.compareAndSet(false, true)) {
+                            synchronized (this) {
+                                if (reader != null) {
+                                    reader.close();
+                                }
+                            }
+                        }
+                    }
+
+                    @Override
+                    public IndexCommit indexCommit() {
+                        synchronized (this) {
+                            if (closed.get()) {
+                                throw new IllegalStateException("Tried to get index commit from closed context");
+                            }
+                            if (reader == null) {
+                                try {
+                                    reader = DirectoryReader.open(tempStore.directory());
+                                } catch (IOException e) {
+                                    completionListener().onFailure(e);
+                                    throw new UncheckedIOException(e);
+                                }
+                            }
+                            try {
+                                return reader.getIndexCommit();
+                            } catch (IOException e) {
+                                completionListener().onFailure(e);
+                                throw new UncheckedIOException(e);
+                            }
+                        }
+                    }
+
+                    @Override
+                    public Store store() {
+                        return tempStore;
+                    }
+
+                    @Override
+                    public IndexShardSnapshotStatus status() {
+                        return context.status();
+                    }
+
+                    @Override
+                    public ActionListener<Void> completionListener() {
+                        return context.completionListener();
+                    }
+                });
             } finally {
                 store.decRef();
             }

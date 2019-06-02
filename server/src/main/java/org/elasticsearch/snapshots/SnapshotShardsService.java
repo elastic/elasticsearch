@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -52,9 +53,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.SnapshotFailedEngineException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -62,6 +61,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.Stage;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -77,7 +77,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -297,27 +297,36 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private void startNewShards(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards) {
         final Snapshot snapshot = entry.snapshot();
         final Map<String, IndexId> indicesMap = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
-            final ShardId shardId = shardEntry.getKey();
-            final IndexId indexId = indicesMap.get(shardId.getIndexName());
-            assert indexId != null;
-            executor.execute(new AbstractRunnable() {
-                @Override
-                public void doRun() {
-                    final IndexShard indexShard =
-                        indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
-                    snapshot(indexShard, snapshot, indexId, shardEntry.getValue());
-                    notifySuccessfulSnapshotShard(snapshot, shardId);
-                }
+        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
+                final ShardId shardId = shardEntry.getKey();
+                final IndexId indexId = indicesMap.get(shardId.getIndexName());
+                assert indexId != null;
+                final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
+                final ActionListener<Void> listener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(final Void aVoid) {
+                        if (logger.isDebugEnabled()) {
+                            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+                            logger.debug("snapshot ({}) completed to {} with {}", snapshot, snapshot.getRepository(), lastSnapshotStatus);
+                        }
+                        notifySuccessfulSnapshotShard(snapshot, shardId);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
-                    notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.detailedMessage(e));
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
+                        notifyFailedSnapshotShard(snapshot, shardId, ExceptionsHelper.detailedMessage(e));
+                    }
+                };
+                try {
+                    snapshot(indicesService.indexServiceSafe(
+                        shardId.getIndex()).getShardOrNull(shardId.id()), snapshot, indexId, snapshotStatus, listener);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
-            });
-        }
+            }
+        });
     }
 
     /**
@@ -327,7 +336,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      * @param snapshotStatus snapshot status
      */
     private void snapshot(final IndexShard indexShard, final Snapshot snapshot, final IndexId indexId,
-                          final IndexShardSnapshotStatus snapshotStatus) {
+                          final IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
         final ShardId shardId = indexShard.shardId();
         if (indexShard.routingEntry().primary() == false) {
             throw new IndexShardSnapshotFailedException(shardId, "snapshot should be performed only on primary");
@@ -344,21 +353,52 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
 
         final Repository repository = snapshotsService.getRepositoriesService().repository(snapshot.getRepository());
-        try {
-            // we flush first to make sure we get the latest writes snapshotted
-            try (Engine.IndexCommitRef snapshotRef = indexShard.acquireLastIndexCommit(true)) {
-                repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-                    snapshotRef.getIndexCommit(), snapshotStatus);
-                if (logger.isDebugEnabled()) {
-                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                    logger.debug("snapshot ({}) completed to {} with {}", snapshot, repository, lastSnapshotStatus);
+        // we flush first to make sure we get the latest writes snapshotted
+        repository.snapshotShard(indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
+            new Repository.ShardSnapshotContext() {
+
+                private final AtomicBoolean closed = new AtomicBoolean(false);
+                private Engine.IndexCommitRef snapshotRef;
+
+                @Override
+                public void close() throws IOException {
+                    if (closed.compareAndSet(false, true)) {
+                        synchronized (this) {
+                            if (snapshotRef != null) {
+                                snapshotRef.close();
+                            }
+                        }
+                    }
                 }
-            }
-        } catch (SnapshotFailedEngineException | IndexShardSnapshotFailedException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IndexShardSnapshotFailedException(shardId, "Failed to snapshot", e);
-        }
+
+                @Override
+                public IndexCommit indexCommit() {
+                    synchronized (this) {
+                        if (closed.get()) {
+                            throw new IllegalStateException("Tried to get index commit from closed context");
+                        }
+                        if (snapshotRef == null) {
+                            snapshotRef = indexShard.acquireLastIndexCommit(true);
+                        }
+                        return snapshotRef.getIndexCommit();
+                    }
+                }
+
+                @Override
+                public Store store() {
+                    return indexShard.store();
+                }
+
+                @Override
+                public IndexShardSnapshotStatus status() {
+                    return snapshotStatus;
+                }
+
+                @Override
+                public ActionListener<Void> completionListener() {
+                    return listener;
+                }
+            });
     }
 
     /**

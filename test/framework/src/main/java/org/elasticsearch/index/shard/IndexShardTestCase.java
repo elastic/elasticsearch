@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -822,9 +824,35 @@ public abstract class IndexShardTestCase extends ESTestCase {
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             Index index = shard.shardId().getIndex();
             IndexId indexId = new IndexId(index.getName(), index.getUUID());
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            final IndexCommit indexCommit = indexCommitRef.getIndexCommit();
+            repository.snapshotShard(shard.mapperService(), snapshot.getSnapshotId(), indexId,
+                new Repository.ShardSnapshotContext() {
+                    @Override
+                    public IndexCommit indexCommit() {
+                        return indexCommit;
+                    }
 
-            repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
-                indexCommitRef.getIndexCommit(), snapshotStatus);
+                    @Override
+                    public Store store() {
+                        return shard.store();
+                    }
+
+                    @Override
+                    public IndexShardSnapshotStatus status() {
+                        return snapshotStatus;
+                    }
+
+                    @Override
+                    public ActionListener<Void> completionListener() {
+                        return future;
+                    }
+
+                    @Override
+                    public void close() {
+                    }
+                });
+            future.actionGet();
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();

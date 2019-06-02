@@ -33,7 +33,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -61,7 +60,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -112,6 +110,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
@@ -799,30 +798,31 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-        new SnapshotContext(store, snapshotId, indexId, snapshotStatus, threadPool.absoluteTimeInMillis()).snapshot(snapshotIndexCommit,
+    public void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
+                              Repository.ShardSnapshotContext context) {
+        final Store store = context.store();
+        final IndexShardSnapshotStatus status = context.status();
+        new SnapshotContext(store, snapshotId, indexId, status, threadPool.absoluteTimeInMillis()).snapshot(
+            context,
             new ActionListener<>() {
                 @Override
                 public void onResponse(IndexShardSnapshotStatus indexShardSnapshotStatus) {
-                    snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis());
-                    future.onResponse(null);
+                    status.moveToDone(threadPool.absoluteTimeInMillis());
+                    context.completionListener().onResponse(null);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
+                    status.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
                     final IndexShardSnapshotFailedException ex;
                     if (e instanceof IndexShardSnapshotFailedException) {
                         ex = (IndexShardSnapshotFailedException) e;
                     } else {
                         ex = new IndexShardSnapshotFailedException(store.shardId(), e);
                     }
-                    future.onFailure(ex);
+                    context.completionListener().onFailure(ex);
                 }
             });
-        future.actionGet();
     }
 
     @Override
@@ -1099,9 +1099,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         /**
          * Create snapshot from index commit point
          *
-         * @param snapshotIndexCommit snapshot commit point
+         * @param context shard snapshot context
          */
-        public void snapshot(IndexCommit snapshotIndexCommit, ActionListener<IndexShardSnapshotStatus> listener) {
+        public void snapshot(Repository.ShardSnapshotContext context, ActionListener<IndexShardSnapshotStatus> listener) {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
             listBlobs(ActionListener.wrap(
                 blobs -> {
@@ -1114,10 +1114,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             "Duplicate snapshot name [" + snapshotId.getName() + "] detected, aborting");
                     }
 
-                    final Runnable decStoreRef = new RunOnce(store::decRef);
-                    store.incRef();
-                    snapshotFiles(snapshotIndexCommit, blobs, snapshots, ActionListener.wrap(snapshot -> {
-                        decStoreRef.run();
+                    snapshotFiles(context, blobs, snapshots, ActionListener.wrap(snapshot -> {
                         //TODO: The time stored in snapshot doesn't include cleanup time.
                         logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
                         try {
@@ -1135,10 +1132,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         // finalize the snapshot and rewrite the snapshot index with the next sequential snapshot index
                         finalize(newSnapshotsList, fileListGeneration + 1, blobs, "snapshot creation [" + snapshotId + "]");
                         listener.onResponse(snapshotStatus);
-                    }, e -> {
-                        decStoreRef.run();
-                        listener.onFailure(e);
-                    }));
+                    }, listener::onFailure));
                 }, listener::onFailure
             ));
         }
@@ -1153,73 +1147,73 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             });
         }
 
-        private void snapshotFiles(IndexCommit snapshotIndexCommit, Map<String, BlobMetaData> blobs,
+        private void snapshotFiles(Repository.ShardSnapshotContext context, Map<String, BlobMetaData> blobs,
                                    BlobStoreIndexShardSnapshots snapshots,
                                    ActionListener<BlobStoreIndexShardSnapshot> listener) {
-            ActionListener.completeWith(listener, () -> {
-                final Store.MetadataSnapshot meta;
+            try {
                 // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
+                store.incRef();
+                final IndexCommit snapshotIndexCommit = context.indexCommit();
                 final Collection<String> fileNames;
-                    try {
-                        logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
-                        meta = store.getMetadata(snapshotIndexCommit);
-                        fileNames = snapshotIndexCommit.getFileNames();
-                    } catch (IOException e) {
-                        throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                final Store.MetadataSnapshot meta;
+                try {
+                    logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
+                    meta = store.getMetadata(snapshotIndexCommit);
+                    fileNames = snapshotIndexCommit.getFileNames();
+                } catch (IOException e) {
+                    throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                } finally {
+                    store.decRef();
+                }
+                int indexIncrementalFileCount = 0;
+                int indexTotalNumberOfFiles = 0;
+                long indexIncrementalSize = 0;
+                long indexTotalFileCount = 0;
+                final List<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
+                final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
+                for (String fileName : fileNames) {
+                    if (snapshotStatus.isAborted()) {
+                        logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
+                        throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                     }
-                    int indexIncrementalFileCount = 0;
-                    int indexTotalNumberOfFiles = 0;
-                    long indexIncrementalSize = 0;
-                    long indexTotalFileCount = 0;
-                    final List<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new ArrayList<>();
-                    final List<BlobStoreIndexShardSnapshot.FileInfo> indexCommitPointFiles = new ArrayList<>();
-                    for (String fileName : fileNames) {
-                        if (snapshotStatus.isAborted()) {
-                            logger.debug("[{}] [{}] Aborted on the file [{}], exiting", shardId, snapshotId, fileName);
-                            throw new IndexShardSnapshotFailedException(shardId, "Aborted");
-                        }
 
-                        logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
-                        final StoreFileMetaData md = meta.get(fileName);
-                        BlobStoreIndexShardSnapshot.FileInfo existingFileInfo = null;
-                        List<BlobStoreIndexShardSnapshot.FileInfo> filesInfo = snapshots.findPhysicalIndexFiles(fileName);
-                        if (filesInfo != null) {
-                            for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : filesInfo) {
-                                if (fileInfo.isSame(md) && snapshotFileExistsInBlobs(fileInfo, blobs)) {
-                                    // a commit point file with the same name, size and checksum was already copied to repository
-                                    // we will reuse it for this snapshot
-                                    existingFileInfo = fileInfo;
-                                    break;
-                                }
+                    logger.trace("[{}] [{}] Processing [{}]", shardId, snapshotId, fileName);
+                    final StoreFileMetaData md = meta.get(fileName);
+                    BlobStoreIndexShardSnapshot.FileInfo existingFileInfo = null;
+                    List<BlobStoreIndexShardSnapshot.FileInfo> filesInfo = snapshots.findPhysicalIndexFiles(fileName);
+                    if (filesInfo != null) {
+                        for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : filesInfo) {
+                            if (fileInfo.isSame(md) && snapshotFileExistsInBlobs(fileInfo, blobs)) {
+                                // a commit point file with the same name, size and checksum was already copied to repository
+                                // we will reuse it for this snapshot
+                                existingFileInfo = fileInfo;
+                                break;
                             }
                         }
-
-                        indexTotalFileCount += md.length();
-                        indexTotalNumberOfFiles++;
-
-                        if (existingFileInfo == null) {
-                            indexIncrementalFileCount++;
-                            indexIncrementalSize += md.length();
-                            // create a new FileInfo
-                            BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo =
-                                new BlobStoreIndexShardSnapshot.FileInfo(DATA_BLOB_PREFIX + UUIDs.randomBase64UUID(), md, chunkSize());
-                            indexCommitPointFiles.add(snapshotFileInfo);
-                            filesToSnapshot.add(snapshotFileInfo);
-                        } else {
-                            indexCommitPointFiles.add(existingFileInfo);
-                        }
                     }
 
-                    snapshotStatus.moveToStarted(startTime, indexIncrementalFileCount,
-                        indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileCount);
+                    indexTotalFileCount += md.length();
+                    indexTotalNumberOfFiles++;
 
-                    for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
-                        try {
-                            snapshotFile(snapshotFileInfo);
-                        } catch (IOException e) {
-                            throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
-                        }
+                    if (existingFileInfo == null) {
+                        indexIncrementalFileCount++;
+                        indexIncrementalSize += md.length();
+                        // create a new FileInfo
+                        BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo =
+                            new BlobStoreIndexShardSnapshot.FileInfo(DATA_BLOB_PREFIX + UUIDs.randomBase64UUID(), md, chunkSize());
+                        indexCommitPointFiles.add(snapshotFileInfo);
+                        filesToSnapshot.add(snapshotFileInfo);
+                    } else {
+                        indexCommitPointFiles.add(existingFileInfo);
                     }
+                }
+
+                snapshotStatus.moveToStarted(startTime, indexIncrementalFileCount,
+                    indexTotalNumberOfFiles, indexIncrementalSize, indexTotalFileCount);
+
+                assert indexIncrementalFileCount == filesToSnapshot.size();
+                final Runnable afterSegmentFiles = () -> ActionListener.completeWith(listener, () -> {
+                    context.close();
                     final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
                         snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
                     return new BlobStoreIndexShardSnapshot(snapshotId.getName(),
@@ -1232,7 +1226,51 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         lastSnapshotStatus.getIncrementalFileCount(),
                         lastSnapshotStatus.getIncrementalSize()
                     );
-            });
+                });
+                if (indexIncrementalFileCount > 0) {
+                    final GroupedActionListener<Void> fileCompletionListener = new GroupedActionListener<>(
+                        ActionListener.wrap(v -> afterSegmentFiles.run(), listener::onFailure), indexIncrementalFileCount);
+                    final ExecutorService executorService = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+                    for (BlobStoreIndexShardSnapshot.FileInfo snapshotFileInfo : filesToSnapshot) {
+                        executorService.execute(new ActionRunnable<>(fileCompletionListener) {
+                            @Override
+                            protected void doRun() {
+                                try {
+                                    if (snapshotStatus.isAborted()) {
+                                        context.close();
+                                        throw new IndexShardSnapshotFailedException(shardId, "Aborted");
+                                    }
+                                    snapshotFile(snapshotFileInfo);
+                                    fileCompletionListener.onResponse(null);
+                                } catch (IOException e) {
+                                    try {
+                                        context.close();
+                                    } catch (Exception ex) {
+                                        e.addSuppressed(ex);
+                                    }
+                                    throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
+                                } catch (Exception e) {
+                                    try {
+                                        context.close();
+                                    } catch (Exception ex) {
+                                        e.addSuppressed(ex);
+                                    }
+                                    throw e;
+                                }
+                            }
+                        });
+                    }
+                } else {
+                    afterSegmentFiles.run();
+                }
+            } catch (Exception e) {
+                try {
+                    context.close();
+                } catch (Exception ex) {
+                    e.addSuppressed(ex);
+                }
+                listener.onFailure(e);
+            }
         }
 
         /**
@@ -1242,6 +1280,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          */
         private void snapshotFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
             final String file = fileInfo.physicalName();
+            store.incRef();
             try (IndexInput indexInput = store.openVerifyingInput(file, IOContext.READONCE, fileInfo.metadata())) {
                 for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                     final long partBytes = fileInfo.partBytes(i);
@@ -1261,6 +1300,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 failStoreIfCorrupted(t);
                 snapshotStatus.addProcessedFile(0);
                 throw t;
+            } finally {
+                store.decRef();
             }
         }
 

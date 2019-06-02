@@ -21,9 +21,10 @@ package org.elasticsearch.repositories.azure;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.ESBlobStoreTestCase;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -36,8 +37,8 @@ public class AzureBlobStoreTests extends ESBlobStoreTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool("AzureBlobStoreTests", new FixedExecutorBuilder(
-            Settings.EMPTY, RepositoryPlugin.REPOSITORY_THREAD_POOL_NAME, 32, -1, "azure.threadpool"));
+        threadPool = new TestThreadPool("AzureBlobStoreTests",
+            new ScalingExecutorBuilder(RepositoryPlugin.REPOSITORY_THREAD_POOL_NAME, 0, 32, TimeValue.timeValueSeconds(30L)));
     }
 
     @Override

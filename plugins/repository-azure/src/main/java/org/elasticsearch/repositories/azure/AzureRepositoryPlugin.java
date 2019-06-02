@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.azure;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -29,7 +30,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
+import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -41,6 +42,13 @@ import java.util.Map;
  * A plugin to add a repository type that writes to and from the Azure cloud storage service.
  */
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+
+    private static final Setting<Integer> THREADPOOL_SIZE_SETTING = Setting.intSetting(
+        "azure.threadpool.size",
+        32,
+        1,
+        Integer.MAX_VALUE,
+        Setting.Property.NodeScope);
 
     // protected for testing
     final AzureStorageService azureStoreService;
@@ -67,15 +75,16 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
             AzureStorageSettings.MAX_RETRIES_SETTING,
             AzureStorageSettings.PROXY_TYPE_SETTING,
             AzureStorageSettings.PROXY_HOST_SETTING,
-            AzureStorageSettings.PROXY_PORT_SETTING
+            AzureStorageSettings.PROXY_PORT_SETTING,
+            THREADPOOL_SIZE_SETTING
         );
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return Collections.singletonList(
-            new FixedExecutorBuilder(
-                settings, RepositoryPlugin.REPOSITORY_THREAD_POOL_NAME, 32, "azure.threadpool"));
+            new ScalingExecutorBuilder(RepositoryPlugin.REPOSITORY_THREAD_POOL_NAME, 0,
+                THREADPOOL_SIZE_SETTING.get(settings), TimeValue.timeValueSeconds(30L)));
     }
 
     @Override

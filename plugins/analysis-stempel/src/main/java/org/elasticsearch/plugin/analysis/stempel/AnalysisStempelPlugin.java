@@ -29,6 +29,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -36,8 +37,10 @@ import static java.util.Collections.singletonMap;
 public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-        return Map.of("polish_stem", PolishStemTokenFilterFactory::new,
-                      "polish_stop", PolishStopTokenFilterFactory::new);
+        Map<String, AnalysisProvider<TokenFilterFactory>> filters = new HashMap<>();
+        filters.put("polish_stem", PolishStemTokenFilterFactory::new);
+        filters.put("polish_stop", PolishStopTokenFilterFactory::new);
+        return filters;
     }
 
     @Override

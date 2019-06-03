@@ -189,7 +189,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         assertThat(validateQueryResponse.getQueryExplanation().get(0).getExplanation(), containsString("field:value1"));
     }
 
-    public void testExplainWithRewriteValidateQuery() throws Exception {
+    public void testExplainWithRewriteValidateQuery() {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field", "type=text,analyzer=whitespace")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1)).get();
@@ -204,18 +204,6 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("field:quick"), true);
         assertExplanation(QueryBuilders.matchPhrasePrefixQuery("field", "ju"),
                 containsString("field:jumps"), true);
-
-        // common terms queries
-        assertExplanation(QueryBuilders.commonTermsQuery("field", "huge brown pidgin").cutoffFrequency(1),
-                containsString("+field:pidgin field:huge field:brown"), true);
-        assertExplanation(QueryBuilders.commonTermsQuery("field", "the brown").analyzer("stop"),
-                containsString("field:brown"), true);
-
-        // match queries with cutoff frequency
-        assertExplanation(QueryBuilders.matchQuery("field", "huge brown pidgin").cutoffFrequency(1),
-                containsString("+field:pidgin field:huge field:brown"), true);
-        assertExplanation(QueryBuilders.matchQuery("field", "the brown").analyzer("stop"),
-                containsString("field:brown"), true);
 
         // fuzzy queries
         assertExplanation(QueryBuilders.fuzzyQuery("field", "the").fuzziness(Fuzziness.fromEdits(2)),
@@ -233,7 +221,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
                 containsString("field:huge field:pidgin"), true);
     }
 
-    public void testExplainWithRewriteValidateQueryAllShards() throws Exception {
+    public void testExplainWithRewriteValidateQueryAllShards() {
         client().admin().indices().prepareCreate("test")
             .addMapping("type1", "field", "type=text,analyzer=whitespace")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)).get();
@@ -262,7 +250,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             ), true, true);
     }
 
-    public void testIrrelevantPropertiesBeforeQuery() throws IOException {
+    public void testIrrelevantPropertiesBeforeQuery() {
         createIndex("test");
         ensureGreen();
         refresh();
@@ -271,7 +259,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}"))).get().isValid(), equalTo(false));
     }
 
-    public void testIrrelevantPropertiesAfterQuery() throws IOException {
+    public void testIrrelevantPropertiesAfterQuery() {
         createIndex("test");
         ensureGreen();
         refresh();
@@ -311,7 +299,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         }
     }
 
-    public void testExplainTermsQueryWithLookup() throws Exception {
+    public void testExplainTermsQueryWithLookup() {
         client().admin().indices().prepareCreate("twitter")
             .addMapping("_doc", "user", "type=integer", "followers", "type=integer")
             .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 2).put("index.number_of_routing_shards", 2)).get();

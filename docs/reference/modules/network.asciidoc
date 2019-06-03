@@ -173,11 +173,10 @@ settings, but may be further configured independently:
 
 TCP Transport::
 
-Used for communication between nodes in the cluster, by the Java
-{javaclient}/transport-client.html[Transport client].
+Used for communication between nodes in the cluster.
 See the <<modules-transport,Transport module>> for more information.
 
 HTTP::
 
-Exposes the JSON-over-HTTP interface used by all clients other than the Java
-clients. See the <<modules-http,HTTP module>> for more information.
+Exposes the JSON-over-HTTP interface used by all clients.
+See the <<modules-http,HTTP module>> for more information.

@@ -39,3 +39,21 @@ appropriate.
 
 IndexStore and DirectoryService have been replaced by a stateless and simple
 DirectoryFactory interface to create custom Lucene directory instances per shard.
+
+
+[float]
+[[breaking_73_search_changes]]
+=== Search Changes
+
+[float]
+==== Deprecation of queries
+
+The `common` query has been deprecated. The same functionality can be achieved
+by the `match` query if the total number of hits is not tracked.
+
+[float]
+===== Deprecation of query parameters
+
+The `cutoff_frequency` parameter has been deprecated for `match` and `multi_match`
+queries. The same functionality can be achieved without any configuration provided
+that the total number of hits is not tracked.

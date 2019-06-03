@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.not;
         numDataNodes = 1,
         numClientNodes = 0,
         supportsDedicatedMasters = false,
-        autoMinMasterNodes = false)
+        autoManageMasterNodes = false)
 public class SingleNodeDiscoveryIT extends ESIntegTestCase {
 
     @Override

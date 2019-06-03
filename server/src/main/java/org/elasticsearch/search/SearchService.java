@@ -574,9 +574,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             success = true;
         } finally {
             // currently, the concrete listener is CompositeListener, which swallows exceptions, but here we anyway try to do the
-            // right thing by notifying onFreeXXX in case one of the listeners fails with an exception in the future.
+            // right thing by closing and notifying onFreeXXX in case one of the listeners fails with an exception in the future.
             if (success == false) {
-                onFreeContext(context);
+                try (context) {
+                    onFreeContext(context);
+                }
             }
         }
     }

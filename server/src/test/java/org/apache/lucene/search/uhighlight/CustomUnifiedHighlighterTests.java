@@ -30,7 +30,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
@@ -143,21 +142,6 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
         query.add(new Term("text", "quick"));
         query.add(new Term("text", "brown"));
         query.add(new Term("text", "fo"));
-        assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
-            BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
-    }
-
-    public void testCommonTermsQuery() throws Exception {
-        final String[] inputs = {
-            "The quick brown fox."
-        };
-        final String[] outputs = {
-            "The <b>quick</b> <b>brown</b> <b>fox</b>."
-        };
-        CommonTermsQuery query = new CommonTermsQuery(BooleanClause.Occur.SHOULD, BooleanClause.Occur.SHOULD, 128);
-        query.add(new Term("text", "quick"));
-        query.add(new Term("text", "brown"));
-        query.add(new Term("text", "fox"));
         assertHighlightOneDoc("text", inputs, new StandardAnalyzer(), query, Locale.ROOT,
             BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }

@@ -21,7 +21,6 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -34,7 +33,6 @@ import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
-import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
@@ -272,7 +270,6 @@ import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.index.query.CommonTermsQueryBuilder.COMMON_TERMS_QUERY_DEPRECATION_MSG;
 import static org.elasticsearch.index.query.SpanNearQueryBuilder.SpanGapQueryBuilder;
 
 /**
@@ -769,8 +766,6 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(MoreLikeThisQueryBuilder.NAME, MoreLikeThisQueryBuilder::new,
                 MoreLikeThisQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(WrapperQueryBuilder.NAME, WrapperQueryBuilder::new, WrapperQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(new ParseField(CommonTermsQueryBuilder.NAME).withAllDeprecated(COMMON_TERMS_QUERY_DEPRECATION_MSG),
-                CommonTermsQueryBuilder::new, CommonTermsQueryBuilder::fromXContent));
         registerQuery(
                 new QuerySpec<>(SpanMultiTermQueryBuilder.NAME, SpanMultiTermQueryBuilder::new, SpanMultiTermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(FunctionScoreQueryBuilder.NAME, FunctionScoreQueryBuilder::new,

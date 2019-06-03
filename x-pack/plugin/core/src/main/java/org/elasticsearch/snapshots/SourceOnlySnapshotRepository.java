@@ -146,7 +146,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                                     private IndexCommit indexCommit;
 
                                     @Override
-                                    public void releaseIndexCommit() throws IOException {
+                                    protected void releaseIndexCommit() throws IOException {
                                         if (closed.compareAndSet(false, true)) {
                                             synchronized (this) {
                                                 if (reader != null) {
@@ -167,7 +167,6 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                                                 assert indexCommit == null;
                                                 indexCommit = reader.getIndexCommit();
                                             }
-
                                             assert indexCommit != null;
                                             return indexCommit;
                                         }

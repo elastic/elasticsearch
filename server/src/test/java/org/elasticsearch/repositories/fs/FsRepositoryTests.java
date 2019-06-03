@@ -216,7 +216,7 @@ public class FsRepositoryTests extends ESTestCase {
         }
 
         @Override
-        public void releaseIndexCommit() {
+        protected void releaseIndexCommit() {
 
         }
 

@@ -29,6 +29,9 @@ import org.elasticsearch.index.store.Store;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Manages the {@link IndexCommit} associated with the shard snapshot as well as its {@link IndexShardSnapshotStatus} instance.
+ */
 public abstract class ShardSnapshotContext {
 
     private final Store store;
@@ -43,26 +46,52 @@ public abstract class ShardSnapshotContext {
         this.status = status;
     }
 
+    /**
+     * Create and return an {@link IndexCommit} for this shard. Repeated invocations of this method return the same {@link IndexCommit}.
+     * The resources associated with this {@link IndexCommit} are released by {@link #releaseIndexCommit()} when either
+     * {@link #finish(long, String, Exception)} or {@link #prepareFinalize()} is invoked.
+     * @return IndexCommit index commit
+     * @throws IOException on failure
+     */
     public abstract IndexCommit indexCommit() throws IOException;
 
-    public abstract void releaseIndexCommit() throws IOException;
+    /**
+     * Release resources backing the {@link IndexCommit} returned by {@link #indexCommit()}.
+     * @throws IOException on failure
+     */
+    protected abstract void releaseIndexCommit() throws IOException;
 
     public Store store() {
         return store;
     }
 
+    /**
+     * Invoke once all writes to the repository have finished for the shard.
+     * @param endTime Timestamp of when the shard snapshot's writes to the repository finished
+     */
     public void finish(long endTime) {
         status.moveToDone(endTime);
         listener.onResponse(null);
     }
 
-    public IndexShardSnapshotStatus.Copy prepareFinalize() throws IOException {
+    /**
+     * Invoke once all segments for this shard were written to the repository.
+     * @return IndexSnapshotStatus right after writing all segments to the repository
+     * @throws IOException On failure to release the resources backing this instance's {@link IndexCommit}
+     */
+    public final IndexShardSnapshotStatus.Copy prepareFinalize() throws IOException {
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = status.moveToFinalize(indexCommit().getGeneration());
         releaseIndexCommit();
         return lastSnapshotStatus;
     }
 
-    public void finish(long endTime, String failureMessage, Exception e) {
+    /**
+     * Invoke in case the shard's snapshot operation failed.
+     * @param endTime time the shard's snapshot failed
+     * @param failureMessage failure message
+     * @param e Exception that caused the shard's snapshot to fail
+     */
+    public final void finish(long endTime, String failureMessage, Exception e) {
         status.moveToFailed(endTime, failureMessage);
         try {
             releaseIndexCommit();
@@ -88,7 +117,7 @@ public abstract class ShardSnapshotContext {
             private Engine.IndexCommitRef snapshotRef;
 
             @Override
-            public void releaseIndexCommit() throws IOException {
+            protected void releaseIndexCommit() throws IOException {
                 if (closed.compareAndSet(false, true)) {
                     synchronized (this) {
                         if (snapshotRef != null) {

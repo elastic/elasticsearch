@@ -100,8 +100,9 @@ cluster.remote.connect: false <4>
 <4> Disable {ccs} (enabled by default).
 
 ifdef::include-xpack[]
-NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated master-eligible node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
+NOTE: By default, when you install {es}, {xpack} is installed. These settings
+apply only when {xpack} is *not* installed. To create a dedicated master-eligible
+node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
 
 [float]
@@ -131,8 +132,9 @@ cluster.remote.connect: false <4>
 <4> Disable {ccs} (enabled by default).
 
 ifdef::include-xpack[]
-NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated data node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
+NOTE: By default, when you install {es}, {xpack} is installed.These settings
+apply only when {xpack} is *not* installed. To create a dedicated data node when
+{xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
 
 [float]
@@ -159,8 +161,9 @@ cluster.remote.connect: false <4>
 <4> Disable {ccs} (enabled by default).
 
 ifdef::include-xpack[]
-NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated ingest node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
+NOTE: By default, when you install {es}, {xpack} is installed.These settings
+apply only when {xpack} is *not* installed. To create a dedicated ingest node
+when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
 
 [float]
@@ -199,8 +202,9 @@ cluster.remote.connect: false <4>
 <4> Disable {ccs} (enabled by default).
 
 ifdef::include-xpack[]
-NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated coordinating node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
+NOTE: By default, when you install {es}, {xpack} is installed. These settings
+apply only when {xpack} is not installed. To create a dedicated coordinating
+node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
 
 [float]

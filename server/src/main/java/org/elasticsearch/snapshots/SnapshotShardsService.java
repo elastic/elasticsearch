@@ -297,8 +297,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
             for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
                 final ShardId shardId = shardEntry.getKey();
-                final IndexId indexId = indicesMap.get(shardId.getIndexName());
-                assert indexId != null;
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
                 final ActionListener<Void> listener = new ActionListener<>() {
                     @Override
@@ -317,6 +315,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     }
                 };
                 try {
+                    final IndexId indexId = indicesMap.get(shardId.getIndexName());
+                    assert indexId != null;
                     snapshot(indicesService.indexServiceSafe(
                         shardId.getIndex()).getShardOrNull(shardId.id()), snapshot, indexId, snapshotStatus, listener);
                 } catch (Exception e) {

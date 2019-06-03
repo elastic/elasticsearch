@@ -122,7 +122,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
-        try (FSDirectory directory = new SimpleFSDirectory(snapPath)) {
+        FSDirectory directory = null;
+        try {
+            directory = new SimpleFSDirectory(snapPath);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), directory, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {
@@ -197,6 +199,13 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 store.decRef();
             }
         } catch (IOException e) {
+            if (directory != null) {
+                try {
+                    directory.close();
+                } catch (IOException ex) {
+                    e.addSuppressed(ex);
+                }
+            }
             // why on earth does this super method not declare IOException
             throw new UncheckedIOException(e);
         }

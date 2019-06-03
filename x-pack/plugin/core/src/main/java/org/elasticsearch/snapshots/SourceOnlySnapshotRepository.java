@@ -138,51 +138,41 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            store.incRef();
-            try {
-                super.snapshotShard(mapperService, snapshotId, indexId, new ShardSnapshotContext(tempStore, context.completionListener(),
-                                                                                                 context.status()) {
+            super.snapshotShard(mapperService, snapshotId, indexId,
+                                new ShardSnapshotContext(tempStore, context.completionListener(), context.status()) {
 
-                    private final AtomicBoolean closed = new AtomicBoolean(false);
-                    private DirectoryReader reader;
+                                    private final AtomicBoolean closed = new AtomicBoolean(false);
+                                    private DirectoryReader reader;
+                                    private IndexCommit indexCommit;
 
-                    @Override
-                    public void releaseIndexCommit() throws IOException {
-                        if (closed.compareAndSet(false, true)) {
-                            synchronized (this) {
-                                if (reader != null) {
-                                    reader.close();
-                                }
-                            }
-                        }
-                    }
+                                    @Override
+                                    public void releaseIndexCommit() throws IOException {
+                                        if (closed.compareAndSet(false, true)) {
+                                            synchronized (this) {
+                                                if (reader != null) {
+                                                    reader.close();
+                                                }
+                                            }
+                                        }
+                                    }
 
-                    @Override
-                    public IndexCommit indexCommit() {
-                        synchronized (this) {
-                            if (closed.get()) {
-                                throw new IllegalStateException("Tried to get index commit from closed context");
-                            }
-                            if (reader == null) {
-                                try {
-                                    reader = DirectoryReader.open(tempStore.directory());
-                                } catch (IOException e) {
-                                    completionListener().onFailure(e);
-                                    throw new UncheckedIOException(e);
-                                }
-                            }
-                            try {
-                                return reader.getIndexCommit();
-                            } catch (IOException e) {
-                                completionListener().onFailure(e);
-                                throw new UncheckedIOException(e);
-                            }
-                        }
-                    }
-                });
-            } finally {
-                store.decRef();
-            }
+                                    @Override
+                                    public IndexCommit indexCommit() throws IOException {
+                                        synchronized (this) {
+                                            if (closed.get()) {
+                                                throw new IllegalStateException("Tried to get index commit from closed context");
+                                            }
+                                            if (reader == null) {
+                                                reader = DirectoryReader.open(tempStore.directory());
+                                                assert indexCommit == null;
+                                                indexCommit = reader.getIndexCommit();
+                                            }
+
+                                            assert indexCommit != null;
+                                            return indexCommit;
+                                        }
+                                    }
+                                });
         } catch (IOException e) {
             if (directory != null) {
                 try {

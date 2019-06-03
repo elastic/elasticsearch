@@ -37,16 +37,33 @@ public abstract class ShardSnapshotContext {
 
     private final IndexShardSnapshotStatus status;
 
-    public ShardSnapshotContext(Store store, ActionListener<Void> listener, IndexShardSnapshotStatus status) {
+    protected ShardSnapshotContext(Store store, ActionListener<Void> listener, IndexShardSnapshotStatus status) {
         this.store = store;
         this.listener = listener;
         this.status = status;
     }
 
-    public abstract IndexCommit indexCommit();
+    public abstract IndexCommit indexCommit() throws IOException;
+
+    public abstract void releaseIndexCommit() throws IOException;
 
     public Store store() {
         return store;
+    }
+
+    public void finish(long endTime) {
+        status.moveToDone(endTime);
+        listener.onResponse(null);
+    }
+
+    public void finish(long endTime, String failureMessage, Exception e) {
+        status.moveToFailed(endTime, failureMessage);
+        try {
+            releaseIndexCommit();
+        } catch (Exception ex) {
+            e.addSuppressed(ex);
+        }
+        listener.onFailure(e);
     }
 
     public IndexShardSnapshotStatus status() {
@@ -56,8 +73,6 @@ public abstract class ShardSnapshotContext {
     public ActionListener<Void> completionListener() {
         return listener;
     }
-
-    public abstract void releaseIndexCommit() throws IOException;
 
     public static ShardSnapshotContext create(IndexShard indexShard, IndexShardSnapshotStatus snapshotStatus,
                                               ActionListener<Void> listener) {
@@ -81,13 +96,13 @@ public abstract class ShardSnapshotContext {
             public IndexCommit indexCommit() {
                 synchronized (this) {
                     if (closed.get()) {
-                        throw new IllegalStateException("Tried to get index commit from closed context");
+                        throw new IllegalStateException("Tried to get index commit from closed context.");
                     }
                     if (snapshotRef == null) {
                         snapshotRef = indexShard.acquireLastIndexCommit(true);
                     }
-                    return snapshotRef.getIndexCommit();
                 }
+                return snapshotRef.getIndexCommit();
             }
         };
     }

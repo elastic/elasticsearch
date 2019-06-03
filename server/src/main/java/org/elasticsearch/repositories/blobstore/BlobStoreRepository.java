@@ -808,20 +808,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             new ActionListener<>() {
                 @Override
                 public void onResponse(IndexShardSnapshotStatus indexShardSnapshotStatus) {
-                    status.moveToDone(threadPool.absoluteTimeInMillis());
-                    context.completionListener().onResponse(null);
+                    context.finish(threadPool.absoluteTimeInMillis());
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    status.moveToFailed(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e));
-                    final IndexShardSnapshotFailedException ex;
-                    if (e instanceof IndexShardSnapshotFailedException) {
-                        ex = (IndexShardSnapshotFailedException) e;
-                    } else {
-                        ex = new IndexShardSnapshotFailedException(store.shardId(), e);
-                    }
-                    context.completionListener().onFailure(ex);
+                    context.finish(threadPool.absoluteTimeInMillis(), ExceptionsHelper.detailedMessage(e),
+                        e instanceof IndexShardSnapshotFailedException ? (IndexShardSnapshotFailedException) e
+                            : new IndexShardSnapshotFailedException(store.shardId(), e));
                 }
             });
     }
@@ -1238,25 +1232,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             protected void doRun() {
                                 try {
                                     if (snapshotStatus.isAborted()) {
-                                        context.releaseIndexCommit();
                                         throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                                     }
                                     snapshotFile(snapshotFileInfo);
                                     fileCompletionListener.onResponse(null);
                                 } catch (IOException e) {
-                                    try {
-                                        context.releaseIndexCommit();
-                                    } catch (Exception ex) {
-                                        e.addSuppressed(ex);
-                                    }
                                     throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
-                                } catch (Exception e) {
-                                    try {
-                                        context.releaseIndexCommit();
-                                    } catch (Exception ex) {
-                                        e.addSuppressed(ex);
-                                    }
-                                    throw e;
                                 }
                             }
                         });
@@ -1265,11 +1246,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     afterSegmentFiles.run();
                 }
             } catch (Exception e) {
-                try {
-                    context.releaseIndexCommit();
-                } catch (Exception ex) {
-                    e.addSuppressed(ex);
-                }
                 listener.onFailure(e);
             }
         }

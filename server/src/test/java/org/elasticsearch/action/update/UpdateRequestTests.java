@@ -60,6 +60,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.script.MockScriptEngine.mockInlineScript;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -710,18 +711,18 @@ public class UpdateRequestTests extends ESTestCase {
             createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}")));
 
         canUseIfSeqNo.set(false);
-        IndexRequest updateWithFallback = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
-        assertThat(updateWithFallback.ifSeqNo(), equalTo(seqNo));
-        assertThat(updateWithFallback.ifPrimaryTerm(), equalTo(primaryTerm));
-        assertThat(updateWithFallback.version(), equalTo(Versions.MATCH_ANY));
-        assertNull(updateWithFallback.validate());
+        IndexRequest updateUsingVersion = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
+        assertThat(updateUsingVersion.ifSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(updateUsingVersion.ifPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
+        assertThat(updateUsingVersion.version(), equalTo(version));
+        assertNull(updateUsingVersion.validate());
 
         canUseIfSeqNo.set(true);
-        IndexRequest updateWithoutFallback = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
-        assertThat(updateWithoutFallback.ifSeqNo(), equalTo(seqNo));
-        assertThat(updateWithoutFallback.ifPrimaryTerm(), equalTo(primaryTerm));
-        assertThat(updateWithoutFallback.version(), equalTo(Versions.MATCH_ANY));
-        assertNull(updateWithoutFallback.validate());
+        IndexRequest updateUsingSeqNo = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
+        assertThat(updateUsingSeqNo.ifSeqNo(), equalTo(seqNo));
+        assertThat(updateUsingSeqNo.ifPrimaryTerm(), equalTo(primaryTerm));
+        assertThat(updateUsingSeqNo.version(), equalTo(Versions.MATCH_ANY));
+        assertNull(updateUsingSeqNo.validate());
     }
 
     public void testOldClusterRejectIfSeqNo() {

@@ -26,7 +26,6 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -34,7 +33,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -216,44 +214,4 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(validate.getMessage(),
             containsString("pipeline cannot be an empty string"));
     }
-
-    public void testSerializeWithFallbackCAS() throws Exception {
-        long seqNo = randomNonNegativeLong();
-        long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
-        long version = randomNonNegativeLong();
-        VersionType versionType = randomFrom(VersionType.values());
-        IndexRequest request = new IndexRequest("test", "_doc");
-        request.source("{}", XContentType.JSON);
-        request.setIfSeqNo(seqNo);
-        request.setIfPrimaryTerm(primaryTerm);
-        request.setFallbackCASUsingVersion(version, versionType);
-        assertNull(request.validate());
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            Version channelVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.V_6_5_4);
-            out.setVersion(channelVersion);
-            request.writeTo(out);
-            IndexRequest fallbackRequest = new IndexRequest();
-            StreamInput in = out.bytes().streamInput();
-            in.setVersion(channelVersion);
-            fallbackRequest.readFrom(in);
-            assertThat(fallbackRequest.version(), equalTo(version));
-            assertThat(fallbackRequest.versionType(), equalTo(versionType));
-            assertThat(fallbackRequest.ifSeqNo(), equalTo(SequenceNumbers.UNASSIGNED_SEQ_NO));
-            assertThat(fallbackRequest.ifPrimaryTerm(), equalTo(SequenceNumbers.UNASSIGNED_PRIMARY_TERM));
-        }
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            Version channelVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_6_0, Version.CURRENT);
-            out.setVersion(channelVersion);
-            request.writeTo(out);
-            IndexRequest fallbackRequest = new IndexRequest();
-            StreamInput in = out.bytes().streamInput();
-            in.setVersion(channelVersion);
-            fallbackRequest.readFrom(in);
-            assertThat(fallbackRequest.version(), equalTo(Versions.MATCH_ANY));
-            assertThat(fallbackRequest.versionType(), equalTo(VersionType.INTERNAL));
-            assertThat(fallbackRequest.ifSeqNo(), equalTo(seqNo));
-            assertThat(fallbackRequest.ifPrimaryTerm(), equalTo(primaryTerm));
-        }
-    }
-
 }

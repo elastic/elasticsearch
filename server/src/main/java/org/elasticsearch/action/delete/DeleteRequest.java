@@ -27,7 +27,6 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -36,7 +35,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -67,7 +65,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     private VersionType versionType = VersionType.INTERNAL;
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
-    private Tuple<Long, VersionType> fallbackCASUsingVersion;
+    private boolean ignoreCASUsingVersionDeprecation = false;
 
 
     public DeleteRequest() {
@@ -106,7 +104,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
-        if (fallbackCASUsingVersion == null) {
+        if (ignoreCASUsingVersionDeprecation == false) {
             DocWriteRequest.logDeprecationWarnings(this, DEPRECATION_LOGGER);
         }
 
@@ -286,17 +284,12 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         out.writeString(id);
         out.writeOptionalString(routing());
         out.writeOptionalString(parent());
-        if (out.getVersion().before(Version.V_6_6_0) && fallbackCASUsingVersion != null) {
-            out.writeLong(fallbackCASUsingVersion.v1());
-            out.writeByte(fallbackCASUsingVersion.v2().getValue());
-        } else {
-            out.writeLong(version);
-            out.writeByte(versionType.getValue());
-        }
+        out.writeLong(version);
+        out.writeByte(versionType.getValue());
         if (out.getVersion().onOrAfter(Version.V_6_6_0)) {
             out.writeZLong(ifSeqNo);
             out.writeVLong(ifPrimaryTerm);
-        } else if (fallbackCASUsingVersion == null && (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM)) {
+        } else if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
             assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
             throw new IllegalStateException(
                 "sequence number based compare and write is not supported until all nodes are on version 6.6.0 or higher. " +
@@ -322,10 +315,14 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     /**
      * If the primary on 6.6+ but replicas on older versions, we can not use CAS using ifSeqNo since it requires all nodes on 6.6+.
      * In this case, we have to fall back to use CAS with _version and should not issue a deprecation warning log during validation.
+     * This flag is merely used to forgo the deprecation log when the cluster is not ready for ifSeqNo.
      */
-    public void setFallbackCASUsingVersion(long version, VersionType versionType) {
-        assert ifSeqNo != UNASSIGNED_SEQ_NO && ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM : "ifSeqNo or ifPrimaryTerm is not set";
-        assert this.version == Versions.MATCH_ANY && this.versionType == VersionType.INTERNAL : "version and versionType are set already";
-        this.fallbackCASUsingVersion = Tuple.tuple(version, Objects.requireNonNull(versionType));
+    public void ignoreCASUsingVersionDeprecation() {
+        if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
+            assert false : ifSeqNo + "[" + ifSeqNo + "] ifPrimaryTerm[" + ifPrimaryTerm + "]";
+            throw new IllegalStateException("request already uses sequence number based compare and write; " +
+                "ifSeqNo [" + ifSeqNo + "] ifPrimaryTerm[" + ifPrimaryTerm + "]");
+        }
+        this.ignoreCASUsingVersionDeprecation = true;
     }
 }

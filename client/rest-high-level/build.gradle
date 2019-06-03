@@ -46,16 +46,18 @@ idea {
 }
 
 dependencies {
-  /*
-   * Everything in the "shadow" configuration is *not* copied into the
-   * shadowJar.
-   */
   compile project(':server')
   compile project(':client:rest')
   compile project(':modules:parent-join')
   compile project(':modules:aggs-matrix-stats')
   compile project(':modules:rank-eval')
   compile project(':modules:lang-mustache')
+  shadow project(':server')
+  shadow project(':client:rest')
+  bundle project(':modules:parent-join')
+  bundle project(':modules:aggs-matrix-stats')
+  bundle project(':modules:rank-eval')
+  bundle project(':modules:lang-mustache')
 
   testCompile project(':client:test')
   testCompile project(':test:framework')

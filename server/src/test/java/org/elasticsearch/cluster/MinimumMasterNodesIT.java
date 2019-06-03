@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.cluster.service:TRACE,org.elasticsearch.cluster.coordination:TRACE")
 public class MinimumMasterNodesIT extends ESIntegTestCase {
 

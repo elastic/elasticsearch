@@ -183,7 +183,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         } else {
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data
-                snapshotInfos = buildSimpleSnapshotInfos(repo, toResolve, repositoryData, currentSnapshots);
+                snapshotInfos = buildSimpleSnapshotInfos(toResolve, repositoryData, currentSnapshots);
             } else {
                 // only want current snapshots
                 snapshotInfos = currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList());
@@ -202,7 +202,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 
-    private List<SnapshotInfo> buildSimpleSnapshotInfos(final String repository, final Set<SnapshotId> toResolve,
+    private static List<SnapshotInfo> buildSimpleSnapshotInfos(final Set<SnapshotId> toResolve,
                                                         final RepositoryData repositoryData,
                                                         final List<SnapshotInfo> currentSnapshots) {
         List<SnapshotInfo> snapshotInfos = new ArrayList<>();

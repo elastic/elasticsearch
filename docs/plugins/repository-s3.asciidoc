@@ -147,14 +147,15 @@ settings belong in the `elasticsearch.yml` file.
 
 `path_style_access`::
 
-   Whether to use the path style access pattern. Defaults to `false`.
+   Whether to use the path style access pattern. If `true`, the path style access pattern will be used if false, DNS style access will
+   be used. Defaults to letting the AWS S3 SDK decide the right access pattern dynamically.
 
 NOTE: This setting is deprecated and only intended as a stop-gap solution to provide
    compatibility with alternative S3 implementations that do not provide compatibility with the domain style access pattern.
-   AWS S3 will stop supporting the path style access pattern from
-   https://forums.aws.amazon.com/ann.jspa?annID=6776[September 30th, 2020]. Releases of Elasticsearch will likely stop supporting
-   this setting before that data. Any setups using the path style access pattern should be switched to the domain style access pattern
-   as soon as possible to ensure continued compatibility with the S3 repository plugin.
+   AWS S3 will stop supporting the path style access pattern for new buckets from
+   https://aws.amazon.com/blogs/aws/amazon-s3-path-deprecation-plan-the-rest-of-the-story[September 30th, 2020].
+   Any setups using the path style access pattern should be switched to the domain style access pattern as soon as possible to ensure
+   continued compatibility with the S3 repository plugin.
 
 [float]
 [[repository-s3-compatible-services]]

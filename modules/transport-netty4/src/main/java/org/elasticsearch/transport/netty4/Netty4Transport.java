@@ -60,7 +60,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.MemoryStats;
+import org.elasticsearch.transport.MemoryUsage;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -251,7 +251,7 @@ public class Netty4Transport extends TcpTransport {
         return esChannel;
     }
 
-    protected MemoryStats memoryStats() {
+    protected MemoryUsage memoryStats() {
         ByteBufAllocator allocator = ByteBufAllocator.DEFAULT;
         ByteBufAllocatorMetric metric;
 
@@ -271,12 +271,12 @@ public class Netty4Transport extends TcpTransport {
         long heapBytes = metric.usedHeapMemory();
         long directBytes = metric.usedDirectMemory();
 
-        MemoryStats.PoolStats heap = new MemoryStats.PoolStats(heapBytes, -1L);
-        MemoryStats.PoolStats direct = new MemoryStats.PoolStats(directBytes, -1L);
-        HashMap<String, MemoryStats.PoolStats> poolStats = new HashMap<>();
+        MemoryUsage.PoolUsage heap = new MemoryUsage.PoolUsage(heapBytes, -1L);
+        MemoryUsage.PoolUsage direct = new MemoryUsage.PoolUsage(directBytes, -1L);
+        HashMap<String, MemoryUsage.PoolUsage> poolStats = new HashMap<>();
         poolStats.put(nettyHeapName, heap);
         poolStats.put(nettyDirectName, direct);
-        return new MemoryStats(poolStats);
+        return new MemoryUsage(poolStats);
     }
 
     @Override

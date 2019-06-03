@@ -19,30 +19,56 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
-public class MemoryStats {
+public class MemoryUsage implements Writeable, ToXContentFragment {
 
-    private final Map<String, PoolStats> poolStats;
+    private final Map<String, PoolUsage> poolStats;
 
-    public MemoryStats(Map<String, PoolStats> poolStats) {
+    public MemoryUsage(Map<String, PoolUsage> poolStats) {
         this.poolStats = Collections.unmodifiableMap(poolStats);
     }
 
-    public Map<String, PoolStats> getPoolStats() {
+    public Map<String, PoolUsage> getPoolUsage() {
         return poolStats;
     }
 
-    public static class PoolStats {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+
+
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return null;
+    }
+
+    public static class PoolUsage implements Writeable, ToXContentFragment {
 
         private final long poolSizeBytes;
         private final long bytesAllocated;
 
-        public PoolStats(long poolSizeBytes, long bytesAllocated) {
+        public PoolUsage(long poolSizeBytes, long bytesAllocated) {
             this.poolSizeBytes = poolSizeBytes;
             this.bytesAllocated = bytesAllocated;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
         }
     }
 }

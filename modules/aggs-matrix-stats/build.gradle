@@ -21,3 +21,24 @@ esplugin {
   description 'Adds aggregations whose input are a list of numeric fields and output includes a matrix.'
   classname 'org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin'
 }
+
+repositories {
+    mavenCentral()
+}
+dependencies {
+    compile 'org.ejml:ejml-core:0.38'
+    compile 'org.ejml:ejml-ddense:0.38'
+}
+
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
+
+task testJar(type: Jar) {
+    appendix 'test'
+    from sourceSets.test.output
+}
+
+artifacts {
+    testArtifacts testJar
+}

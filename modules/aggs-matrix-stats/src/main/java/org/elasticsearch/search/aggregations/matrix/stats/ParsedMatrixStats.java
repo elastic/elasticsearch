@@ -23,82 +23,17 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats {
-
-    private final Map<String, Long> counts = new LinkedHashMap<>();
-    private final Map<String, Double> means = new HashMap<>();
-    private final Map<String, Double> variances = new HashMap<>();
-    private final Map<String, Double> skewness = new HashMap<>();
-    private final Map<String, Double> kurtosis = new HashMap<>();
-    private final Map<String, Map<String, Double>> covariances = new HashMap<>();
-    private final Map<String, Map<String, Double>> correlations = new HashMap<>();
-
-    private long docCount;
+public class ParsedMatrixStats extends BaseParsedMatrixStats {
 
     @Override
     public String getType() {
         return MatrixStatsAggregationBuilder.NAME;
-    }
-
-    private void setDocCount(long docCount) {
-        this.docCount = docCount;
-    }
-
-    @Override
-    public long getDocCount() {
-        return docCount;
-    }
-
-    @Override
-    public long getFieldCount(String field) {
-        if (counts.containsKey(field) == false) {
-            return 0;
-        }
-        return counts.get(field);
-    }
-
-    @Override
-    public double getMean(String field) {
-        return checkedGet(means, field);
-    }
-
-    @Override
-    public double getVariance(String field) {
-        return checkedGet(variances, field);
-    }
-
-    @Override
-    public double getSkewness(String field) {
-        return checkedGet(skewness, field);
-    }
-
-    @Override
-    public double getKurtosis(String field) {
-        return checkedGet(kurtosis, field);
-    }
-
-    @Override
-    public double getCovariance(String fieldX, String fieldY) {
-        if (fieldX.equals(fieldY)) {
-            return checkedGet(variances, fieldX);
-        }
-        return MatrixStatsResults.getValFromUpperTriangularMatrix(covariances, fieldX, fieldY);
-    }
-
-    @Override
-    public double getCorrelation(String fieldX, String fieldY) {
-        if (fieldX.equals(fieldY)) {
-            return 1.0;
-        }
-        return MatrixStatsResults.getValFromUpperTriangularMatrix(correlations, fieldX, fieldY);
     }
 
     @Override
@@ -139,16 +74,6 @@ public class ParsedMatrixStats extends ParsedAggregation implements MatrixStats 
             builder.endArray();
         }
         return builder;
-    }
-
-    private static <T> T checkedGet(final Map<String, T> values, final String fieldName) {
-        if (fieldName == null) {
-            throw new IllegalArgumentException("field name cannot be null");
-        }
-        if (values.containsKey(fieldName) == false) {
-            throw new IllegalArgumentException("field " + fieldName + " does not exist");
-        }
-        return values.get(fieldName);
     }
 
     private static final ObjectParser<ParsedMatrixStats, Void> PARSER =

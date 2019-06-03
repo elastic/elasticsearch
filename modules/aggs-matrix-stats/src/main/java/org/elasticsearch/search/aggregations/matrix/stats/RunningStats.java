@@ -54,7 +54,7 @@ public class RunningStats implements Writeable, Cloneable {
     /** covariance values */
     protected HashMap<String, HashMap<String, Double>> covariances;
 
-    RunningStats() {
+    public RunningStats() {
         init();
     }
 
@@ -311,6 +311,14 @@ public class RunningStats implements Writeable, Cloneable {
         }
     }
 
+    public HashMap<String, Double> getMeans() {
+        return this.means;
+    }
+
+    public HashMap<String, Long> getCounts() {
+        return this.counts;
+    }
+
     @Override
     public RunningStats clone() {
         try {
@@ -325,14 +333,29 @@ public class RunningStats implements Writeable, Cloneable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RunningStats that = (RunningStats) o;
-        return docCount == that.docCount &&
+        boolean result = docCount == that.docCount &&
             Objects.equals(fieldSum, that.fieldSum) &&
             Objects.equals(counts, that.counts) &&
             Objects.equals(means, that.means) &&
             Objects.equals(variances, that.variances) &&
             Objects.equals(skewness, that.skewness) &&
-            Objects.equals(kurtosis, that.kurtosis) &&
-            Objects.equals(covariances, that.covariances);
+            Objects.equals(kurtosis, that.kurtosis);
+
+        if (result == true) {
+            // check covariance equality: we do it this way because two objects could have a different hashmap
+            // representation of the upper triangle matrix but the values are equal
+            for (String row : means.keySet()) {
+                for (String col : means.keySet()) {
+                    if (row.equals(col) == false &&
+                        MatrixStatsResults.getValFromUpperTriangularMatrix(covariances, row, col) !=
+                            MatrixStatsResults.getValFromUpperTriangularMatrix(that.covariances, row, col)) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
     @Override

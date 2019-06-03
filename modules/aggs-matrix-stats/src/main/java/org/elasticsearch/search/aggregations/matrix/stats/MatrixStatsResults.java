@@ -33,23 +33,23 @@ import java.util.Objects;
  * Descriptive stats gathered per shard. Coordinating node computes final pearson product coefficient
  * based on these descriptive stats
  */
-class MatrixStatsResults implements Writeable {
+public class MatrixStatsResults implements Writeable {
     /** object holding results - computes results in place */
     protected final RunningStats results;
     /** pearson product correlation coefficients */
     protected final Map<String, HashMap<String, Double>> correlation;
 
     /** Base ctor */
-    MatrixStatsResults() {
+    protected MatrixStatsResults() {
         results = new RunningStats();
         this.correlation = new HashMap<>();
     }
 
     /** creates and computes result from provided stats */
-    MatrixStatsResults(RunningStats stats) {
+    protected MatrixStatsResults(RunningStats stats) {
         this.results = stats.clone();
         this.correlation = new HashMap<>();
-        this.compute();
+        this.computeBaseStatistics();
     }
 
     /** creates a results object from the given stream */
@@ -78,7 +78,7 @@ class MatrixStatsResults implements Writeable {
     }
 
     /** return the field counts - not public, used for getProperty() */
-    protected Map<String, Long> getFieldCounts() {
+    public Map<String, Long> getFieldCounts() {
         return Collections.unmodifiableMap(results.counts);
     }
 
@@ -182,7 +182,7 @@ class MatrixStatsResults implements Writeable {
         throw new IllegalArgumentException("Coefficient not computed between fields: " + fieldX + " and " + fieldY);
     }
 
-    private void checkField(String field, Map<String, ?> map) {
+    protected void checkField(String field, Map<String, ?> map) {
         if (field == null) {
             throw new IllegalArgumentException("field name cannot be null");
         }
@@ -192,7 +192,7 @@ class MatrixStatsResults implements Writeable {
     }
 
     /** Computes final covariance, variance, and correlation */
-    private void compute() {
+    private void computeBaseStatistics() {
         final double nM1 = results.docCount - 1D;
         // compute final skewness and kurtosis
         for (String fieldName : results.means.keySet()) {

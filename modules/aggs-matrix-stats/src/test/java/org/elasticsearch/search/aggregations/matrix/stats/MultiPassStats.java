@@ -25,7 +25,7 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-class MultiPassStats {
+public class MultiPassStats {
 
     private final String fieldAKey;
     private final String fieldBKey;
@@ -38,12 +38,12 @@ class MultiPassStats {
     private Map<String, HashMap<String, Double>> covariances = new HashMap<>();
     private Map<String, HashMap<String, Double>> correlations = new HashMap<>();
 
-    MultiPassStats(String fieldAName, String fieldBName) {
+    public MultiPassStats(String fieldAName, String fieldBName) {
         this.fieldAKey = fieldAName;
         this.fieldBKey = fieldBName;
     }
 
-    void computeStats(final List<Double> fieldA, final List<Double> fieldB) {
+    public void computeStats(final List<Double> fieldA, final List<Double> fieldB) {
         // set count
         count = fieldA.size();
         double meanA = 0d;
@@ -112,7 +112,7 @@ class MultiPassStats {
         correlations.put(fieldBKey, fieldBCorr);
     }
 
-    void assertNearlyEqual(MatrixStatsResults stats) {
+    public void assertNearlyEqual(MatrixStatsResults stats) {
         assertEquals(count, stats.getDocCount());
         assertEquals(count, stats.getFieldCount(fieldAKey));
         assertEquals(count, stats.getFieldCount(fieldBKey));

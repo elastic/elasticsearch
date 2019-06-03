@@ -19,35 +19,23 @@
 package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static java.util.Collections.emptyMap;
-
 /**
- * Computes distribution statistics over multiple fields
+ * Adds correlation computation to Computes distribution statistics over multiple fields
  */
-public class InternalMatrixStats extends InternalAggregation implements MatrixStats {
-    /** per shard stats needed to compute stats */
-    private final RunningStats stats;
-    /** final result */
-    private final MatrixStatsResults results;
+public class InternalMatrixStats extends BaseInternalMatrixStats {
 
     /** per shard ctor */
     InternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
-                                  List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
-        assert count >= 0;
-        this.stats = multiFieldStatsResults;
-        this.results = results;
+                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        super(name, count, multiFieldStatsResults, results, pipelineAggregators, metaData);
     }
 
     /**
@@ -55,14 +43,6 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
      */
     public InternalMatrixStats(StreamInput in) throws IOException {
         super(in);
-        stats = in.readOptionalWriteable(RunningStats::new);
-        results = in.readOptionalWriteable(MatrixStatsResults::new);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(stats);
-        out.writeOptionalWriteable(results);
     }
 
     @Override
@@ -70,90 +50,23 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         return MatrixStatsAggregationBuilder.NAME;
     }
 
-    /** get the number of documents */
     @Override
-    public long getDocCount() {
-        if (stats == null) {
-            return 0;
-        }
-        return stats.docCount;
+    public InternalMatrixStats newInternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults,
+            MatrixStatsResults results, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        return new InternalMatrixStats(name, count, multiFieldStatsResults, results, pipelineAggregators, metaData);
     }
 
-    /** get the number of samples for the given field. == docCount - numMissing */
     @Override
-    public long getFieldCount(String field) {
-        if (results == null) {
-            return 0;
-        }
-        return results.getFieldCount(field);
+    public MatrixStatsResults newMatrixStatsResults(RunningStats runningStats) {
+        return new MatrixStatsResults(runningStats);
     }
 
-    /** get the mean for the given field */
     @Override
-    public double getMean(String field) {
-        if (results == null) {
-            return Double.NaN;
-        }
-        return results.getMean(field);
+    public MatrixStatsResults newMatrixStatsResults() {
+        return new MatrixStatsResults();
     }
 
-    /** get the variance for the given field */
-    @Override
-    public double getVariance(String field) {
-        if (results == null) {
-            return Double.NaN;
-        }
-        return results.getVariance(field);
-    }
-
-    /** get the distribution skewness for the given field */
-    @Override
-    public double getSkewness(String field) {
-        if (results == null) {
-            return Double.NaN;
-        }
-        return results.getSkewness(field);
-    }
-
-    /** get the distribution shape for the given field */
-    @Override
-    public double getKurtosis(String field) {
-        if (results == null) {
-            return Double.NaN;
-        }
-        return results.getKurtosis(field);
-    }
-
-    /** get the covariance between the two fields */
-    @Override
-    public double getCovariance(String fieldX, String fieldY) {
-        if (results == null) {
-            return Double.NaN;
-        }
-        return results.getCovariance(fieldX, fieldY);
-    }
-
-    /** get the correlation between the two fields */
-    @Override
-    public double getCorrelation(String fieldX, String fieldY) {
-        if (results == null) {
-            return Double.NaN;
-        }
-        return results.getCorrelation(fieldX, fieldY);
-    }
-
-    RunningStats getStats() {
-        return stats;
-    }
-
-    MatrixStatsResults getResults() {
-        return results;
-    }
-
-    static class Fields {
-        public static final String FIELDS = "fields";
-        public static final String NAME = "name";
-        public static final String COUNT = "count";
+    public static class Fields extends BaseInternalMatrixStats.Fields {
         public static final String MEAN = "mean";
         public static final String VARIANCE = "variance";
         public static final String SKEWNESS = "skewness";
@@ -198,76 +111,5 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
             builder.endArray();
         }
         return builder;
-    }
-
-    @Override
-    public Object getProperty(List<String> path) {
-        if (path.isEmpty()) {
-            return this;
-        } else if (path.size() == 1) {
-            String element = path.get(0);
-            if (results == null) {
-                return emptyMap();
-            }
-            switch (element) {
-                case "counts":
-                    return results.getFieldCounts();
-                case "means":
-                    return results.getMeans();
-                case "variances":
-                    return results.getVariances();
-                case "skewness":
-                    return results.getSkewness();
-                case "kurtosis":
-                    return results.getKurtosis();
-                case "covariance":
-                    return results.getCovariances();
-                case "correlation":
-                    return results.getCorrelations();
-                default:
-                    throw new IllegalArgumentException("Found unknown path element [" + element + "] in [" + getName() + "]");
-            }
-        } else {
-            throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
-        }
-    }
-
-    @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        // merge stats across all shards
-        List<InternalAggregation> aggs = new ArrayList<>(aggregations);
-        aggs.removeIf(p -> ((InternalMatrixStats)p).stats == null);
-
-        // return empty result iff all stats are null
-        if (aggs.isEmpty()) {
-            return new InternalMatrixStats(name, 0, null, new MatrixStatsResults(), pipelineAggregators(), getMetaData());
-        }
-
-        RunningStats runningStats = new RunningStats();
-        for (InternalAggregation agg : aggs) {
-            runningStats.merge(((InternalMatrixStats) agg).stats);
-        }
-
-        if (reduceContext.isFinalReduce()) {
-            MatrixStatsResults results = new MatrixStatsResults(runningStats);
-            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, pipelineAggregators(), getMetaData());
-        }
-        return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, pipelineAggregators(), getMetaData());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), stats, results);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
-        if (super.equals(obj) == false) return false;
-
-        InternalMatrixStats other = (InternalMatrixStats) obj;
-        return Objects.equals(this.stats, other.stats) &&
-            Objects.equals(this.results, other.results);
     }
 }

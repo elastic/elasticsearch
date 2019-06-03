@@ -1,0 +1,1 @@
+org.elasticsearch.xpack.ml.aggregations.spi.MatrixStatsNamedXContentProvider

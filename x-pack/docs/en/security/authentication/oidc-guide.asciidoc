@@ -392,7 +392,7 @@ important that {es} can validate and trust the server certificate that the OP us
 used for the client context of outgoing https connections, if your OP is using a certificate from a trusted CA, no additional
 configuration is needed.
 
-However, if your OP uses a certificate that is issued for instance, by a CA used only in your Organization, you must configure
+However, if the issuer of your OP's certificate is not trusted by the JVM on which {es} is running (e.g it uses a organization CA), then you must configure
 {es} to trust that CA. Assuming that you have the CA certificate that has signed the certificate that the OP uses for TLS
 stored in the /oidc/company-ca.pem` file stored in the configuration directory of {es}, you need to set the following
 property in the realm configuration:

@@ -29,11 +29,11 @@ import java.util.function.BiPredicate;
 import java.util.function.Predicate;
 
 /**
- * The {@code ManageApplicationPrivileges} privilege is a {@link RenderableConditionalClusterPrivilege} that grants the
+ * The {@code ManageApplicationPrivileges} privilege is a {@link ConditionalClusterPrivilege} that grants the
  * ability to execute actions related to the management of application privileges (Get, Put, Delete) for a subset
  * of applications (identified by a wildcard-aware application-name).
  */
-public final class ManageApplicationPrivileges implements RenderableConditionalClusterPrivilege {
+public final class ManageApplicationPrivileges implements ConditionalClusterPrivilege {
 
     private static final ClusterPrivilege PRIVILEGE = ClusterPrivilege.get(
         Collections.singleton("cluster:admin/xpack/security/privilege/*")

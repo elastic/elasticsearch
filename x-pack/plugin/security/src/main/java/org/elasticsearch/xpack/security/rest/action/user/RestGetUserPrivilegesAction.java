@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesReques
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.RenderableConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -81,7 +81,7 @@ public class RestGetUserPrivilegesAction extends SecurityBaseRestHandler {
 
             builder.field(RoleDescriptor.Fields.CLUSTER.getPreferredName(), response.getClusterPrivileges());
             builder.startArray(RoleDescriptor.Fields.GLOBAL.getPreferredName());
-            for (RenderableConditionalClusterPrivilege ccp : response.getConditionalClusterPrivileges()) {
+            for (ConditionalClusterPrivilege ccp : response.getConditionalClusterPrivileges()) {
                 ConditionalClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS, Collections.singleton(ccp));
             }
             builder.endArray();

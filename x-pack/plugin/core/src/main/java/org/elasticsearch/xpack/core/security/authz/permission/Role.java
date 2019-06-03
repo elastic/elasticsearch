@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.PlainConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 
@@ -211,16 +211,16 @@ public class Role {
             }
         }
 
-        public Builder cluster(Set<String> privilegeNames, Iterable<ConditionalClusterPrivilege> conditionalClusterPrivileges) {
+        public Builder cluster(Set<String> privilegeNames, Iterable<PlainConditionalClusterPrivilege> conditionalClusterPrivileges) {
             List<ClusterPermission> clusterPermissions = new ArrayList<>();
             if (privilegeNames.isEmpty() == false) {
-                Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> privileges = ClusterPrivilege.get(privilegeNames);
+                Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>> privileges = ClusterPrivilege.get(privilegeNames);
                 clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(privileges.v1()));
-                for (ConditionalClusterPrivilege ccp : privileges.v2()) {
+                for (PlainConditionalClusterPrivilege ccp : privileges.v2()) {
                     clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));
                 }
             }
-            for (ConditionalClusterPrivilege ccp : conditionalClusterPrivileges) {
+            for (PlainConditionalClusterPrivilege ccp : conditionalClusterPrivileges) {
                 clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));
             }
             if (clusterPermissions.isEmpty()) {

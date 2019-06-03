@@ -24,7 +24,7 @@ import java.util.function.Predicate;
 /**
  * Conditional cluster privilege for managing API keys
  */
-public final class ManageApiKeyConditionalClusterPrivilege implements ConditionalClusterPrivilege {
+public final class ManageApiKeyConditionalClusterPrivilege implements PlainConditionalClusterPrivilege {
 
     private static final String CREATE_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/create";
     private static final String GET_API_KEY_PATTERN = "cluster:admin/xpack/security/api_key/get";

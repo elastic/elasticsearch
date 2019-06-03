@@ -101,7 +101,7 @@ public final class ClusterPrivilege extends Privilege {
 
     public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
-    private static final ConcurrentHashMap<Set<String>, Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>> CACHE =
+    private static final ConcurrentHashMap<Set<String>, Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>>> CACHE =
             new ConcurrentHashMap<>();
 
     /* Conditional Cluster Privileges */
@@ -119,15 +119,15 @@ public final class ClusterPrivilege extends Privilege {
                 Set.of("*"),
                 Set.of("*")));
 
-        private final ConditionalClusterPrivilege conditionalClusterPrivilege;
+        private final PlainConditionalClusterPrivilege conditionalClusterPrivilege;
         private final String privilegeName;
 
-        DefaultConditionalClusterPrivilege(String privilegeName, ConditionalClusterPrivilege conditionalClusterPrivilege) {
+        DefaultConditionalClusterPrivilege(String privilegeName, PlainConditionalClusterPrivilege conditionalClusterPrivilege) {
             this.privilegeName = privilegeName;
             this.conditionalClusterPrivilege = conditionalClusterPrivilege;
         }
 
-        public ConditionalClusterPrivilege conditionalClusterPrivilege() {
+        public PlainConditionalClusterPrivilege conditionalClusterPrivilege() {
             return conditionalClusterPrivilege;
         }
 
@@ -140,7 +140,7 @@ public final class ClusterPrivilege extends Privilege {
             return value.get();
         }
 
-        public static String name(ConditionalClusterPrivilege ccp) {
+        public static String name(PlainConditionalClusterPrivilege ccp) {
             Optional<DefaultConditionalClusterPrivilege> value = Arrays.stream(values())
                     .filter(dccp -> dccp.conditionalClusterPrivilege.equals(ccp)).findAny();
             if (value.isEmpty()) {
@@ -194,14 +194,14 @@ public final class ClusterPrivilege extends Privilege {
         super(name, automaton);
     }
 
-    public static Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> get(final Set<String> name) {
+    public static Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>> get(final Set<String> name) {
         if (name == null || name.isEmpty()) {
-            return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(NONE, Collections.emptySet());
+            return new Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>>(NONE, Collections.emptySet());
         }
         return CACHE.computeIfAbsent(name, ClusterPrivilege::resolve);
     }
 
-    private static Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> resolve(Set<String> name) {
+    private static Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>> resolve(Set<String> name) {
         final int size = name.size();
         if (size == 0) {
             throw new IllegalArgumentException("empty set should not be used");
@@ -209,7 +209,7 @@ public final class ClusterPrivilege extends Privilege {
 
         Set<String> actions = new HashSet<>();
         Set<Automaton> automata = new HashSet<>();
-        Set<ConditionalClusterPrivilege> conditionalClusterPrivileges = new HashSet<>();
+        Set<PlainConditionalClusterPrivilege> conditionalClusterPrivileges = new HashSet<>();
         for (String part : name) {
             part = part.toLowerCase(Locale.ROOT);
             if (ACTION_MATCHER.test(part)) {
@@ -217,7 +217,7 @@ public final class ClusterPrivilege extends Privilege {
             } else {
                 ClusterPrivilege privilege = VALUES.get(part);
                 if (privilege != null && size == 1) {
-                    return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(privilege, Collections.emptySet());
+                    return new Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>>(privilege, Collections.emptySet());
                 } else if (privilege != null) {
                     automata.add(privilege.automaton);
                 } else {
@@ -238,7 +238,7 @@ public final class ClusterPrivilege extends Privilege {
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
         }
-        return new Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>>(
+        return new Tuple<ClusterPrivilege, Set<PlainConditionalClusterPrivilege>>(
                 new ClusterPrivilege(name, Automatons.unionAndMinimize(automata)), conditionalClusterPrivileges);
     }
 }

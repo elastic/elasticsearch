@@ -10,7 +10,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.PlainConditionalClusterPrivilege;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -39,7 +39,7 @@ public abstract class ClusterPermission {
         return Operations.subsetOf(clusterPrivilege.getAutomaton(), this.privilege().getAutomaton());
     }
 
-    public abstract List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges();
+    public abstract List<Tuple<ClusterPrivilege, PlainConditionalClusterPrivilege>> privileges();
 
     /**
      * A permission that is based solely on cluster privileges and does not consider request state
@@ -61,7 +61,7 @@ public abstract class ClusterPermission {
         }
 
         @Override
-        public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
+        public List<Tuple<ClusterPrivilege, PlainConditionalClusterPrivilege>> privileges() {
             return Collections.singletonList(new Tuple<>(super.privilege, null));
         }
     }
@@ -70,9 +70,9 @@ public abstract class ClusterPermission {
      * A permission that makes use of both cluster privileges and request inspection
      */
     public static class ConditionalClusterPermission extends ClusterPermission {
-        private final ConditionalClusterPrivilege conditionalPrivilege;
+        private final PlainConditionalClusterPrivilege conditionalPrivilege;
 
-        public ConditionalClusterPermission(ConditionalClusterPrivilege conditionalPrivilege) {
+        public ConditionalClusterPermission(PlainConditionalClusterPrivilege conditionalPrivilege) {
             super(conditionalPrivilege.getPrivilege());
             this.conditionalPrivilege = conditionalPrivilege;
         }
@@ -83,7 +83,7 @@ public abstract class ClusterPermission {
         }
 
         @Override
-        public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
+        public List<Tuple<ClusterPrivilege, PlainConditionalClusterPrivilege>> privileges() {
             return Collections.singletonList(new Tuple<>(super.privilege, conditionalPrivilege));
         }
     }
@@ -109,7 +109,7 @@ public abstract class ClusterPermission {
         }
 
         @Override
-        public List<Tuple<ClusterPrivilege, ConditionalClusterPrivilege>> privileges() {
+        public List<Tuple<ClusterPrivilege, PlainConditionalClusterPrivilege>> privileges() {
             return children.stream().map(ClusterPermission::privileges).flatMap(List::stream).collect(Collectors.toList());
         }
 

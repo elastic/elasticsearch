@@ -115,7 +115,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.RenderableConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -315,11 +315,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 
-        final RenderableConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(RenderableConditionalClusterPrivilege.class);
+        final ConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(ConditionalClusterPrivilege.class);
         final BiPredicate<TransportRequest, Authentication> requestPredicate = (r, a) -> r == request;
         Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
         Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        final RenderableConditionalClusterPrivilege[] conditionalClusterPrivileges = new RenderableConditionalClusterPrivilege[] {
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[] {
             conditionalClusterPrivilege
         };
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
@@ -336,11 +336,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         final DeletePrivilegesRequest request = new DeletePrivilegesRequest();
         final Authentication authentication = createAuthentication(new User("user1", "role1"));
 
-        final RenderableConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(RenderableConditionalClusterPrivilege.class);
+        final ConditionalClusterPrivilege conditionalClusterPrivilege = Mockito.mock(ConditionalClusterPrivilege.class);
         final BiPredicate<TransportRequest, Authentication> requestPredicate = (r, a) -> false;
         Mockito.when(conditionalClusterPrivilege.getRequestPredicate()).thenReturn(requestPredicate);
         Mockito.when(conditionalClusterPrivilege.getPrivilege()).thenReturn(ClusterPrivilege.MANAGE_SECURITY);
-        final RenderableConditionalClusterPrivilege[] conditionalClusterPrivileges = new RenderableConditionalClusterPrivilege[] {
+        final ConditionalClusterPrivilege[] conditionalClusterPrivileges = new ConditionalClusterPrivilege[] {
             conditionalClusterPrivilege
         };
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);

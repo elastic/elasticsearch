@@ -7,7 +7,6 @@ package org.elasticsearch.snapshots;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -22,7 +21,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -58,7 +56,6 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
@@ -72,7 +69,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
@@ -105,7 +101,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 () -> {
                     final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
                     runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.mapperService(), snapshotId, indexId,
-                        new TestSnapshotShardContext(shard, indexShardSnapshotStatus, future)));
+                        ShardSnapshotContext.create(shard, indexShardSnapshotStatus, future)));
                     future.actionGet();
                 }));
         assertEquals("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
@@ -129,7 +125,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             SnapshotId snapshotId = new SnapshotId("test", "test");
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.mapperService(), snapshotId, indexId,
-                new TestSnapshotShardContext(shard, indexShardSnapshotStatus, future)));
+                ShardSnapshotContext.create(shard, indexShardSnapshotStatus, future)));
             future.actionGet();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
@@ -144,7 +140,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing();
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.mapperService(), snapshotId, indexId,
-                new TestSnapshotShardContext(shard, indexShardSnapshotStatus, future)));
+                ShardSnapshotContext.create(shard, indexShardSnapshotStatus, future)));
             future.actionGet();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1.si, _1.fdx, _1.fnm, _1.fdt
@@ -160,7 +156,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing();
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(shard.mapperService(), snapshotId, indexId,
-                new TestSnapshotShardContext(shard, indexShardSnapshotStatus, future)));
+                ShardSnapshotContext.create(shard, indexShardSnapshotStatus, future)));
             future.actionGet();
             IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
             // we processed the segments_N file plus _1_1.liv
@@ -210,7 +206,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     .getIndexMetaData(), false).build());
             final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
             repository.snapshotShard(shard.mapperService(), snapshotId, indexId,
-                new TestSnapshotShardContext(shard, indexShardSnapshotStatus, future));
+                ShardSnapshotContext.create(shard, indexShardSnapshotStatus, future));
             future.actionGet();
         });
         IndexShardSnapshotStatus.Copy copy = indexShardSnapshotStatus.asCopy();
@@ -373,58 +369,4 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
     }
 
-    private static final class TestSnapshotShardContext implements ShardSnapshotContext {
-
-        private final AtomicBoolean closed;
-        private final IndexShard shard;
-        private final IndexShardSnapshotStatus indexShardSnapshotStatus;
-        private final PlainActionFuture<Void> future;
-        private Engine.IndexCommitRef snapshotRef;
-
-        TestSnapshotShardContext(IndexShard shard, IndexShardSnapshotStatus indexShardSnapshotStatus, PlainActionFuture<Void> future) {
-            this.shard = shard;
-            this.indexShardSnapshotStatus = indexShardSnapshotStatus;
-            this.future = future;
-            closed = new AtomicBoolean(false);
-        }
-
-        @Override
-        public void releaseIndexCommit() throws IOException {
-            if (closed.compareAndSet(false, true)) {
-                synchronized (this) {
-                    if (snapshotRef != null) {
-                        snapshotRef.close();
-                    }
-                }
-            }
-        }
-
-        @Override
-        public IndexCommit indexCommit() {
-            synchronized (this) {
-                if (closed.get()) {
-                    throw new IllegalStateException("Tried to get index commit from closed context");
-                }
-                if (snapshotRef == null) {
-                    snapshotRef = shard.acquireLastIndexCommit(true);
-                }
-                return snapshotRef.getIndexCommit();
-            }
-        }
-
-        @Override
-        public Store store() {
-            return shard.store();
-        }
-
-        @Override
-        public IndexShardSnapshotStatus status() {
-            return indexShardSnapshotStatus;
-        }
-
-        @Override
-        public ActionListener<Void> completionListener() {
-            return future;
-        }
-    }
 }

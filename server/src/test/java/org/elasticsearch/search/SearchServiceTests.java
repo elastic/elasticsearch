@@ -50,6 +50,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
@@ -266,9 +267,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 try {
                     try {
                         PlainActionFuture<SearchPhaseResult> result = new PlainActionFuture<>();
-                        boolean useScroll = randomBoolean();
+                        final boolean useScroll = randomBoolean();
                         service.executeQueryPhase(
-                            new ShardSearchLocalRequest(useScroll ? searchRequest : scrollSearchRequest,
+                            new ShardSearchLocalRequest(useScroll ? scrollSearchRequest : searchRequest,
                                 indexShard.shardId(), 1,
                                 new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null),
                             new SearchTask(123L, "", "", "", null, Collections.emptyMap()), result);
@@ -280,7 +281,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         service.executeFetchPhase(req, new SearchTask(123L, "", "", "", null, Collections.emptyMap()), listener);
                         listener.get();
                         if (useScroll) {
-                            service.freeContext(searchPhaseResult.requestId);
+                            service.freeContext(searchPhaseResult.getRequestId());
                         }
                     } catch (ExecutionException ex) {
                         assertThat(ex.getCause(), instanceOf(RuntimeException.class));
@@ -299,6 +300,13 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             thread.join();
             semaphore.acquire(Integer.MAX_VALUE);
         }
+
+        assertEquals(0, service.getActiveContexts());
+
+        SearchStats.Stats totalStats = indexShard.searchStats().getTotal();
+        assertEquals(0, totalStats.getQueryCurrent());
+        assertEquals(0, totalStats.getScrollCurrent());
+        assertEquals(0, totalStats.getFetchCurrent());
     }
 
     public void testTimeout() throws IOException {

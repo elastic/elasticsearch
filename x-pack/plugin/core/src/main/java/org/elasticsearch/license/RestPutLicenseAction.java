@@ -7,20 +7,20 @@
 package org.elasticsearch.license;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.XPackClient;
-import org.elasticsearch.xpack.core.rest.XPackRestHandler;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
-public class RestPutLicenseAction extends XPackRestHandler {
+public class RestPutLicenseAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(RestPutLicenseAction.class));
 
@@ -30,11 +30,11 @@ public class RestPutLicenseAction extends XPackRestHandler {
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 POST, "/_license", this,
-                POST, URI_BASE + "/license", deprecationLogger);
+                POST, "/_xpack/license", deprecationLogger);
         // TODO: remove deprecated endpoint in 8.0.0
         controller.registerWithDeprecatedHandler(
                 PUT, "/_license", this,
-                PUT, URI_BASE + "/license", deprecationLogger);
+                PUT,  "/_xpack/license", deprecationLogger);
     }
 
     @Override
@@ -43,7 +43,7 @@ public class RestPutLicenseAction extends XPackRestHandler {
     }
 
     @Override
-    public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.hasContent() == false) {
             throw new IllegalArgumentException("The license must be provided in the request body");
         }
@@ -58,8 +58,7 @@ public class RestPutLicenseAction extends XPackRestHandler {
                     "/_license/start_basic API to install a basic license that does not expire.");
         }
 
-        return channel -> client.es().admin().cluster().execute(PutLicenseAction.INSTANCE, putLicenseRequest,
-                new RestToXContentListener<>(channel));
+        return channel -> client.execute(PutLicenseAction.INSTANCE, putLicenseRequest, new RestToXContentListener<>(channel));
     }
 
 }

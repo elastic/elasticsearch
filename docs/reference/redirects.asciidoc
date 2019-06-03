@@ -609,3 +609,10 @@ The `TransportClient` is deprecated in favour of the
 Elasticsearch 8.0. The
 {java-rest}/java-rest-high-level-migration.html[migration guide] describes all
 the steps needed to migrate.
+
+[role="exclude",id="query-dsl-common-terms-query"]
+=== Common Terms Query
+
+The `common` terms query is deprecated. Use the <<query-dsl-match-query, `match`
+query>> instead. The `match` query skips blocks of documents efficiently,
+without any configuration, if the total number of hits is not tracked.

@@ -105,7 +105,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 }
 
                 assertBusy(() -> {
-                    MonitoringBulkRequestBuilder bulk = monitoringClient().prepareMonitoringBulk();
+                    MonitoringBulkRequestBuilder bulk = new MonitoringBulkRequestBuilder(client());
                     monitoringDocs.forEach(bulk::add);
                     assertEquals(RestStatus.OK, bulk.get().status());
                     refresh();

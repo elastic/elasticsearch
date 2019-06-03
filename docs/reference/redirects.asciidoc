@@ -82,15 +82,13 @@ The `_uid` field has been removed in favour of the <<mapping-id-field,`_id` fiel
 === memcached
 
 The `memcached` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
+interface over <<modules-http,HTTP>>.
 
 [role="exclude",id="modules-thrift"]
 === Thrift
 
 The `thrift` transport is no longer supported.  Instead use the REST
-interface over <<modules-http,HTTP>> or the
-{javaclient}/index.html[Java API].
+interface over <<modules-http,HTTP>>.
 
 // QUERY DSL
 

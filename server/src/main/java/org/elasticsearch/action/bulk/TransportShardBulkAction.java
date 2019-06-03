@@ -49,10 +49,13 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
@@ -81,6 +84,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(logger);
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
@@ -136,27 +140,28 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             });
             waitingFuture.get();
         };
-        return performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis,
-            new ConcreteMappingUpdatePerformer(), waitForMappingUpdate);
+        return performOnPrimary(request, primary, updateHelper, DocWriteRequest.canUseIfSeqNo(clusterService.state()),
+            threadPool::absoluteTimeInMillis, new ConcreteMappingUpdatePerformer(), waitForMappingUpdate);
     }
 
     public static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
+        boolean canUseIfSeqNo,
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
         CheckedRunnable<Exception> waitForMappingUpdate) throws Exception {
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
-        return performOnPrimary(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate);
+        return performOnPrimary(context, updateHelper, canUseIfSeqNo, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate);
     }
 
     private static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performOnPrimary(
-        BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
+        BulkPrimaryExecutionContext context, UpdateHelper updateHelper, boolean canUseIfSeqNo, LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater, CheckedRunnable<Exception> waitForMappingUpdate) throws Exception {
 
         while (context.hasMoreOperationsToExecute()) {
-            executeBulkItemRequest(context, updateHelper, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate);
+            executeBulkItemRequest(context, updateHelper, canUseIfSeqNo, nowInMillisSupplier, mappingUpdater, waitForMappingUpdate);
             assert context.isInitial(); // either completed and moved to next or reset
         }
         return new WritePrimaryResult<>(context.getBulkShardRequest(), context.buildShardResponse(), context.getLocationToSync(),
@@ -164,7 +169,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     /** Executes bulk item requests and handles request execution exceptions */
-    static void executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper, LongSupplier nowInMillisSupplier,
+    static void executeBulkItemRequest(BulkPrimaryExecutionContext context, UpdateHelper updateHelper,
+                                       boolean canUseIfSeqNo, LongSupplier nowInMillisSupplier,
                                        MappingUpdatePerformer mappingUpdater, CheckedRunnable<Exception> waitForMappingUpdate)
         throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
@@ -173,7 +179,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             try {
-                updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
+                updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), canUseIfSeqNo, nowInMillisSupplier);
             } catch (Exception failure) {
                 // we may fail translating a update to index or delete operation
                 // we use index result to communicate failure while translating update request
@@ -209,7 +215,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
 
         assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
-
+        validateDocWriteRequest(context.getRequestToExecute(), canUseIfSeqNo);
         if (context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE) {
             executeDeleteRequestOnPrimary(context, mappingUpdater);
         } else {
@@ -499,6 +505,26 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             // can throw timeout exception when updating mappings or ISE for attempting to
             // update default mappings which are bubbled up
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), type, update);
+        }
+    }
+
+    private static void validateDocWriteRequest(DocWriteRequest<?> request, boolean canUseIfSeqNo) {
+        if (canUseIfSeqNo) {
+            if (request.versionType() == VersionType.INTERNAL
+                && request.version() != Versions.MATCH_ANY
+                && request.version() != Versions.MATCH_DELETED) {
+                DEPRECATION_LOGGER.deprecatedAndMaybeLog("occ_internal_version",
+                    "Usage of internal versioning for optimistic concurrency control is deprecated and will be removed. Please use" +
+                        " the `if_seq_no` and `if_primary_term` parameters instead. (request for index [{}], type [{}], id [{}])",
+                    request.index(), request.type(), request.id());
+            }
+        } else {
+            if (request.ifSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                || request.ifPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+                assert false : "ifSeqNo [" + request.ifSeqNo() + "], ifPrimaryTerm [" + request.ifPrimaryTerm() + "]";
+                throw new IllegalStateException(
+                    "sequence number based compare and write is not supported until all nodes are on version 6.6.0 or higher.");
+            }
         }
     }
 }

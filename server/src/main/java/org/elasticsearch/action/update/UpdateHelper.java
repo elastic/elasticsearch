@@ -22,12 +22,10 @@ package org.elasticsearch.action.update;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -55,7 +53,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 
 /**
@@ -66,27 +63,21 @@ public class UpdateHelper {
     private static final Logger logger = LogManager.getLogger(UpdateHelper.class);
 
     private final ScriptService scriptService;
-    private final BooleanSupplier canUseIfSeqNo;
 
-    public UpdateHelper(ScriptService scriptService, ClusterService clusterService) {
-        this(scriptService, () -> clusterService.state().nodes().getMinNodeVersion().onOrAfter(Version.V_6_6_0));
-    }
-
-    UpdateHelper(ScriptService scriptService, BooleanSupplier canUseIfSeqNo) {
+    public UpdateHelper(ScriptService scriptService) {
         this.scriptService = scriptService;
-        this.canUseIfSeqNo = canUseIfSeqNo;
     }
 
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) {
-        if (canUseIfSeqNo.getAsBoolean() == false) {
+    public Result prepare(UpdateRequest request, IndexShard indexShard, boolean canUseIfSeqNo, LongSupplier nowInMillis) {
+        if (canUseIfSeqNo == false) {
             ensureIfSeqNoNotProvided(request.ifSeqNo(), request.ifPrimaryTerm());
         }
         final GetResult getResult = indexShard.getService().getForUpdate(
             request.type(), request.id(), request.version(), request.versionType(), request.ifSeqNo(), request.ifPrimaryTerm());
-        return prepare(indexShard.shardId(), request, getResult, nowInMillis);
+        return prepare(indexShard.shardId(), request, canUseIfSeqNo, getResult, nowInMillis);
     }
 
     /**
@@ -94,7 +85,7 @@ public class UpdateHelper {
      * noop).
      */
     @SuppressWarnings("unchecked")
-    protected Result prepare(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
+    protected Result prepare(ShardId shardId, UpdateRequest request, boolean canUseIfSeqNo, GetResult getResult, LongSupplier nowInMillis) {
         if (getResult.isExists() == false) {
             // If the document didn't exist, execute the update request as an upsert
             return prepareUpsert(shardId, request, getResult, nowInMillis);
@@ -103,10 +94,10 @@ public class UpdateHelper {
             throw new DocumentSourceMissingException(shardId, request.type(), request.id());
         } else if (request.script() == null && request.doc() != null) {
             // The request has no script, it is a new doc that should be merged with the old document
-            return prepareUpdateIndexRequest(shardId, request, getResult, request.detectNoop());
+            return prepareUpdateIndexRequest(shardId, request, canUseIfSeqNo, getResult, request.detectNoop());
         } else {
             // The request has a script (or empty script), execute the script and prepare a new index request
-            return prepareUpdateScriptRequest(shardId, request, getResult, nowInMillis);
+            return prepareUpdateScriptRequest(shardId, request, canUseIfSeqNo, getResult, nowInMillis);
         }
     }
 
@@ -223,7 +214,8 @@ public class UpdateHelper {
      * Prepare the request for merging the existing document with a new one, can optionally detect a noop change. Returns a {@code Result}
      * containing a new {@code IndexRequest} to be executed on the primary and replicas.
      */
-    Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
+    Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, boolean canUseIfSeqNo,
+                                     GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final String parent = calculateParent(getResult, currentRequest);
@@ -247,7 +239,7 @@ public class UpdateHelper {
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy());
-            if (canUseIfSeqNo.getAsBoolean()) {
+            if (canUseIfSeqNo) {
                 finalIndexRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
             } else {
                 finalIndexRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
@@ -261,7 +253,8 @@ public class UpdateHelper {
      * either a new {@code IndexRequest} or {@code DeleteRequest} (depending on the script's returned "op" value) to be executed on the
      * primary and replicas.
      */
-    Result prepareUpdateScriptRequest(ShardId shardId, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
+    Result prepareUpdateScriptRequest(ShardId shardId, UpdateRequest request, boolean canUseIfSeqNo,
+                                      GetResult getResult, LongSupplier nowInMillis) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final String parent = calculateParent(getResult, currentRequest);
@@ -293,7 +286,7 @@ public class UpdateHelper {
                         .source(updatedSourceAsMap, updateSourceContentType)
                         .waitForActiveShards(request.waitForActiveShards()).timeout(request.timeout())
                         .setRefreshPolicy(request.getRefreshPolicy());
-                if (canUseIfSeqNo.getAsBoolean()) {
+                if (canUseIfSeqNo) {
                     indexRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
                 } else {
                     indexRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
@@ -304,7 +297,7 @@ public class UpdateHelper {
                         .type(request.type()).id(request.id()).routing(routing).parent(parent)
                         .waitForActiveShards(request.waitForActiveShards())
                         .timeout(request.timeout()).setRefreshPolicy(request.getRefreshPolicy());
-                if (canUseIfSeqNo.getAsBoolean()) {
+                if (canUseIfSeqNo) {
                     deleteRequest.setIfSeqNo(getResult.getSeqNo()).setIfPrimaryTerm(getResult.getPrimaryTerm());
                 } else {
                     deleteRequest.version(calculateUpdateVersion(request, getResult)).versionType(request.versionType());
@@ -394,7 +387,7 @@ public class UpdateHelper {
 
     private void ensureIfSeqNoNotProvided(long ifSeqNo, long ifPrimaryTerm) {
         if (ifSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO || ifPrimaryTerm != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
-            assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
+            assert false : "ifSeqNo [" + ifSeqNo + "], ifPrimaryTerm [" + ifPrimaryTerm + "]";
             throw new IllegalStateException(
                 "sequence number based compare and write is not supported until all nodes are on version 6.6.0 or higher.");
         }

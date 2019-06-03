@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.delete;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
@@ -53,7 +51,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  */
 public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(DeleteRequest.class));
 
     private String type;
     private String id;
@@ -101,8 +98,6 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
         }
 
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
-
-        DocWriteRequest.logDeprecationWarnings(this, DEPRECATION_LOGGER);
 
         return validationException;
     }
@@ -286,7 +281,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
             out.writeZLong(ifSeqNo);
             out.writeVLong(ifPrimaryTerm);
         } else if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-            assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
+            assert false : "ifSeqNo [" + ifSeqNo + "], ifPrimaryTerm [" + ifPrimaryTerm + "]";
             throw new IllegalStateException(
                 "sequence number based compare and write is not supported until all nodes are on version 6.6.0 or higher. " +
                     "Stream version [" + out.getVersion() + "]");

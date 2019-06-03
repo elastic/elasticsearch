@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.index;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -75,7 +73,6 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
 public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(IndexRequest.class));
 
     /**
      * Max length of the source document to include into string()
@@ -199,9 +196,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (pipeline != null && pipeline.isEmpty()) {
             validationException = addValidationError("pipeline cannot be an empty string", validationException);
         }
-
-
-        DocWriteRequest.logDeprecationWarnings(this, DEPRECATION_LOGGER);
 
         return validationException;
     }
@@ -654,7 +648,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeZLong(ifSeqNo);
             out.writeVLong(ifPrimaryTerm);
         } else if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-            assert false : "setIfMatch [" + ifSeqNo + "], currentDocTem [" + ifPrimaryTerm + "]";
+            assert false : "ifSeqNo [" + ifSeqNo + "], ifPrimaryTerm [" + ifPrimaryTerm + "]";
             throw new IllegalStateException(
                 "sequence number based compare and write is not supported until all nodes are on version 6.6.0 or higher. " +
                     "Stream version [" + out.getVersion() + "]");

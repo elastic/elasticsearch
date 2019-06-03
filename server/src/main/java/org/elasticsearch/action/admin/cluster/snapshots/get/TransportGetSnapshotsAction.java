@@ -23,6 +23,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
@@ -113,15 +114,17 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         // run concurrently for all repos on GENERIC thread pool
         for (final RepositoryMetaData repo : repos) {
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(
-                    () -> {
-                        try {
-                            groupedActionListener.onResponse(GetSnapshotsResponse.Response.snapshots(
-                                    repo.name(), getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose)));
-                        } catch (ElasticsearchException e) {
-                            groupedActionListener.onResponse(GetSnapshotsResponse.Response.error(repo.name(), e));
-                        }
-                    });
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new ActionRunnable<>(groupedActionListener) {
+                @Override
+                protected void doRun() {
+                    try {
+                        groupedActionListener.onResponse(GetSnapshotsResponse.Response.snapshots(
+                                repo.name(), getSingleRepoSnapshotInfo(repo.name(), snapshots, ignoreUnavailable, verbose)));
+                    } catch (ElasticsearchException e) {
+                        groupedActionListener.onResponse(GetSnapshotsResponse.Response.error(repo.name(), e));
+                    }
+                }
+            });
         }
     }
 

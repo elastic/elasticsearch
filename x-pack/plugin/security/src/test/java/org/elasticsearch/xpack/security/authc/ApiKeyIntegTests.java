@@ -604,13 +604,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                     .basicAuthHeaderValue("user_with_manage_api_key_role", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)));
 
             PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
-            client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(userWithManageApiKeyRoleApiKeys.get(0).getId()), listener);
+            client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(userWithManageApiKeyRoleApiKeys.get(0).getId()),
+                    listener);
             GetApiKeyResponse response = listener.actionGet();
             assertThat(response.getApiKeyInfos().length, is(1));
             assertThat(response.getApiKeyInfos()[0].getId(), is(userWithManageApiKeyRoleApiKeys.get(0).getId()));
 
             listener = new PlainActionFuture<>();
-            client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(userWithOwnerManageApiKeyRoleApiKeys.get(0).getId()), listener);
+            client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(userWithOwnerManageApiKeyRoleApiKeys.get(0).getId()),
+                    listener);
             response = listener.actionGet();
             assertThat(response.getApiKeyInfos().length, is(1));
             assertThat(response.getApiKeyInfos()[0].getId(), is(userWithOwnerManageApiKeyRoleApiKeys.get(0).getId()));

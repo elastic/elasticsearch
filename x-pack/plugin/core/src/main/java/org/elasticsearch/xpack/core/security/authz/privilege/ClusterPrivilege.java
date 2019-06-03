@@ -227,9 +227,10 @@ public final class ClusterPrivilege extends Privilege {
                     } else {
                         throw new IllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either " +
                                 "one of the predefined fixed cluster privileges [" +
-                                Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "], default conditional cluster privileges [" +
-                                Strings.collectionToCommaDelimitedString(DefaultConditionalClusterPrivilege.names()) +
-                                "] or a pattern over one of the available cluster actions");
+                                Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "], " +
+                                "predefined fixed conditional cluster privileges [" +
+                                Strings.collectionToCommaDelimitedString(DefaultConditionalClusterPrivilege.names()) + "] " +
+                                "or a pattern over one of the available cluster actions");
                     }
                 }
             }

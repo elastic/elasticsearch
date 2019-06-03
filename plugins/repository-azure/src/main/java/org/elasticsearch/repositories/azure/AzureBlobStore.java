@@ -34,8 +34,9 @@ import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -102,9 +103,7 @@ public class AzureBlobStore implements BlobStore {
 
     public Map<String, BlobContainer> children(BlobPath path) throws URISyntaxException, StorageException {
         return Collections.unmodifiableMap(service.children(clientName, container, path).stream().collect(
-            HashMap::new,
-            (existing, name) -> existing.put(name, new AzureBlobContainer(path.add(name), this)),
-            HashMap::putAll));
+            Collectors.toMap(Function.identity(), name -> new AzureBlobContainer(path.add(name), this))));
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)

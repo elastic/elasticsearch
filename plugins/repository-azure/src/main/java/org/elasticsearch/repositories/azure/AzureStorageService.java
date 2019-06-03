@@ -243,7 +243,8 @@ public class AzureStorageService {
                     final URI uri = blobItem.getUri();
                     logger.trace(() -> new ParameterizedMessage("blob url [{}]", uri));
                     // uri.getPath is of the form /container/keyPath.* and we want to strip off the /container/
-                    // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /
+                    // this requires 1 + container.length() + 1, with each 1 corresponding to one of the /.
+                    // Lastly, we add the length of keyPath to the offset to strip this container's path.
                     final String uriPath = uri.getPath();
                     blobsBuilder.add(uriPath.substring(1 + container.length() + 1 + keyPath.length(), uriPath.length() - 1));
                 }

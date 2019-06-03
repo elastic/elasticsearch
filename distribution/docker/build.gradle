@@ -45,6 +45,7 @@ project.ext {
 
       into('config') {
         from project.projectDir.toPath().resolve("src/docker/config")
+        from project.projectDir.toPath().resolve(oss ? "oss-docker-build-context" : "docker-build-context").resolve("src/docker/config")
       }
 
       from(project.projectDir.toPath().resolve("src/docker/Dockerfile")) {

@@ -154,7 +154,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return null;
     }
 
-    private static Analyzer getAnalyzer(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry, IndexService indexService) throws IOException {
+    private static Analyzer getAnalyzer(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
+                                        IndexService indexService) throws IOException {
         if (request.analyzer() != null) {
             if (indexService == null) {
                 Analyzer analyzer = analysisRegistry.getAnalyzer(request.analyzer());

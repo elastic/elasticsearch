@@ -329,8 +329,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             }
         }
         return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges,
-            conditionalClusterPrivileges.toArray(new ConditionalClusterPrivilege[conditionalClusterPrivileges.size()]),
-            runAsUsers, metadata, null);
+            conditionalClusterPrivileges.toArray(new ConditionalClusterPrivilege[conditionalClusterPrivileges.size()]), runAsUsers,
+            metadata, null);
     }
 
     private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {

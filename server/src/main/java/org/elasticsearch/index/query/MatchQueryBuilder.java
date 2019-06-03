@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,17 +44,7 @@ import java.util.Objects;
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
-    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "you can omit this option, " +
-        "the [match] query can skip block of documents efficiently if the total number of hits is not tracked";
-
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
-    /**
-     * @deprecated Since max_optimization optimization landed in 7.0, normal MatchQuery
-     *             will achieve the same result without any configuration.
-     */
-    @Deprecated
-    public static final ParseField CUTOFF_FREQUENCY_FIELD =
-        new ParseField("cutoff_frequency").withAllDeprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG);
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
     public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
@@ -95,8 +86,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private MatchQuery.ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
-    private Float cutoffFrequency = null;
-
     private boolean autoGenerateSynonymsPhraseQuery = true;
 
     /**
@@ -131,7 +120,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         minimumShouldMatch = in.readOptionalString();
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
-        cutoffFrequency = in.readOptionalFloat();
+        // cutoff_frequency has been removed
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readOptionalFloat();
+        }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
     }
 
@@ -150,7 +142,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
-        out.writeOptionalFloat(cutoffFrequency);
+        // cutoff_frequency has been removed
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeOptionalFloat(null);
+        }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
     }
 
@@ -239,24 +234,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      */
     public int maxExpansions() {
         return this.maxExpansions;
-    }
-
-    /**
-     * Set a cutoff value in [0..1] (or absolute number &gt;=1) representing the
-     * maximum threshold of a terms document frequency to be considered a low
-     * frequency term.
-     *
-     * @deprecated see {@link MatchQueryBuilder#CUTOFF_FREQUENCY_FIELD} for more details
-     */
-    @Deprecated
-    public MatchQueryBuilder cutoffFrequency(float cutoff) {
-        this.cutoffFrequency = cutoff;
-        return this;
-    }
-
-    /** Gets the optional cutoff value, can be {@code null} if not set previously */
-    public Float cutoffFrequency() {
-        return this.cutoffFrequency;
     }
 
     /** Sets optional minimumShouldMatch value to apply to the query */
@@ -375,9 +352,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
         builder.field(LENIENT_FIELD.getPreferredName(), lenient);
         builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        if (cutoffFrequency != null) {
-            builder.field(CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
-        }
         builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -402,7 +376,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.setTranspositions(fuzzyTranspositions);
         matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(fuzzyRewrite, null, LoggingDeprecationHandler.INSTANCE));
         matchQuery.setLenient(lenient);
-        matchQuery.setCommonTermsCutoff(cutoffFrequency);
         matchQuery.setZeroTermsQuery(zeroTermsQuery);
         matchQuery.setAutoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
 
@@ -424,7 +397,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                Objects.equals(lenient, other.lenient) &&
                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions) &&
                Objects.equals(zeroTermsQuery, other.zeroTermsQuery) &&
-               Objects.equals(cutoffFrequency, other.cutoffFrequency) &&
                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
     }
 
@@ -432,7 +404,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     protected int doHashCode() {
         return Objects.hash(fieldName, value, operator, analyzer,
                 fuzziness, prefixLength, maxExpansions, minimumShouldMatch,
-                fuzzyRewrite, lenient, fuzzyTranspositions, zeroTermsQuery, cutoffFrequency, autoGenerateSynonymsPhraseQuery);
+                fuzzyRewrite, lenient, fuzzyTranspositions, zeroTermsQuery, autoGenerateSynonymsPhraseQuery);
     }
 
     @Override
@@ -453,7 +425,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
         String fuzzyRewrite = null;
         boolean lenient = MatchQuery.DEFAULT_LENIENCY;
-        Float cutOffFrequency = null;
         ZeroTermsQuery zeroTermsQuery = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
         boolean autoGenerateSynonymsPhraseQuery = true;
         String queryName = null;
@@ -491,8 +462,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                             fuzzyTranspositions = parser.booleanValue();
                         } else if (LENIENT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             lenient = parser.booleanValue();
-                        } else if (CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            cutOffFrequency = parser.floatValue();
                         } else if (ZERO_TERMS_QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             String zeroTermsValue = parser.text();
                             if ("none".equalsIgnoreCase(zeroTermsValue)) {
@@ -539,14 +508,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.fuzzyTranspositions(fuzzyTranspositions);
         matchQuery.maxExpansions(maxExpansion);
         matchQuery.lenient(lenient);
-        if (cutOffFrequency != null) {
-            matchQuery.cutoffFrequency(cutOffFrequency);
-        }
         matchQuery.zeroTermsQuery(zeroTermsQuery);
         matchQuery.autoGenerateSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
         return matchQuery;
     }
-
 }

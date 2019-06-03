@@ -715,14 +715,12 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(updateUsingVersion.ifSeqNo(), equalTo(UNASSIGNED_SEQ_NO));
         assertThat(updateUsingVersion.ifPrimaryTerm(), equalTo(UNASSIGNED_PRIMARY_TERM));
         assertThat(updateUsingVersion.version(), equalTo(version));
-        assertNull(updateUsingVersion.validate());
 
         canUseIfSeqNo.set(true);
         IndexRequest updateUsingSeqNo = updateHelper.prepare(shardId, request, getResult, ESTestCase::randomNonNegativeLong).action();
         assertThat(updateUsingSeqNo.ifSeqNo(), equalTo(seqNo));
         assertThat(updateUsingSeqNo.ifPrimaryTerm(), equalTo(primaryTerm));
         assertThat(updateUsingSeqNo.version(), equalTo(Versions.MATCH_ANY));
-        assertNull(updateUsingSeqNo.validate());
     }
 
     public void testOldClusterRejectIfSeqNo() {

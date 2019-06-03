@@ -181,7 +181,7 @@ public final class TokenService {
             TimeValue.MINUS_ONE, Property.NodeScope);
 
     static final String TOKEN_DOC_TYPE = "token";
-    private static final int HASHED_TOKEN_LENGTH = 44;
+    private static final int HASHED_TOKEN_LENGTH = 43;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
     private static final int TOKEN_LENGTH = 22;
     private static final String TOKEN_DOC_ID_PREFIX = TOKEN_DOC_TYPE + "_";

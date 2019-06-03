@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -125,10 +124,6 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
         }
 
         if (randomBoolean()) {
-            matchQuery.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
-        }
-
-        if (randomBoolean()) {
             matchQuery.autoGenerateSynonymsPhraseQuery(randomBoolean());
         }
         return matchQuery;
@@ -183,18 +178,6 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
             if (queryBuilder.analyzer() == null && queryBuilder.value().toString().length() > 0) {
                 assertEquals(bq.clauses().size(), queryBuilder.value().toString().split(" ").length);
             }
-        }
-
-        if (query instanceof ExtendedCommonTermsQuery) {
-            assertTrue(queryBuilder.cutoffFrequency() != null);
-            ExtendedCommonTermsQuery ectq = (ExtendedCommonTermsQuery) query;
-            List<Term> terms = ectq.getTerms();
-            if (!terms.isEmpty()) {
-                Term term = terms.iterator().next();
-                String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-                assertThat(term.field(), equalTo(expectedFieldName));
-            }
-            assertEquals(queryBuilder.cutoffFrequency(), ectq.getMaxTermFrequency(), Float.MIN_VALUE);
         }
 
         if (query instanceof FuzzyQuery) {
@@ -478,7 +461,7 @@ public class MatchQueryBuilderTests extends FullTextQueryTestCase<MatchQueryBuil
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, STRING_FIELD_NAME, ""));
     }
-    
+
     private static class MockGraphAnalyzer extends Analyzer {
 
         CannedBinaryTokenStream tokenStream;

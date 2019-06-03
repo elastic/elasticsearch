@@ -34,8 +34,6 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-
 /**
  * Each translog file is started with a translog header then followed by translog operations.
  */
@@ -123,6 +121,9 @@ final class TranslogHeader {
         if (version == VERSION_CHECKSUMS) {
             throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
         }
+        if (version == VERSION_CHECKPOINTS) {
+            throw new IllegalStateException("pre-6.3 translog found [" + path + "]");
+        }
         // Read the translogUUID
         final int uuidLen = in.readInt();
         if (uuidLen > channel.size()) {
@@ -141,17 +142,10 @@ final class TranslogHeader {
                             " this translog file belongs to a different translog");
         }
         // Read the primary term
-        final long primaryTerm;
-        if (version == VERSION_PRIMARY_TERM) {
-            primaryTerm = in.readLong();
-        } else {
-            assert version == VERSION_CHECKPOINTS : "Unknown header version [" + version + "]";
-            primaryTerm = UNASSIGNED_PRIMARY_TERM;
-        }
+        assert version == VERSION_PRIMARY_TERM;
+        final long primaryTerm = in.readLong();
         // Verify the checksum
-        if (version >= VERSION_PRIMARY_TERM) {
-            Translog.verifyChecksum(in);
-        }
+        Translog.verifyChecksum(in);
         assert primaryTerm >= 0 : "Primary term must be non-negative [" + primaryTerm + "]; translog path [" + path + "]";
 
         final int headerSizeInBytes = headerSizeInBytes(version, uuid.length);

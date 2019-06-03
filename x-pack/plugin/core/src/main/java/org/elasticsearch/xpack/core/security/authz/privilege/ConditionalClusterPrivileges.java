@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege.Category;
+import org.elasticsearch.xpack.core.security.authz.privilege.RenderableConditionalClusterPrivilege.Category;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,55 +24,49 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Static utility class for working with {@link ConditionalClusterPrivilege} instances
+ * Static utility class for working with {@link RenderableConditionalClusterPrivilege} instances
  */
 public final class ConditionalClusterPrivileges {
 
-    public static final ConditionalClusterPrivilege[] EMPTY_ARRAY = new ConditionalClusterPrivilege[0];
+    public static final RenderableConditionalClusterPrivilege[] EMPTY_ARRAY = new RenderableConditionalClusterPrivilege[0];
 
-    public static final Writeable.Reader<ConditionalClusterPrivilege> READER =
-        in1 -> in1.readNamedWriteable(ConditionalClusterPrivilege.class);
-    public static final Writeable.Writer<ConditionalClusterPrivilege> WRITER =
+    public static final Writeable.Reader<RenderableConditionalClusterPrivilege> READER =
+        in1 -> in1.readNamedWriteable(RenderableConditionalClusterPrivilege.class);
+    public static final Writeable.Writer<RenderableConditionalClusterPrivilege> WRITER =
         (out1, value) -> out1.writeNamedWriteable(value);
 
     private ConditionalClusterPrivileges() {
     }
 
     /**
-     * Utility method to read an array of {@link ConditionalClusterPrivilege} objects from a {@link StreamInput}
+     * Utility method to read an array of {@link RenderableConditionalClusterPrivilege} objects from a {@link StreamInput}
      */
-    public static ConditionalClusterPrivilege[] readArray(StreamInput in) throws IOException {
-        return in.readArray(READER, ConditionalClusterPrivilege[]::new);
+    public static RenderableConditionalClusterPrivilege[] readArray(StreamInput in) throws IOException {
+        return in.readArray(READER, RenderableConditionalClusterPrivilege[]::new);
     }
 
     /**
-     * Utility method to write an array of {@link ConditionalClusterPrivilege} objects to a {@link StreamOutput}
+     * Utility method to write an array of {@link RenderableConditionalClusterPrivilege} objects to a {@link StreamOutput}
      */
-    public static void writeArray(StreamOutput out, ConditionalClusterPrivilege[] privileges) throws IOException {
+    public static void writeArray(StreamOutput out, RenderableConditionalClusterPrivilege[] privileges) throws IOException {
         out.writeArray(WRITER, privileges);
     }
 
     /**
      * Writes a single object value to the {@code builder} that contains each of the provided privileges.
-     * The privileges are grouped according to their {@link ConditionalClusterPrivilege#getCategory() categories}
+     * The privileges are grouped according to their {@link RenderableConditionalClusterPrivilege#getCategory() categories}
      */
     public static XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params,
-                                             Collection<ConditionalClusterPrivilege> privileges) throws IOException {
+                                             Collection<RenderableConditionalClusterPrivilege> privileges) throws IOException {
         builder.startObject();
         for (Category category : Category.values()) {
-            boolean startObject = false;
-            for (ConditionalClusterPrivilege privilege : privileges) {
+            builder.startObject(category.field.getPreferredName());
+            for (RenderableConditionalClusterPrivilege privilege : privileges) {
                 if (category == privilege.getCategory()) {
-                    if (startObject == false) {
-                        builder.startObject(category.field.getPreferredName());
-                        startObject = true;
-                    }
                     privilege.toXContent(builder, params);
                 }
             }
-            if (startObject) {
-                builder.endObject();
-            }
+            builder.endObject();
         }
         return builder.endObject();
     }
@@ -81,32 +75,20 @@ public final class ConditionalClusterPrivileges {
      * Read a list of privileges from the parser. The parser should be positioned at the
      * {@link XContentParser.Token#START_OBJECT} token for the privileges value
      */
-    public static List<ConditionalClusterPrivilege> parse(XContentParser parser) throws IOException {
-        List<ConditionalClusterPrivilege> privileges = new ArrayList<>();
+    public static List<RenderableConditionalClusterPrivilege> parse(XContentParser parser) throws IOException {
+        List<RenderableConditionalClusterPrivilege> privileges = new ArrayList<>();
 
         expectedToken(parser.currentToken(), parser, XContentParser.Token.START_OBJECT);
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             expectedToken(parser.currentToken(), parser, XContentParser.Token.FIELD_NAME);
 
-            String fieldName = parser.currentName();
-            if (Category.APPLICATION.field.match(fieldName, parser.getDeprecationHandler())) {
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
+            expectFieldName(parser, Category.APPLICATION.field);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
 
-                expectFieldName(parser, ManageApplicationPrivileges.Fields.MANAGE);
-                privileges.add(ManageApplicationPrivileges.parse(parser));
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
-            } else if (Category.API_KEYS.field.match(fieldName, parser.getDeprecationHandler())) {
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.START_OBJECT);
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.FIELD_NAME);
-
-                expectFieldName(parser, ManageApiKeyConditionalPrivileges.Fields.MANAGE);
-                privileges.add(ManageApiKeyConditionalPrivileges.parse(parser));
-                expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
-            } else {
-                throw new XContentParseException(parser.getTokenLocation(), "failed to parse privilege. expected one from "
-                        + Arrays.asList(Category.values()) + " but found [" + fieldName + "] instead");
-            }
+            expectFieldName(parser, ManageApplicationPrivileges.Fields.MANAGE);
+            privileges.add(ManageApplicationPrivileges.parse(parser));
+            expectedToken(parser.nextToken(), parser, XContentParser.Token.END_OBJECT);
         }
 
         return privileges;

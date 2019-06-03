@@ -168,9 +168,8 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExceptExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ManageApiKeyConditionalPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.RenderableConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.upgrade.actions.IndexUpgradeAction;
@@ -386,12 +385,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetaData.TYPE, TokenMetaData::readDiffFrom),
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
                 // security : conditional privileges
-                new NamedWriteableRegistry.Entry(ConditionalClusterPrivilege.class,
+                new NamedWriteableRegistry.Entry(RenderableConditionalClusterPrivilege.class,
                         ManageApplicationPrivileges.WRITEABLE_NAME,
                         ManageApplicationPrivileges::createFrom),
-                new NamedWriteableRegistry.Entry(ConditionalClusterPrivilege.class,
-                        ManageApiKeyConditionalPrivileges.WRITEABLE_NAME,
-                        ManageApiKeyConditionalPrivileges::createFrom),
                 // security : role-mappings
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
                 new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),

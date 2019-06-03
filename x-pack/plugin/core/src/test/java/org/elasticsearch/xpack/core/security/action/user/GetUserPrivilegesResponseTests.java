@@ -21,7 +21,7 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.RenderableConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ManageApplicationPrivileges;
 
 import java.io.IOException;
@@ -75,7 +75,7 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
                 public GetUserPrivilegesResponse mutate(GetUserPrivilegesResponse original) {
                     final int random = randomIntBetween(1, 0b11111);
                     final Set<String> cluster = maybeMutate(random, 0, original.getClusterPrivileges(), () -> randomAlphaOfLength(5));
-                    final Set<ConditionalClusterPrivilege> conditionalCluster = maybeMutate(random, 1,
+                    final Set<RenderableConditionalClusterPrivilege> conditionalCluster = maybeMutate(random, 1,
                         original.getConditionalClusterPrivileges(), () -> new ManageApplicationPrivileges(randomStringSet(3)));
                         final Set<GetUserPrivilegesResponse.Indices> index = maybeMutate(random, 2, original.getIndexPrivileges(),
                                 () -> new GetUserPrivilegesResponse.Indices(randomStringSet(1), randomStringSet(1), emptySet(), emptySet(),
@@ -103,10 +103,8 @@ public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     private GetUserPrivilegesResponse randomResponse() {
         final Set<String> cluster = randomStringSet(5);
-        final Set<ConditionalClusterPrivilege> conditionalCluster = Sets.newHashSet(randomArray(3, ConditionalClusterPrivilege[]::new,
-            () -> new ManageApplicationPrivileges(
-                randomStringSet(3)
-            )));
+        final Set<RenderableConditionalClusterPrivilege> conditionalCluster = Sets.newHashSet(
+                randomArray(3, RenderableConditionalClusterPrivilege[]::new, () -> new ManageApplicationPrivileges(randomStringSet(3))));
         final Set<GetUserPrivilegesResponse.Indices> index = Sets.newHashSet(randomArray(5, GetUserPrivilegesResponse.Indices[]::new,
             () -> new GetUserPrivilegesResponse.Indices(randomStringSet(6), randomStringSet(8),
                 Sets.newHashSet(randomArray(3, FieldGrantExcludeGroup[]::new, () -> new FieldGrantExcludeGroup(

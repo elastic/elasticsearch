@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.RenderableConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
@@ -48,7 +48,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     private final String name;
     private final String[] clusterPrivileges;
-    private final ConditionalClusterPrivilege[] conditionalClusterPrivileges;
+    private final RenderableConditionalClusterPrivilege[] conditionalClusterPrivileges;
     private final IndicesPrivileges[] indicesPrivileges;
     private final ApplicationResourcePrivileges[] applicationPrivileges;
     private final String[] runAs;
@@ -64,7 +64,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     /**
      * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[],
-     * ConditionalClusterPrivilege[], String[], Map, Map)}
+     * RenderableConditionalClusterPrivilege[], String[], Map, Map)}
      */
     @Deprecated
     public RoleDescriptor(String name,
@@ -77,7 +77,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
     /**
      * @deprecated Use {@link #RoleDescriptor(String, String[], IndicesPrivileges[], ApplicationResourcePrivileges[],
-     * ConditionalClusterPrivilege[], String[], Map, Map)}
+     * RenderableConditionalClusterPrivilege[], String[], Map, Map)}
      */
     @Deprecated
     public RoleDescriptor(String name,
@@ -93,7 +93,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                           @Nullable String[] clusterPrivileges,
                           @Nullable IndicesPrivileges[] indicesPrivileges,
                           @Nullable ApplicationResourcePrivileges[] applicationPrivileges,
-                          @Nullable ConditionalClusterPrivilege[] conditionalClusterPrivileges,
+                          @Nullable RenderableConditionalClusterPrivilege[] conditionalClusterPrivileges,
                           @Nullable String[] runAs,
                           @Nullable Map<String, Object> metadata,
                           @Nullable Map<String, Object> transientMetadata) {
@@ -133,7 +133,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         return this.clusterPrivileges;
     }
 
-    public ConditionalClusterPrivilege[] getConditionalClusterPrivileges() {
+    public RenderableConditionalClusterPrivilege[] getConditionalClusterPrivileges() {
         return this.conditionalClusterPrivileges;
     }
 
@@ -290,7 +290,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         String currentFieldName = null;
         IndicesPrivileges[] indicesPrivileges = null;
         String[] clusterPrivileges = null;
-        List<ConditionalClusterPrivilege> conditionalClusterPrivileges = Collections.emptyList();
+        List<RenderableConditionalClusterPrivilege> conditionalClusterPrivileges = Collections.emptyList();
         ApplicationResourcePrivileges[] applicationPrivileges = null;
         String[] runAsUsers = null;
         Map<String, Object> metadata = null;
@@ -329,8 +329,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             }
         }
         return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, applicationPrivileges,
-            conditionalClusterPrivileges.toArray(new ConditionalClusterPrivilege[conditionalClusterPrivileges.size()]), runAsUsers,
-            metadata, null);
+            conditionalClusterPrivileges.toArray(new RenderableConditionalClusterPrivilege[conditionalClusterPrivileges.size()]),
+            runAsUsers, metadata, null);
     }
 
     private static String[] readStringArray(String roleName, XContentParser parser, boolean allowNull) throws IOException {

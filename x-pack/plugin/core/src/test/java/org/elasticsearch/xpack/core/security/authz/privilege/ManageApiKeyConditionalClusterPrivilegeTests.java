@@ -6,20 +6,15 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authz.privilege.ManageApiKeyConditionalPrivileges.Fields;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -28,7 +23,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
+public class ManageApiKeyConditionalClusterPrivilegeTests extends ESTestCase {
     private static final String CREATE_ACTION = "cluster:admin/xpack/security/api_key/create";
     private static final String GET_ACTION = "cluster:admin/xpack/security/api_key/get";
     private static final String INVALIDATE_ACTION = "cluster:admin/xpack/security/api_key/invalidate";
@@ -47,7 +42,7 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
     }
 
     public void testManageAllPrivilege() {
-        final ManageApiKeyConditionalPrivileges condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.manageApiKeysUnrestricted();
+        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.manageApiKeysUnrestricted();
 
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
         assertThat(accessAllowed, is(true));
@@ -69,8 +64,8 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
     }
 
     public void testManagePrivilegeRestrictedForRealmsAndUsers() {
-        final ManageApiKeyConditionalPrivileges condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowCreate().allowGet()
-                .allowInvalidate().forRealms("realm1", "realm2").forUsers("user1", "user2").build();
+        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowCreate()
+                .allowGet().allowInvalidate().forRealms("realm1", "realm2").forUsers("user1", "user2").build();
 
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
         assertThat(accessAllowed, is(true));
@@ -93,7 +88,7 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
     }
 
     public void testManagePrivilegeRestrictedReadOnlyForRealmsAndUsers() {
-        final ManageApiKeyConditionalPrivileges condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet()
+        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet()
                 .forRealms("realm1", "realm2").forUsers("user1", "user2").build();
 
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
@@ -117,7 +112,7 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
     }
 
     public void testManagePrivilegeOwnerOnly() {
-        final ManageApiKeyConditionalPrivileges condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.manageApiKeysOnlyForOwner();
+        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.manageApiKeysOnlyForOwner();
 
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
         assertThat(accessAllowed, is(true));
@@ -167,7 +162,7 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
     }
 
     public void testManagePrivilegeOwnerAndReadOnly() {
-        final ManageApiKeyConditionalPrivileges condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet()
+        final ManageApiKeyConditionalClusterPrivilege condPrivilege = ManageApiKeyConditionalPrivilegesBuilder.builder().allowGet()
                 .forRealms("_self").forUsers("_self").build();
 
         boolean accessAllowed = checkAccess(condPrivilege, CREATE_ACTION, new CreateApiKeyRequest(), authentication);
@@ -216,43 +211,7 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
         assertThat(accessAllowed, is(false));
     }
 
-    public void testParsingThrowsErrorWhenUsersAndRealmsFieldValuesAreInvalid() throws IOException {
-        {
-            String json = "{" +
-                    "\"manage\": {" +
-                    "    \"action\": [ \"cluster:admin/xpack/security/api_key/create\" ], " +
-                    "    \"realms\": [ \"_self\" ], " +
-                    "    \"users\": [ \"some-user\" ] " +
-                    "}" +
-                    "}";
-            final XContentParser parser = createParser(XContentType.JSON.xContent(), json);
-            parser.nextToken();
-            parser.nextToken();
-            ElasticsearchParseException epe = expectThrows(ElasticsearchParseException.class,
-                    () -> ManageApiKeyConditionalPrivileges.parse(parser));
-            assertThat(epe.getMessage(), is("could not parse, both fields [" + Fields.USERS.getPreferredName() + "], ["
-                    + Fields.REALMS.getPreferredName() + "] must contain only `_self` when restricting access of API keys to owner"));
-        }
-
-        {
-            String json = "{" +
-                    "\"manage\": {" +
-                    "    \"action\": [ \"cluster:admin/xpack/security/api_key/create\" ], " +
-                    "    \"realms\": [ \"_self\" ], " +
-                    "    \"users\": [ \"_self\", \"some-user\" ] " +
-                    "}" +
-                    "}";
-            final XContentParser parser = createParser(XContentType.JSON.xContent(), json);
-            parser.nextToken();
-            parser.nextToken();
-            ElasticsearchParseException epe = expectThrows(ElasticsearchParseException.class,
-                    () -> ManageApiKeyConditionalPrivileges.parse(parser));
-            assertThat(epe.getMessage(), is("could not parse, both fields [" + Fields.USERS.getPreferredName() + "], ["
-                    + Fields.REALMS.getPreferredName() + "] must contain only `_self` when restricting access of API keys to owner"));
-        }
-    }
-
-    private boolean checkAccess(ManageApiKeyConditionalPrivileges privilege, String action, TransportRequest request,
+    private boolean checkAccess(ManageApiKeyConditionalClusterPrivilege privilege, String action, TransportRequest request,
             Authentication authentication) {
         return privilege.getPrivilege().predicate().test(action) && privilege.getRequestPredicate().test(request, authentication);
     }
@@ -301,17 +260,17 @@ public class ManageApiKeyConditionalPrivilegesTests extends ESTestCase {
             return new ManageApiKeyConditionalPrivilegesBuilder();
         }
 
-        public static ManageApiKeyConditionalPrivileges manageApiKeysUnrestricted() {
-            return new ManageApiKeyConditionalPrivileges(Set.of("cluster:admin/xpack/security/api_key/*"), Set.of("*"), Set.of("*"));
+        public static ManageApiKeyConditionalClusterPrivilege manageApiKeysUnrestricted() {
+            return new ManageApiKeyConditionalClusterPrivilege(Set.of("cluster:admin/xpack/security/api_key/*"), Set.of("*"), Set.of("*"));
         }
 
-        public static ManageApiKeyConditionalPrivileges manageApiKeysOnlyForOwner() {
-            return new ManageApiKeyConditionalPrivileges(Set.of("cluster:admin/xpack/security/api_key/*"), Set.of("_self"),
-                    Set.of("_self"));
+        public static ManageApiKeyConditionalClusterPrivilege manageApiKeysOnlyForOwner() {
+            return (ManageApiKeyConditionalClusterPrivilege) ClusterPrivilege.DefaultConditionalClusterPrivilege.MANAGE_OWN_API_KEY
+                    .conditionalClusterPrivilege();
         }
 
-        public ManageApiKeyConditionalPrivileges build() {
-            return new ManageApiKeyConditionalPrivileges(actions, realms, users);
+        public ManageApiKeyConditionalClusterPrivilege build() {
+            return new ManageApiKeyConditionalClusterPrivilege(actions, realms, users);
         }
     }
 }

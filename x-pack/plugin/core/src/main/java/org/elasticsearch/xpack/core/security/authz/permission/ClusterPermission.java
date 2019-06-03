@@ -105,7 +105,7 @@ public abstract class ClusterPermission {
                 .map(ClusterPrivilege::name)
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());
-            return ClusterPrivilege.get(names);
+            return ClusterPrivilege.get(names).v1();
         }
 
         @Override

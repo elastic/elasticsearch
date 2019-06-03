@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.RenderableConditionalClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -372,7 +373,8 @@ public class RBACEngine implements AuthorizationEngine {
 
         Map<String, Boolean> cluster = new HashMap<>();
         for (String checkAction : request.clusterPrivileges()) {
-            final ClusterPrivilege checkPrivilege = ClusterPrivilege.get(Collections.singleton(checkAction));
+            final ClusterPrivilege checkPrivilege = ClusterPrivilege.get(Collections.singleton(checkAction)).v1();
+            // should we check for conditional as well?
             cluster.put(checkAction, userRole.grants(checkPrivilege));
         }
         boolean allMatch = cluster.values().stream().allMatch(Boolean::booleanValue);
@@ -425,14 +427,16 @@ public class RBACEngine implements AuthorizationEngine {
         // We use sorted sets for Strings because they will typically be small, and having a predictable order allows for simpler testing
         final Set<String> cluster = new TreeSet<>();
         // But we don't have a meaningful ordering for objects like ConditionalClusterPrivilege, so the tests work with "random" ordering
-        final Set<ConditionalClusterPrivilege> conditionalCluster = new HashSet<>();
+        final Set<RenderableConditionalClusterPrivilege> conditionalCluster = new HashSet<>();
         for (Tuple<ClusterPrivilege, ConditionalClusterPrivilege> tup : userRole.cluster().privileges()) {
             if (tup.v2() == null) {
                 if (ClusterPrivilege.NONE.equals(tup.v1()) == false) {
                     cluster.addAll(tup.v1().name());
                 }
+            } else if (tup.v2() instanceof RenderableConditionalClusterPrivilege) {
+                conditionalCluster.add((RenderableConditionalClusterPrivilege) tup.v2());
             } else {
-                conditionalCluster.add(tup.v2());
+                cluster.add(ClusterPrivilege.DefaultConditionalClusterPrivilege.name(tup.v2()));
             }
         }
 

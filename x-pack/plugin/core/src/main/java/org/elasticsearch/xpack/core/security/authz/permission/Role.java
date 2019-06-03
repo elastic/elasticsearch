@@ -214,7 +214,11 @@ public class Role {
         public Builder cluster(Set<String> privilegeNames, Iterable<ConditionalClusterPrivilege> conditionalClusterPrivileges) {
             List<ClusterPermission> clusterPermissions = new ArrayList<>();
             if (privilegeNames.isEmpty() == false) {
-                clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(ClusterPrivilege.get(privilegeNames)));
+                Tuple<ClusterPrivilege, Set<ConditionalClusterPrivilege>> privileges = ClusterPrivilege.get(privilegeNames);
+                clusterPermissions.add(new ClusterPermission.SimpleClusterPermission(privileges.v1()));
+                for (ConditionalClusterPrivilege ccp : privileges.v2()) {
+                    clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));
+                }
             }
             for (ConditionalClusterPrivilege ccp : conditionalClusterPrivileges) {
                 clusterPermissions.add(new ClusterPermission.ConditionalClusterPermission(ccp));

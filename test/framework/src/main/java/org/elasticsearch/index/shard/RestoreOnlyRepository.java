@@ -30,6 +30,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
@@ -133,7 +134,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              Repository.ShardSnapshotContext context) {
+                              ShardSnapshotContext context) {
     }
 
     @Override

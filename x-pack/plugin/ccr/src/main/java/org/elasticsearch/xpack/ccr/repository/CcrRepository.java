@@ -58,6 +58,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -294,7 +295,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
     @Override
     public void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              Repository.ShardSnapshotContext context) {
+                              ShardSnapshotContext context) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -35,7 +34,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
@@ -229,15 +227,4 @@ public interface Repository extends LifecycleComponent {
      */
     IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId);
 
-
-    interface ShardSnapshotContext extends Closeable {
-
-        IndexCommit indexCommit();
-
-        Store store();
-
-        IndexShardSnapshotStatus status();
-
-        ActionListener<Void> completionListener();
-    }
 }

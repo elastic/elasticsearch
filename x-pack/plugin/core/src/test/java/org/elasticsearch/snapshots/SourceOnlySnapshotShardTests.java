@@ -62,6 +62,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.Matchers;
@@ -372,7 +373,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
     }
 
-    private static final class TestSnapshotShardContext implements Repository.ShardSnapshotContext {
+    private static final class TestSnapshotShardContext implements ShardSnapshotContext {
 
         private final AtomicBoolean closed;
         private final IndexShard shard;
@@ -388,7 +389,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         }
 
         @Override
-        public void close() throws IOException {
+        public void releaseIndexCommit() throws IOException {
             if (closed.compareAndSet(false, true)) {
                 synchronized (this) {
                     if (snapshotRef != null) {

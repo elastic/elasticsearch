@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -53,7 +52,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -61,10 +59,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus.Stage;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestDeduplicator;
@@ -77,7 +75,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -355,50 +352,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         final Repository repository = snapshotsService.getRepositoriesService().repository(snapshot.getRepository());
         // we flush first to make sure we get the latest writes snapshotted
         repository.snapshotShard(indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-            new Repository.ShardSnapshotContext() {
-
-                private final AtomicBoolean closed = new AtomicBoolean(false);
-                private Engine.IndexCommitRef snapshotRef;
-
-                @Override
-                public void close() throws IOException {
-                    if (closed.compareAndSet(false, true)) {
-                        synchronized (this) {
-                            if (snapshotRef != null) {
-                                snapshotRef.close();
-                            }
-                        }
-                    }
-                }
-
-                @Override
-                public IndexCommit indexCommit() {
-                    synchronized (this) {
-                        if (closed.get()) {
-                            throw new IllegalStateException("Tried to get index commit from closed context");
-                        }
-                        if (snapshotRef == null) {
-                            snapshotRef = indexShard.acquireLastIndexCommit(true);
-                        }
-                        return snapshotRef.getIndexCommit();
-                    }
-                }
-
-                @Override
-                public Store store() {
-                    return indexShard.store();
-                }
-
-                @Override
-                public IndexShardSnapshotStatus status() {
-                    return snapshotStatus;
-                }
-
-                @Override
-                public ActionListener<Void> completionListener() {
-                    return listener;
-                }
-            });
+            ShardSnapshotContext.create(indexShard, snapshotStatus, listener));
     }
 
     /**

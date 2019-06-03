@@ -88,6 +88,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.snapshots.InvalidSnapshotNameException;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotException;
@@ -799,7 +800,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              Repository.ShardSnapshotContext context) {
+                              ShardSnapshotContext context) {
         final Store store = context.store();
         final IndexShardSnapshotStatus status = context.status();
         new SnapshotContext(store, snapshotId, indexId, status, threadPool.absoluteTimeInMillis()).snapshot(
@@ -1101,7 +1102,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          *
          * @param context shard snapshot context
          */
-        public void snapshot(Repository.ShardSnapshotContext context, ActionListener<IndexShardSnapshotStatus> listener) {
+        public void snapshot(ShardSnapshotContext context, ActionListener<IndexShardSnapshotStatus> listener) {
             logger.debug("[{}] [{}] snapshot to [{}] ...", shardId, snapshotId, metadata.name());
             listBlobs(ActionListener.wrap(
                 blobs -> {
@@ -1147,7 +1148,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             });
         }
 
-        private void snapshotFiles(Repository.ShardSnapshotContext context, Map<String, BlobMetaData> blobs,
+        private void snapshotFiles(ShardSnapshotContext context, Map<String, BlobMetaData> blobs,
                                    BlobStoreIndexShardSnapshots snapshots,
                                    ActionListener<BlobStoreIndexShardSnapshot> listener) {
             try {
@@ -1213,7 +1214,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
                 assert indexIncrementalFileCount == filesToSnapshot.size();
                 final Runnable afterSegmentFiles = () -> ActionListener.completeWith(listener, () -> {
-                    context.close();
+                    context.releaseIndexCommit();
                     final IndexShardSnapshotStatus.Copy lastSnapshotStatus =
                         snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
                     return new BlobStoreIndexShardSnapshot(snapshotId.getName(),
@@ -1237,21 +1238,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             protected void doRun() {
                                 try {
                                     if (snapshotStatus.isAborted()) {
-                                        context.close();
+                                        context.releaseIndexCommit();
                                         throw new IndexShardSnapshotFailedException(shardId, "Aborted");
                                     }
                                     snapshotFile(snapshotFileInfo);
                                     fileCompletionListener.onResponse(null);
                                 } catch (IOException e) {
                                     try {
-                                        context.close();
+                                        context.releaseIndexCommit();
                                     } catch (Exception ex) {
                                         e.addSuppressed(ex);
                                     }
                                     throw new IndexShardSnapshotFailedException(shardId, "Failed to perform snapshot (index files)", e);
                                 } catch (Exception e) {
                                     try {
-                                        context.close();
+                                        context.releaseIndexCommit();
                                     } catch (Exception ex) {
                                         e.addSuppressed(ex);
                                     }
@@ -1265,7 +1266,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
             } catch (Exception e) {
                 try {
-                    context.close();
+                    context.releaseIndexCommit();
                 } catch (Exception ex) {
                     e.addSuppressed(ex);
                 }

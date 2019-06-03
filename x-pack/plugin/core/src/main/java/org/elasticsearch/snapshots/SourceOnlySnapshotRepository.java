@@ -34,6 +34,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardSnapshotContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -108,7 +109,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
     @Override
     public void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              Repository.ShardSnapshotContext context) {
+                              ShardSnapshotContext context) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             throw new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
@@ -141,13 +142,13 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
             try {
-                super.snapshotShard(mapperService, snapshotId, indexId, new Repository.ShardSnapshotContext() {
+                super.snapshotShard(mapperService, snapshotId, indexId, new ShardSnapshotContext() {
 
                     private final AtomicBoolean closed = new AtomicBoolean(false);
                     private DirectoryReader reader;
 
                     @Override
-                    public void close() throws IOException {
+                    public void releaseIndexCommit() throws IOException {
                         if (closed.compareAndSet(false, true)) {
                             synchronized (this) {
                                 if (reader != null) {

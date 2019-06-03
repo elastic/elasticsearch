@@ -55,7 +55,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
@@ -105,33 +105,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<Void> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-                repository.snapshotShard(null, snapshotId, indexId, new Repository.ShardSnapshotContext() {
-
-                    @Override
-                    public void close() {
-
-                    }
-
-                    @Override
-                    public IndexCommit indexCommit() {
-                        return indexCommit;
-                    }
-
-                    @Override
-                    public Store store() {
-                        return store;
-                    }
-
-                    @Override
-                    public IndexShardSnapshotStatus status() {
-                        return snapshotStatus;
-                    }
-
-                    @Override
-                    public ActionListener<Void> completionListener() {
-                        return future1;
-                    }
-                });
+                repository.snapshotShard(null, snapshotId, indexId, new TestSnapshotContext(indexCommit, store, snapshotStatus, future1));
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
@@ -157,33 +131,8 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<Void> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-                repository.snapshotShard(null, incSnapshotId, indexId, new Repository.ShardSnapshotContext() {
-
-                    @Override
-                    public void close() {
-
-                    }
-
-                    @Override
-                    public IndexCommit indexCommit() {
-                        return incIndexCommit;
-                    }
-
-                    @Override
-                    public Store store() {
-                        return store;
-                    }
-
-                    @Override
-                    public IndexShardSnapshotStatus status() {
-                        return snapshotStatus;
-                    }
-
-                    @Override
-                    public ActionListener<Void> completionListener() {
-                        return future2;
-                    }
-                });
+                repository.snapshotShard(null, incSnapshotId, indexId,
+                    new TestSnapshotContext(incIndexCommit, store, snapshotStatus, future2));
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(2, copy.getIncrementalFileCount());
@@ -254,6 +203,46 @@ public class FsRepositoryTests extends ESTestCase {
             }
             writer.commit();
             return docs;
+        }
+    }
+
+    private static class TestSnapshotContext implements ShardSnapshotContext {
+
+        private final IndexCommit indexCommit;
+        private final Store store;
+        private final IndexShardSnapshotStatus snapshotStatus;
+        private final ActionListener<Void> listener;
+
+        TestSnapshotContext(IndexCommit indexCommit, Store store, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+            this.indexCommit = indexCommit;
+            this.store = store;
+            this.snapshotStatus = snapshotStatus;
+            this.listener = listener;
+        }
+
+        @Override
+        public void releaseIndexCommit() {
+
+        }
+
+        @Override
+        public IndexCommit indexCommit() {
+            return indexCommit;
+        }
+
+        @Override
+        public Store store() {
+            return store;
+        }
+
+        @Override
+        public IndexShardSnapshotStatus status() {
+            return snapshotStatus;
+        }
+
+        @Override
+        public ActionListener<Void> completionListener() {
+            return listener;
         }
     }
 }

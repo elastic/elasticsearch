@@ -200,7 +200,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void snapshotShard(MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                                  Repository.ShardSnapshotContext context) {
+                                  ShardSnapshotContext context) {
 
         }
 

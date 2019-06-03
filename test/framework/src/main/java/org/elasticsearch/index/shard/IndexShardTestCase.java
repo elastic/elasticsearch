@@ -18,11 +18,9 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -79,6 +77,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -817,43 +816,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     /** Snapshot a shard using a given repository **/
-    protected void snapshotShard(final IndexShard shard,
-                                 final Snapshot snapshot,
-                                 final Repository repository) throws IOException {
+    protected static void snapshotShard(final IndexShard shard,
+                                        final Snapshot snapshot,
+                                        final Repository repository) throws IOException {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing();
-        try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
-            Index index = shard.shardId().getIndex();
-            IndexId indexId = new IndexId(index.getName(), index.getUUID());
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            final IndexCommit indexCommit = indexCommitRef.getIndexCommit();
-            repository.snapshotShard(shard.mapperService(), snapshot.getSnapshotId(), indexId,
-                new Repository.ShardSnapshotContext() {
-                    @Override
-                    public IndexCommit indexCommit() {
-                        return indexCommit;
-                    }
-
-                    @Override
-                    public Store store() {
-                        return shard.store();
-                    }
-
-                    @Override
-                    public IndexShardSnapshotStatus status() {
-                        return snapshotStatus;
-                    }
-
-                    @Override
-                    public ActionListener<Void> completionListener() {
-                        return future;
-                    }
-
-                    @Override
-                    public void close() {
-                    }
-                });
-            future.actionGet();
-        }
+        Index index = shard.shardId().getIndex();
+        IndexId indexId = new IndexId(index.getName(), index.getUUID());
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        repository.snapshotShard(shard.mapperService(), snapshot.getSnapshotId(), indexId,
+            ShardSnapshotContext.create(shard, snapshotStatus, future));
+        future.actionGet();
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
         assertEquals(IndexShardSnapshotStatus.Stage.DONE, lastSnapshotStatus.getStage());

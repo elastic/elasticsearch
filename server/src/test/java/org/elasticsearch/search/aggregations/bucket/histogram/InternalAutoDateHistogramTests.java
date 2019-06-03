@@ -64,7 +64,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                                                        Map<String, Object> metaData,
                                                        InternalAggregations aggregations) {
 
-        roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null);
+        roundingInfos = AutoDateHistogramAggregationBuilder.buildRoundings(null, null);
         int nbBuckets = randomNumberOfBuckets();
         int targetBuckets = randomIntBetween(1, nbBuckets * 2 + 1);
         List<InternalAutoDateHistogram.Bucket> buckets = new ArrayList<>(nbBuckets);
@@ -108,6 +108,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             timestamp.plusDays(1).toEpochSecond()*1000, 0, roundings, 25);
         assertThat(result, equalTo(2));
     }
+
 
     @Override
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39497")

@@ -64,11 +64,18 @@ class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     private int targetBuckets;
     private MergingBucketsDeferringCollector deferringCollector;
 
-    AutoDateHistogramAggregator(String name, AggregatorFactories factories, int numBuckets, RoundingInfo[] roundingInfos,
-            @Nullable ValuesSource.Numeric valuesSource, DocValueFormat formatter, SearchContext aggregationContext, Aggregator parent,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+    AutoDateHistogramAggregator(AggregatorFactories factories,
+                                int numBuckets,
+                                String minimumIntervalExpression,
+                                RoundingInfo[] roundingInfos,
+                                @Nullable ValuesSource.Numeric valuesSource,
+                                DocValueFormat formatter,
+                                SearchContext aggregationContext,
+                                Aggregator parent,
+                                List<PipelineAggregator> pipelineAggregators,
+                                Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(minimumIntervalExpression, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.targetBuckets = numBuckets;
         this.valuesSource = valuesSource;
         this.formatter = formatter;

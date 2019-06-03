@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,6 +46,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -54,14 +56,17 @@ public class AutoDateHistogramAggregationBuilder
     public static final String NAME = "auto_date_histogram";
 
     private static final ParseField NUM_BUCKETS_FIELD = new ParseField("buckets");
+    private static final ParseField MINIMUM_INTERVAL_FIELD = new ParseField("minimum_interval");
 
     private static final ObjectParser<AutoDateHistogramAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(AutoDateHistogramAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
-
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
+        PARSER.declareString(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
     }
+
+    private static List<String> allowedIntervals = Arrays.asList("second", "minute", "hour", "day", "month", "year");
 
     /**
      *
@@ -69,7 +74,13 @@ public class AutoDateHistogramAggregationBuilder
      * The current implementation probably should not be invoked in a tight loop.
      * @return Array of RoundingInfo
      */
-    static RoundingInfo[] buildRoundings(ZoneId timeZone) {
+    static RoundingInfo[] buildRoundings(ZoneId timeZone, String minimumInterval) {
+
+        int indexToSliceFrom = 0;
+        if (minimumInterval!= null && allowedIntervals.contains(minimumInterval)) {
+            indexToSliceFrom = allowedIntervals.indexOf(minimumInterval);
+        }
+
         RoundingInfo[] roundings = new RoundingInfo[6];
         roundings[0] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone),
             1000L, "s", 1, 5, 10, 30);
@@ -83,7 +94,7 @@ public class AutoDateHistogramAggregationBuilder
             30 * 24 * 60 * 60 * 1000L, "M", 1, 3);
         roundings[5] = new RoundingInfo(createRounding(Rounding.DateTimeUnit.YEAR_OF_CENTURY, timeZone),
             365 * 24 * 60 * 60 * 1000L, "y", 1, 5, 10, 20, 50, 100);
-        return roundings;
+        return Arrays.copyOfRange(roundings, indexToSliceFrom, roundings.length);
     }
 
     public static AutoDateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
@@ -91,6 +102,22 @@ public class AutoDateHistogramAggregationBuilder
     }
 
     private int numBuckets = 10;
+
+    private String minimumIntervalExpression;
+
+    public String getMinimumIntervalExpression() {
+        return minimumIntervalExpression;
+    }
+
+    public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
+        if (minimumIntervalExpression != null && !allowedIntervals.contains(minimumIntervalExpression)) {
+            throw new IllegalArgumentException(MINIMUM_INTERVAL_FIELD.getPreferredName() +
+                " must be one of [" + allowedIntervals.toString() + "]");
+        }
+        this.minimumIntervalExpression = minimumIntervalExpression;
+        return this;
+    }
+
 
     /** Create a new builder with the given name. */
     public AutoDateHistogramAggregationBuilder(String name) {
@@ -101,12 +128,16 @@ public class AutoDateHistogramAggregationBuilder
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
         numBuckets = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            minimumIntervalExpression = in.readOptionalString();
+        }
     }
 
     protected AutoDateHistogramAggregationBuilder(AutoDateHistogramAggregationBuilder clone, Builder factoriesBuilder,
             Map<String, Object> metaData) {
         super(clone, factoriesBuilder, metaData);
         this.numBuckets = clone.numBuckets;
+        this.minimumIntervalExpression = clone.minimumIntervalExpression;
     }
 
     @Override
@@ -117,6 +148,9 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(numBuckets);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalString(minimumIntervalExpression);
+        }
     }
 
     @Override
@@ -139,7 +173,7 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        RoundingInfo[] roundings = buildRoundings(timeZone());
+        RoundingInfo[] roundings = buildRoundings(timeZone(), getMinimumIntervalExpression());
         int maxRoundingInterval = Arrays.stream(roundings,0, roundings.length-1)
             .map(rounding -> rounding.innerIntervals)
             .flatMapToInt(Arrays::stream)
@@ -152,7 +186,9 @@ public class AutoDateHistogramAggregationBuilder
             throw new IllegalArgumentException(NUM_BUCKETS_FIELD.getPreferredName()+
                 " must be less than " + bucketCeiling);
         }
-        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, roundings, context, parent, subFactoriesBuilder, metaData);
+        return new AutoDateHistogramAggregatorFactory(name, config, numBuckets, minimumIntervalExpression, roundings, context, parent,
+            subFactoriesBuilder,
+            metaData);
     }
 
     static Rounding createRounding(Rounding.DateTimeUnit interval, ZoneId timeZone) {
@@ -167,18 +203,19 @@ public class AutoDateHistogramAggregationBuilder
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(NUM_BUCKETS_FIELD.getPreferredName(), numBuckets);
+        builder.field(MINIMUM_INTERVAL_FIELD.getPreferredName(), minimumIntervalExpression);
         return builder;
     }
 
     @Override
     protected int innerHashCode() {
-        return Objects.hash(numBuckets);
+        return Objects.hash(numBuckets, minimumIntervalExpression);
     }
 
     @Override
     protected boolean innerEquals(Object obj) {
         AutoDateHistogramAggregationBuilder other = (AutoDateHistogramAggregationBuilder) obj;
-        return Objects.equals(numBuckets, other.numBuckets);
+        return Objects.equals(numBuckets, other.numBuckets) && Objects.equals(minimumIntervalExpression, other.minimumIntervalExpression);
     }
 
     public static class RoundingInfo implements Writeable {

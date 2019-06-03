@@ -41,7 +41,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.XPackClient;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.client.WatcherClient;
@@ -328,7 +327,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected WatcherClient watcherClient() {
-        return randomBoolean() ? new XPackClient(client()).watcher() : new WatcherClient(client());
+        return new WatcherClient(client());
     }
 
     private IndexNameExpressionResolver indexNameExpressionResolver() {

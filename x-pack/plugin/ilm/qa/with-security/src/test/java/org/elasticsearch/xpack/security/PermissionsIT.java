@@ -158,21 +158,21 @@ public class PermissionsIT extends ESRestTestCase {
         final HighLevelClient hlAdminClient = new HighLevelClient(adminClient());
 
         // Build two high level clients, each using a different user
-        RestClientBuilder builder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        String token = basicAuthHeaderValue("slm_admin", new SecureString("slm-pass".toCharArray()));
-        configureClient(builder, Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
+        final RestClientBuilder adminBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
+        final String adminToken = basicAuthHeaderValue("slm_admin", new SecureString("slm-pass".toCharArray()));
+        configureClient(adminBuilder, Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", adminToken)
             .build());
-        builder.setStrictDeprecationMode(true);
-        final RestHighLevelClient adminHLRC = new RestHighLevelClient(builder);
+        adminBuilder.setStrictDeprecationMode(true);
+        final RestHighLevelClient adminHLRC = new RestHighLevelClient(adminBuilder);
 
-        builder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        token = basicAuthHeaderValue("slm_user", new SecureString("slm-user-pass".toCharArray()));
-        configureClient(builder, Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
+        final RestClientBuilder userBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
+        final String userToken = basicAuthHeaderValue("slm_user", new SecureString("slm-user-pass".toCharArray()));
+        configureClient(userBuilder, Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", userToken)
             .build());
-        builder.setStrictDeprecationMode(true);
-        final RestHighLevelClient readHlrc = new RestHighLevelClient(builder);
+        userBuilder.setStrictDeprecationMode(true);
+        final RestHighLevelClient readHlrc = new RestHighLevelClient(userBuilder);
 
         PutRepositoryRequest repoRequest = new PutRepositoryRequest();
 

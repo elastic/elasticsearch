@@ -478,7 +478,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         Item[] items = new Item[] { new Item(null, null, "1")};
         MoreLikeThisQueryBuilder queryBuilder = QueryBuilders.moreLikeThisQuery(new String[] {"text"}, null, items).include(true)
                 .minTermFreq(1).minDocFreq(1);
-        SearchResponse mltResponse = client().prepareSearch().setTypes("type1").setQuery(queryBuilder).get();
+        SearchResponse mltResponse = client().prepareSearch().setQuery(queryBuilder).get();
         assertHitCount(mltResponse, 3L);
     }
 
@@ -507,7 +507,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
             MoreLikeThisQueryBuilder mltQuery = moreLikeThisQuery(new String[] {"text"}, null, new Item[] {new Item(null, null, "0")})
                     .minTermFreq(1).minDocFreq(1)
                     .maxQueryTerms(max_query_terms).minimumShouldMatch("0%");
-            SearchResponse response = client().prepareSearch("test").setTypes("type1")
+            SearchResponse response = client().prepareSearch("test")
                     .setQuery(mltQuery).get();
             assertSearchResponse(response);
             assertHitCount(response, max_query_terms);
@@ -540,7 +540,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                     .minDocFreq(1)
                     .minimumShouldMatch(minimumShouldMatch);
             logger.info("Testing with minimum_should_match = {}", minimumShouldMatch);
-            SearchResponse response = client().prepareSearch("test").setTypes("type1")
+            SearchResponse response = client().prepareSearch("test")
                     .setQuery(mltQuery).get();
             assertSearchResponse(response);
             if (minimumShouldMatch.equals("0%")) {
@@ -572,7 +572,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minDocFreq(0)
                 .maxQueryTerms(100)
                 .minimumShouldMatch("100%"); // strict all terms must match!
-        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+        SearchResponse response = client().prepareSearch("test")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
@@ -601,7 +601,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .minimumShouldMatch("0%");
-        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+        SearchResponse response = client().prepareSearch("test")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 0);
@@ -612,7 +612,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .minimumShouldMatch("0%");
-        response = client().prepareSearch("test").setTypes("type1")
+        response = client().prepareSearch("test")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 0);
@@ -627,7 +627,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minTermFreq(0)
                 .minDocFreq(0)
                 .minimumShouldMatch("100%");  // strict all terms must match but date is ignored
-        response = client().prepareSearch("test").setTypes("type1")
+        response = client().prepareSearch("test")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);
@@ -658,7 +658,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minDocFreq(0)
                 .maxQueryTerms(100)
                 .minimumShouldMatch("0%");
-        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+        SearchResponse response = client().prepareSearch("test")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, numFields);
@@ -675,7 +675,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                     .include(true)
                     .minimumShouldMatch("0%");
 
-            response = client().prepareSearch("test").setTypes("type1").setQuery(mltQuery).get();
+            response = client().prepareSearch("test").setQuery(mltQuery).get();
             assertSearchResponse(response);
             assertHitCount(response, numFields - (i + 1));
         }
@@ -702,7 +702,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minDocFreq(0)
                 .include(true)
                 .minimumShouldMatch("1%");
-        SearchResponse response = client().prepareSearch("test").setTypes("type1")
+        SearchResponse response = client().prepareSearch("test")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 2);
@@ -712,7 +712,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                 .minDocFreq(0)
                 .include(true)
                 .minimumShouldMatch("1%");
-        response = client().prepareSearch("test").setTypes("type1")
+        response = client().prepareSearch("test")
                 .setQuery(mltQuery).get();
         assertSearchResponse(response);
         assertHitCount(response, 1);

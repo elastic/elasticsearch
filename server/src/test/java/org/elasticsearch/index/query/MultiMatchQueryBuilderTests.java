@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -134,9 +133,6 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
         if (randomBoolean()) {
             query.tieBreaker(randomFloat());
         }
-        if (randomBoolean() && query.type() != Type.BOOL_PREFIX) {
-            query.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
-        }
         if (randomBoolean()) {
             query.zeroTermsQuery(randomFrom(MatchQuery.ZeroTermsQuery.NONE, MatchQuery.ZeroTermsQuery.ALL));
         }
@@ -174,7 +170,6 @@ public class MultiMatchQueryBuilderTests extends FullTextQueryTestCase<MultiMatc
             instanceOf(FuzzyQuery.class),
             instanceOf(MultiPhrasePrefixQuery.class),
             instanceOf(MatchAllDocsQuery.class),
-            instanceOf(ExtendedCommonTermsQuery.class),
             instanceOf(MatchNoDocsQuery.class),
             instanceOf(PhraseQuery.class),
             instanceOf(PointRangeQuery.class),

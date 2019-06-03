@@ -70,7 +70,7 @@ abstract class BaseGeoParsingTestCase extends ESTestCase {
     protected void assertGeometryEquals(org.elasticsearch.geo.geometry.Geometry expected, XContentBuilder geoJson) throws IOException {
         try (XContentParser parser = createParser(geoJson)) {
             parser.nextToken();
-            assertEquals(expected, GeoJson.fromXContent(parser, true, false, false));
+            assertEquals(expected, new GeoJson(true, false, false).fromXContent(parser));
         }
     }
 

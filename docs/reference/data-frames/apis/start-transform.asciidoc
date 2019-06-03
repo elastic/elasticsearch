@@ -41,7 +41,7 @@ When the {dataframe-transform} starts, you receive the following results:
 [source,js]
 ----
 {
-  "started" : true
+  "acknowledged" : true
 }
 ----
 // TESTRESPONSE

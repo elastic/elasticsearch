@@ -39,7 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 @TestLogging("_root:DEBUG,org.elasticsearch.action.admin.cluster.state:TRACE")
 public class SpecificMasterNodesIT extends ESIntegTestCase {
 

@@ -54,6 +54,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -329,6 +330,31 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
 
         assertEquals(query.getCandidateMatchesQuery(), aliasQuery.getCandidateMatchesQuery());
         assertEquals(query.getVerifiedMatchesQuery(), aliasQuery.getVerifiedMatchesQuery());
+    }
+
+    public void testSettingNameWhileRewriting() {
+        String testName = "name1";
+        QueryShardContext shardContext = createShardContext();
+        PercolateQueryBuilder percolateQueryBuilder = doCreateTestQueryBuilder(true);
+        percolateQueryBuilder.setName(testName);
+
+        QueryBuilder rewrittenQueryBuilder = percolateQueryBuilder.doRewrite(shardContext);
+
+        assertEquals(testName, ((PercolateQueryBuilder) rewrittenQueryBuilder).getQueryName());
+        assertNotEquals(rewrittenQueryBuilder, percolateQueryBuilder);
+    }
+
+    public void testSettingNameWhileRewritingWhenDocumentSupplierAndSourceNotNull() {
+        Supplier<BytesReference> supplier = () -> new BytesArray("{\"test\": \"test\"}");
+        String testName = "name1";
+        QueryShardContext shardContext = createShardContext();
+        PercolateQueryBuilder percolateQueryBuilder = new PercolateQueryBuilder(queryField, null, supplier);
+        percolateQueryBuilder.setName(testName);
+
+        QueryBuilder rewrittenQueryBuilder = percolateQueryBuilder.doRewrite(shardContext);
+
+        assertEquals(testName, ((PercolateQueryBuilder) rewrittenQueryBuilder).getQueryName());
+        assertNotEquals(rewrittenQueryBuilder, percolateQueryBuilder);
     }
 
 }

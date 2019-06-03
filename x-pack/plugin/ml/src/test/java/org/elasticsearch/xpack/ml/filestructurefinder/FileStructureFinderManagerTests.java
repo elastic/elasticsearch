@@ -102,7 +102,8 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
 
     public void testMakeBestStructureGivenNdJson() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, NDJSON_SAMPLE, StandardCharsets.UTF_8.name(),
-            randomBoolean(), EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(NdJsonFileStructureFinder.class));
+            randomBoolean(), FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER),
+            instanceOf(NdJsonFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenNdJsonAndDelimitedOverride() throws Exception {
@@ -113,12 +114,14 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
             .setFormat(FileStructure.Format.DELIMITED).setQuote('\'').build();
 
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, NDJSON_SAMPLE, StandardCharsets.UTF_8.name(),
-            randomBoolean(), overrides, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
+            randomBoolean(), FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER),
+            instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXml() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, XML_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(XmlFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER),
+            instanceOf(XmlFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenXmlAndTextOverride() throws Exception {
@@ -126,12 +129,14 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
         FileStructureOverrides overrides = FileStructureOverrides.builder().setFormat(FileStructure.Format.SEMI_STRUCTURED_TEXT).build();
 
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, XML_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            overrides, NOOP_TIMEOUT_CHECKER), instanceOf(TextLogFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER),
+            instanceOf(TextLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsv() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, CSV_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER),
+            instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenCsvAndJsonOverride() {
@@ -140,14 +145,15 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> structureFinderManager.makeBestStructureFinder(explanation, CSV_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-                overrides, NOOP_TIMEOUT_CHECKER));
+                FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER));
 
         assertEquals("Input did not match the specified format [ndjson]", e.getMessage());
     }
 
     public void testMakeBestStructureGivenText() throws Exception {
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, TEXT_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER), instanceOf(TextLogFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, EMPTY_OVERRIDES, NOOP_TIMEOUT_CHECKER),
+            instanceOf(TextLogFileStructureFinder.class));
     }
 
     public void testMakeBestStructureGivenTextAndDelimitedOverride() throws Exception {
@@ -157,7 +163,8 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
             .setFormat(FileStructure.Format.DELIMITED).setDelimiter(':').build();
 
         assertThat(structureFinderManager.makeBestStructureFinder(explanation, TEXT_SAMPLE, StandardCharsets.UTF_8.name(), randomBoolean(),
-            overrides, NOOP_TIMEOUT_CHECKER), instanceOf(DelimitedFileStructureFinder.class));
+            FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT, overrides, NOOP_TIMEOUT_CHECKER),
+            instanceOf(DelimitedFileStructureFinder.class));
     }
 
     public void testFindFileStructureTimeout() throws IOException, InterruptedException {
@@ -190,7 +197,8 @@ public class FileStructureFinderManagerTests extends FileStructureTestCase {
                 junkProducer.start();
 
                 ElasticsearchTimeoutException e = expectThrows(ElasticsearchTimeoutException.class,
-                    () -> structureFinderManager.findFileStructure(explanation, linesOfJunk - 1, bigInput, EMPTY_OVERRIDES, timeout));
+                    () -> structureFinderManager.findFileStructure(explanation, FileStructureFinderManager.DEFAULT_LINE_MERGE_SIZE_LIMIT,
+                        linesOfJunk - 1, bigInput, EMPTY_OVERRIDES, timeout));
 
                 assertThat(e.getMessage(), startsWith("Aborting structure analysis during ["));
                 assertThat(e.getMessage(), endsWith("] as it has taken longer than the timeout of [" + timeout + "]"));

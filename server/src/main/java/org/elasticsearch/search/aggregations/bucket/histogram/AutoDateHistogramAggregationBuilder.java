@@ -63,7 +63,7 @@ public class AutoDateHistogramAggregationBuilder
         PARSER = new ObjectParser<>(AutoDateHistogramAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
         PARSER.declareInt(AutoDateHistogramAggregationBuilder::setNumBuckets, NUM_BUCKETS_FIELD);
-        PARSER.declareString(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
+        PARSER.declareStringOrNull(AutoDateHistogramAggregationBuilder::setMinimumIntervalExpression, MINIMUM_INTERVAL_FIELD);
     }
 
     private static List<String> allowedIntervals = Arrays.asList("second", "minute", "hour", "day", "month", "year");

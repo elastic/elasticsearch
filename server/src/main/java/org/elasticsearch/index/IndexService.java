@@ -23,9 +23,9 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -66,14 +66,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.store.DirectoryService;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -103,7 +102,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BitsetFilterCache bitsetFilterCache;
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
-    private final IndexStore indexStore;
+    private final IndexStorePlugin.DirectoryFactory directoryFactory;
     private final IndexSearcherWrapper searcherWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
@@ -149,7 +148,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             ScriptService scriptService,
             Client client,
             QueryCache queryCache,
-            IndexStore indexStore,
+            IndexStorePlugin.DirectoryFactory directoryFactory,
             IndexEventListener eventListener,
             IndexModule.IndexSearcherWrapperFactory wrapperFactory,
             MapperRegistry mapperRegistry,
@@ -200,7 +199,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.client = client;
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
-        this.indexStore = indexStore;
+        this.directoryFactory = directoryFactory;
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
         this.searcherWrapper = wrapperFactory.newWrapper(this);
@@ -401,9 +400,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     warmer.warm(searcher, shard, IndexService.this.indexSettings);
                 }
             };
-            // TODO we can remove either IndexStore or DirectoryService. All we need is a simple Supplier<Directory>
-            DirectoryService directoryService = indexStore.newDirectoryService(path);
-            store = new Store(shardId, this.indexSettings, directoryService.newDirectory(), lock,
+            Directory directory = directoryFactory.newDirectory(this.indexSettings, path);
+            store = new Store(shardId, this.indexSettings, directory, lock,
                     new StoreCloseListener(shardId, () -> eventListener.onStoreClosed(shardId)));
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
@@ -520,11 +518,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     /**
-     * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
-     * {@link QueryShardContext#setTypes(String...)}.
+     * Creates a new QueryShardContext.
      *
-     * Passing a {@code null} {@link IndexReader} will return a valid context, however it won't be able to make
-     * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
+     * Passing a {@code null} {@link IndexReader} will return a valid context, however it won't be able to make {@link IndexReader}-specific
+     * optimizations, such as rewriting containing range queries.
      */
     public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis, String clusterAlias) {
         return new QueryShardContext(
@@ -662,9 +659,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public synchronized void updateMetaData(final IndexMetaData currentIndexMetaData, final IndexMetaData newIndexMetaData) {
         final boolean updateIndexMetaData = indexSettings.updateIndexMetaData(newIndexMetaData);
 
-        if (Assertions.ENABLED
-                && currentIndexMetaData != null
-                && currentIndexMetaData.getCreationVersion().onOrAfter(Version.V_6_5_0)) {
+        if (Assertions.ENABLED && currentIndexMetaData != null) {
             final long currentSettingsVersion = currentIndexMetaData.getSettingsVersion();
             final long newSettingsVersion = newIndexMetaData.getSettingsVersion();
             if (currentSettingsVersion == newSettingsVersion) {
@@ -753,8 +748,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return searcherWrapper;
     } // pkg private for testing
 
-    final IndexStore getIndexStore() {
-        return indexStore;
+    final IndexStorePlugin.DirectoryFactory getDirectoryFactory() {
+        return directoryFactory;
     } // pkg private for testing
 
     private void maybeFSyncTranslogs() {

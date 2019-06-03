@@ -234,7 +234,7 @@ final class LiveVersionMap implements ReferenceManager.RefreshListener, Accounta
     /**
      * Tracks bytes used by tombstones (deletes)
      */
-    final AtomicLong ramBytesUsedTombstones = new AtomicLong();
+    private final AtomicLong ramBytesUsedTombstones = new AtomicLong();
 
     @Override
     public void beforeRefresh() throws IOException {

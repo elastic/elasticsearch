@@ -71,7 +71,7 @@ public class MultiGetResponseTests extends ESTestCase {
             if (randomBoolean()) {
                 items[i] = new MultiGetItemResponse(new GetResponse(new GetResult(
                         randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4), 0, 1, randomNonNegativeLong(),
-                        true, null, null
+                        true, null, null, null
                 )), null);
             } else {
                 items[i] = new MultiGetItemResponse(null, new MultiGetResponse.Failure(randomAlphaOfLength(4),

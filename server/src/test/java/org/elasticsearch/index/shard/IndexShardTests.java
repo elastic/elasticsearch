@@ -125,7 +125,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Assert;
 
@@ -1138,6 +1138,33 @@ public class IndexShardTests extends IndexShardTestCase {
         assertFalse(synced.get());
 
         closeShards(replicaShard, primaryShard);
+    }
+
+    public void testClosedIndicesSkipSyncGlobalCheckpoint() throws Exception {
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        IndexMetaData.Builder indexMetadata = IndexMetaData.builder("index")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2))
+            .state(IndexMetaData.State.CLOSE).primaryTerm(0, 1);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, randomAlphaOfLength(8), true,
+            ShardRoutingState.INITIALIZING, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
+        AtomicBoolean synced = new AtomicBoolean();
+        IndexShard primaryShard = newShard(shardRouting, indexMetadata.build(), null, new InternalEngineFactory(),
+            () -> synced.set(true), RetentionLeaseSyncer.EMPTY);
+        recoverShardFromStore(primaryShard);
+        IndexShard replicaShard = newShard(shardId, false);
+        recoverReplica(replicaShard, primaryShard, true);
+        int numDocs = between(1, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(primaryShard, "_doc", Integer.toString(i));
+        }
+        assertThat(primaryShard.getLocalCheckpoint(), equalTo(numDocs - 1L));
+        primaryShard.updateLocalCheckpointForShard(replicaShard.shardRouting.allocationId().getId(), primaryShard.getLocalCheckpoint());
+        long globalCheckpointOnReplica = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, primaryShard.getLocalCheckpoint());
+        primaryShard.updateGlobalCheckpointForShard(replicaShard.shardRouting.allocationId().getId(), globalCheckpointOnReplica);
+        primaryShard.maybeSyncGlobalCheckpoint("test");
+        assertFalse("closed indices should skip global checkpoint sync", synced.get());
+        closeShards(primaryShard, replicaShard);
     }
 
     public void testRestoreLocalHistoryFromTranslogOnPromotion() throws IOException, InterruptedException {
@@ -2273,8 +2300,8 @@ public class IndexShardTests extends IndexShardTestCase {
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
-            public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId,
-                                     RecoveryState recoveryState) {
+            public void restoreShard(Store store, SnapshotId snapshotId,
+                                     Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
@@ -3792,7 +3819,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 readyToCloseLatch.await();
                 shard.close("testing", false);
                 // in integration tests, this is done as a listener on IndexService.
-                MockFSDirectoryService.checkIndex(logger, shard.store(), shard.shardId);
+                MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
             } catch (InterruptedException | IOException e) {
                 throw new AssertionError(e);
             } finally {

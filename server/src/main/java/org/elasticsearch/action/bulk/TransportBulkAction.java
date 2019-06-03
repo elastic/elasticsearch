@@ -165,9 +165,17 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (pipeline == null) {
                     // start to look for default pipeline via settings found in the index meta data
                     IndexMetaData indexMetaData = indicesMetaData.get(actionRequest.index());
+                    // check the alias for the index request (this is how normal index requests are modeled)
                     if (indexMetaData == null && indexRequest.index() != null) {
-                        // if the write request if through an alias use the write index's meta data
                         AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(indexRequest.index());
+                        if (indexOrAlias != null && indexOrAlias.isAlias()) {
+                            AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
+                            indexMetaData = alias.getWriteIndex();
+                        }
+                    }
+                    // check the alias for the action request (this is how upserts are modeled)
+                    if (indexMetaData == null && actionRequest.index() != null) {
+                        AliasOrIndex indexOrAlias = metaData.getAliasAndIndexLookup().get(actionRequest.index());
                         if (indexOrAlias != null && indexOrAlias.isAlias()) {
                             AliasOrIndex.Alias alias = (AliasOrIndex.Alias) indexOrAlias;
                             indexMetaData = alias.getWriteIndex();

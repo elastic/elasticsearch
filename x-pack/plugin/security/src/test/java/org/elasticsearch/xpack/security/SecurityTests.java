@@ -118,8 +118,8 @@ public class SecurityTests extends ESTestCase {
         };
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
-        settings = Security.additionalSettings(settings, true, false);
-        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(false, null));
+        settings = Security.additionalSettings(settings, true);
+        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -180,7 +180,7 @@ public class SecurityTests extends ESTestCase {
     }
 
     public void testHttpSettingDefaults() throws Exception {
-        final Settings defaultSettings = Security.additionalSettings(Settings.EMPTY, true, false);
+        final Settings defaultSettings = Security.additionalSettings(Settings.EMPTY, true);
         assertThat(SecurityField.NAME4, equalTo(NetworkModule.TRANSPORT_TYPE_SETTING.get(defaultSettings)));
         assertThat(SecurityField.NAME4, equalTo(NetworkModule.HTTP_TYPE_SETTING.get(defaultSettings)));
     }
@@ -189,7 +189,7 @@ public class SecurityTests extends ESTestCase {
         Settings both4 = Security.additionalSettings(Settings.builder()
             .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
             .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
-            .build(), true, false);
+            .build(), true);
         assertFalse(NetworkModule.TRANSPORT_TYPE_SETTING.exists(both4));
         assertFalse(NetworkModule.HTTP_TYPE_SETTING.exists(both4));
     }
@@ -198,13 +198,13 @@ public class SecurityTests extends ESTestCase {
         final String badType = randomFrom("netty4", "other", "security1");
         Settings settingsTransport = Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, badType).build();
         IllegalArgumentException badTransport = expectThrows(IllegalArgumentException.class,
-            () -> Security.additionalSettings(settingsTransport, true, false));
+            () -> Security.additionalSettings(settingsTransport, true));
         assertThat(badTransport.getMessage(), containsString(SecurityField.NAME4));
         assertThat(badTransport.getMessage(), containsString(NetworkModule.TRANSPORT_TYPE_KEY));
 
         Settings settingsHttp = Settings.builder().put(NetworkModule.HTTP_TYPE_KEY, badType).build();
         IllegalArgumentException badHttp = expectThrows(IllegalArgumentException.class,
-            () -> Security.additionalSettings(settingsHttp, true, false));
+            () -> Security.additionalSettings(settingsHttp, true));
         assertThat(badHttp.getMessage(), containsString(SecurityField.NAME4));
         assertThat(badHttp.getMessage(), containsString(NetworkModule.HTTP_TYPE_KEY));
     }
@@ -316,29 +316,6 @@ public class SecurityTests extends ESTestCase {
                 () -> new Security.ValidateLicenseForFIPS(true).accept(node, state));
             assertThat(e.getMessage(), containsString("FIPS mode cannot be used"));
         }
-    }
-
-    public void testIndexJoinValidator_Old_And_Rolling() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-            VersionUtils.getPreviousVersion(Version.V_7_0_0));
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(version)
-                .put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT - 1))
-            .numberOfShards(1).numberOfReplicas(0)
-            .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> joinValidator.accept(node, clusterState));
-        assertThat(e.getMessage(), equalTo("Security index is not on the current version [6] - " +
-            "The Upgrade API must be run for 7.x nodes to join the cluster"));
     }
 
     public void testIndexJoinValidator_FullyCurrentCluster() throws Exception {

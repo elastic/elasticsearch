@@ -59,11 +59,6 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         return Arrays.asList(CustomDistanceScorePlugin.class);
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Arrays.asList(CustomDistanceScorePlugin.class);
-    }
-
     public void testPlugin() throws Exception {
         client().admin()
                 .indices()

@@ -22,7 +22,7 @@ package org.elasticsearch.plugin.analysis.smartcn;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.SmartChineseAnalyzerProvider;
-import org.elasticsearch.index.analysis.SmartChineseNoOpTokenFilterFactory;
+import org.elasticsearch.index.analysis.SmartChineseStopTokenFilterFactory;
 import org.elasticsearch.index.analysis.SmartChineseTokenizerTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -38,16 +38,13 @@ import static java.util.Collections.singletonMap;
 public class AnalysisSmartChinesePlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-        // This is a noop token filter; it's here for backwards compat before we had "smartcn_tokenizer"
-        return singletonMap("smartcn_word", SmartChineseNoOpTokenFilterFactory::new);
+        return singletonMap("smartcn_stop", SmartChineseStopTokenFilterFactory::new);
     }
 
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         Map<String, AnalysisProvider<TokenizerFactory>> extra = new HashMap<>();
         extra.put("smartcn_tokenizer", SmartChineseTokenizerTokenizerFactory::new);
-        // This is an alias to "smartcn_tokenizer"; it's here for backwards compat
-        extra.put("smartcn_sentence", SmartChineseTokenizerTokenizerFactory::new);
         return extra;
     }
 

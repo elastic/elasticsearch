@@ -46,10 +46,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      */
     public static final int V_EMPTY_ID = 0;
     public static final Version V_EMPTY = new Version(V_EMPTY_ID, org.apache.lucene.util.Version.LATEST);
-    public static final int V_6_8_0_ID = 6080099;
-    public static final Version V_6_8_0 = new Version(V_6_8_0_ID, org.apache.lucene.util.Version.LUCENE_7_7_0);
-    public static final int V_6_8_1_ID = 6080199;
-    public static final Version V_6_8_1 = new Version(V_6_8_1_ID, org.apache.lucene.util.Version.LUCENE_7_7_0);
     public static final int V_7_0_0_ID = 7000099;
     public static final Version V_7_0_0 = new Version(V_7_0_0_ID, org.apache.lucene.util.Version.LUCENE_8_0_0);
     public static final int V_7_0_1_ID = 7000199;
@@ -96,10 +92,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 return V_7_0_1;
             case V_7_0_0_ID:
                 return V_7_0_0;
-            case V_6_8_1_ID:
-                return V_6_8_1;
-            case V_6_8_0_ID:
-                return V_6_8_0;
             case V_EMPTY_ID:
                 return V_EMPTY;
             default:
@@ -283,8 +275,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         if (major == 6) {
             // force the minimum compatibility for version 6 to 5.6 since we don't reference version 5 anymore
             return Version.fromId(5060099);
-        } else if (major >= 7) {
-            // all major versions from 7 onwards are compatible with last minor series of the previous major
+        } else if (major == 7) {
+            // force the minimum compatibility for version 7 to 6.8 since we don't reference version 6 anymore
+            return Version.fromId(6080099);
+        } else if (major >= 8) {
+            // all major versions from 8 onwards are compatible with last minor series of the previous major
             Version bwcVersion = null;
 
             for (int i = DeclaredVersionsHolder.DECLARED_VERSIONS.size() - 1; i >= 0; i--) {

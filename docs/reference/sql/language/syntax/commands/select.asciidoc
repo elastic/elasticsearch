@@ -205,7 +205,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[groupByAndMultipleAggs]
 ----
 
 [TIP]
-If custom bucketing is required, it can be achieved with the use of `<<sql-functions-conditional-case, CASE>>`,
+If custom bucketing is required, it can be achieved with the use of <<sql-functions-conditional-case, `CASE`>>,
 as shown <<sql-functions-conditional-case-groupby-custom-buckets, here>>.
 
 [[sql-syntax-group-by-implicit]]
@@ -337,7 +337,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[orderByAgg]
 ----
 
 IMPORTANT: Ordering by aggregation is possible for up to 512 entries for memory consumption reasons.
-In cases where the results pass this threshold, use <<`LIMIT`, sql-syntax-limit>> to reduce the number
+In cases where the results pass this threshold, use <<sql-syntax-limit,`LIMIT`>> to reduce the number
 of results.
 
 [[sql-syntax-order-by-score]]

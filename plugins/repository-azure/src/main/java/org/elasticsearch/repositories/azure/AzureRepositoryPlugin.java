@@ -43,6 +43,8 @@ import java.util.Map;
  */
 public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
+    public static final String REPOSITORY_THREAD_POOL_NAME = "azure-repository";
+
     private static final Setting<Integer> THREADPOOL_SIZE_SETTING = Setting.intSetting(
         "azure.threadpool.size",
         32,
@@ -83,7 +85,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return Collections.singletonList(
-            new ScalingExecutorBuilder(RepositoryPlugin.REPOSITORY_THREAD_POOL_NAME, 0,
+            new ScalingExecutorBuilder(REPOSITORY_THREAD_POOL_NAME, 0,
                 THREADPOOL_SIZE_SETTING.get(settings), TimeValue.timeValueSeconds(30L)));
     }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -133,7 +132,9 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         }
         final PlainActionFuture<Collection<Void>> result = PlainActionFuture.newFuture();
         final GroupedActionListener<Void> listener = new GroupedActionListener<>(result, blobNames.size());
-        final ExecutorService executor = threadPool.executor(RepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
+        final ExecutorService executor = threadPool.executor(AzureRepositoryPlugin.REPOSITORY_THREAD_POOL_NAME);
+        // Executing deletes in parallel since Azure SDK 8 is using blocking IO while Azure does not provide a bulk delete API endpoint.
+        // TODO: Upgrade to newer non-blocking Azure SDK 11 and execute delete requests in parallel that way.
         for (String blobName : blobNames) {
             executor.submit(new ActionRunnable<>(listener) {
                 @Override

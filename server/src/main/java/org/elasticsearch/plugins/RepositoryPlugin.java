@@ -32,8 +32,6 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public interface RepositoryPlugin {
 
-    String REPOSITORY_THREAD_POOL_NAME = "repository";
-
     /**
      * Returns repository types added by this plugin.
      *

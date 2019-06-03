@@ -54,8 +54,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
         Settings.builder().build();
         MetaData.Builder metaBuilder = MetaData.builder();
         IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .settings(settings(VersionUtils.getPreviousVersion(Version.CURRENT
-                .minimumIndexCompatibilityVersion())))
+            .settings(settings(Version.fromString("6.8.0"))) // latest V6 released version
             .numberOfShards(1)
             .numberOfReplicas(1).build();
         metaBuilder.put(indexMetaData, false);

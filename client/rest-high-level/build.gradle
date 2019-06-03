@@ -46,34 +46,34 @@ idea {
 }
 
 dependencies {
-  compile "org.elasticsearch:elasticsearch:${version}"
-  compile "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  compile project(':server')
+  compile project(':client:rest')
   compile project(':modules:parent-join')
   compile project(':modules:aggs-matrix-stats')
   compile project(':modules:rank-eval')
   compile project(':modules:lang-mustache')
-  shadow "org.elasticsearch:elasticsearch:${version}"
-  shadow "org.elasticsearch.client:elasticsearch-rest-client:${version}"
+  shadow project(':server')
+  shadow project(':client:rest')
   bundle project(':modules:parent-join')
   bundle project(':modules:aggs-matrix-stats')
   bundle project(':modules:rank-eval')
   bundle project(':modules:lang-mustache')
 
-  testCompile "org.elasticsearch.client:test:${version}"
-  testCompile "org.elasticsearch.test:framework:${version}"
+  testCompile project(':client:test')
+  testCompile project(':test:framework')
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   //this is needed to make RestHighLevelClientTests#testApiNamingConventions work from IDEs
-  testCompile "org.elasticsearch:rest-api-spec:${version}"
+  testCompile project(":rest-api-spec")
   // Needed for serialization tests:
   // (In order to serialize a server side class to a client side class or the other way around)
   if (isEclipse == false || project.path == ":client:rest-high-level-tests") {
-    testCompile("org.elasticsearch.plugin:x-pack-core:${version}") {
+    testCompile(project(':x-pack:plugin:core')) {
         exclude group: 'org.elasticsearch', module: 'elasticsearch-rest-high-level-client'
     }
   }
 
-  restSpec "org.elasticsearch:rest-api-spec:${version}"
+  restSpec project(':rest-api-spec')
 }
 
 //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)

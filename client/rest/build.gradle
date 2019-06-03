@@ -44,7 +44,7 @@ dependencies {
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
-  testCompile "org.elasticsearch.client:test:${version}"
+  testCompile project(":client:test")
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
   testCompile "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -68,7 +68,7 @@ forbiddenApisTest {
 }
 
 // JarHell is part of es server, which we don't want to pull in
-// TODO: Not anymore. Now in :libs:core
+// TODO: Not anymore. Now in :libs:elasticsearch-core
 jarHell.enabled=false
 
 testingConventions {

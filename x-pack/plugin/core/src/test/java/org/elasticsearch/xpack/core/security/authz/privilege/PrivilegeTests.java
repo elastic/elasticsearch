@@ -8,6 +8,11 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.ListEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
@@ -153,8 +158,11 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testManageEnrichPrivilege() {
         Predicate<String> predicate = ClusterPrivilege.MANAGE_ENRICH.predicate();
-        assertThat(predicate.test("cluster:admin/xpack/enrich/put"), is(true));
-        assertThat(predicate.test("cluster:admin/xpack/enrich/list"), is(true));
+        assertThat(predicate.test(DeleteEnrichPolicyAction.NAME), is(true));
+        assertThat(predicate.test(ExecuteEnrichPolicyAction.NAME), is(true));
+        assertThat(predicate.test(GetEnrichPolicyAction.NAME), is(true));
+        assertThat(predicate.test(ListEnrichPolicyAction.NAME), is(true));
+        assertThat(predicate.test(PutEnrichPolicyAction.NAME), is(true));
         assertThat(predicate.test("cluster:admin/xpack/enrich/brand_new_api"), is(true));
         assertThat(predicate.test("cluster:admin/xpack/whatever"), is(false));
     }

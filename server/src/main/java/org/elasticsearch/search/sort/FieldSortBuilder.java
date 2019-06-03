@@ -336,10 +336,9 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     throw new QueryShardException(context,
                         "max_children is only supported on last level of nested sort");
                 }
-                // new nested sorts takes priority
                 nested = resolveNested(context, nestedSort);
             } else {
-                verifyNestedField(context, fieldName);
+                validateMissingNestedPath(context, fieldName);
             }
         }
 
@@ -363,11 +362,24 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
     }
 
-    static void verifyNestedField(QueryShardContext context, String field) {
+    /**
+     * Throws an exception if the provided <code>field</code> requires a nested context.
+     */
+    static void validateMissingNestedPath(QueryShardContext context, String field) {
+        ObjectMapper contextMapper = context.nestedScope().getObjectMapper();
+        if (contextMapper != null && contextMapper.nested().isNested() == false) {
+            // already in nested context
+            return;
+        }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper mapper = context.getObjectMapper(parent);
-            if (mapper != null && mapper.nested().isNested()) {
-                if (mapper.nested().isIncludeInRoot() == false) {
+            ObjectMapper parentMapper = context.getObjectMapper(parent);
+            if (parentMapper != null && parentMapper.nested().isNested()) {
+                if (contextMapper != null && contextMapper.fullPath().equals(parentMapper.fullPath())) {
+                    // we are in a nested context that matches the path of the provided field so the nested path
+                    // is not required
+                    return ;
+                }
+                if (parentMapper.nested().isIncludeInRoot() == false) {
                     throw new QueryShardException(context,
                         "it is mandatory to set the [nested] context on the nested sort field: [" + field + "].");
                 }

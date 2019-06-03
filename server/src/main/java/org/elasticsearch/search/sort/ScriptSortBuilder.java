@@ -246,7 +246,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 throw new QueryShardException(context,
                     "max_children is only supported on last level of nested sort");
             }
-            // new nested sorts takes priority
             nested = resolveNested(context, nestedSort);
         }
 

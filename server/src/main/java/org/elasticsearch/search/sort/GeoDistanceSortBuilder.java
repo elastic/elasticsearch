@@ -63,6 +63,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.search.sort.FieldSortBuilder.validateMissingNestedPath;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
@@ -398,8 +399,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         GeoDistance geoDistance = GeoDistance.ARC;
         SortOrder order = SortOrder.ASC;
         SortMode sortMode = null;
-        QueryBuilder nestedFilter = null;
-        String nestedPath = null;
         NestedSortBuilder nestedSort = null;
         GeoValidationMethod validation = null;
         boolean ignoreUnmapped = false;
@@ -541,8 +540,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 throw new QueryShardException(context,
                     "max_children is only supported on last level of nested sort");
             }
-            // new nested sorts takes priority
             nested = resolveNested(context, nestedSort);
+        } else {
+            validateMissingNestedPath(context, fieldName);
         }
 
         if (geoIndexFieldData.getClass() == LatLonPointDVIndexFieldData.class // only works with 5.x geo_point

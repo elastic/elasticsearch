@@ -318,29 +318,6 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    public void testIndexJoinValidator_Old_And_Rolling() throws Exception {
-        createComponents(Settings.EMPTY);
-        BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();
-        assertNotNull(joinValidator);
-        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
-            VersionUtils.getPreviousVersion(Version.V_7_0_0));
-        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
-        IndexMetaData indexMetaData = IndexMetaData.builder(SECURITY_MAIN_ALIAS)
-            .settings(settings(version)
-                .put(INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT - 1))
-            .numberOfShards(1).numberOfReplicas(0)
-            .build();
-        DiscoveryNode existingOtherNode = new DiscoveryNode("bar", buildNewFakeTransportAddress(), version);
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(existingOtherNode).build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(discoveryNodes)
-            .metaData(MetaData.builder().put(indexMetaData, true).build()).build();
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> joinValidator.accept(node, clusterState));
-        assertThat(e.getMessage(), equalTo("Security index is not on the current version [6] - " +
-            "The Upgrade API must be run for 7.x nodes to join the cluster"));
-    }
-
     public void testIndexJoinValidator_FullyCurrentCluster() throws Exception {
         createComponents(Settings.EMPTY);
         BiConsumer<DiscoveryNode, ClusterState> joinValidator = security.getJoinValidator();

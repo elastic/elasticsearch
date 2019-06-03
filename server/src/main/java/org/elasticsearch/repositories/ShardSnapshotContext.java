@@ -56,6 +56,12 @@ public abstract class ShardSnapshotContext {
         listener.onResponse(null);
     }
 
+    public IndexShardSnapshotStatus.Copy prepareFinalize() throws IOException {
+        final IndexShardSnapshotStatus.Copy lastSnapshotStatus = status.moveToFinalize(indexCommit().getGeneration());
+        releaseIndexCommit();
+        return lastSnapshotStatus;
+    }
+
     public void finish(long endTime, String failureMessage, Exception e) {
         status.moveToFailed(endTime, failureMessage);
         try {

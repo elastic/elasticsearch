@@ -29,21 +29,39 @@ import org.elasticsearch.index.store.Store;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public interface ShardSnapshotContext {
+public abstract class ShardSnapshotContext {
 
-    IndexCommit indexCommit();
+    private final Store store;
 
-    Store store();
+    private final ActionListener<Void> listener;
 
-    IndexShardSnapshotStatus status();
+    private final IndexShardSnapshotStatus status;
 
-    ActionListener<Void> completionListener();
+    public ShardSnapshotContext(Store store, ActionListener<Void> listener, IndexShardSnapshotStatus status) {
+        this.store = store;
+        this.listener = listener;
+        this.status = status;
+    }
 
-    void releaseIndexCommit() throws IOException;
+    public abstract IndexCommit indexCommit();
 
-    static ShardSnapshotContext create(IndexShard indexShard, IndexShardSnapshotStatus snapshotStatus,
-        ActionListener<Void> listener) {
-        return new ShardSnapshotContext() {
+    public Store store() {
+        return store;
+    }
+
+    public IndexShardSnapshotStatus status() {
+        return status;
+    }
+
+    public ActionListener<Void> completionListener() {
+        return listener;
+    }
+
+    public abstract void releaseIndexCommit() throws IOException;
+
+    public static ShardSnapshotContext create(IndexShard indexShard, IndexShardSnapshotStatus snapshotStatus,
+                                              ActionListener<Void> listener) {
+        return new ShardSnapshotContext(indexShard.store(), listener, snapshotStatus) {
 
             private final AtomicBoolean closed = new AtomicBoolean(false);
             private Engine.IndexCommitRef snapshotRef;
@@ -70,21 +88,6 @@ public interface ShardSnapshotContext {
                     }
                     return snapshotRef.getIndexCommit();
                 }
-            }
-
-            @Override
-            public Store store() {
-                return indexShard.store();
-            }
-
-            @Override
-            public IndexShardSnapshotStatus status() {
-                return snapshotStatus;
-            }
-
-            @Override
-            public ActionListener<Void> completionListener() {
-                return listener;
             }
         };
     }

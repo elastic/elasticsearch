@@ -14,7 +14,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -28,7 +27,6 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
@@ -142,7 +140,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
             store.incRef();
             try {
-                super.snapshotShard(mapperService, snapshotId, indexId, new ShardSnapshotContext() {
+                super.snapshotShard(mapperService, snapshotId, indexId, new ShardSnapshotContext(tempStore, context.completionListener(),
+                                                                                                 context.status()) {
 
                     private final AtomicBoolean closed = new AtomicBoolean(false);
                     private DirectoryReader reader;
@@ -179,21 +178,6 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                                 throw new UncheckedIOException(e);
                             }
                         }
-                    }
-
-                    @Override
-                    public Store store() {
-                        return tempStore;
-                    }
-
-                    @Override
-                    public IndexShardSnapshotStatus status() {
-                        return context.status();
-                    }
-
-                    @Override
-                    public ActionListener<Void> completionListener() {
-                        return context.completionListener();
                     }
                 });
             } finally {

@@ -206,18 +206,13 @@ public class FsRepositoryTests extends ESTestCase {
         }
     }
 
-    private static class TestSnapshotContext implements ShardSnapshotContext {
+    private static class TestSnapshotContext extends ShardSnapshotContext {
 
         private final IndexCommit indexCommit;
-        private final Store store;
-        private final IndexShardSnapshotStatus snapshotStatus;
-        private final ActionListener<Void> listener;
 
         TestSnapshotContext(IndexCommit indexCommit, Store store, IndexShardSnapshotStatus snapshotStatus, ActionListener<Void> listener) {
+            super(store, listener, snapshotStatus);
             this.indexCommit = indexCommit;
-            this.store = store;
-            this.snapshotStatus = snapshotStatus;
-            this.listener = listener;
         }
 
         @Override
@@ -228,21 +223,6 @@ public class FsRepositoryTests extends ESTestCase {
         @Override
         public IndexCommit indexCommit() {
             return indexCommit;
-        }
-
-        @Override
-        public Store store() {
-            return store;
-        }
-
-        @Override
-        public IndexShardSnapshotStatus status() {
-            return snapshotStatus;
-        }
-
-        @Override
-        public ActionListener<Void> completionListener() {
-            return listener;
         }
     }
 }

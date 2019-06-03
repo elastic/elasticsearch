@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.search.aggregations.support.ValueType;
 
 public class NumericHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -44,7 +43,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(5);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
@@ -75,7 +74,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(5);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.DOUBLE);
@@ -106,7 +105,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(Math.PI);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
@@ -137,7 +136,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(10)
                     .minDocCount(2);
@@ -166,7 +165,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(new Document());
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(5)
                     .missing(2d);
@@ -198,7 +197,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(5)
                     .offset(Math.PI);
@@ -228,7 +227,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.DOUBLE)
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                     .field("field")
                     .interval(5)
                     .extendedBounds(-12, 13);

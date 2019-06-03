@@ -1174,10 +1174,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testHisto() throws IOException {
-        HistogramAggregationBuilder nonRollupHisto = new HistogramAggregationBuilder("histo", ValueType.DOUBLE)
+        HistogramAggregationBuilder nonRollupHisto = new HistogramAggregationBuilder("histo")
                 .field("bar").interval(100);
 
-        HistogramAggregationBuilder rollupHisto = new HistogramAggregationBuilder("histo", ValueType.DOUBLE)
+        HistogramAggregationBuilder rollupHisto = new HistogramAggregationBuilder("histo")
                 .field("bar.histogram." + RollupField.VALUE)
                 .interval(100)
                 .subAggregation(new SumAggregationBuilder("histo." + RollupField.COUNT_FIELD)

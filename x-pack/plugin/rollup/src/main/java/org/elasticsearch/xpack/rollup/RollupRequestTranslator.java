@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregati
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
@@ -245,7 +244,7 @@ public class RollupRequestTranslator {
 
         return translateVSAggBuilder(source, registry, () -> {
             HistogramAggregationBuilder rolledHisto
-                    = new HistogramAggregationBuilder(source.getName(), ValueType.DOUBLE);
+                    = new HistogramAggregationBuilder(source.getName());
 
             rolledHisto.interval(source.interval());
             rolledHisto.offset(source.offset());

@@ -102,7 +102,11 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             } else if (indexFieldData instanceof IndexGeoPointFieldData) {
                 config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
             } else {
-                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
+                if (fieldType instanceof RangeFieldMapper.RangeFieldType) {
+                    config = new ValuesSourceConfig<>(ValuesSourceType.RANGE);
+                } else {
+                    config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
+                }
             }
         } else {
             config = new ValuesSourceConfig<>(valueType.getValuesSourceType());

@@ -336,7 +336,7 @@ public class RollupRequestTranslationTests extends ESTestCase {
 
     public void testBasicHisto() {
 
-        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo", ValueType.DOUBLE);
+        HistogramAggregationBuilder histo = new HistogramAggregationBuilder("test_histo");
         histo.field("foo")
                 .interval(1L)
                 .extendedBounds(0.0, 1000.0)

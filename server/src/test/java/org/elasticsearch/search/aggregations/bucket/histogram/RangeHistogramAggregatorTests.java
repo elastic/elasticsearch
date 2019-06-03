@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
@@ -54,7 +53,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             doc.add(new BinaryDocValuesField("field", encodedRange));
             w.addDocument(doc);
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.RANGE)
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
             MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();
@@ -79,7 +78,7 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             doc.add(new BinaryDocValuesField("field", encodedRange));
             w.addDocument(doc);
 
-            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg", ValueType.RANGE)
+            HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("my_agg")
                 .field("field")
                 .interval(5);
             MappedFieldType fieldType = new RangeFieldMapper.Builder("field", rangeType).fieldType();

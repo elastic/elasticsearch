@@ -11,7 +11,7 @@ test.enabled = false
 
 dependencies {
   testCompile project(':x-pack:qa')
-  testCompile ("org.elasticsearch.client:elasticsearch-rest-high-level-client:${version}")
+  testCompile project(':client:rest-high-level')
 }
 
 Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->

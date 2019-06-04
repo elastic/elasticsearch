@@ -148,6 +148,11 @@ if (project != rootProject) {
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:oss-linux-tar')
   }
+    
+  // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
+  processResources {
+      exclude 'buildSrc.marker'
+  }
 
   String localDownloads = "${rootProject.buildDir}/local-downloads"
   task setupLocalDownloads(type:Copy) {

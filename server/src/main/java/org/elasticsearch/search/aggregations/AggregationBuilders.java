@@ -245,7 +245,6 @@ public class AggregationBuilders {
      * Create a new {@link Histogram} aggregation with the given name.
      */
     public static HistogramAggregationBuilder histogram(String name) {
-        // TODO: Hardcoding to valuetype double here is probably wrong
         return new HistogramAggregationBuilder(name);
     }
 

@@ -33,6 +33,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
+ * field type.
+ */
 public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource, HistogramAggregatorFactory> {
 
     private final double interval, offset;
@@ -66,14 +70,18 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             return asMultiBucketAggregator(this, context, parent);
         }
         if (valuesSource instanceof ValuesSource.Numeric) {
-            return createAggregator((ValuesSource.Numeric) valuesSource, parent, pipelineAggregators, metaData);
+            return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+                (ValuesSource.Numeric) valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
         }
         else if (valuesSource instanceof ValuesSource.Bytes.FieldData.RangeFieldData) {
             ValuesSource.Bytes.FieldData.RangeFieldData rangeValueSource = (ValuesSource.Bytes.FieldData.RangeFieldData) valuesSource;
             if (rangeValueSource.rangeType().isNumeric() == false) {
-                throw new IllegalArgumentException("Found non-numeric range [" + rangeValueSource.rangeType().name + "]");
+                throw new IllegalArgumentException("Expected numeric range type but found non-numeric range ["
+                    + rangeValueSource.rangeType().name + "]");
             }
-            return createAggregator((ValuesSource.Bytes.FieldData.RangeFieldData) valuesSource, parent, pipelineAggregators, metaData);
+            return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+                (ValuesSource.Bytes.FieldData.RangeFieldData) valuesSource, config.format(), context, parent, pipelineAggregators,
+                metaData);
         }
         else {
             throw new IllegalArgumentException("Expected one of [Numeric, RangeFieldData] values source, found ["
@@ -81,24 +89,10 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         }
     }
 
-    private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) throws IOException {
-
-        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
-                                              valuesSource, config.format(), context, parent, pipelineAggregators, metaData);
-    }
-
-    private Aggregator createAggregator(ValuesSource.Bytes.FieldData.RangeFieldData valuesSource, Aggregator parent,
-                                        List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-
-        return new RangeHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, valuesSource,
-            config.format(), context, parent, pipelineAggregators, metaData);
-    }
-
-
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return createAggregator((ValuesSource.Numeric) null, parent, pipelineAggregators, metaData);
+        return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+            null, config.format(), context, parent, pipelineAggregators, metaData);
     }
 }

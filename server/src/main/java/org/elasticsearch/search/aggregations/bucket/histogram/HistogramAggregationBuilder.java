@@ -46,7 +46,8 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * A builder for histograms on numeric fields.
+ * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
+ * fields are unsupported, and will throw at the factory layer.
  */
 public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, HistogramAggregationBuilder>
         implements MultiBucketAggregationBuilder {
@@ -82,7 +83,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     public static HistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-        // TODO: Fix hard coded double here?
         return PARSER.parse(parser, new HistogramAggregationBuilder(aggregationName), null);
     }
 

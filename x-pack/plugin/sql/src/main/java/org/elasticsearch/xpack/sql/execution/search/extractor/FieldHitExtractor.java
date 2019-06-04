@@ -165,7 +165,11 @@ public class FieldHitExtractor implements HitExtractor {
                 return DateUtils.asDateTime(Long.parseLong(values.toString()), zoneId);
             }
         }
-        if (values instanceof Long || values instanceof Double || values instanceof String || values instanceof Boolean) {
+        if (values instanceof Integer
+                || values instanceof Long
+                || values instanceof Double
+                || values instanceof String
+                || values instanceof Boolean) {
             return values;
         }
         throw new SqlIllegalArgumentException("Type {} (returned by [{}]) is not supported", values.getClass().getSimpleName(), fieldName);

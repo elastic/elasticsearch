@@ -38,13 +38,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public final class ExceptionsHelper {
@@ -186,27 +186,14 @@ public final class ExceptionsHelper {
      * @return Corruption indicating exception if one is found, otherwise {@code null}
      */
     public static IOException unwrapCorruption(Throwable t) {
-        return t == null ? null : doUnwrapCorruption(t, Collections.newSetFromMap(new IdentityHashMap<>()));
-    }
-
-    private static IOException doUnwrapCorruption(Throwable t, Set<Throwable> seen) {
-        do {
-            if (seen.add(t) == false) {
-                return null;
-            }
+        return t == null ? null : ExceptionsHelper.<IOException>unwrap(t, logger, cause -> {
             for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
-                if (clazz.isInstance(t)) {
-                    return (IOException) t;
+                if (clazz.isInstance(cause)) {
+                    return true;
                 }
             }
-            for (Throwable suppressed : t.getSuppressed()) {
-                IOException corruptionException = doUnwrapCorruption(suppressed, seen);
-                if (corruptionException != null) {
-                    return corruptionException;
-                }
-            }
-        } while ((t = t.getCause()) != null);
-        return null;
+            return false;
+        }).orElse(null);
     }
 
     /**
@@ -219,9 +206,11 @@ public final class ExceptionsHelper {
      */
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {
         if (t != null) {
-            final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+            int iterations = 0;
             do {
-                if (seen.add(t) == false) {
+                ++iterations;
+                if (iterations > MAX_ITERATIONS) {
+                    logger.warn("giving up looking for nested cause", t);
                     return null;
                 }
                 for (Class<?> clazz : clazzes) {
@@ -258,16 +247,10 @@ public final class ExceptionsHelper {
 
     static final int MAX_ITERATIONS = 1024;
 
-    /**
-     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
-     *
-     * @param cause the root throwable
-     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
-     */
-    public static Optional<Error> maybeError(final Throwable cause, final Logger logger) {
-        // early terminate if the cause is already an error
-        if (cause instanceof Error) {
-            return Optional.of((Error) cause);
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> Optional<T> unwrap(Throwable cause, Logger logger, Predicate<Throwable> predicate) {
+        if (predicate.test(cause)) {
+            return Optional.of((T) cause);
         }
 
         final Queue<Throwable> queue = new LinkedList<>();
@@ -277,12 +260,12 @@ public final class ExceptionsHelper {
             iterations++;
             // this is a guard against deeply nested or circular chains of exceptions
             if (iterations > MAX_ITERATIONS) {
-                logger.warn("giving up looking for fatal errors", cause);
+                logger.warn("giving up looking for nested cause", cause);
                 break;
             }
             final Throwable current = queue.remove();
-            if (current instanceof Error) {
-                return Optional.of((Error) current);
+            if (predicate.test(current)) {
+                return Optional.of((T) current);
             }
             Collections.addAll(queue, current.getSuppressed());
             if (current.getCause() != null) {
@@ -290,6 +273,16 @@ public final class ExceptionsHelper {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Unwrap the specified throwable looking for any suppressed errors or errors as a root cause of the specified throwable.
+     *
+     * @param cause the root throwable
+     * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
+     */
+    public static Optional<Error> maybeError(final Throwable cause, final Logger logger) {
+        return unwrap(cause, logger, t -> t instanceof Error);
     }
 
     /**

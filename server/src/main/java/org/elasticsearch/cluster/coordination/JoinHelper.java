@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.DeferredRerouteTaskExecutor;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -82,6 +83,7 @@ public class JoinHelper {
     private final MasterService masterService;
     private final TransportService transportService;
     private final JoinTaskExecutor joinTaskExecutor;
+    private final DeferredRerouteTaskExecutor deferredRerouteTaskExecutor;
     private final TimeValue joinTimeout;
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
@@ -95,7 +97,8 @@ public class JoinHelper {
         this.masterService = masterService;
         this.transportService = transportService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
-        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger) {
+        this.deferredRerouteTaskExecutor = new DeferredRerouteTaskExecutor(allocationService);
+        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, this::submitPostJoinRerouteTask) {
 
             @Override
             public ClusterTasksResult<JoinTaskExecutor.Task> execute(ClusterState currentState, List<JoinTaskExecutor.Task> joiningTasks)
@@ -142,6 +145,12 @@ public class JoinHelper {
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
             });
+    }
+
+    private void submitPostJoinRerouteTask() {
+        masterService.submitStateUpdateTask("post-join reroute", new DeferredRerouteTaskExecutor.Task(),
+            ClusterStateTaskConfig.build(Priority.NORMAL), deferredRerouteTaskExecutor,
+            (source, e) -> logger.debug(new ParameterizedMessage("post-join reroute failed [{}]", source), e));
     }
 
     private JoinCallback transportJoinCallback(TransportRequest request, TransportChannel channel) {

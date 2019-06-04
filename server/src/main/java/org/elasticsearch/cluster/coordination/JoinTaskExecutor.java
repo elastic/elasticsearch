@@ -44,6 +44,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     private final AllocationService allocationService;
 
     private final Logger logger;
+    private final Runnable rerouteTaskSubmitter;
 
     public static class Task {
 
@@ -80,9 +81,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
 
-    public JoinTaskExecutor(AllocationService allocationService, Logger logger) {
+    public JoinTaskExecutor(AllocationService allocationService, Logger logger, Runnable rerouteTaskSubmitter) {
         this.allocationService = allocationService;
         this.logger = logger;
+        this.rerouteTaskSubmitter = rerouteTaskSubmitter;
     }
 
     @Override
@@ -145,14 +147,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             }
             results.success(joinTask);
         }
+
         if (nodesChanged) {
             newState.nodes(nodesBuilder);
-            return results.build(allocationService.reroute(newState.build(), "node_join"));
-        } else {
-            // we must return a new cluster state instance to force publishing. This is important
-            // for the joining node to finalize its join and set us as a master
-            return results.build(newState.build());
+            rerouteTaskSubmitter.run();
         }
+
+        // we must return a new cluster state instance to force publishing. This is important
+        // for the joining node to finalize its join and set us as a master
+        return results.build(newState.build());
     }
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<Task> joiningNodes) {
@@ -179,7 +182,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                 }
             }
         }
-
 
         // now trim any left over dead nodes - either left there when the previous master stepped down
         // or removed by us above

@@ -38,7 +38,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import java.io.IOException;
 import java.util.Optional;
 
-import static org.elasticsearch.ExceptionsHelper.MAX_ITERATIONS;
 import static org.elasticsearch.ExceptionsHelper.maybeError;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -82,20 +81,14 @@ public class ExceptionsHelperTests extends ESTestCase {
         if (fatal) {
             assertError(cause, error);
         } else {
-            assertFalse(maybeError(cause, logger).isPresent());
+            assertFalse(maybeError(cause).isPresent());
         }
 
-        assertFalse(maybeError(new Exception(new DecoderException()), logger).isPresent());
-
-        Throwable chain = outOfMemoryError;
-        for (int i = 0; i < MAX_ITERATIONS; i++) {
-            chain = new Exception(chain);
-        }
-        assertFalse(maybeError(chain, logger).isPresent());
+        assertFalse(maybeError(new Exception(new DecoderException())).isPresent());
     }
 
     private void assertError(final Throwable cause, final Error error) {
-        final Optional<Error> maybeError = maybeError(cause, logger);
+        final Optional<Error> maybeError = maybeError(cause);
         assertTrue(maybeError.isPresent());
         assertThat(maybeError.get(), equalTo(error));
     }

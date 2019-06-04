@@ -187,7 +187,7 @@ public final class ExceptionsHelper {
      * @return Corruption indicating exception if one is found, otherwise {@code null}
      */
     public static IOException unwrapCorruption(Throwable t) {
-        return t == null ? null : ExceptionsHelper.<IOException>unwrap(t, logger, cause -> {
+        return t == null ? null : ExceptionsHelper.<IOException>unwrap(t, cause -> {
             for (Class<?> clazz : CORRUPTION_EXCEPTIONS) {
                 if (clazz.isInstance(cause)) {
                     return true;
@@ -207,11 +207,9 @@ public final class ExceptionsHelper {
      */
     public static Throwable unwrap(Throwable t, Class<?>... clazzes) {
         if (t != null) {
-            int iterations = 0;
+            final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
             do {
-                ++iterations;
-                if (iterations > MAX_ITERATIONS) {
-                    logger.warn("giving up looking for nested cause", t);
+                if (seen.add(t) == false) {
                     return null;
                 }
                 for (Class<?> clazz : clazzes) {
@@ -246,10 +244,8 @@ public final class ExceptionsHelper {
         return true;
     }
 
-    static final int MAX_ITERATIONS = 1024;
-
     @SuppressWarnings("unchecked")
-    private static <T extends Throwable> Optional<T> unwrap(Throwable cause, Logger logger, Predicate<Throwable> predicate) {
+    private static <T extends Throwable> Optional<T> unwrap(Throwable cause, Predicate<Throwable> predicate) {
         if (predicate.test(cause)) {
             return Optional.of((T) cause);
         }
@@ -258,11 +254,6 @@ public final class ExceptionsHelper {
         queue.add(cause);
         final Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         while (queue.isEmpty() == false) {
-            // this is a guard against deeply nested chains of exceptions
-            if (seen.size() >= MAX_ITERATIONS) {
-                logger.warn("giving up looking for nested cause", cause);
-                break;
-            }
             final Throwable current = queue.remove();
             if (seen.add(current) == false) {
                 continue;
@@ -284,26 +275,19 @@ public final class ExceptionsHelper {
      * @param cause the root throwable
      * @return an optional error if one is found suppressed or a root cause in the tree rooted at the specified throwable
      */
-    public static Optional<Error> maybeError(final Throwable cause, final Logger logger) {
-        return unwrap(cause, logger, t -> t instanceof Error);
-    }
-
-    /**
-     * See {@link #maybeError(Throwable, Logger)}. Uses the class-local logger.
-     */
     public static Optional<Error> maybeError(final Throwable cause) {
-        return maybeError(cause, logger);
+        return unwrap(cause, t -> t instanceof Error);
     }
 
     /**
      * If the specified cause is an unrecoverable error, this method will rethrow the cause on a separate thread so that it can not be
      * caught and bubbles up to the uncaught exception handler. Note that the cause tree is examined for any {@link Error}. See
-     * {@link #maybeError(Throwable, Logger)} for the semantics.
+     * {@link #maybeError(Throwable)} for the semantics.
      *
      * @param throwable the throwable to possibly throw on another thread
      */
     public static void maybeDieOnAnotherThread(final Throwable throwable) {
-        ExceptionsHelper.maybeError(throwable, logger).ifPresent(error -> {
+        ExceptionsHelper.maybeError(throwable).ifPresent(error -> {
             /*
              * Here be dragons. We want to rethrow this so that it bubbles up to the uncaught exception handler. Yet, sometimes the stack
              * contains statements that catch any throwable (e.g., Netty, and the JDK futures framework). This means that a rethrow here

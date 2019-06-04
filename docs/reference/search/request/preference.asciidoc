@@ -11,7 +11,7 @@ searches to certain sets of shard copies.
 A possible use case would be to make use of per-copy caches like the
 <<shard-request-cache,request cache>>. Doing this, however, runs contrary to the
 idea of search parallelization and can create hotspots on certain nodes because
-the load might not be evently distributed anymore.
+the load might not be evenly distributed anymore.
 
 The `preference` is a query string parameter which can be set to:
 

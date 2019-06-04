@@ -1,0 +1,56 @@
+[[indices-reload-analyzers]]
+== Reload Search Analyzers
+
+Reloads search analyzers and its resources.
+
+The `_reload_search_analyzers` API can be run on one more indices and will
+reload all search analyzers that contain components that were marked as
+updateable when they were created, such as 
+<<synonym token filters,analysis-synonym-tokenfilter>>:
+
+[source,js]
+--------------------------------------------------
+PUT /test_index
+{
+    "settings": {
+        "index" : {
+            "analysis" : {
+                "analyzer" : {
+                    "synonym" : {
+                        "tokenizer" : "whitespace",
+                        "filter" : ["synonym"]
+                    }
+                },
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym",
+                        "synonyms_path" : "analysis/synonym.txt",
+                        "updateable" : true <1>
+                    }
+                }
+            }
+        }
+    },
+    "mappings": {
+        "properties": {
+            "text": {
+                "type": "text",
+                "search_analyzer": "synonym" <2>
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> Mark the synonym filter as updateable.
+<2> Synonym filter is usable as a search_analyzer.
+
+Calling the `_reload_search_analyzers` endpoint will now trigger reloading the
+synonyms from the configured "synonym.txt" file.
+
+[source,js]
+--------------------------------------------------
+POST /test_index/_reload_search_analyzers
+--------------------------------------------------
+// CONSOLE

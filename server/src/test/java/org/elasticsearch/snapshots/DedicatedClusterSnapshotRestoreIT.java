@@ -423,6 +423,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> done");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/39852")
     public void testSnapshotWithStuckNode() throws Exception {
         logger.info("--> start 2 nodes");
         ArrayList<String> nodes = new ArrayList<>();

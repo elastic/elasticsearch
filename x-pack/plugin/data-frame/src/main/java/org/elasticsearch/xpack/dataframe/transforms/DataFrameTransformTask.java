@@ -335,7 +335,7 @@ public class DataFrameTransformTask extends AllocatedPersistentTask implements S
 
     private SchedulerEngine.Schedule next() {
         return (startTime, now) -> {
-            return now + SCHEDULER_NEXT_SECONDS;
+            return now + SCHEDULER_NEXT_MILLISECONDS;
         };
     }
 
